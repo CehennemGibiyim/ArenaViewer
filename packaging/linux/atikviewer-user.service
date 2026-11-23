@@ -1,0 +1,32 @@
+# ATIKVIEWER — kullanıcı düzeyi systemd birimi (sudo gerekmez)
+# Kurulum: packaging/linux/install.sh bunu ~/.config/systemd/user/ altına kopyalar.
+# Kullanım:
+#   systemctl --user start atikviewer
+#   systemctl --user status atikviewer
+#   journalctl --user -u atikviewer -f
+# Oturum kapanmadan da çalışsın:  loginctl enable-linger $USER
+
+[Unit]
+Description=ATIKVIEWER — Vision AI Radyoloji İstasyonu (Next.js sunucusu)
+Documentation=https://github.com/CehennemGibiyim/AtikViewer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/atikviewer
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=HOSTNAME=127.0.0.1
+EnvironmentFile=-%h/atikviewer/.env
+ExecStart=%h/atikviewer/node_modules/.bin/next start -p 3000 -H 127.0.0.1
+Restart=on-failure
+RestartSec=5
+# Yerel derin AI worker (ai-worker/server.py) için de aynı birim başlatılabilir;
+# ayrılmış kaynaklar:
+MemoryMax=4G
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

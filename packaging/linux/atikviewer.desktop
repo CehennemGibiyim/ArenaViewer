@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=ATIKVIEWER
+GenericName=Radyoloji Görüntüleme İstasyonu
+Comment=DICOM görüntüleme, yerel yapay zekâ destekli inceleme ve yapısal radyoloji raporu
+Exec=/usr/local/bin/atikviewer
+Icon=atikviewer
+Terminal=false
+Categories=Science;Medical;Graphics;
+Keywords=DICOM;PACS;Radyoloji;Tıbbi Görüntü;AI;BT;MR;
+StartupNotify=true
+StartupWMClass=ATIKVIEWER
