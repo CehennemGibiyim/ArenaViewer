@@ -189,11 +189,18 @@ export const notifications = pgTable("notifications", {
   reportId: integer("report_id"),
 });
 
+/**
+ * Rapor şablonu. `indication` (endikasyon/klinik soru) ve `protocol` (önerilen sekans/
+ * görüntüleme düzeni) alanları şablon kütüphanesinin bölge+endikasyon ekseninde
+ * gruplanmasını sağlar; eski satırlar boş dize alır.
+ */
 export const reportTemplates = pgTable("report_templates", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   modality: text("modality").notNull().default(""),
   bodyPart: text("body_part").notNull().default(""),
+  indication: text("indication").notNull().default(""),
+  protocol: text("protocol").notNull().default(""),
   technique: text("technique").notNull().default(""),
   findings: text("findings").notNull().default(""),
   impression: text("impression").notNull().default(""),

@@ -521,6 +521,8 @@ export interface TemplateRow {
   name: string;
   modality: string;
   bodyPart: string;
+  indication: string;
+  protocol: string;
   technique: string;
   findings: string;
   impression: string;
