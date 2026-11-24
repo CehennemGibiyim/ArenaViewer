@@ -111,7 +111,7 @@ Notlar:
 
 | ID | Özellik | P | Çaba | Bizde şu an | Fikir |
 |---|---|---|---|---|---|
-| E1 | **DICOMweb STOW-RS / DIMSE C-STORE ile PACS’a gönderme** (SR, KO, anonim DICOM) | P1 | M | Yalnız QIDO/WADO istemcisi | `STOW-RS` upload ucu + rapor/KO/SR gönderim diyaloğu; hata/ack kaydı. |
+| E1 | **DICOMweb STOW-RS / DIMSE C-STORE ile PACS’a gönderme** (SR, KO, anonim DICOM) | P1 | M | **Bu sürümde eklendi:** `/api/pacs/stow` + PACS istemcisinde `stowInstance()` (STOW-RS, onaylı rapor → DICOM SR). | Anahtar nesne (KO) ve anonim seri gönderimi; C-STORE.
 | E2 | **WADO-RS URI + kare/bulk veri (frame-level) getirme** | P1 | S–M | Instance bazlı WADO var | `accept=multipart/related;type=image/jpeg;transfer-syntax=*`, frame parametresi, `bulkdataURI`. |
 | E3 | **HL7 v2 MLLP alıcısı + Modality Worklist (MWL)** | P1 | L | REST istemi + FHIR rapor çıktısı var | MLLP listener + worklist import; MWL SCP hedefi (sipariş→çalışma listesi). |
 | E4 | **FHIR girişi: ServiceRequest/ImagingStudy/P Çekici** | P2 | M | Çıktı FHIR DR var; giriş yok | FHIR client (kimlik/OAuth), sipariş→çalışma, ImagingStudy→WADO URL eşlemesi. |

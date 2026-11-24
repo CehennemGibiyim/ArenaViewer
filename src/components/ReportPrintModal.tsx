@@ -140,6 +140,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
   const [dialog, setDialog] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
   const [tplQuery, setTplQuery] = useState("");
   const [versions, setVersions] = useState<ReportVersion[]>([]);
@@ -294,6 +295,18 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
     } catch (e) { setError(e instanceof Error ? e.message : "FHIR dışa aktarılamadı"); }
   };
 
+  /** Raporu sunucudan STOW-RS ile PACS'e gönderir (DICOM SR). */
+  const sendToPacs = async (id: number) => {
+    setBusy(true); setError("");
+    try {
+      const r = await fetch("/api/pacs/stow", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reportId: id }) });
+      const d = (await r.json().catch(() => ({}))) as { ok?: boolean; message?: string; stored?: number; pacs?: string; error?: string };
+      if (!r.ok) throw new Error(d.error ?? "PACS'e gönderilemedi");
+      setNotice(`PACS'e gönderildi: ${d.stored ?? 1} nesne kaydedildi (${d.pacs ?? "PACS"}).`);
+    } catch (e) { setError(e instanceof Error ? e.message : "PACS'e gönderilemedi"); }
+    finally { setBusy(false); }
+  };
+
   /**
    * Yazdırma: rapor kâğıdı, uygulama düzeninin (sabit yükseklik/overflow) dışında,
    * body'nin doğrudan çocuğu olan geçici bir #print-root içine kopyalanır; böylece
@@ -362,6 +375,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
             )}
             <button type="button" onClick={downloadSr} disabled={!approved} title={approved ? "Radyoloji raporu → DICOM Basic Text SR" : "Sadece radyoloji uzmanı onayı sonrası alınabilir"} className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${approved ? "cursor-pointer border-[#2d3b4e] bg-[#141b24] text-slate-200 hover:bg-[#1a2330]" : "cursor-not-allowed border-[#2d3b4e] bg-[#141b24]/50 text-slate-500 opacity-60"}`}>DICOM SR ⬇</button>
             {report.id && <button type="button" onClick={() => void downloadFhir(report.id!)} disabled={!approved} title={approved ? "FHIR DiagnosticReport indir" : "Sadece radyoloji uzmanı onayı sonrası alınabilir"} className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${approved ? "cursor-pointer border-[#2d3b4e] bg-[#141b24] text-slate-200 hover:bg-[#1a2330]" : "cursor-not-allowed border-[#2d3b4e] bg-[#141b24]/50 text-slate-500 opacity-60"}`}>FHIR ⬇</button>}
+            {report.id && <button type="button" onClick={() => void sendToPacs(report.id!)} disabled={!approved || busy} title={approved ? "Raporu DICOM SR olarak yapılandırılmış PACS'e gönder (STOW-RS)" : "Sadece radyoloji uzmanı onayı sonrası gönderilebilir"} className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${approved ? "cursor-pointer border-violet-400/50 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20" : "cursor-not-allowed border-[#2d3b4e] bg-[#141b24]/50 text-slate-500 opacity-60"}`}>PACS’e gönder ⇧</button>}
             <button onClick={approved ? printReport : undefined} disabled={!approved} title={approved ? "Yazdır / PDF olarak kaydet" : "Sadece radyoloji uzmanı onayı sonrası alınabilir"} className={`rounded-lg px-3.5 py-1.5 text-xs font-bold ${approved ? "cursor-pointer bg-cyan-500 text-slate-950 hover:bg-cyan-400" : "cursor-not-allowed bg-slate-600 text-slate-400 opacity-60"}`}>🖨 Yazdır / PDF</button>
             <button onClick={onClose} className="cursor-pointer rounded-lg border border-[#2d3b4e] bg-[#141b24] p-1.5 text-xs text-slate-400 hover:text-slate-100">✕</button>
           </div>

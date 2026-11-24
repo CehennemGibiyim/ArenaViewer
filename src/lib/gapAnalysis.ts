@@ -648,10 +648,10 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "e-stow", category: "workflow", title: "PACS'a geri gönderme: STOW-RS / C-STORE (SR, KO, anonim DICOM)",
-    status: "yok", priority: "P1", effort: "M",
+    status: "kismi", priority: "P1", effort: "M",
     market: ["Weasis", "OHIF"],
-    ours: "Yalnız QIDO/WADO istemcisi; yazma yok.",
-    action: "STOW-RS upload ucu + rapor/KO/SR gönderim diyaloğu; hata/ACK kaydı.",
+    ours: "**Bu sürümde eklendi:** `stowInstance()` (POST multipart/related, application/dicom+json yanıt ayrıştırma) + `/api/pacs/stow` (yalnız onaylı rapor; rapor → DICOM Basic Text SR) ve rapor ekranında “PACS’e gönder” düğmesi. Anahtar nesne (KO) ve anonim DICOM gönderimi, C-STORE (DIMSE) yok.",
+    action: "KO/SR seçimli gönderme diyaloğu; C-STORE ve anonim seri gönderimi.",
   },
   {
     id: "e-wado-frame", category: "workflow", title: "WADO-RS URI + kare/bulk (frame-level) getirme",

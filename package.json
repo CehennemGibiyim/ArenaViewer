@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "npm run test:image-review && npm run test:pacs && npm run test:recist && npm run test:close-loop && npm run test:auth && npm run test:templates && npm run test:structured-report && npm run test:quant && npm run test:tracking && npm run test:model-ops && npm run test:metrics && npm run test:audit-export && npm run test:macros && npm run test:prefs && npm run test:workflow-stats",
+    "test": "npm run test:image-review && npm run test:pacs && npm run test:recist && npm run test:close-loop && npm run test:auth && npm run test:templates && npm run test:structured-report && npm run test:quant && npm run test:tracking && npm run test:model-ops && npm run test:metrics && npm run test:audit-export && npm run test:macros && npm run test:prefs && npm run test:workflow-stats && npm run test:stow",
     "test:image-review": "tsx tests/image-review.test.ts",
     "test:pacs": "tsx tests/pacs.test.ts",
     "test:recist": "node --experimental-strip-types tests/recist.test.mjs",
@@ -28,7 +28,8 @@
     "test:audit-export": "tsx tests/audit-export.test.ts",
     "test:macros": "tsx tests/macros.test.ts",
     "test:prefs": "tsx tests/prefs.test.ts",
-    "test:workflow-stats": "tsx tests/workflow-stats.test.ts"
+    "test:workflow-stats": "tsx tests/workflow-stats.test.ts",
+    "test:stow": "tsx tests/stow.test.ts"
   },
   "dependencies": {
     "dicom-parser": "^1.8.21",
