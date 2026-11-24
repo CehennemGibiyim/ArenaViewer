@@ -2,7 +2,7 @@
  * MPR (çok düzlemsel rekonstrüksiyon) saf fonksiyon testleri.
  * Sentetik 3B rampa hacmi: v(i,j,k) = 100k + 10j + i (i=satır, j=sütun, k=kesit).
  */
-import { mprSeries, volumeGeometry, patientToIndex, MPR_PLANES, type MprPlane } from "../src/lib/mpr";
+import { mprSeries, renderMprPlane, volumeGeometry, patientToIndex, MPR_PLANES, type MprPlane } from "../src/lib/mpr";
 import type { SeriesData } from "../src/lib/types";
 
 let failed = 0;
@@ -98,6 +98,32 @@ ok(Number.isFinite(oCor.slices[2][3]) && Math.abs(oCor.slices[2][3] - 234) < 40,
 ok(MPR_PLANES.join(",") === "axial,coronal,sagittal", "düzlem listesi sabit");
 const planes: MprPlane[] = ["axial", "coronal", "sagittal"];
 ok(planes.every((p) => mprSeries(volume(), p) !== null), "üç düzlem de üretilebiliyor");
+
+
+// ── renderMprPlane (VolumeView'in kullandığı yol) ──
+// v(i,j,k) = 100k + 10j + i ; varsayılan row=H/2=4, col=W/2=4
+const rpAx = renderMprPlane(volume(), "axial", { index: 2 })!;
+ok(rpAx.w === 8 && rpAx.h === 8 && Math.abs(rpAx.du - 1) < 1e-9 && Math.abs(rpAx.dv - 2) < 1e-9,
+  `render aksiyel W×H, du=psX dv=psY (${rpAx.w}×${rpAx.h}, ${rpAx.du}/${rpAx.dv})`);
+ok(rpAx.data[2 * 8 + 3] === 232, `render aksiyel (i=2,j=3,k=2)=232 → ${rpAx.data[2 * 8 + 3]}`);
+const rpCo = renderMprPlane(volume(), "coronal", { row: 4 })!;
+ok(rpCo.w === 8 && rpCo.h === 5 && Math.abs(rpCo.dv - 3) < 1e-9, `render koronal W×N (${rpCo.w}×${rpCo.h}), dv=kesit adımı`);
+ok(rpCo.data[2 * 8 + 3] === 234, `render koronal q=2→k=2 (i=4,j=3)=234 → ${rpCo.data[2 * 8 + 3]}`);
+const rpSa = renderMprPlane(volume(), "sagittal", { col: 4 })!;
+ok(rpSa.w === 8 && rpSa.h === 5 && Math.abs(rpSa.du - 2) < 1e-9, `render sagital H×N, du=psY (${rpSa.w}×${rpSa.h})`);
+ok(rpSa.data[1 * 8 + 2] === 342, `render sagital q=1→k=3 (i=2,j=4)=342 → ${rpSa.data[1 * 8 + 2]}`);
+// istikamet: koronal üst sıra en üst kesit, alttan 0
+ok(rpCo.data[0 * 8 + 7] === 100 * 4 + 10 * 7 + 4, `koronal ilk satır son kesit → ${rpCo.data[7]}`);
+// kalın kesit mm cinsinden: ortalama modu tek kesitle aynı olmalı
+const slab = renderMprPlane(volume(), "coronal", { index: 2, slabMm: 6, mode: "avg" })!;
+const single = renderMprPlane(volume(), "coronal", { index: 2, slabMm: 0, mode: "single" })!;
+ok(slab.data[0] !== undefined && Number.isFinite(slab.data[0]), "kalın kesit üretimi sonlu");
+ok(single.data.length === 40, "tek kesit boyutu W×N");
+// MIP koronal: en parlak değerler seçilir
+const mip = renderMprPlane(volume(), "coronal", { index: 2, slabMm: 9, mode: "mip" })!;
+const minip = renderMprPlane(volume(), "coronal", { index: 2, slabMm: 9, mode: "minip" })!;
+ok(mip.data[3 * 8 + 7] > minip.data[3 * 8 + 7], "MIP ≥ MinIP aynı noktada");
+ok(renderMprPlane(volume(0), "axial") === null, "boş seride render null");
 
 if (failed) { console.error(`${failed} MPR testi başarısız`); process.exit(1); }
 console.log("Tüm MPR testleri geçti.");

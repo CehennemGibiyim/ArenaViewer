@@ -37,6 +37,8 @@ function norm(a: V3): V3 {
 
 export interface VolumeGeom {
   /** Her kesitin ImagePositionPatient'ı (varsa). */
+  ipp: number[][] | undefined;
+  /** İlk kesdin konumu. */
   o0: V3;
   /** Kesitler arası vektör (mm); ipp yoksa `sliceThickness` ve normal yönüyle üretilir. */
   tvec: V3;
@@ -73,7 +75,7 @@ export function volumeGeometry(s: SeriesData): VolumeGeom | null {
     tvec = mul(n, step);
   }
   const sliceStepMm = Math.hypot(tvec[0], tvec[1], tvec[2]);
-  return { o0, tvec, r, c, n, psX, psY, w, h, nSlices, sliceStepMm };
+  return { ipp: s.ipp, o0, tvec, r, c, n, psX, psY, w, h, nSlices, sliceStepMm };
 }
 
 /** Ters-çözüm: hasta konumundan kaynak (satır, sütun, kesit) endekslerine. */
@@ -215,4 +217,95 @@ export function mprSeries(s: SeriesData, plane: MprPlane, opts: MprOptions = {})
     defaultWL: s.defaultWL,
     defaultWW: s.defaultWW,
   };
+}
+
+// ───────────── Tek bir düzlemi yeniden kesme (slab destekli) ─────────────
+
+export type SlabModeName = "single" | "avg" | "mip" | "minip";
+
+export interface RenderPlaneOptions {
+  /** Aksiyel düzlem için kaynak kesit indeksi (z). */
+  index?: number;
+  /** Koronal düzlem için kaynak satır indeksi (i / öndenson). */
+  row?: number;
+  /** Sagital düzlem için kaynak sütun indeksi (j / sağsol). */
+  col?: number;
+  /** Milimetre cinsinden tabaka kalınlığı; 0 = tek kesit. */
+  slabMm?: number;
+  mode?: SlabModeName;
+}
+
+export interface RenderedPlane {
+  data: Float32Array;
+  /** Sütun (yatay) ölçeği — mm/piksel. */
+  du: number;
+  /** Satır (dikey) ölçeği — mm/piksel. */
+  dv: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * Bir düzlemi gerçek hasta geometrisinden (IPP varsa LPS; yoksa sıralama sanaline)
+ * trilinear örnekleyerek üretir. Kaynak seriyi değiştirmez.
+ *
+ * Düzen: aksiyel (satır = kaynak satırı r, sütun = sütun c), koronal (sütun = c,
+ * satır = -kesit normali → yukarı baş), sagital (sütun = r, satır = -kesit normali).
+ * Boyutlar kaynak voksel sayısıyla aynıdır (W×H, W×N, H×N); ölçek bilgisi du/dv'dedir.
+ */
+export function renderMprPlane(s: SeriesData, plane: MprPlane, opts: RenderPlaneOptions = {}): RenderedPlane | null {
+  const g = volumeGeometry(s);
+  if (!g) return null;
+  const mode = opts.mode ?? "single";
+  const slabMm = Math.max(0, opts.slabMm ?? 0);
+  const idx = Math.max(0, Math.min(g.nSlices - 1, opts.index ?? Math.floor(g.nSlices / 2)));
+
+  // Düzlemin merkezi: verilen kesidin ImagePositionPatient'ı (yoksa sentetik orijin).
+  // IPP(0,0) piksel merkezidir; bu yüzden (p,q) doğrudan kaynak vokseline denk gelir.
+  const topIdx = g.nSlices - 1;
+  const ipp0 = g.ipp?.[idx];
+  const ippTop = g.ipp?.[topIdx];
+  const base: V3 = ipp0 ? [ipp0[0], ipp0[1], ipp0[2]] : [g.o0[0], g.o0[1], g.o0[2]];
+  const baseTop: V3 = ippTop ? [ippTop[0], ippTop[1], ippTop[2]] : add(base, mul(g.tvec, topIdx));
+
+  const row = Math.max(0, Math.min(g.h - 1, opts.row ?? Math.floor(g.h / 2)));
+  const col = Math.max(0, Math.min(g.w - 1, opts.col ?? Math.floor(g.w / 2)));
+
+  let outW: number, outH: number, du: number, dv: number;
+  let origin: V3, U: V3, V: V3;
+  if (plane === "axial") {
+    outW = g.w; outH = g.h; du = g.psX; dv = g.psY;
+    origin = base; U = g.c; V = g.r;                       // (p,q) → (j=p, i=q)
+  } else if (plane === "coronal") {
+    outW = g.w; outH = g.nSlices; du = g.psX; dv = g.sliceStepMm;
+    origin = add(baseTop, mul(g.r, row * g.psY));          // satır sabit, k = üstten 0..N-1
+    U = g.c; V = mul(g.n, -1);                             // (p,q) → (j=p, k=N-1-q)
+  } else {
+    outW = g.h; outH = g.nSlices; du = g.psY; dv = g.sliceStepMm;
+    origin = add(baseTop, mul(g.c, col * g.psX));          // sütun sabit, k = üstten 0..N-1
+    U = g.r; V = mul(g.n, -1);                             // (p,q) → (i=p, k=N-1-q)
+  }
+  const step = dv || g.sliceStepMm;
+  const ks = mode === "single" || slabMm <= 0 ? 0 : Math.round(slabMm / 2 / step);
+  const out = new Float32Array(outW * outH);
+  for (let q = 0; q < outH; q++) {
+    for (let p = 0; p < outW; p++) {
+      const pos = add(origin, add(mul(U, p * du), mul(V, q * dv)));
+      const [i, j, k] = patientToIndex(g, pos);
+      let acc = 0, cnt = 0;
+      for (let m = -ks; m <= ks; m++) {
+        const kk = k + m;
+        // Hacim dışı komşular projeksiyona katılmaz (MinIP/ortalama bozulmasın).
+        if (kk < 0 || kk > g.nSlices - 1 || i < 0 || i > g.h - 1 || j < 0 || j > g.w - 1) continue;
+        const v = sample(s, g, i, j, kk);
+        if (!Number.isFinite(v)) continue;
+        cnt++;
+        if (mode === "mip") acc = Math.max(acc, v);
+        else if (mode === "minip") acc = cnt === 1 ? v : Math.min(acc, v);
+        else acc += v;
+      }
+      out[q * outW + p] = cnt === 0 ? (s.unit === "HU" ? -1000 : 0) : mode === "avg" ? acc / cnt : acc;
+    }
+  }
+  return { data: out, du, dv, w: outW, h: outH };
 }
