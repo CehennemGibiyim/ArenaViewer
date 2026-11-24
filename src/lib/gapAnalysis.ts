@@ -606,10 +606,10 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "d-peer", category: "report", title: "Peer review / ikinci okuma / uyuşmazlık kaydı (RADPEER)",
-    status: "yok", priority: "P2", effort: "M",
-    market: ["PowerScribe"],
-    ours: "Yok.",
-    action: "İkinci hekim ataması, uyuşmazlık kategorisi ve kalite metriği.",
+    status: "kismi", priority: "P2", effort: "M",
+    market: ["RADPEER (ACR)", "PeerVue", "RadPeer"],
+    ours: "**Bu sürümde eklendi:** `peer_reviews` tablosu + `/api/reports/[id]/peer-reviews` (GET/POST) + rapor ekranında “İkinci okuma” kartı (uyumlu/kısmen/uyumsuz + fark türü + not; uyumsuzda açıklama zorunlu, raporu oluşturan kişi yorumlayamaz). Rastgele örnekleme (örneklem oranı), uzun vadeli uyumsuzluk istatistikleri ve gözetim panosu yok.",
+    action: "Örneklem oranı/hedefi, uyuşmazlık istatistikleri ve RADPEER puanlama.",
   },
   {
     id: "d-ambient", category: "report", title: "Ambient dokümantasyon + yapılandırılmış makrolar",
@@ -617,13 +617,6 @@ const BASE_ITEMS: GapItem[] = [
     market: ["Nuance", "Rad AI"],
     ours: "**Bu sürümde eklendi:** rapor düzenleme ekranında 14 hazır makro (teknik/bulgu/öneri; RadReport benzeri cümle blokları) + Türkçe Web Speech dikte. Ambient tıbbi sözlük/otomatik konuşmadan metne çevrim yok.",
     action: "Konuşmadan yapılandırılmış metin üretimi; Radlex/ACR ile eşleştirilmiş makro sözlüğü.",
-  },
-  {
-    id: "f3-prefs", category: "viewing", title: "Kullanıcı tercihleri kaydetme",
-    status: "kismi", priority: "P2", effort: "S",
-    market: ["syngo.via", "Sectra", "Visage"],
-    ours: "**Bu sürümde eklendi:** /api/profile/preferences (GET/PATCH/DELETE; yalnız beyaz-listeli alanlar) + `/tercihler` sayfası. Düzen istasyonda açılışta uygulanır.",
-    action: "Pencere ön ayarının seri seçiminde otomatik kullanımı ve tema/altyazı ayarlarının genişletilmesi.",
   },
   {
     id: "d-icd", category: "report", title: "ICD-10 / ACR Appropriateness ve kodlama desteği",
@@ -676,10 +669,10 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "f-prefs", category: "workflow", title: "Kullanıcı başına tercihler sunucuda (layout, preset, kısayol)",
-    status: "yok", priority: "P2", effort: "S",
+    status: "kismi", priority: "P2", effort: "S",
     market: ["RadiAnt", "OHIF"],
-    ours: "localStorage; kullanıcı başına senkron yok.",
-    action: "Ayarlar tablosu + profil ucu; oturumla birlikte gelir.",
+    ours: "**Bu sürümde eklendi:** `/tercihler` sayfası + `/api/profile/preferences` (beyaz-listeli GET/PATCH/DELETE); açılış düzeni ve pencere ön ayarı istasyonda uygulanır. Kısayol tuşları ve tema tercihi yok.",
+    action: "Klavye kısayolları ve tema tercihleri.",
   },
   {
     id: "f-tat", category: "workflow", title: "Turnaround/istatistik panosu (TAT, onay süresi, bulgu/adet)",

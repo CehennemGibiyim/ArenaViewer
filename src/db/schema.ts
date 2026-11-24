@@ -130,6 +130,24 @@ export const reportAddenda = pgTable("report_addenda", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+/**
+ * İkinci okuma / peer review (D): raporun değerlendiren ikinci hekimden gelen uyum kaydı.
+ * contentHash, incelemenin hangi rapor sürümüne ait olduğunu taşır.
+ */
+export const peerReviews = pgTable("peer_reviews", {
+  id: serial("id").primaryKey(),
+  reportId: integer("report_id")
+    .notNull()
+    .references(() => reports.id, { onDelete: "cascade" }),
+  result: text("result").notNull(), // uyumlu | kismen-uyumlu | uyumsuz
+  discrepancyType: text("discrepancy_type").notNull().default(""),
+  note: text("note").notNull().default(""),
+  reviewedBy: integer("reviewed_by"),
+  reviewedByName: text("reviewed_by_name").notNull().default(""),
+  contentHash: text("content_hash").notNull().default(""),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 /** Seri bazlı ölçüm/anotasyon ve anahtar kesitler. keyImages şifreli JSON. */
 export const studyState = pgTable(
   "study_state",

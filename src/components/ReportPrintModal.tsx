@@ -1,9 +1,10 @@
 "use client";
 
 import { buildReportSr, type EvidenceRef } from "@/lib/dicomSr";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fmtConf } from "@/lib/format";
 import StructuredScorePanel from "@/components/StructuredScorePanel";
+import { PEER_RESULTS, RESULT_LABELS, type PeerResult } from "@/lib/peerReview";
 import { MACRO_GROUPS, macroById, macrosByGroup, type MacroGroup } from "@/lib/macros";
 import type {
   Finding, FindingApprovalStatus, KeyImage, ModelCard, ReportAddendum, ReportVersion, TemplateRow, UserInfo,
@@ -147,6 +148,12 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
   const [addenda, setAddenda] = useState<ReportAddendum[]>([]);
   const [addText, setAddText] = useState("");
   const [showVersions, setShowVersions] = useState(false);
+  // ikinci okuma (peer review)
+  const [peerList, setPeerList] = useState<{ id: number; result: string; discrepancyType: string; note: string; reviewedByName: string; createdAt: string }[]>([]);
+  const [peerResult, setPeerResult] = useState<PeerResult>("uyumlu");
+  const [peerType, setPeerType] = useState("");
+  const [peerNote, setPeerNote] = useState("");
+  const [peerMsg, setPeerMsg] = useState("");
   // createdAt yoksa yazdırma başlığında tutulacak yedik zaman damgası (mount anında bir kez).
   const [createdFallback] = useState(() => Date.now());
 
@@ -159,13 +166,16 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
     setEditing(false);
   }
 
-  const loadDetail = async (id: number) => {
+  const loadDetail = useCallback(async (id: number) => {
     const r = await fetch(`/api/reports/${id}`);
     if (!r.ok) return;
     const d = (await r.json()) as { versions: ReportVersion[]; addenda: ReportAddendum[] };
     setVersions(d.versions);
     setAddenda(d.addenda);
-  };
+    fetch(`/api/reports/${id}/peer-reviews`).then((pr) => (pr.ok ? pr.json() : null)).then((pd: { reviews?: typeof peerList } | null) => {
+      if (pd?.reviews) setPeerList(pd.reviews);
+    }).catch(() => {});
+  }, []);
   useEffect(() => {
     if (!open) return;
     fetch("/api/templates").then((r) => (r.ok ? r.json() : [])).then((t: TemplateRow[]) => setTemplates(t)).catch(() => {});
@@ -175,7 +185,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
       if (open && report.id) await loadDetail(report.id);
       else { setVersions([]); setAddenda([]); }
     })();
-  }, [open, report.id, report.version]);
+  }, [open, report.id, report.version, loadDetail]);
 
   const card = useMemo<ModelCard | null>(() => { try { return report.modelCard ? (JSON.parse(report.modelCard) as ModelCard) : null; } catch { return null; } }, [report.modelCard]);
 
@@ -262,6 +272,24 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
       category: "Hekim", severity: "orta", confidence: 0, confidenceKind: "none", source: "manual",
     };
     setReport((r) => ({ ...r, findings: [...r.findings, f], findingsApproval: { ...r.findingsApproval, [f.id]: "onaylandi" }, findingsText: `${r.findingsText}\n\n+ ${label} [Kesit ${slice}] (radyolog eklemesi)` }));
+  };
+
+  /** İkinci okuma kaydı gönderir (yalnızca onaylı rapor). */
+  const sendPeerReview = async () => {
+    if (!report.id) return;
+    setBusy(true); setPeerMsg(""); setError("");
+    try {
+      const r = await fetch(`/api/reports/${report.id}/peer-reviews`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ result: peerResult, discrepancyType: peerType, note: peerNote }),
+      });
+      const d = (await r.json().catch(() => ({}))) as { ok?: boolean; error?: string; advice?: string };
+      if (!r.ok) throw new Error(d.error ?? "Kaydedilemedi");
+      setPeerMsg(d.advice ?? "İkinci okuma kaydedildi.");
+      setPeerNote("");
+      await loadDetail(report.id);
+    } catch (e) { setError(e instanceof Error ? e.message : "Kaydedilemedi"); }
+    finally { setBusy(false); }
   };
 
   /** Raporu DICOM Basic Text SR olarak indirir (onaylıysa "VERIFIED" işaretli; elektronik imza değildir). */
@@ -581,6 +609,35 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                 <div className="text-xs font-bold text-slate-200">Addendum ekle (onaylı rapor değiştirilemez; düzeltme ek olarak kaydedilir)</div>
                 <textarea value={addText} onChange={(e) => setAddText(e.target.value)} rows={3} className="mt-2 w-full rounded border border-[#1e2735] bg-[#0e141d] p-2 text-xs text-slate-200" placeholder="Ek bulgu / düzeltme metni…" />
                 <button disabled={busy || addText.trim().length < 3} onClick={() => void addAddendum()} className="mt-2 cursor-pointer rounded bg-cyan-500 px-3 py-1 text-xs font-bold text-slate-950 disabled:opacity-40">Addendum kaydet</button>
+              </div>
+            )}
+            {approved && report.id && (
+              <div className="rounded-lg border border-[#1e2735] bg-[#0b0f16] p-3 text-xs text-slate-300">
+                <div className="font-bold text-slate-200">İkinci okuma / peer review</div>
+                <div className="mt-1 text-[11px] text-slate-400">Raporu oluşturan hekim bu kaydı ekleyemez; kayıtlar denetimde görünür.</div>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <select aria-label="İkinci okuma sonucu" value={peerResult} onChange={(e) => setPeerResult(e.target.value as PeerResult)} className="rounded border border-[#232e40] bg-[#141b24] px-2 py-1 text-xs text-slate-200">
+                    {PEER_RESULTS.map((r) => <option key={r} value={r}>{RESULT_LABELS[r]}</option>)}
+                  </select>
+                  <select aria-label="Uyuşmazlık türü" value={peerType} onChange={(e) => setPeerType(e.target.value)} className="rounded border border-[#232e40] bg-[#141b24] px-2 py-1 text-xs text-slate-200">
+                    <option value="">(tür seç)</option>
+                    {["eksik bulgu", "fazladan bulgu", "ölçüm/yerelizasyon hatası", "yanlış yorum", "teknik/kalite", "diğer"].map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                  <input value={peerNote} onChange={(e) => setPeerNote(e.target.value)} maxLength={4000} placeholder={peerResult === "uyumsuz" ? "Açıklama zorunlu…" : "Not (opsiyonel)"} className="min-w-40 flex-1 rounded border border-[#232e40] bg-[#141b24] px-2 py-1 text-xs text-slate-200" />
+                  <button disabled={busy || (peerResult === "uyumsuz" && peerNote.trim().length < 5)} onClick={() => void sendPeerReview()} className="cursor-pointer rounded bg-violet-500 px-3 py-1 text-xs font-bold text-slate-950 hover:bg-violet-400 disabled:opacity-40">Kaydet</button>
+                </div>
+                {peerMsg && <div className="mt-2 text-emerald-300">✓ {peerMsg}</div>}
+                <ul className="mt-2 space-y-1.5">
+                  {peerList.length === 0 && <li className="text-slate-500">Henüz ikinci okuma kaydı yok.</li>}
+                  {peerList.map((p) => (
+                    <li key={p.id} className="rounded border border-[#1a2230] bg-[#0e141d] px-2 py-1.5">
+                      <span className="font-mono text-[10.5px] text-cyan-300">{p.result}</span>
+                      {p.discrepancyType && <span className="ml-2 text-[10.5px] text-amber-300">{p.discrepancyType}</span>}
+                      <span className="ml-2 text-[10.5px] text-slate-500">{p.reviewedByName} · {new Date(p.createdAt).toLocaleString("tr-TR")}</span>
+                      {p.note && <div className="mt-0.5 whitespace-pre-wrap text-[11px] text-slate-300">{p.note}</div>}
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
             {report.id && (
