@@ -233,8 +233,11 @@ docs/             Yayınlama ve işletim kılavuzları
 - `.env` ve `.data/` asla commit'lenmez (`.gitignore` ile korunur). Yeni kurulumda
   `cp .env.example .env` yapıp **kendi** `DATA_ENCRYPTION_KEY`'iniz üretin. Eğer bir
   anahtar hiç commitlendiyse (bu depoda ilk sürümde oldu gibi) o anahtarı iptal edin:
-  yeni anahtar verin ve Yönetim → Güvenlik'teki “Mevcut kayıtları şifle” ile eski
-  kayıtları yeni anahtarla yeniden şifreleyin.
+  Şifreli hasta kaydı **yoksa** `.env`'deki değeri yenisiyle değiştirip uygulamayı
+  yeniden başlatın. **Varsa** önce yedek alın; anahtarı doğrudan değiştirmek eski
+  verinin çözülmesini engeller (`[çözülemedi]`). Yönetim → Güvenlik'teki “Mevcut
+  kayıtları şifle” yalnız aynı anahtarla yeniden şifreler, anahtar rotasyonu için
+  çift anahtarlı çözüm ya da yeni kurulum + içe aktarma gerekir.
 - Hasta verisi diskte AES-256-GCM ile şifrelidir; anahtar yedeğini saklayın.
 - **İsteğe bağlı erişim kapısı:** `ACCESS_TOKEN` tanımlıysa tüm sayfa/API istekleri
   `/giris` sayfasına düşer; doğru anahtar oturum çerezi (`httpOnly`, 30 gün) yazar.

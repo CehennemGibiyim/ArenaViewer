@@ -22,8 +22,11 @@ Yanıt süresi olarak 7 gün hedeflenir.
 - `.env`, `.data/`, şifreleme anahtarları ve hasta verisi **asla** Git'e girmez.
 - `DATA_ENCRYPTION_KEY` üretimi: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
 - Eğer bir anahtar hiç commitlendiyse (bu depoda `v0.1.0` öncesi durum gibi),
-  o anahtar **iptal edilmiş** sayılır: yeni anahtar üretin, eski kayıtları
-  Yönetim → Güvenlik → “Mevcut kayıtları şifle” ile yeni anahtarla yeniden şifreleyin.
+  o anahtar **iptal edilmiş** sayılır: yeni anahtar üretin. Şifreli hasta kaydı yoksa
+  `.env`’deki değeri değiştirip yeniden başlatın; kayıt varsa önce yedek alın —
+  anahtarı doğrudan değiştirmek eski verinin çözülmesini engeller
+  (`[çözülemedi]`). “Mevcut kayıtları şifle” aynı anahtarla yeniden şifreler;
+  gerçek rotasyon için çift anahtarlı çözüm veya yeni kurulum + içe aktarma gerekir.
 - Anahtarı veritabanında/ortam değişkeninde tutun; üretimde KMS gibi ayrı bir
   sır yöneticisi önerilir. Anahtar yedeği olmadan şifreli veri kurtarılamaz.
 
