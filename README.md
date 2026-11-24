@@ -292,6 +292,26 @@ docs/             Yayınlama ve işletim kılavuzları
   Bu yazılım tıbbi cihaz değildir ve düzenleyici onay süreçlerinin (MDR/TİTCK vb.)
   yerini tutmaz.
 
+## Doğrulama, risk ve gölge mod
+
+- **Risk yönetimi:** [docs/RISK_YONETIMI.md](docs/RISK_YONETIMI.md) — ISO 14971
+  biçiminde tehlike/hasar/olasılık-şiddet tablosu ve mevcut azaltıcı kontroller
+  (genel + CXR/BT toraks/ICH modelleri).
+- **Doğrulama kayıtları ve planı:** [docs/KLINIK_DOGRULAMA_PLANI.md](docs/KLINIK_DOGRULAMA_PLANI.md)
+  mevcut doğrulama raporlarını (`Dogrulama_Raporu.md`, `Klinik_Dogrulama_ICH.md`,
+  `Klinik_Dogrulama_LUNA16.md`) ve açıkta kalan CXR modeli için yapılması gerekenleri
+  birleştirir; performans izleme `/yonetim → AI performans` üzerindedir (PPV,
+  kalibrasyon bölmeleri).
+- **Gölge mod:** Henüz doğrulanmamış bir modeli üretimde denemek için
+  `NEXT_PUBLIC_AI_SHADOW_MODE=true`. Bu durumda AI adayları **rapora/ekrana girmez**;
+  yalnızca etiket/şiddet/skor özeti `shadow_findings` tablosuna yazılır
+  (`POST /api/shadow`, özet `GET /api/shadow/summary`). Kapatıldığında bulgular yeniden
+  "aday" etiketiyle rapora girer. Yeni tabloyu veritabanına uygulamak için
+  `npx drizzle-kit push --config=drizzle.config.ts`.
+- **Uyum:** Yönetim → Uyum sekmesi kurumsal süreç takip listesidir (amaçlanan kullanım,
+  sınıflandırma, ISO 13485/IEC 62304/14971, klinik değerlendirme, KVKK, NES, satış
+  sonrası izleme). Liste kodla tamamlanamaz; sorumluluk üretici kuruma aittir.
+
 ## Lisans
 
 MIT — ayrıntı için [LICENSE](LICENSE) dosyasına bakın.

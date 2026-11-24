@@ -61,6 +61,9 @@ interface Props {
   setHeatOpacity?: (n: number) => void;
   /** CXR model olasılıkları (14 sınıf); yoksa null. */
   cxr?: CxrResult | null;
+  /** Gölge modda rapora girmeyen AI adayı sayısı > 0 ise gösterge görünür. */
+  shadowMode?: boolean;
+  shadowCount?: number;
   annotations: Annotation[];
   pxMm: number;
   onDeleteAnnotation: (id: string) => void;
@@ -253,6 +256,12 @@ export default function RightPanel(p: Props) {
                     <input type="range" min={0} max={0.8} step={0.05} value={p.overlayOpacity} onChange={(e) => p.setOverlayOpacity(Number(e.target.value))} className="flex-1" />
                     <span className="w-8 font-mono text-cyan-300">{Math.round(p.overlayOpacity * 100)}%</span>
                   </label>
+                )}
+                {p.shadowMode && (
+                  <div role="note" className="rounded-lg border border-violet-400/35 bg-violet-400/5 p-2.5 text-[10.5px] leading-relaxed text-violet-100">
+                    <b>Gölge mod aktif:</b> bu oturumda {p.shadowCount ?? 0} yapay zeka adayı rapora girilmedi; yalnızca değerlendirme için kaydedildi.
+                    Model henüz klinik doğrulamasını tamamlamadığı için ekran ve rapor AI bulgusu göstermez.
+                  </div>
                 )}
                 {p.hasHeats && (
                   <label className="flex items-center gap-2 text-[11px] text-slate-300">CXR ısı haritası

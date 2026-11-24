@@ -477,10 +477,10 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "t-mdr", category: "trust", title: "Tıbbi cihaz yazılımı uyumu (CE-MDR/TİTCK, FDA 510(k), ISO 13485, IEC 62304)",
-    status: "yok", priority: "P0", effort: "L",
+    status: "kismi", priority: "P0", effort: "L",
     market: ["Aidoc", "Viz.ai", "Lunit", "Annalise", "Gleamer"],
-    ours: "Yok. Bulgu gösteren yapay zeka yazılımı genellikle düzenlemeye tabi tıbbi cihaz yazılımı kapsamına girer.",
-    action: "Amaçlanan kullanım tanımı, risk yönetimi (ISO 14971), klinik değerlendirme planı; hukuki danışmanlık.",
+    ours: "**Kısmen (süreç/ belge tarafı):** `docs/RISK_YONETIMI.md` (ISO 14971 risk tablosu: genel + CXR/BT toraks/ICH), `docs/KLINIK_DOGRULAMA_PLANI.md`, Yönetim → Uyum takip listesi ve model kartları (amaç/sınırlılıklar) hazır. **Kodla kapatılamaz kısım:** sınıflandırma/hukuki danışmanlık, kalite yönetim sistemi belgelendirmesi, teknik dosya ve ulusal kayıt süreci kurumda yürütülmelidir.",
+    action: "Kurum için: amaçlanan kullanım onayı, ISO 13485 süreç belgeleri, teknik dosya ve TİTCK/AB MDR başvuru hazırlığı; bu depodaki belgeler başlangıç taslağıdır.",
   },
   {
     id: "t-privacy", category: "trust", title: "KVKK/HIPAA: şifreleme, erişim kontrolü, saklama politikası",
@@ -491,10 +491,10 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "t-validation", category: "trust", title: "Klinik doğrulama, gölge mod (shadow mode) ve performans/yanlılık izleme",
-    status: "yok", priority: "P1", effort: "L",
+    status: "kismi", priority: "P1", effort: "L",
     market: ["Aidoc", "Viz.ai", "Lunit"],
-    ours: "Yok. Henüz doğrulanacak gerçek bir model de yok.",
-    action: "Kendi verinizde duyarlılık/özgüllük ölçümü, 500–1000 vakalık gölge okuma, sürüm bazlı izleme.",
+    ours: "**Kısmen:** Üç model için doğrulama kaydı var (`Dogrulama_Raporu.md` sentetik fantom, `Klinik_Dogrulama_ICH.md` 100 gerçek vaka, `Klinik_Dogrulama_LUNA16.md`); performans izleme `/yonetim → AI performans` (PPV, kalibrasyon bölmeleri, ECE — `modelOps.ts`) ve **gölge mod** uygulanmıştır: `NEXT_PUBLIC_AI_SHADOW_MODE=true` ile AI adayları rapora girmez, `/api/shadow` kaydı tutulur, özet `/api/shadow/summary`'den izlenir. Açıkta: CXR modelinin kendi cohort doğrulaması, demografik/alt grup izlemesi ve sürüm bazlı karşılaştırma.",
+    action: "CXR için kurum verisiyle doğrulama (adımlar: docs/KLINIK_DOGRULAMA_PLANI.md §1) ve sürüm bazlı performans eşik izleme.",
   },
   {
     id: "t-automation", category: "trust", title: "Otomasyon yanlılığına karşı tasarım (AI bulgusu ön onaylı gösterilmez)",

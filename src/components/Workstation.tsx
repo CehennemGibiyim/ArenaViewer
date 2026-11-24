@@ -33,6 +33,7 @@ import { deepScan, deepScanEligible, mergeDeepFindings, type DeepScanOutput } fr
 import {
   CXR_CLASSES, cxrScan, cxrEligible, cxrResultsToFindings, decodeCxrHeat, type CxrResult,
 } from "@/lib/cxrModel";
+import { shadowModeEnabled, splitFindings, toShadowRecord } from "@/lib/shadowMode";
 import { KIND_LABEL, annotationSummary } from "@/lib/geometry";
 import { zipAnonymized } from "@/lib/dicomWrite";
 import { findMatchingHangingProtocol, resolveHangingCellSeries } from "@/lib/hangingProtocols";
@@ -236,6 +237,8 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   const [cxr, setCxr] = useState<CxrResult | null>(null);
   const [overlayOpacity, setOverlayOpacity] = useState(0.35);
   const [engineNotes, setEngineNotes] = useState<string[]>([]);
+  /** Gölge modda bu oturumda rapora girmeyen AI adayı sayısı (yalnızca bilgi amaçlı). */
+  const [shadowHidden, setShadowHidden] = useState(0);
   const runRef = useRef(0);
 
   // ───── Rapor & Modallar ─────
@@ -413,6 +416,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     setMasks(null);
     setHeats(null);
     setCxr(null);
+    setShadowHidden(0);
     setEngineNotes([]);
     setFeed([]);
     setScan(null);
@@ -828,7 +832,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     const s = series;
     const run = ++runRef.current;
     const N = s.slices.length;
-    setStatus("infer"); setAnalysis(null); setRevealed(new Set()); setLiveFindings([]); setMasks(null); setHeats(null); setCxr(null); setEngineNotes([]);
+    setStatus("infer"); setAnalysis(null); setRevealed(new Set()); setLiveFindings([]); setMasks(null); setHeats(null); setCxr(null); setShadowHidden(0); setEngineNotes([]);
     setActiveFinding(null); setFeed([]); setCine(false);
     setScan({ active: false, sliceProgress: 0, scannedSlices: 0, totalSlices: N, phaseLabel: "Hazırlanıyor" });
     pushFeed(`Oturum: ${s.modality} · ${s.description} · ${N} kesit`);
@@ -1010,6 +1014,29 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         model: `${result.model} + ${deepProto === "ct-head" ? "ct-head-hemorrhage-detection" : "MONAI lung_nodule_ct_detection"} (yerel, ücretsiz)`,
         modelCard: deepProto === "ct-head" ? DEEP_BRAIN_MODEL_CARD : DEEP_MODEL_CARD,
       };
+    }
+
+    // ── Gölge mod: doğrulanmamış AI adayları rapora girmez, yalnızca kayda alınır. ──
+    // Bulguların kendileri diske/sunucuya gönderilmez; yalnızca etiket/şiddet/skor özeti.
+    const shadowActive = shadowModeEnabled();
+    if (shadowActive) {
+      const { report, hidden } = splitFindings(result.findings, true);
+      if (hidden.length > 0) {
+        setShadowHidden((n) => n + hidden.length);
+        try {
+          const rec = toShadowRecord(engine || "unknown", result.model, s.studyUid, s.modality, hidden);
+          await fetch("/api/shadow", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(rec),
+          });
+        } catch {
+          /* kayıt hatası akışı durdurmaz */
+        }
+        pushFeed(`◑ GÖLGE MOD: ${hidden.length} yapay zeka adayı rapora GİRMEDİ; yalnızca değerlendirme için kaydedildi.`, "info");
+        notes.push(`Gölge mod açık: AI adayları rapora işlenmedi (${hidden.length}). Model henüz doğrulanmadığı için ekran/rapor AI bulgusu göstermez.`);
+        result = { ...result, findings: report };
+      }
     }
 
     setLiveFindings(result.findings); setMasks(maskMap); setRevealed(new Set(result.findings.map((f) => f.id)));
@@ -1564,6 +1591,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
             onStart={() => void startAnalysis()} onGotoFinding={gotoFinding} activeFindingId={activeFinding}
             overlayOpacity={overlayOpacity} setOverlayOpacity={setOverlayOpacity} hasMasks={!!masks && masks.size > 0}
             hasHeats={!!heats && heats.size > 0} heatOpacity={heatOpacity} setHeatOpacity={setHeatOpacity} cxr={cxr}
+            shadowMode={shadowModeEnabled() && shadowHidden > 0} shadowCount={shadowHidden}
             annotations={annotations} pxMm={pxMm} onDeleteAnnotation={(id) => setAnnotations((a) => a.filter((x) => x.id !== id))} onClearAnnotations={() => setAnnotations([])} onGotoSlice={setSlice}
             keyImages={keyImages} onRemoveKeyImage={(id) => setKeyImages((k) => k.filter((x) => x.id !== id))}
             patientReports={patientReports} priorStudies={priorStudies} onOpenSaved={(id) => void openSaved(id)} onOpenPrior={(s) => void openPrior(s)} onRefreshReports={() => void refreshContext()}

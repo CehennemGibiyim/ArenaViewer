@@ -106,6 +106,23 @@ export const reports = pgTable("reports", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+/**
+ * Gölge mod (shadow mode) kaydı: henüz doğrulanmamış model çıktılarının rapora
+ * girilmeden toplanması. Bulgular "aday" niteliğinde kalır; değerlendirme hekim
+ * onayına bağlıdır. Ayrıntı: docs/KLINIK_DOGRULAMA_PLANI.md §2.
+ */
+export const shadowFindings = pgTable("shadow_findings", {
+  id: serial("id").primaryKey(),
+  engine: text("engine").notNull(),
+  model: text("model").notNull().default(""),
+  studyUid: text("study_uid").notNull().default(""),
+  modality: text("modality").notNull().default(""),
+  findingCount: integer("finding_count").notNull().default(0),
+  findingsJson: jsonb("findings_json").notNull().default([]),
+  createdBy: integer("created_by"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const reportVersions = pgTable("report_versions", {
   id: serial("id").primaryKey(),
   reportId: integer("report_id")
