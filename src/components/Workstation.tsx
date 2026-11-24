@@ -73,6 +73,7 @@ const TOOLS: { id: ToolName; label: string; hint: string }[] = [
   { id: "calib", label: "Kalibre", hint: "Bilinen uzunluğu çiz, mm gir" },
   { id: "ellipsoid", label: "Elipsoid", hint: "Elips çiz, 3. çapı gir → hacim (mL) = π/6·d1·d2·d3" },
   { id: "deviation", label: "Sapma", hint: "2 nokta referans doğrusu + 1 nokta: dik uzaklık (mm)" },
+  { id: "xref", label: "İmleç", hint: "3B imleç: tıklanan noktada aynı çerçevedeki diğer panellerin kesidi güncellenir" },
 ];
 
 const ts = () => new Date().toLocaleTimeString("tr-TR", { hour12: false });

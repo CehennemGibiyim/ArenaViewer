@@ -5,7 +5,8 @@ import { snapPoint } from "@/lib/msk";
 import type { Annotation, Finding, SeriesData, ToolName } from "@/lib/types";
 import { annotationSummary, dist, ellipseTest, pointInPolygon, perpendicular, regionStats, type Pt } from "@/lib/geometry";
 import { buildFusionLayer, type FusionParams } from "@/lib/fusion";
-import { refLinesFor, registerPanel, unregisterPanel, usePanelRegistry } from "@/lib/panelRegistry";
+import { jumpToPatient, refLinesFor, registerPanel, unregisterPanel, usePanelRegistry } from "@/lib/panelRegistry";
+import { planeOf, toPatient } from "@/lib/planes";
 import { fmtConfShort } from "@/lib/format";
 
 const SEV_COLOR: Record<string, string> = { kritik: "#ff3b5c", yuksek: "#ff9f1c", orta: "#ffd60a", dusuk: "#4cc9f0", normal: "#2ee6a8" };
@@ -115,10 +116,18 @@ export default function Viewport(props: ViewportProps) {
   const registryVersion = usePanelRegistry();
   const suvFactor = series?.suv?.factor ?? null;
 
-  // Bu panelin hangi seri/kesiti gösterdiğini kayda geçir (diğer panellerin referans çizgileri için)
+  // Bu panelin hangi seri/kesiti gösterdiğini kayda geçir (referans çizgileri ve 3B imleç için).
+  // onSlice her render'da yeniden oluşabilen bir arrow fonksiyon olduğundan geri çağırma
+  // ref üzerinden tutulur; böylece kayıt bağımlılıkları serbest bırakılmaz.
+  const sliceFn = useRef(onSlice);
+  useEffect(() => { sliceFn.current = onSlice; });
   useEffect(() => {
     if (!panelId) return;
-    registerPanel({ id: panelId, series, slice, label: series ? `${series.description} · K${slice + 1}` : panelId });
+    registerPanel({
+      id: panelId, series, slice,
+      label: series ? `${series.description} · K${slice + 1}` : panelId,
+      setSlice: (n: number) => sliceFn.current(n),
+    });
     return () => unregisterPanel(panelId);
   }, [panelId, series, slice]);
 
@@ -577,6 +586,12 @@ export default function Viewport(props: ViewportProps) {
     const { cx, cy } = local(e);
     const p = canvasToImg(cx, cy);
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    // 3B imleç: tıklanan noktanın hasta koordinatında aynı çerçevedeki diğer panelleri günceller.
+    if (e.button === 0 && tool === "xref") {
+      const pl = planeOf(series, slice);
+      if (pl && panelId) jumpToPatient(panelId, toPatient(pl, p.x, p.y));
+      return;
+    }
     if (e.button === 0 && annTool) {
       if (DRAG_TOOLS.includes(tool)) setDraft({ mode: "drag", tool, a: p, b: p });
       else if (tool === "msk") {

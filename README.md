@@ -20,6 +20,9 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   oblik (eğimli) MPR ve WebGL 3B hacim. Kesit konumu kaydı (IPP) varsa koronal/sagital
   gerçek hasta geometrisinden, ölçek kayması olmadan örneklenir (`src/lib/mpr.ts` +
   `VolumeView`). Kaynak seri salt okunur tutulur.
+- **3B imleç:** İmleç aracı (araç çubuğu) ile tıklanan noktada aynı çalışmanın
+  (Frame of Reference) diğer panellerinin kesidi o hasta koordinatına atlar;
+  paralel olmayan serilerde de nokta bazlı en yakın kesit seçilir.
 - **Elektronik imza kaydı:** Rapor ekranında imza kaydı paneli; SHA-256 içerik
   mühürü + imza sahibi + kurum + zaman + sürüm kanonik biçimde denetim zincirine
   (`report.esignature`) yazılır ve yeniden doğrulanabilir. **Nitelikli elektronik
@@ -239,6 +242,7 @@ npm run test:pwa                     # manifest + hizmet işçisi kapsamı
 npm run test:icd10                   # ICD-10 öneri + istem uygunluğu
 npm run test:msk                     # MSK protokol hesapları + nokta yapışması
 npm run test:esign                   # imza kaydı + NES sınır etiketi
+npm run test:xref                    # 3B imleç: en yakın kesit + panel güncellemeleri
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)
