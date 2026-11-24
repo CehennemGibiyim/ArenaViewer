@@ -1,6 +1,6 @@
 # Push (GitHub'a gönderme) rehberi
 
-Bu depo `CehennemGibiyim/AtikViewer` üzerindedir. Aşağıdaki sırayla itin:
+Bu depo `CehennemGibiyim/ArenaViewer` üzerindedir. Aşağıdaki sırayla itin:
 her adımın beklenen çıktısı vardır; hata olursa adım durur.
 
 ## 0. Sürüm tutarlılığı (zorunlu — CI denetler)
@@ -36,7 +36,7 @@ git commit -m "Çapraz platform kurulum paketleri (Linux/macOS/ZIP), RECIST 1.1,
 ## 3. Push
 
 ```bash
-git remote add origin https://github.com/CehennemGibiyim/AtikViewer.git   # yoksa
+git remote add origin https://github.com/CehennemGibiyim/ArenaViewer.git   # yoksa
 git branch -M main
 git push -u origin main
 ```
@@ -46,7 +46,7 @@ Kimlik doğrulama gerekirse (önerilen, parola yerine):
 ```bash
 # GitHub → Settings → Developer settings → Personal access tokens (classic)
 # kapsam: repo
-git remote set-url origin https://<TOKEN>@github.com/CehennemGibiyim/AtikViewer.git
+git remote set-url origin https://<TOKEN>@github.com/CehennemGibiyim/ArenaViewer.git
 ```
 
 ## 4. Sürüm etiketi ve kurulum paketleri (CI otomatik üretir)
@@ -72,9 +72,11 @@ bash packaging/universal/verify.sh        # kurulum + AI denetimi, log üretir
 curl -s http://127.0.0.1:3000/api/health  # {"ok":true}
 ```
 
-> **Not:** Bu ortamda `git push` için GitHub kimlik bilgisi tanımlı değildir;
-> push komutlarını yukarıdan çalıştırmanız gerekir. Kod, doğrulamalar ve paket
-> ZIP'i bu oturumda hazırlandı; `dist/` ve `public/downloads/` altındadır.
+> **Not:** `git push` yerel makinenizde GitHub kimlik bilgisiyle (HTTPS + PAT
+> veya SSH anahtarı) çalışır. Paket çıktıları normalde CI (`release.yml`) üretip
+> GitHub Releases’e ekler; yerelde üretmek isterseniz
+> `bash packaging/universal/build-source-zip.sh` (çıktı: `dist/`) çalıştırın.
+> `dist/` ve `.env` gitignore’dadır, repoya eklenmez.
 
 ## Sık karşılaşılan hatalar
 

@@ -28,6 +28,8 @@ tmp/
 __pycache__/
 *.py[cod]
 *.tsbuildinfo
+.venv/
+venv/
 
 # İşletim sistemi ve editör artıkları
 .DS_Store

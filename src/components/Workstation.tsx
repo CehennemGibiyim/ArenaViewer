@@ -159,7 +159,7 @@ const Btn = ({ on, onClick, children, title, disabled = false, tone = "cyan", ..
   return <button {...rest} type="button" title={title} aria-pressed={on} disabled={disabled} onClick={onClick} className={`shrink-0 cursor-pointer rounded-md px-2.5 py-2 text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-40 ${on ? t : "text-slate-300 hover:bg-[#161e2b]"}`}>{children}</button>;
 };
 
-export default function Workstation({ user }: { user: UserInfo }) {
+export default function Workstation({ user, sessionIdentity = false }: { user: UserInfo; sessionIdentity?: boolean }) {
   // ───── Seriler ─────
   const [loaded, setLoaded] = useState<SeriesData[]>([]);
   const [samples, setSamples] = useState<SeriesData[]>([]);
@@ -341,7 +341,8 @@ export default function Workstation({ user }: { user: UserInfo }) {
     const newRefIds: (string | null)[] = [null, null, null, null, null];
     const newRefWins: ({ wl: number; ww: number } | undefined)[] = [undefined, undefined, undefined, undefined, undefined];
     for (const cell of rule.cells) {
-      const preset = CT_PRESETS.find((p) => p.name.toLowerCase() === cell.windowPreset?.toLowerCase());
+      const wanted = cell.windowPreset?.toLowerCase();
+      const preset = [...CT_PRESETS, ...presets].find((p) => p.name.toLowerCase() === wanted);
       const window = cell.customWL ?? (preset ? { wl: preset.wl, ww: preset.ww } : undefined);
       if (cell.cellIndex === 0) {
         if (window) { setWl(window.wl); setWw(window.ww); }
@@ -354,7 +355,7 @@ export default function Workstation({ user }: { user: UserInfo }) {
     setRefIds(newRefIds);
     setRefWins(newRefWins);
     toast(`Düzen uygulandı: ${rule.name} (${rule.layout.replace("x", "×")})`, 4000);
-  }, [toast]);
+  }, [toast, presets]);
 
   const applyAutoLayout = useCallback((s: SeriesData, available: SeriesData[]) => {
     const matchedRule = findMatchingHangingProtocol(s, available);
@@ -1097,6 +1098,38 @@ export default function Workstation({ user }: { user: UserInfo }) {
           }
         : result;
 
+      // Derin AI bulguları bu akışta yalnızca istemciye ekleniyordu; sunucu bunları
+      // görmediği için kritik bildirim/webhook, triyaj güncellemesi ve denetim kaydı
+      // kaçırılıyordu (tek seri akışı derin bulguları /api/analyze'e gönderiyor).
+      // Birleşik sonucu bir kez daha /api/analyze'e gönderip bu farkı kapatıyoruz.
+      if (
+        deepRan &&
+        deepAdded.length > 0 &&
+        process.env.NEXT_PUBLIC_STATIC_DEMO !== "true" &&
+        imageSeries.length > 0
+      ) {
+        try {
+          await fetch("/api/analyze", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              studyUid: series?.studyUid || imageSeries[0].studyUid,
+              engine: "cv-heuristic",
+              findings: finalResult.findings,
+              clinicalNote,
+              meta: {
+                modality: "MULTI",
+                bodyPart: imageSeries.map((s) => s.bodyPart).filter(Boolean).join(" / ") || "-",
+                seriesDescription: `${imageSeries.length} seri birlikte değerlendirildi (derin AI dahil)`,
+                sliceCount: imageSeries.reduce((n, x) => n + (x.slices.length || 0), 0) || 1,
+              },
+            }),
+          });
+        } catch {
+          /* bildirim/triyaj yan etkisi zorunlu değil; görüntüleme akışı devam eder */
+        }
+      }
+
       setLiveFindings(finalResult.findings);
       setRevealed(new Set(finalResult.findings.map((f) => f.id)));
       setAnalysis(finalResult);
@@ -1212,7 +1245,9 @@ export default function Workstation({ user }: { user: UserInfo }) {
     toast(persistent ? "Pencere ön ayarı kaydedildi." : "Pencere ön ayarı bu sekmede kaydedildi; tarayıcı kalıcı depolamaya izin vermiyor.");
   };
 
-  const allPresets = series?.modality === "CT" ? [...CT_PRESETS, ...presets] : presets;
+  // Pencere ön ayarları tüm modalitelerde listelenir: aynı isimler MR/US grafide de
+  // yardımcı olur; özel AR/Onc olayları kullanıcı kendi ayarını kaydedebilir.
+  const allPresets = series ? [...CT_PRESETS, ...presets] : CT_PRESETS;
   const overlay: OverlayData | null = masks ? { masks, opacity: overlayOpacity } : null;
   const cells = CELLS[layout];
   const refLabel = ["Panel 2", "Panel 3", "Panel 4", "Panel 5", "Panel 6"];
@@ -1320,6 +1355,7 @@ export default function Workstation({ user }: { user: UserInfo }) {
           <Link href="/paketler" prefetch={false} title="Windows · Linux · macOS kurulum paketleri ve dosya yolları" className="rounded-lg border border-emerald-400/50 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-bold text-emerald-200 hover:bg-emerald-500/20">📦 Kurulum</Link>
           <Link href="/kiyaslama" prefetch={false} className="rounded-lg border border-violet-400/50 bg-violet-500/10 px-2.5 py-1.5 text-xs font-bold text-violet-200 hover:bg-violet-500/20">📊 Kıyaslama</Link>
           <Link href="/yonetim" prefetch={false} className="rounded-lg border border-slate-500/50 px-2.5 py-1.5 text-xs font-bold text-slate-200 hover:bg-slate-500/10">⚙ Yönetim</Link>
+          <button onClick={() => void fetch("/api/auth/logout", { method: "POST" }).finally(() => { window.location.reload(); })} title="Oturumu kapat" className="rounded-lg border border-rose-400/40 px-2.5 py-1.5 text-xs font-bold text-rose-300 hover:bg-rose-400/10">⎋ Çıkış</button>
           <NotificationsBell />
           <button onClick={openReport} className="cursor-pointer rounded-lg border border-cyan-400/60 bg-gradient-to-r from-cyan-500/20 to-emerald-500/20 px-3 py-1.5 text-xs font-bold text-cyan-200 hover:text-white">📄 Rapor <span className={`ml-1 rounded-full px-1.5 text-[9px] font-black ${reportStatus === "onaylandi" ? "bg-emerald-500 text-slate-950" : "bg-rose-500 text-white"}`}>{reportStatus === "onaylandi" ? "ONAYLI" : "TASLAK"}</span></button>
           <Link href="/yonetim" prefetch={false} title="Rapor imzasında görünecek hekim adı — düzenlemek için tıklayın" className="text-right leading-tight hover:opacity-80">
@@ -1466,7 +1502,7 @@ export default function Workstation({ user }: { user: UserInfo }) {
         <span className="ml-auto hidden text-amber-300/80 lg:inline">DEMO / ARAŞTIRMA — kural tabanlı aday bulgular klinik olarak doğrulanmamıştır</span>
       </footer>
 
-      {activeReport && <ReportPrintModal open={reportOpen} onClose={() => setReportOpen(false)} report={activeReport} user={user} onSave={saveReport} onGotoSlice={(n) => setSlice(Math.max(0, n - 1))} srEvidence={srEvidence} />}
+      {activeReport && <ReportPrintModal open={reportOpen} onClose={() => setReportOpen(false)} report={activeReport} user={user} onSave={saveReport} onGotoSlice={(n) => setSlice(Math.max(0, n - 1))} srEvidence={srEvidence} sessionIdentity={sessionIdentity} />}
       <WorklistModal open={worklistOpen} onClose={() => setWorklistOpen(false)} user={user} onOpenStudy={(s) => void openStored(s)} onOpenPacs={(s) => void openPacs(s)} />
       {mpr && series && <div className="fixed inset-0 z-50 bg-[#070a0f]"><ViewerErrorBoundary resetKey={series.id} label="MPR" onClose={() => setMpr(false)}><VolumeView series={series} wl={wl} ww={ww} invert={invert} initialTab={mprInitialTab} onClose={() => setMpr(false)} /></ViewerErrorBoundary></div>}
       {noduleOpen && series && <NoduleTracker patientId={series.patientId} patientName={series.patientName} studyDate={series.studyDate} measurements={noduleMeasurements} onClose={() => setNoduleOpen(false)} />}

@@ -9,7 +9,7 @@ import { mapStudyRow, upsertStudy, type StudyMeta } from "@/lib/server/studyRepo
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const a = await authorize();
+  const a = await authorize(req);
   if ("error" in a) return a.error;
   const sp = req.nextUrl.searchParams;
   const status = sp.get("status") ?? "";
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const a = await authorize();
+  const a = await authorize(req);
   if ("error" in a) return a.error;
   const b = (await req.json().catch(() => null)) as (StudyMeta & { source?: string }) | null;
   if (!b?.studyUid || !b.modality) return NextResponse.json({ error: "Eksik veri" }, { status: 400 });

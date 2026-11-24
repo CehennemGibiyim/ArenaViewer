@@ -1,0 +1,33 @@
+# Depoda satır sonu ve kodlama tutarlılığı: Windows’ta çalıştırılan .sh betikleri
+# CRLF’ye dönüşüp bash’te hata vermesin; satır sonları platformdan bağımsız olsun.
+* text=auto eol=lf
+
+*.sh    text eol=lf
+*.bash  text eol=lf
+*.py    text eol=lf
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.js    text eol=lf
+*.mjs   text eol=lf
+*.cjs   text eol=lf
+*.json  text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.md    text eol=lf
+*.css   text eol=lf
+*.html  text eol=lf
+*.svg   text eol=lf
+*.txt   text eol=lf
+
+*.bat   text eol=crlf
+*.ps1   text eol=crlf
+*.iss   text eol=crlf
+
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.webp  binary
+*.wasm  binary
+*.zip   binary
+*.dcm   binary
+*.pt    binary

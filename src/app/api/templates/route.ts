@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { asc, count, eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { reportTemplates } from "@/db/schema";
 import { audit } from "@/lib/server/audit";
@@ -8,31 +8,74 @@ import { SEED } from "@/lib/templates";
 
 export const dynamic = "force-dynamic";
 
-
-export async function GET() {
-  const a = await authorize();
+/** Şablon listesi; modalite/bölge/endikasyon/protokol alanlarıyla döner. */
+export async function GET(req: NextRequest) {
+  const a = await authorize(req);
   if ("error" in a) return a.error;
-  const n = (await db.select({ n: count() }).from(reportTemplates))[0].n;
-  if (n === 0) await db.insert(reportTemplates).values(SEED);
-  const rows = await db.select().from(reportTemplates).orderBy(asc(reportTemplates.id));
+  // Tohum şablonlar idempotent biçimde tamamlanır: yeni sürümlerde listeye eklenen
+  // şablonlar (ör. MR/US/MG seti) eski kurumlara da geçer; elle eklenenler korunur.
+  const existing = await db.select({ name: reportTemplates.name }).from(reportTemplates);
+  const names = new Set(existing.map((x) => x.name));
+  const missing = SEED.filter((s) => !names.has(s.name));
+  if (missing.length > 0) await db.insert(reportTemplates).values(missing);
+
+  const sp = req.nextUrl.searchParams;
+  const modality = (sp.get("modality") ?? "").trim().toUpperCase();
+  const q = (sp.get("q") ?? "").trim().toLocaleLowerCase("tr-TR");
+
+  let rows = await db.select().from(reportTemplates).orderBy(asc(reportTemplates.id));
+  rows = rows.filter((r) => !modality || r.modality.toUpperCase() === modality);
+  if (q) {
+    rows = rows.filter((r) =>
+      [r.name, r.bodyPart, r.indication, r.protocol].join(" ").toLocaleLowerCase("tr-TR").includes(q)
+    );
+  }
   return NextResponse.json(rows.map(({ createdBy: _c, createdAt: _t, ...r }) => r));
 }
 
+const clean = (v: unknown, max = 2000) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+
 export async function POST(req: NextRequest) {
-  const a = await authorize(["radyolog", "yonetici"]);
+  const a = await authorize(req, ["radyolog", "yonetici"]);
   if ("error" in a) return a.error;
-  const b = (await req.json().catch(() => ({}))) as Record<string, string>;
-  if (!b.name?.trim()) return NextResponse.json({ error: "Şablon adı gerekli" }, { status: 400 });
+  const b = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!clean(b.name, 120)) return NextResponse.json({ error: "Şablon adı gerekli" }, { status: 400 });
   const ins = await db.insert(reportTemplates).values({
-    name: b.name.trim().slice(0, 120), modality: b.modality ?? "", bodyPart: b.bodyPart ?? "", technique: b.technique ?? "",
-    findings: b.findings ?? "", impression: b.impression ?? "", recommendation: b.recommendation ?? "", createdBy: a.user.id,
+    name: clean(b.name, 120),
+    modality: clean(b.modality, 16),
+    bodyPart: clean(b.bodyPart, 120),
+    indication: clean(b.indication, 200),
+    protocol: clean(b.protocol, 500),
+    technique: clean(b.technique),
+    findings: clean(b.findings),
+    impression: clean(b.impression),
+    recommendation: clean(b.recommendation),
+    createdBy: a.user.id,
   }).returning({ id: reportTemplates.id });
-  await audit(a.user, "template.create", "template", ins[0].id, { name: b.name });
+  await audit(a.user, "template.create", "template", ins[0].id, { name: clean(b.name, 120) });
   return NextResponse.json({ ok: true, id: ins[0].id });
 }
 
+export async function PATCH(req: NextRequest) {
+  const a = await authorize(req, ["radyolog", "yonetici"]);
+  if ("error" in a) return a.error;
+  const b = (await req.json().catch(() => null)) as { id?: number } & Record<string, unknown> | null;
+  if (!b?.id) return NextResponse.json({ error: "id gerekli" }, { status: 400 });
+  const cur = (await db.select().from(reportTemplates).where(eq(reportTemplates.id, b.id)).limit(1))[0];
+  if (!cur) return NextResponse.json({ error: "Bulunamadı" }, { status: 404 });
+
+  const set: Record<string, string> = {};
+  for (const k of ["name", "modality", "bodyPart", "indication", "protocol", "technique", "findings", "impression", "recommendation"] as const) {
+    if (typeof b[k] === "string") set[k] = b[k].trim().slice(0, k === "name" ? 120 : k === "bodyPart" ? 120 : k === "protocol" ? 500 : k === "modality" ? 16 : 2000);
+  }
+  if (Object.keys(set).length === 0) return NextResponse.json({ error: "Değişiklik yok" }, { status: 400 });
+  await db.update(reportTemplates).set(set).where(eq(reportTemplates.id, cur.id));
+  await audit(a.user, "template.update", "template", cur.id, { fields: Object.keys(set) });
+  return NextResponse.json({ ok: true });
+}
+
 export async function DELETE(req: NextRequest) {
-  const a = await authorize(["radyolog", "yonetici"]);
+  const a = await authorize(req, ["radyolog", "yonetici"]);
   if ("error" in a) return a.error;
   const id = Number(req.nextUrl.searchParams.get("id"));
   const t = (await db.select().from(reportTemplates).where(eq(reportTemplates.id, id)).limit(1))[0];

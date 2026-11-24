@@ -56,6 +56,8 @@ interface Props {
   onGotoSlice?: (sliceNumber: number) => void;
   /** Anahtar kesitlerin DICOM başvuruları (SR kanıt listesi); yoksa SR başvurusuz üretilir. */
   srEvidence?: EvidenceRef | null;
+  /** AUTH_MODE=hesap'ta onay sahibi oturumla doğrulanmış sayılır; demo modunda false. */
+  sessionIdentity?: boolean;
 }
 
 // ───────── Web Speech API (Türkçe dikte) ─────────
@@ -130,13 +132,14 @@ function ReportField({ name, rows, value, editing, onChange, onMic, onGotoSlice,
 
 const STATUS_TR: Record<FindingApprovalStatus, string> = { onaylandi: "✓ Radyolog onayladı", reddedildi: "✗ Reddedildi", duzenlendi: "✎ Düzenlendi", bekliyor: "Onay bekliyor" };
 
-export default function ReportPrintModal({ open, onClose, report: initial, user, onSave, onGotoSlice, srEvidence = null }: Props) {
+export default function ReportPrintModal({ open, onClose, report: initial, user, onSave, onGotoSlice, srEvidence = null, sessionIdentity = false }: Props) {
   const [report, setReport] = useState<ReportData>(initial);
   const [editing, setEditing] = useState(false);
   const [dialog, setDialog] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
+  const [tplQuery, setTplQuery] = useState("");
   const [versions, setVersions] = useState<ReportVersion[]>([]);
   const [addenda, setAddenda] = useState<ReportAddendum[]>([]);
   const [addText, setAddText] = useState("");
@@ -172,6 +175,13 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
   }, [open, report.id, report.version]);
 
   const card = useMemo<ModelCard | null>(() => { try { return report.modelCard ? (JSON.parse(report.modelCard) as ModelCard) : null; } catch { return null; } }, [report.modelCard]);
+
+  const tplNormalized = tplQuery.trim().toLocaleLowerCase("tr-TR");
+  const tplFiltered = templates.filter((t) => {
+    if (t.modality && t.modality !== report.modality) return false;
+    if (!tplNormalized) return true;
+    return [t.name, t.bodyPart, t.indication, t.protocol].join(" ").toLocaleLowerCase("tr-TR").includes(tplNormalized);
+  });
 
   if (!open) return null;
   const approved = report.status === "onaylandi";
@@ -342,9 +352,20 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
 
         {editing && (
           <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[#1e2735] bg-[#0b0f16] px-4 py-2 text-xs print:hidden">
-            <select defaultValue="" onChange={(e) => { applyTemplate(e.target.value); e.target.value = ""; }} className="rounded border border-[#1e2735] bg-[#0e141d] px-2 py-1 text-slate-200">
+            <input
+              value={tplQuery}
+              onChange={(e) => setTplQuery(e.target.value)}
+              placeholder="Şablon ara (bölge, endikasyon, protokol)…"
+              aria-label="Şablon ara"
+              className="w-56 rounded border border-[#1e2735] bg-[#0e141d] px-2 py-1 text-slate-200 outline-none focus:border-cyan-400/50"
+            />
+            <select defaultValue="" onChange={(e) => { applyTemplate(e.target.value); e.target.value = ""; }} className="max-w-72 rounded border border-[#1e2735] bg-[#0e141d] px-2 py-1 text-slate-200">
               <option value="" disabled>Şablon uygula…</option>
-              {templates.filter((t) => !t.modality || t.modality === report.modality).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              {tplFiltered.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}{t.indication ? ` — ${t.indication}` : ""}{t.protocol ? ` · ${t.protocol}` : ""}
+                </option>
+              ))}
             </select>
             <button onClick={() => void saveTemplate()} className="rounded border border-[#2d3b4e] px-2 py-1 text-slate-200 hover:bg-[#1a2330]">Şablon olarak kaydet</button>
             <button disabled={busy} onClick={() => void draftImpression()} className="rounded border border-violet-400/40 px-2 py-1 font-bold text-violet-200 hover:bg-violet-400/10 disabled:opacity-50">✨ Taslak izlenim üret</button>
@@ -517,8 +538,9 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
               <a href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/yonetim`} className="mt-1 inline-block text-[11px] text-cyan-400 hover:underline">Hekim profilini düzenle →</a>
             </div>
             <p className="mt-3 rounded-md border border-amber-400/40 bg-amber-400/10 p-2.5 text-[11px] leading-relaxed text-amber-200">
-              ⚠ Uygulamada oturum açma kapalıdır: bu onay <b>kimlik doğrulaması yapmaz</b>. Rapora yukarıdaki ad
-              yazılır ve içerik SHA-256 ile mühürlenir; bu, nitelikli elektronik imza (NES) değildir.
+              {sessionIdentity
+                ? <>Onay sahibi <b>{user.fullName}</b> olarak oturumla doğrulanmıştır; rapora bu ad yazılır ve içerik SHA-256 ile mühürlenir. Bu, nitelikli elektronik imza (NES) değildir.</>
+                : <>⚠ Uygulamada oturumsuz demo modundayız: bu onay kimlik doğrulaması yapmaz. Rapora yukarıdaki ad yazılır ve içerik SHA-256 ile mühürlenir; NES değildir.</>}
             </p>
             {error && <div className="mt-2 text-xs font-semibold text-rose-300">{error}</div>}
             <div className="mt-4 flex justify-end gap-2">

@@ -19,8 +19,8 @@ async function plaintextCounts() {
   };
 }
 
-export async function GET(_req: NextRequest, { params }: Ctx) {
-  const a = await authorize(["yonetici"]);
+export async function GET(req: NextRequest, { params }: Ctx) {
+  const a = await authorize(req, ["yonetici"]);
   if ("error" in a) return a.error;
   if ((await params).action !== "status") return NextResponse.json({ error: "Bulunamadı" }, { status: 404 });
   const c = async (t: typeof users | typeof studies | typeof reports | typeof storedFiles | typeof auditLogs) => (await db.select({ n: count() }).from(t))[0].n;
@@ -32,8 +32,8 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
   });
 }
 
-export async function POST(_req: NextRequest, { params }: Ctx) {
-  const a = await authorize(["yonetici"]);
+export async function POST(req: NextRequest, { params }: Ctx) {
+  const a = await authorize(req, ["yonetici"]);
   if ("error" in a) return a.error;
   const { action } = await params;
 

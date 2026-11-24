@@ -23,6 +23,31 @@ services:
         sync: false
       - key: LLM_API_KEY
         sync: false
+      - key: LLM_MODEL
+        sync: false
+      # İsterseniz yerel AI worker'ın iç adresini girin (bkz. altaki yorumlu şablon).
+      - key: AI_WORKER_URL
+        sync: false
+
+# Yerel derin AI worker'ı (ai-worker/Dockerfile) CPU torch çalıştırdığı için
+# Render'in uykuya dalan ÜCRETSİZ web planında sürekli açık kalmaz. Ayrı bir
+# ücretli worker servisi olarak eklemek isterseniz aşağıyı aktif edin
+# (model ilk açılışta ~231 MB indirilir, /models diski gereklidir):
+#
+#  - type: worker
+#    name: atikviewer-ai
+#    runtime: docker
+#    plan: starter
+#    dockerfilePath: ai-worker/Dockerfile
+#    envVars:
+#      - key: ATIK_FORCE_CPU
+#        value: "1"
+#    disk:
+#      name: aimodels
+#      sizeGB: 2
+#      mountPath: /models
+#
+# Ardından web servisinize AI_WORKER_URL olarak worker'ın iç adresini verin.
 
 databases:
   - name: atikviewer-db

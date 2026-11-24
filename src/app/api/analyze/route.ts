@@ -10,7 +10,7 @@ import { buildAnalysis, type AnalyzeBody } from "@/lib/analyze";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  const auth = await authorize();
+  const auth = await authorize(req);
   if ("error" in auth) return auth.error;
   const { user } = auth;
 
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     }
     if (engine === "cv-heuristic" && top && (worst === "kritik" || worst === "yuksek")) {
       const message = `${meta.modality} · ${meta.seriesDescription}: ${top.label} (Kesit ${top.keySliceNumber}) — aday bulgu, radyolog teyidi gerekir`;
-      await db.insert(notifications).values({ severity: worst, studyUid: body.studyUid ?? "", message });
+      await db.insert(notifications).values({ kind: "finding", severity: worst, studyUid: body.studyUid ?? "", message });
       const hook = await getSetting("criticalWebhookUrl");
       let hookStatus = "yok";
       if (hook) {

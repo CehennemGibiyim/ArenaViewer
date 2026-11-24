@@ -11,7 +11,7 @@ sayfası hâline getirmeyi adım adım anlatır.
 
 ## 1. Kodu GitHub'a gönderme
 
-GitHub'da yeni **boş** bir repo oluşturun (örn. `atikviewer`), README/License
+GitHub'da yeni **boş** bir repo oluşturun (örn. `ArenaViewer`), README/License
 kutularını işaretlemeyin. Ardından proje klasöründe:
 
 ```bash
@@ -19,7 +19,7 @@ git init
 git add .
 git commit -m "ATIKVIEWER ilk sürüm"
 git branch -M main
-git remote add origin https://github.com/KULLANICI_ADINIZ/atikviewer.git
+git remote add origin https://github.com/CehennemGibiyim/ArenaViewer.git
 git push -u origin main
 ```
 
@@ -38,8 +38,8 @@ Kontrol listesi:
 Gerekenler: Docker yüklü bir sunucu (Ubuntu 22.04+).
 
 ```bash
-git clone https://github.com/KULLANICI_ADINIZ/atikviewer.git
-cd atikviewer
+git clone https://github.com/CehennemGibiyim/ArenaViewer.git
+cd ArenaViewer
 cp .env.example .env
 nano .env   # POSTGRES_PASSWORD ve DATA_ENCRYPTION_KEY doldurun
 docker compose up --build -d
@@ -74,14 +74,14 @@ docker compose up --build -d
 ### Seçenek D — GHCR hazır imajı (her main push'unda)
 
 `.github/workflows/docker.yml` her `main` push'unda ve `v*` etiketinde
-`ghcr.io/KULLANICI_ADINIZ/atikviewer:latest` imajını otomatik yayınlar.
+`ghcr.io/cehennemgibiyim/arenaviewer:latest` imajını otomatik yayınlar.
 
 ```bash
 # Herhangi bir Docker kurulu sunucuda doğrudan çalıştırma:
-docker pull ghcr.io/kullaniciniz/atikviewer:latest
+docker pull ghcr.io/cehennemgibiyim/arenaviewer:latest
 docker run -d -p 3000:3000 --env-file .env \
   -v pgdata:/var/lib/postgresql/data \
-  ghcr.io/kullaniciniz/atikviewer:latest
+  ghcr.io/cehennemgibiyim/arenaviewer:latest
 ```
 
 - **Render'da imaj kullanımı:** Render → New → Web Service → registry

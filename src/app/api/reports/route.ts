@@ -4,6 +4,8 @@ import { db } from "@/db";
 import { reportVersions, reports, studies } from "@/db/schema";
 import { audit } from "@/lib/server/audit";
 import { authorize, sha256 } from "@/lib/server/auth";
+import { createFollowupFromReport } from "@/lib/server/closeLoop";
+import { authRequired } from "@/lib/server/auth";
 import { encryptText } from "@/lib/server/crypto";
 import { mapReport, upsertStudy, type StudyMeta } from "@/lib/server/studyRepo";
 import type { Finding, FindingApprovalStatus } from "@/lib/types";
@@ -12,7 +14,7 @@ export const dynamic = "force-dynamic";
 const err = (m: string, s = 400) => NextResponse.json({ error: m }, { status: s });
 
 export async function GET(req: NextRequest) {
-  const a = await authorize();
+  const a = await authorize(req);
   if ("error" in a) return a.error;
   const sp = req.nextUrl.searchParams;
   const rows = await db.select({ r: reports, s: studies }).from(reports).innerJoin(studies, eq(reports.studyId, studies.id)).orderBy(desc(reports.id)).limit(300);
@@ -37,7 +39,7 @@ interface SaveBody {
 }
 
 export async function POST(req: NextRequest) {
-  const a = await authorize(["radyolog", "yonetici"]);
+  const a = await authorize(req, ["radyolog", "yonetici"]);
   if ("error" in a) return a.error;
   const { user } = a;
   const body = (await req.json().catch(() => null)) as SaveBody | null;
@@ -58,8 +60,9 @@ export async function POST(req: NextRequest) {
 
   let approvedAt: Date | null = null;
   if (approve) {
-    // Kimlik doğrulaması yoktur; yalnızca rapora yazılacak hekim adı ve tüm bulguların
-    // gözden geçirilmiş olması aranır.
+    // AUTH_MODE=hesap ise onay sahibi oturumdan gelir (gerçek hesap); demo modunda
+    // tek operatör profili kullanılır. İki durumda da onay için tüm bulguların
+    // gözden geçirilmesi aranır.
     if (!user.fullName.trim()) return err("Onay için Yönetim → Hekim profili bölümünde ad soyad tanımlı olmalı.");
     const pending = findings.filter((f) => (approvals[f.id] ?? "bekliyor") === "bekliyor").length;
     if (pending > 0) return err(`${pending} bulgu henüz gözden geçirilmedi`);
@@ -78,7 +81,8 @@ export async function POST(req: NextRequest) {
       })
     );
     signatureMeta = JSON.stringify({
-      algo: "SHA-256", method: "Yerel onay — kimlik doğrulaması yapılmadan (uygulamada oturum açma kapalı)",
+      algo: "SHA-256",
+      method: authRequired() ? "Oturum açma ile doğrulanmış kullanıcı onayı" : "Yerel onay — demo modu (oturum tanımlı değil)",
       signer: { fullName: user.fullName, title: user.title, regNo: user.regNo }, signedAt: approvedAt.toISOString(),
       note: "Bu onay, imza sahibinin kimliğini doğrulamaz ve 5070 sayılı Kanun kapsamındaki nitelikli elektronik imza (NES) değildir. Hash yalnızca içerik değişikliğini saptar.",
     });
@@ -115,8 +119,25 @@ export async function POST(req: NextRequest) {
   }).where(eq(studies.id, studyId));
   await audit(user, approve ? "report.approve" : "report.save", "report", reportId, { version, studyId, ...(approve ? { contentHash } : {}) });
 
+  // D2: onaylı rapordaki takip önerisi çalışma listesine yapılan bir görev olarak düşer.
+  let followupId: number | null = null;
+  if (approve) {
+    try {
+      followupId = await createFollowupFromReport({
+        studyUid: body.study.studyUid,
+        reportId,
+        modality: body.study.modality ?? "",
+        bodyPart: body.study.bodyPart ?? "",
+        recommendation: r.recommendation,
+      });
+      if (followupId) await audit(user, "notify.followup.fromReport", "notification", followupId, { reportId });
+    } catch (e) {
+      console.error("takip önerisi oluşturulamadı:", e);
+    }
+  }
+
   return NextResponse.json({
-    ok: true, reportId, studyId, status: values.status, version, contentHash,
+    ok: true, reportId, studyId, status: values.status, version, contentHash, followupId,
     approvedAt: approvedAt?.toISOString() ?? null, approvedBy: values.approvedBy, doctorTitle: values.doctorTitle, doctorRegNo: values.doctorRegNo,
   });
 }

@@ -53,8 +53,7 @@ atikviewer                             # http://127.0.0.1:3000
 | Dosya yolu | Ne işe yarar |
 |---|---|
 | `packaging/macos/install.sh` | Kurulum + isteğe bağlı LaunchAgent (otomatik başlatma) |
-| `packaging/macos/build-dmg.sh` | `ATIKVIEWER-<sürüm>-macOS.dmg` + `macOS.tar.gz` üretir |
-| `packaging/macos/Info.plist` | Uygulama paketi bilgi listesi (`.app`/kurulum sihirbazı için) |
+| `packaging/macos/build-dmg.sh` | `ATIKVIEWER-<sürüm>-macOS.dmg` + `macOS.tar.gz` üretir (DMG içinde `Install.command`; ayrı plist dosyası gerekmez) |
 
 ```bash
 bash packaging/macos/install.sh
@@ -73,8 +72,8 @@ bash packaging/macos/build-dmg.sh     # dist/ATIKVIEWER-0.1.0-macOS.dmg
 | `render.yaml` | Tek tıkla bulut dağıtımı |
 
 ```bash
-bash packaging/universal/build_source_zip.sh   # → dist/ATIKVIEWER-0.1.0-kurulum.zip
-bash packaging/universal/verify.sh            # → dist/ATIKVIEWER-dogrulama-<tarih>.log
+bash packaging/universal/build-source-zip.sh   # → dist/ATIKVIEWER-0.1.0-kurulum.zip
+bash packaging/universal/verify.sh             # → dist/ATIKVIEWER-dogrulama-<tarih>.log
 ```
 
 ### Ücretsiz yerel yapay zekâ

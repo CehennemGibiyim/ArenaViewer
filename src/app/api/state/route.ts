@@ -8,7 +8,7 @@ import { decryptText, encryptText } from "@/lib/server/crypto";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const a = await authorize();
+  const a = await authorize(req);
   if ("error" in a) return a.error;
   const sp = req.nextUrl.searchParams;
   const studyUid = sp.get("studyUid") ?? "";
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const a = await authorize();
+  const a = await authorize(req);
   if ("error" in a) return a.error;
   const b = (await req.json().catch(() => null)) as { studyUid?: string; seriesKey?: string; annotations?: unknown[]; keyImages?: unknown[] } | null;
   if (!b?.studyUid || !b.seriesKey || !Array.isArray(b.annotations) || !Array.isArray(b.keyImages)) return NextResponse.json({ error: "Eksik veri" }, { status: 400 });

@@ -7,7 +7,7 @@ import { loadPacsConfig } from "@/lib/server/pacsConfig";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ action: string }> }) {
-  const a = await authorize();
+  const a = await authorize(req);
   if ("error" in a) return a.error;
   const { action } = await params;
   const sp = req.nextUrl.searchParams;

@@ -4,6 +4,10 @@
 #   2) docker compose up --build -d
 #   3) http://localhost:3000 adresini açın
 # İlk açılışta şema otomatik uygulanır (drizzle-kit push).
+#
+# Yerel derin AI (MONAI akciğer + ICH beyin modelleri) ayrı bir servistir:
+#   docker compose --profile ai up --build -d
+# Worker kapalıyken uygulama kural tabanlı motora düşer ve durum satırı bunu belirtir.
 
 name: atikviewer
 
@@ -42,12 +46,32 @@ services:
       LLM_API_URL: ${LLM_API_URL:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+      # --profile ai ile worker açıksa http://ai-worker:8787; kapalıysa worker "down" görünür.
+      AI_WORKER_URL: ${AI_WORKER_URL:-http://ai-worker:8787}
     volumes:
       # Şifreleme anahtarı (.data/enc.key) ve şifreli DICOM deposu burada saklanır.
       - appdata:/app/.data
     command: >
       sh -c "npx drizzle-kit push --config=drizzle.config.ts --force && npm start"
 
+  # Yerel derin AI worker'ı (opsiyonel). `docker compose --profile ai up --build -d`
+  # ile başlatılır; ilk açılışta iki modeli (~231 MB) indirip /models volume'üne yazar.
+  ai-worker:
+    build:
+      context: ./ai-worker
+    profiles: ["ai"]
+    restart: unless-stopped
+    environment:
+      ATIK_MODEL_DIR: /models/model
+      ATIK_BRAIN_DIR: /models/brain
+      ATIK_SKIP_SETUP: ${ATIK_SKIP_SETUP:-0}
+      ATIK_FORCE_CPU: "1"
+    volumes:
+      - aimodels:/models
+    expose:
+      - "8787"
+
 volumes:
   pgdata:
   appdata:
+  aimodels:

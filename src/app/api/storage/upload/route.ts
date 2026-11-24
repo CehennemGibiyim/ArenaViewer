@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 const MAX = 300 * 1024 * 1024;
 
 export async function POST(req: NextRequest) {
-  const a = await authorize();
+  const a = await authorize(req);
   if ("error" in a) return a.error;
   const sp = req.nextUrl.searchParams;
   const studyId = Number(sp.get("studyId"));

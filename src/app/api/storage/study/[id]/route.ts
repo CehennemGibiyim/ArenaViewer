@@ -7,8 +7,8 @@ import { audit } from "@/lib/server/audit";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const a = await authorize();
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const a = await authorize(req);
   if ("error" in a) return a.error;
   const id = Number((await params).id);
   const st = await db.select({ id: studies.id, uid: studies.studyUid }).from(studies).where(eq(studies.id, id)).limit(1);

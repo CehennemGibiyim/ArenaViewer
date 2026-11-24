@@ -488,14 +488,32 @@ export interface StudyRow {
   updatedAt: string;
 }
 
+export type NotificationKind = "finding" | "followup";
+export type FollowupStatus = "acik" | "tamamlandi" | "iptal";
+
 export interface NotificationRow {
   id: number;
   createdAt: string;
+  kind: NotificationKind | null;
   severity: string;
   studyUid: string;
   message: string;
+  ackBy: number | null;
   ackByName: string;
   ackAt: string | null;
+  /** Kapanış döngüsü kanıtı (D1). */
+  relayedTo: string;
+  relayedAt: string | null;
+  escalated: boolean;
+  escalatedAt: string | null;
+  /** Takip önerisi (D2). */
+  modality: string;
+  bodyRegion: string;
+  recommendedIntervalDays: number | null;
+  dueDate: string;
+  status: FollowupStatus;
+  completedAt: string | null;
+  reportId: number | null;
 }
 
 export interface TemplateRow {
@@ -503,6 +521,8 @@ export interface TemplateRow {
   name: string;
   modality: string;
   bodyPart: string;
+  indication: string;
+  protocol: string;
   technique: string;
   findings: string;
   impression: string;

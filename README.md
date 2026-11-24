@@ -48,11 +48,23 @@ docker compose up --build -d
 Ardından `http://localhost:3000` adresini açın. Veritabanı şeması ilk açılışta
 otomatik uygulanır. Durum: `http://localhost:3000/api/health`
 
+Yerel derin AI (MONAI akciğer + ICH beyin modelleri) **ayrı bir servis**tir:
+
+```bash
+docker compose --profile ai up --build -d   # ilk açılışta ~231 MB model indirir
+```
+
+Worker kapalıyken BT analizi kural tabanlı motora düşer ve ekran “worker: kapalı”
+olarak bunu belirtir; hasta verisi bu servise yalnızca makine içinden gider.
+
 ## Kurulum paketleri — Windows · Linux · macOS
 
-Tüm kurulum dosyaları **orijinal dosya yollarıyla** tek arşivdedir:
-`public/downloads/ATIKVIEWER-0.1.0-kurulum.zip` (uygulama içinde: **📦 Kurulum**
-→ `/paketler`). Ayrıntılı yol ve komut tablosu: **[packaging/README.md](packaging/README.md)**.
+Tüm kurulum dosyaları **orijinal dosya yollarıyla** tek arşiv üretilir:
+`dist/ATIKVIEWER-<sürüm>-kurulum.zip` (`bash packaging/universal/build-source-zip.sh`).
+Uygulama içindeki **📦 Kurulum → `/paketler`** sayfası bu arşivi
+`public/downloads/` altında bulduğunda doğrudan indirme bağlantısı sunar; yoksa
+üretim komutunu gösterir. Ayrıntılı yol ve komut tablosu:
+**[packaging/README.md](packaging/README.md)**.
 
 | İşletim sistemi | Tek komutla kurulum | Paket üretimi |
 |---|---|---|
@@ -99,8 +111,8 @@ npm start
 > çözümleri** için **[docs/WINDOWS_KURULUM.md](docs/WINDOWS_KURULUM.md)**:
 >
 > ```powershell
-> git clone https://github.com/CehennemGibiyim/AtikViewer.git
-> cd AtikViewer
+> git clone https://github.com/CehennemGibiyim/ArenaViewer.git
+> cd ArenaViewer
 > Copy-Item .env.example .env
 > npm ci
 > npx drizzle-kit push --config=drizzle.config.ts
@@ -136,6 +148,10 @@ python ai-worker/server.py          # worker'ı başlatır (CPU'da da çalışı
 | `DATA_ENCRYPTION_KEY` | Üretimde | Base64, 32 bayt AES-256 anahtarı (boşsa `.data/enc.key` üretilir) |
 | `PACS_AUTH_HEADER` | Hayır | DICOMweb kimlik başlığı — yalnızca geriye dönük; kimlik/ayarlar Yönetim → Entegrasyon'dan girilir ve sunucuda şifrelenir |
 | `HIS_API_KEY` | Hayır | HBYS istem alımı API anahtarı |
+| `ACCESS_TOKEN` | Hayır | Tek erişim anahtarı (kapı); tanımlıysa `/giris` kapısı ve 401 koruması açılır |
+| `AUTH_MODE` | Hayır | Boş/demo: ACCESS_TOKEN varsa onunla, yoksa tek operatör. `hesap`: kullanıcı adı/parola (+MFA) zorunlu, rol denetimi aktif |
+| `SESSION_SECRET` | Hesap modunda | Oturum çerezini imzalayan gizli anahtar (tanımsızsa `DATA_ENCRYPTION_KEY` kullanılır) |
+| `REQUIRE_TOTP_FOR_ROLES` | Hayır | MFA zorunluluğu olan roller (varsayılan `yonetici`). Bu rollerdeki hesaplar authenticator kodu olmadan giremez |
 | `LLM_API_URL` / `LLM_API_KEY` / `LLM_MODEL` | Hayır | Taslak izlenim LLM'i (yoksa kural tabanlı yedek). Ücretsiz yerel yol: [docs/OLLAMA.md](docs/OLLAMA.md) |
 | `AI_WORKER_URL` | Hayır | Yerel derin AI worker adresi (varsayılan `http://127.0.0.1:8787`) |
 
@@ -157,14 +173,21 @@ Anahtar üretme: `node -e "console.log(require('crypto').randomBytes(32).toStrin
 Tarayıcı regresyon testleri **production** sunucuya karşı çalıştırılır:
 
 ```bash
-npm run build && npm start          # test edilecek sunucu (BASE_URL varsayılanı :3000)
-npm i -D --no-save playwright       # geçici test bağımlılığı (package.json'a yazmaz)
-npx playwright install chromium
+npm ci
+npx playwright install chromium     # tarayıcı için (playwright artık devDependency)
 
-npm run test:menu                   # menü, sekme, MPR, PNG, iframe, hata senaryoları (15 kontrol)
+# Birim/entegrasyon testleri (sunucu gerektirmez)
+npm test                            # image-review + PACS + RECIST (tsx ile)
+npm run test:image-review
+npm run test:pacs
+npm run test:recist
+
+# Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)
+npm run build && npm start &
+npm run test:menu                   # menü, sekme, MPR, PNG, iframe, hata senaryoları
 npm run test:folder                 # klasör içe aktarma + yükleme raporu
 npm run test:review                 # görüntü inceleme ölçümleri
-npm test                            # AI motoru birim testi (tsx ile)
+npm run test:report-flow            # rapor onay + derin AI akışı
 ```
 
 > `tests/menu-interactions.cjs` hem klasik `webkitdirectory` yolunu hem de Chromium'un
@@ -179,7 +202,7 @@ Ayrıntılı kılavuz: **[docs/GITHUB_YAYINLAMA.md](docs/GITHUB_YAYINLAMA.md)**
 ```bash
 git init && git add . && git commit -m "ATIKVIEWER ilk sürüm"
 git branch -M main
-git remote add origin https://github.com/KULLANICI/atikviewer.git
+git remote add origin https://github.com/CehennemGibiyim/ArenaViewer.git
 git push -u origin main
 ```
 
@@ -210,12 +233,37 @@ docs/             Yayınlama ve işletim kılavuzları
 
 ## Güvenlik notları
 
-- `.env` ve `.data/` asla commit'lenmez (`.gitignore` ile korunur).
+- `.env` ve `.data/` asla commit'lenmez (`.gitignore` ile korunur). Yeni kurulumda
+  `cp .env.example .env` yapıp **kendi** `DATA_ENCRYPTION_KEY`'iniz üretin. Eğer bir
+  anahtar hiç commitlendiyse (bu depoda ilk sürümde oldu gibi) o anahtarı iptal edin:
+  Şifreli hasta kaydı **yoksa** `.env`'deki değeri yenisiyle değiştirip uygulamayı
+  yeniden başlatın. **Varsa** önce yedek alın; anahtarı doğrudan değiştirmek eski
+  verinin çözülmesini engeller (`[çözülemedi]`). Yönetim → Güvenlik'teki “Mevcut
+  kayıtları şifle” yalnız aynı anahtarla yeniden şifreler, anahtar rotasyonu için
+  çift anahtarlı çözüm ya da yeni kurulum + içe aktarma gerekir.
 - Hasta verisi diskte AES-256-GCM ile şifrelidir; anahtar yedeğini saklayın.
-- Onay akışı kimlik doğrulamaz (giriş kaldırıldı): rapora profildeki hekim adı yazılır
-  ve içerik SHA-256 ile mühürlenir; mühür yalnızca sonradan değişikliği saptar.
-  Gerçek hasta verisi için ağ düzeyinde erişim kısıtı şarttır. Bu yazılım tıbbi cihaz
-  değildir ve düzenleyici onay süreçlerinin (MDR/TİTCK vb.) yerini tutmaz.
+- **Erişim kapısı:** `ACCESS_TOKEN` tanımlıysa tüm sayfa/API istekleri `/giris`
+  sayfasına düşer; doğru anahtar oturum çerezi (`httpOnly`, 30 gün) yazar. API’ler
+  401 döner, `/api/health` ve giriş akışı kapalı kalmaz. Tanım **yoksa** kapı
+  açıktır (demo varsayılanı) ve adresi bilen herkes hasta verisini görebilir; bu
+  hâlde uygulamayı yalnızca VPN/güvenlik duvarı arkasında açın. Çıkış:
+  `POST /api/auth/logout`.
+- **Kullanıcı hesapları ve roller (F1):** `AUTH_MODE=hesap` yapıldığında her işlem
+  kullanıcı adı/parola ile doğrulanmış bir oturum ister; `yonetici`, `radyolog`,
+  `teknisyen` rolleri işlem bazında denetlenir (ör. rapor onayı radyolog/yönetici,
+  silme ve ayarlar yalnız yönetici). İlk yönetici `/giris` sayfasındaki kurulum
+  formuyla oluşturulur; sonraki hesaplar Yönetim → Kullanıcılar bölümünden eklenir.
+  Oturum imzalı bir çerezle taşınır (`SESSION_SECRET`/`DATA_ENCRYPTION_KEY` anahtarı).
+- **İki faktörlü doğrulama (F2):** `REQUIRE_TOTP_FOR_ROLES` (varsayılan `yonetici`)
+  bu rollere sahip hesaplara TOTP/MFA şart koşar; Yönetim → Profil & MFA ekranından
+  authenticator uygulamasıyla kurulur. Hesap MFA kurmadan giriş yapamaz, denetim
+  kaydına `auth.login`/`profile.totp.*` olarak yazılır.
+- Onay akışı hâlâ kişisel kimlik kanıtı değildir: rapora oturumdaki hekim adı
+  yazılır ve içerik SHA-256 ile mühürlenir; mühür yalnızca sonradan değişikliği
+  saptar. Gerçek hasta verisi için ağ düzeyinde erişim kısıtı ve kurumsal kimlik
+  (SSO/rol) şarttır; bu yazılım tıbbi cihaz değildir.
+  Bu yazılım tıbbi cihaz değildir ve düzenleyici onay süreçlerinin (MDR/TİTCK vb.)
+  yerini tutmaz.
 
 ## Lisans
 

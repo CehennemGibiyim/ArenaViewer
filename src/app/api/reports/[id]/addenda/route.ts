@@ -8,7 +8,7 @@ import { authorize } from "@/lib/server/auth";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const a = await authorize(["radyolog", "yonetici"]);
+  const a = await authorize(req, ["radyolog", "yonetici"]);
   if ("error" in a) return a.error;
   const id = Number((await params).id);
   const b = (await req.json().catch(() => ({}))) as { text?: string };

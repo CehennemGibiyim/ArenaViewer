@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { reports } from "@/db/schema";
 import { authorize } from "@/lib/server/auth";
@@ -19,8 +19,8 @@ interface Row {
 }
 
 /** Hekim geri bildiriminden AI performansı: kesinlik (PPV) = onaylanan / (onaylanan + reddedilen). */
-export async function GET() {
-  const a = await authorize(["radyolog", "yonetici"]);
+export async function GET(req: NextRequest) {
+  const a = await authorize(req, ["radyolog", "yonetici"]);
   if ("error" in a) return a.error;
   const rs = await db.select({ f: reports.findingsJson, ap: reports.findingsApproval, e: reports.engine, st: reports.status }).from(reports);
   const map = new Map<string, Row>();

@@ -11,7 +11,11 @@ import {
   index,
 } from "drizzle-orm/pg-core";
 
-/** Tek satırlık operatör profili (id=1). Giriş/parola yoktur; yalnızca rapor imza adı ve atama için. */
+/**
+ * Kullanıcı hesabı. `passwordHash` scrypt ile üretilir ("-" = parolasız/demo satırı).
+ * İki faktörlü doğrulama için `twoFactorSecret` (TOTP gizli anahtarı, açık metin:
+ * yalnızca bu sunucuda tutulur) ve `twoFactorEnabled`.
+ */
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
@@ -21,6 +25,8 @@ export const users = pgTable("users", {
   regNo: text("reg_no").notNull().default(""),
   role: text("role").notNull().default("radyolog"), // yonetici | radyolog | teknisyen
   active: boolean("active").notNull().default(true),
+  twoFactorSecret: text("two_factor_secret").notNull().default(""),
+  twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   lastLoginAt: timestamp("last_login_at"),
 });
@@ -151,22 +157,50 @@ export const storedFiles = pgTable("stored_files", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+/**
+ * Kritik bulgu bildirimi (D1) ve takip önerisi görevi (D2) tek tabloda.
+ *
+ * `kind` ile ayrılır; mevcut satırlar kind=NULL bırakılır ve geriye dönük olarak
+ * kural tabanlı “bulgu bildirimi” sayılır. Yeni sütunların tamamı opsiyoneldir, yani
+ * eski veri bozulmadan şema uygulanabilir.
+ */
 export const notifications = pgTable("notifications", {
   id: serial("id").primaryKey(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  kind: text("kind"), // null | finding | followup
   severity: text("severity").notNull(),
   studyUid: text("study_uid").notNull().default(""),
   message: text("message").notNull(),
   ackBy: integer("ack_by"),
   ackByName: text("ack_by_name").notNull().default(""),
   ackAt: timestamp("ack_at"),
+  /** Kapanış döngüsü: bildirimin iletildiği kişi/kanal ve kanıt zamanı. */
+  relayedTo: text("relayed_to").notNull().default(""),
+  relayedAt: timestamp("relayed_at"),
+  escalated: boolean("escalated").notNull().default(false),
+  escalatedAt: timestamp("escalated_at"),
+  /** Takip önerisi alanları (D2). */
+  modality: text("modality").notNull().default(""),
+  bodyRegion: text("body_region").notNull().default(""),
+  recommendedIntervalDays: integer("recommended_interval_days"),
+  dueDate: text("due_date").notNull().default(""),
+  status: text("status").notNull().default("acik"), // acik | tamamlandi | iptal
+  completedAt: timestamp("completed_at"),
+  reportId: integer("report_id"),
 });
 
+/**
+ * Rapor şablonu. `indication` (endikasyon/klinik soru) ve `protocol` (önerilen sekans/
+ * görüntüleme düzeni) alanları şablon kütüphanesinin bölge+endikasyon ekseninde
+ * gruplanmasını sağlar; eski satırlar boş dize alır.
+ */
 export const reportTemplates = pgTable("report_templates", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   modality: text("modality").notNull().default(""),
   bodyPart: text("body_part").notNull().default(""),
+  indication: text("indication").notNull().default(""),
+  protocol: text("protocol").notNull().default(""),
   technique: text("technique").notNull().default(""),
   findings: text("findings").notNull().default(""),
   impression: text("impression").notNull().default(""),
