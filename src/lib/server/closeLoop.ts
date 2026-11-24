@@ -1,9 +1,11 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { notifications } from "@/db/schema";
-import { followupTitle, parseIntervalDays } from "@/lib/followupText";
+import {
+  BIOPSY_FOLLOWUP_DAYS, followupSeverityFor, followupTitle, isBiopsySuggestion, parseIntervalDays,
+} from "@/lib/followupText";
 
-export { followupTitle, parseIntervalDays };
+export { followupTitle, parseIntervalDays, isBiopsySuggestion, followupSeverityFor };
 
 /**
  * Kritik bulgu kapanış döngüsü (D1) ve takip önerisi görevi (D2) sunucu katmanı.
@@ -40,14 +42,16 @@ export async function createFollowupFromReport(p: {
 }): Promise<number | null> {
   const rec = (p.recommendation ?? "").trim();
   if (rec.length < 3) return null;
-  const days = parseIntervalDays(rec);
+  let days = parseIntervalDays(rec);
+  if (days === null && isBiopsySuggestion(rec)) days = BIOPSY_FOLLOWUP_DAYS;
   const due = days ? new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10) : "";
+  const severity = followupSeverityFor(rec);
   const ins = await db
     .insert(notifications)
     .values({
       ...notificationDefaults(),
       kind: "followup",
-      severity: "bilgi",
+      severity,
       studyUid: (p.studyUid ?? "").slice(0, 64),
       message: followupTitle(rec),
       modality: (p.modality ?? "").slice(0, 16),

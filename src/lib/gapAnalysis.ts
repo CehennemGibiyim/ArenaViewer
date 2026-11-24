@@ -296,10 +296,10 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "a-quant", category: "ai", title: "Nicel biyobelirteçler (hacim, kalsiyum skoru, kemik yoğunluğu)",
-    status: "yok", priority: "P2", effort: "L",
-    market: ["3D Slicer", "Aidoc"],
-    ours: "Yok.",
-    action: "Hacim ve yoğunluk modülleri; insidental bulgu listesi.",
+    status: "var", priority: "P2", effort: "M",
+    market: ["Aidoc", "3D Slicer"],
+    ours: "Agatston (damar bazlı HU ağırlıkları, S0–S4), oportünist kemik HU kategorisi, PA kardiyotorasik oran ve nodül hacmi; hekim ölçü değerlerini panelden girer.",
+    action: "Ölçümlerin anotasyondan otomatik aktarımı ve zaman serisi grafiği.",
   },
   {
     id: "a-feedback", category: "ai", title: "Hekim geri bildirim döngüsü ve AI performans panosu",
@@ -335,8 +335,8 @@ const BASE_ITEMS: GapItem[] = [
     id: "r-struct", category: "report", title: "Yapısal rapor, A4 çıktı, filigran, anahtar kesit görseli",
     status: "var", priority: "P3", effort: "S",
     market: ["PowerScribe", "Rad AI"],
-    ours: "Teknik / Bulgular / Sonuç / Öneri; onaysız taslak filigranı; tek anahtar kesit.",
-    action: "Çoklu anahtar kesit ve ölçüm tablosu (bkz. Ölçüm).",
+    ours: "Teknik / Bulgular / Sonuç / Öneri; onaysız taslak filigranı; kanıtsal kesitlerden en fazla 4 anahtar kesit.",
+    action: "Ölçüm tablosunu rapora ekleme; filigran/anahtar kesit düzeni kuruma özelleştirilir.",
   },
   {
     id: "r-review", category: "report", title: "Bulgu bazlı hekim doğrulaması (zorunlu gözden geçirme)",
@@ -347,10 +347,17 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "r-template", category: "report", title: "Şablon kütüphanesi (modalite/bölge/endikasyon), makro ve seçim listeleri",
-    status: "yok", priority: "P1", effort: "M",
+    status: "var", priority: "P1", effort: "M",
     market: ["PowerScribe", "Rad AI", "RadPal"],
-    ours: "Tek sabit şablon.",
-    action: "Veritabanında şablon yönetimi; RSNA RadReport şablonlarıyla uyum.",
+    ours: "42 hazır şablon (CT 11 / MR 17 / US 6 / MG 3 / NM-PET-CT-CR-DX); her şablonda endikasyon + protokol; /api/templates GET/POST/PATCH/DELETE; rapor ekranında modaliteye göre aranabilir seçici.",
+    action: "RSNA RadReport/Radslex ile eşleştirme; kullanıcı başına şablon favorileri.",
+  },
+  {
+    id: "r-structured-score", category: "report", title: "Yapılandırılmış skorlama (Lung-RADS, TI-RADS, BI-RADS, PI-RADS)",
+    status: "var", priority: "P1", effort: "M",
+    market: ["RadPal", "PowerScribe", "Aidoc"],
+    ours: "Skor motoru + rapor paneli: Lung-RADS 1.1, ACR TI-RADS, BI-RADS 0–6, PI-RADS v2.1, ACR meme yoğunluğu; skor rapora 'öneri' satırı olarak eklenir ve takip/biyopsi görevine dönüşür.",
+    action: "Bulgu metninden özellik çıkarımı (NLP); hekim onaylı skor revizyon geçmişi.",
   },
   {
     id: "r-dictate", category: "report", title: "Sesle dikte (Türkçe) ve sesli komutlar",
@@ -405,10 +412,10 @@ const BASE_ITEMS: GapItem[] = [
   // ───────── WORKFLOW ─────────
   {
     id: "w-pacs", category: "workflow", title: "PACS / DICOMweb bağlantısı (QIDO-RS, WADO-RS, STOW-RS, C-FIND/C-MOVE)",
-    status: "yok", priority: "P1", effort: "L",
+    status: "kismi", priority: "P1", effort: "L",
     market: ["OHIF", "Weasis", "RadiAnt", "Horos", "Aidoc"],
-    ours: "Yok; yalnızca yerel dosya/klasör açma.",
-    action: "Orthanc/dcm4chee ile DICOMweb istemcisi; ardından C-FIND/C-MOVE.",
+    ours: "QIDO/WADO istemcisi + yapılandırılabilir bağlantı profilleri; 'bağlantıyı test et' raporu. STOW/QIDO/WADO uçtan uca doğrulaması CI'da gerçek Orthanc üzerinde çalışır (tests/pacs.orthanc.e2e.ts).",
+    action: "STOW-RS'e rapor/KO/SR gönderme diyaloğu; ardından C-FIND/C-MOVE.",
   },
   {
     id: "w-worklist", category: "workflow", title: "Çalışma listesi: hasta/tetkik, durum, atama, öncelik",
@@ -508,10 +515,10 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "a-stroke", category: "ai", title: "İnme paketi: ASPECTS skoru + CTP perfüzyon (CBF/CBV/MTT/Tmax)",
-    status: "yok", priority: "P1", effort: "L",
+    status: "kismi", priority: "P1", effort: "L",
     market: ["Viz.ai", "Aidoc"],
-    ours: "ICH kanama modeli var; ASPECTS ve perfüzyon haritaları yok.",
-    action: "Kural tabanlı ASPECTS bölge skoru + CTP zaman-yoğunluk eğrileri; pre/post seri eşleme.",
+    ours: "**Bu sürümde kısmen uygulandı:** `src/lib/stroke.ts` — ASPECTS 10 bölge skoru (rapor panelinde işaretleme) ve basitleştirilmiş CTP özeti (TTP/gecikme, CBF/CBV oranları, core/penumbra adayı). Dekonvolüsyon/AIF seçimi yoktur.",
+    action: "Model tabanlı AIF seçimi + dekonvolüsyon; injeksiyon öncesi/sonrası seri eşleme.",
   },
   {
     id: "a-msk", category: "ai", title: "MSK/X-ışını kırık ve landmarke AI",
@@ -524,36 +531,36 @@ const BASE_ITEMS: GapItem[] = [
     id: "a-mg", category: "ai", title: "Mamografi: BI-RADS yoğunluk + DBT (tomosentez) okuma akışı",
     status: "kismi", priority: "P2", effort: "L",
     market: ["Lunit", "iCAD", "Therapixel"],
-    ours: "MG modalite desteği var; CC/MLO düzeni, DBT slab navigasyonu ve yoğunluk sınıflaması özel olarak yok.",
-    action: "CC/MLO layout + DBT slab + BI-RADS a/b/c/d yoğunluk önerisi.",
+    ours: "CC/MLO 2×2 düzeni + slab navigasyonu var; BI-RADS 0–6 ve ACR meme yoğunluğu (a–d) rapor panelinde hesaplanır; otomatik yoğunluk algılama/DBT sınıflandırma modeli yok.",
+    action: "Otomatik yoğunluk segmentasyonu + BI-RADS/Radlex makro sözlüğü.",
   },
   {
     id: "a-calcium", category: "ai", title: "Agatston kalsiyum skoru + kemik yoğunluğu ölçümü",
-    status: "yok", priority: "P2", effort: "M",
+    status: "kismi", priority: "P2", effort: "M",
     market: ["Aidoc", "3D Slicer"],
-    ours: "HU ölçümü var; kalsiyum/kemik yoğunluğu modülü yok.",
-    action: "BT'de L1–L4 HU ölçümünden Agatston; HU tabanlı kemik yoğunluğu kategorisi.",
+    ours: "Damar bazlı Agatston (HU ağırlıkları, ≥1 mm² alan eşiği, S0–S4 kategori) + oportünist L1–L4 trabeküler HU kategorisi + PA kardiyotorasik oran hesaplayıcı; hekim ölçü değerlerini girer.",
+    action: "Piksel tabanlı otomatik kalsiyum algılama/segmentasyonu (model veya bağlamsal çekirdek); DEXA korelasyonu.",
   },
   {
     id: "a-lungquant", category: "ai", title: "Akciğer kvantifikasyonu: lob/emphisema (LAA-950)/volüm",
-    status: "yok", priority: "P2", effort: "L",
+    status: "kismi", priority: "P2", effort: "L",
     market: ["3D Slicer", "Aidoc"],
-    ours: "Nodül hacmi hesaplanıyor; lob/emphisema/volüm yok.",
-    action: "Kural veya SAM tabanlı lob segmentasyonu + −950 HU oranı ve volümetrik dağılım.",
+    ours: "**Bu sürümde eklendi:** `src/lib/lungQuant.ts` histogramdan LAA-950 (−950 HU altı oran), ortalama HU, PD15 ve hacim mL; sınıf: normal–hafif/orta/ağır.",
+    action: "Lob segmentasyonu (kural/SAM), yağ-doku sınırı ve kesit dağılım grafiği.",
   },
   {
     id: "a-nm", category: "ai", title: "Nükleer tıp: DSA çıkarma, TIC eğrileri, MTV/SUVpeak",
     status: "kismi", priority: "P3", effort: "L",
     market: ["RadiAnt", "Hermes"],
-    ours: "PET füzyonu ve SUVbw var; DSA/TIC/metabolik tümör volümü yok.",
-    action: "Pre/post subtraksiyon, zaman-yoğunluk eğrisi, eşik SUV alanından MTV.",
+    ours: "**Bu sürümde eklendi:** `src/lib/nuclear.ts` — pre/post subtraksiyon özeti, TIC modeli (wash-out/plato/progressif) ve SUV haritasından MTV/SUVpeak.",
+    action: "Gerçek rekonstrüksiyon/dönüşüm kalibrasyonu ve 3B metabolik hacim görselleştirmesi.",
   },
   {
     id: "a-modelops", category: "ai", title: "Model operasyonları: kayıt defteri, A/B, kalibrasyon ve drift izleme",
-    status: "yok", priority: "P2", effort: "L",
+    status: "kismi", priority: "P2", effort: "L",
     market: ["Tüm üreticiler"],
-    ours: "PPV panosu var; model hash/sürüm kaydı, kalibrasyon eğrisi ve drift yok.",
-    action: "Model kartına sürüm/hash; feedback verisinden eşik/PPV izleme; model değişiminde denetim kaydı.",
+    ours: "**Bu sürümde eklendi:** `src/lib/modelOps.ts` güven kalibrasyonu (binler + ECE), z tabanlı drift kontrolü, model parmak izi; `/api/ai/performance` kalibrasyon/ECE üretir.",
+    action: "Model kayıt defteri tablosu, A/B dağıtımı ve denetimde model değişiklik kaydı.",
   },
   {
     id: "c-sr-tid1500", category: "measure", title: "Yapılandırılmış ölçümler: DICOM SR TID 1500 + RadLex/RSNA CDE",
@@ -572,9 +579,9 @@ const BASE_ITEMS: GapItem[] = [
   {
     id: "c-recist-full", category: "measure", title: "RECIST tamamlayıcıları: lenf nodu, non-hedef lezyon, otomatik lezyon eşleştirme",
     status: "kismi", priority: "P1", effort: "M",
-    market: ["Lunit", "Aidoc"],
-    ours: "Hedef lezyon + CR/PR/SD/PD var; lenf nodu/non-hedef değerlendirmesi ve çalışmalar arası eşleştirme yok.",
-    action: "Anatomi+konum imzalı lezyon eşleştirme; lenf nodu kısa eksen tablosu.",
+    market: ["3D Slicer", "RadiAnt"],
+    ours: "**Bu sürümde eklendi:** `src/lib/lesionTracking.ts` — çalışmalar arası anatomi+konom eşleştirme (sayı içeren ifadelerde birebir eşleşme), lenf nodu kısa eksen tablosu (<10 normal / 10–<15 takip / ≥15 patolojik) ve non-hedef lezyon durumu.",
+    action: "Hedef lezyon seçimi/limitleme arayüzü ve karşılaştırma raporu.",
   },
   {
     id: "c-measure-history", category: "measure", title: "Ölçüm geçmişi ve trend grafikleri (çap/HU/SUV zaman serisi)",
@@ -698,9 +705,9 @@ const BASE_ITEMS: GapItem[] = [
   {
     id: "g-webhard", category: "trust", title: "Web hardening: CSP, X-Frame-Options, CSRF, rate limiting",
     status: "kismi", priority: "P1", effort: "S",
-    market: ["Tüm kurumsal ürünler"],
-    ours: "CORS ve cache başlıkları var; CSP/rate-limit/CSRF yok.",
-    action: "next.config header'ları + IP/kullanıcı bazlı hız sınırı.",
+    market: ["Kurumsal standart"],
+    ours: "**Bu sürümde kısmen uygulandı:** `next.config.ts` ile nosniff, Referrer-Policy, COOP/CORP, Permissions-Policy ve CSP (frame-ancestors 'self'); sayfa/API no-store. Rate limiting ve CSRF token yok.",
+    action: "IP/kullanıcı bazlı hız sınırı ve state-değiştiren uçlar için CSRF koruması.",
   },
   {
     id: "g-audit-export", category: "trust", title: "Denetim dışa aktarımı (Syslog/CEF/JSON) + uzun vadeli arşiv",
@@ -1012,7 +1019,7 @@ const ROADMAP_OLD: RoadmapPhase[] = [
 ];
 
 export const ROADMAP: RoadmapPhase[] = [
-  { id: "done", title: "Bu turda tamamlananlar (test edildi)", timeframe: "Tamam", goal: "Gerçek veri, güvenlik temeli, workstation çekirdeği.", itemIds: ["f-codec", "w-auth", "w-audit", "r-version", "t-privacy", "m-persist", "w-storage", "w-worklist", "v-mip", "v-mpr", "a-model", "a-card", "w-deid"] },
+  { id: "done", title: "Bu turda tamamlananlar (test edildi)", timeframe: "Tamam", goal: "Gerçek veri, güvenlik temeli, workstation çekirdeği.", itemIds: ["f-codec", "w-auth", "w-audit", "r-version", "t-privacy", "m-persist", "w-storage", "w-worklist", "v-mip", "v-mpr", "a-model", "a-card", "w-deid", "r-template", "r-structured-score", "a-calcium"] },
   { id: "code", title: "Sıradaki mühendislik işleri (kodla yapılabilir)", timeframe: "1–3 ay", goal: "Kalan teknik boşluklar.", itemIds: ["v-vr", "v-mpr", "f-codec", "m-shapes", "r-export", "w-pacs", "v-perf", "v-hanging", "f-objects"] },
   { id: "ai", title: "Gerçek model ve doğrulama", timeframe: "3–9 ay", goal: "Lisanslı/doğrulanmış modeller + kendi verinizde ölçüm.", itemIds: ["a-model", "a-heat", "a-uncert", "t-validation", "a-track", "a-prior"] },
   { id: "org", title: "Kurum/üretici süreçleri (kodla bitmez)", timeframe: "Sürekli", goal: "Düzenleyici uyum, NES, altyapı ve entegrasyon sözleşmeleri.", itemIds: ["t-mdr", "r-esign", "t-privacy", "w-his", "a-notify", "w-pacs"] },

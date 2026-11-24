@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { followupTitle, parseIntervalDays } from "../src/lib/followupText";
+import { followupSeverityFor, followupTitle, isBiopsySuggestion, parseIntervalDays } from "../src/lib/followupText";
 
 async function main() {
   // ── Süre ayıklama (D2) ─────────────────────────────────────────────────────
@@ -20,6 +20,15 @@ async function main() {
   const kisa = followupTitle(uzun);
   assert.ok(kisa.length <= 90 && kisa.endsWith("…"));
   console.log("PASS görev başlığı: kısa metin olduğu gibi, uzun metin en fazla 90 karakterde kesilir.");
+
+  // ── Önem derecesi + biyopsi tespiti ─────────────────────────────────────────
+  assert.equal(isBiopsySuggestion("Biyopsi önerilir."), true);
+  assert.equal(isBiopsySuggestion("ince iğne aspirasyonu değerlendirilmeli"), true);
+  assert.equal(isBiopsySuggestion("6 ay sonra kontrol"), false);
+  assert.equal(followupSeverityFor("Biyopsi önerilir."), "yuksek");
+  assert.equal(followupSeverityFor("Kritik bulgu, acil olarak radyoloğa iletilmeli."), "kritik");
+  assert.equal(followupSeverityFor("6 ay sonra BT kontrolü"), "bilgi");
+  console.log("PASS biyopsi/kritik öneri tespiti ve görev önem derecesi.");
 
   // ── Şema alanları (D1/D2) ──────────────────────────────────────────────────
   const schema = await import("../src/db/schema");

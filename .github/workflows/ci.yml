@@ -52,6 +52,67 @@ jobs:
       - name: Birim testleri
         run: npm test
 
+
+  # Gerçek PACS (Orthanc) ile uçtan uca DICOMweb testi: STOW yükle → QIDO bul →
+  # WADO geri al → temizlik. ORTHANC_URL tanımsızca test kendini atlar.
+  #
+  # Bu iş BİLGİSEL/OPSİYONELDİR: CI konteyner ortamında Orthanc imajının ayağa
+  # kalkışı bazen altyapı nedeniyle başarısız olur. Üretim engeli değildir; yerel
+  # doğrulama: docker compose --profile pacs up -d && npm run test:pacs-e2e
+  pacs-e2e:
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    services:
+      # Kayıtlı kullanıcı tanımlamadan (anonim) başlatılır; böylece ayakta
+      # kalma koşulu yalnizca servisin yanıt vermesine bağlanır.
+      orthanc:
+        image: jodogne/orthanc:latest
+        env:
+          ORTHANC__NAME: "ArenaViewer E2E PACS"
+        ports:
+          - 8042:8042
+        # Saglik kontrolu bilinçli olarak YOK: komut servis container'ının içinde
+        # çalişir ve jodogne/orthanc imajinda curl bulunmayabilir. Hazirlik, iş
+        # akışindaki 'Orthanc hazır' adimindaki anfiton curl döngüsüyle yapilir.
+    env:
+      ORTHANC_URL: http://localhost:8042
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Orthanc hazır
+        run: |
+          for i in $(seq 1 90); do
+            if curl -sf "$ORTHANC_URL/system" > /dev/null; then
+              echo "Orthanc hazır"; curl -s "$ORTHANC_URL/system" | head -c 400; echo; exit 0
+            fi
+            sleep 2
+          done
+          echo "Orthanc 180 sn içinde hazır olmadı"; curl -sv "$ORTHANC_URL/system" 2>&1 | tail -20; exit 1
+
+      - name: DICOMweb uçtan uca testi (STOW/QIDO/WADO)
+        run: npm run test:pacs-e2e
+
+  # Güvenlik açısından bağımlılık denetimi (G3): PR'da yeni/ değişen bağımlılıklar
+  # bilinen açığa göre işaretlenir; high/critical ise iş kırmadı (rapor niteliği).
+  dependency-review:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bağımlılık denetimi
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: critical
+          comment-summary-always: true
+
   # Tarayıcı regresyon testleri: menü etkileşimleri, klasör içe aktarma,
   # görüntü incelemesi (15 + 3 + 5 kontrol). Üretim derlemesi + next start
   # ile çalışır; WebGL/headless chromium yeterlidir.

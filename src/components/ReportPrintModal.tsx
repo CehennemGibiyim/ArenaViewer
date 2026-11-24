@@ -3,6 +3,7 @@
 import { buildReportSr, type EvidenceRef } from "@/lib/dicomSr";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fmtConf } from "@/lib/format";
+import StructuredScorePanel from "@/components/StructuredScorePanel";
 import type {
   Finding, FindingApprovalStatus, KeyImage, ModelCard, ReportAddendum, ReportVersion, TemplateRow, UserInfo,
 } from "@/lib/types";
@@ -227,6 +228,28 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
     if (!r.ok || !d.text) { setError(d.error ?? "Taslak üretilemedi"); return; }
     set("impression", `${d.text}\n[Taslak — ${d.source === "llm" ? "LLM" : "kural tabanlı"}; hekim doğrulaması gerekir]`);
   };
+  /** Yapılandırılmış skordan gelen takip/biyopsi görevini kaydeder. */
+  const createScoreTask = async (t: { message: string; intervalDays: number | null; severity?: string }) => {
+    if (!report.id) { setError("Önce raporu taslak olarak kaydedin; görevler yalnız kayıtlı rapora bağlanır."); return; }
+    const days = t.intervalDays ?? 0;
+    const due = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
+    const r = await fetch("/api/notifications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        studyUid: report.studyUid,
+        message: t.message.slice(0, 2000),
+        modality: report.modality,
+        bodyRegion: report.bodyPart,
+        recommendedIntervalDays: t.intervalDays,
+        severity: t.severity ?? "",
+        dueDate: due,
+        reportId: report.id,
+      }),
+    });
+    if (!r.ok) setError(((await r.json().catch(() => ({}))) as { error?: string }).error ?? "Görev oluşturulamadı");
+  };
+
   const addMissed = () => {
     const label = window.prompt("AI'nın kaçırdığı bulgu (kısa ad)");
     if (!label) return;
@@ -371,6 +394,17 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
             <button disabled={busy} onClick={() => void draftImpression()} className="rounded border border-violet-400/40 px-2 py-1 font-bold text-violet-200 hover:bg-violet-400/10 disabled:opacity-50">✨ Taslak izlenim üret</button>
             <button onClick={addMissed} className="rounded border border-amber-400/40 px-2 py-1 font-bold text-amber-200 hover:bg-amber-400/10">＋ AI&apos;nın kaçırdığı bulgu</button>
             <span className="text-slate-500">Taslak izlenim yalnızca doğruladığınız bulgulara dayanır; hasta kimliği dışarı gönderilmez.</span>
+          </div>
+        )}
+
+        {editing && (
+          <div className="shrink-0 border-b border-[#1e2735] bg-[#0b0f16] px-4 py-2 print:hidden">
+            <StructuredScorePanel
+              modality={report.modality}
+              bodyPart={report.bodyPart}
+              onApply={(t) => setReport((r) => ({ ...r, impression: `${r.impression}${r.impression && !r.impression.endsWith("\n") ? "\n" : ""}${t}` }))}
+              onCreateTask={createScoreTask}
+            />
           </div>
         )}
 

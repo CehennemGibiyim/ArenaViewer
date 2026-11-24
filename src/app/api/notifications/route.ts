@@ -8,6 +8,8 @@ import { closeLoopUpdate, setFollowupStatus } from "@/lib/server/closeLoop";
 
 export const dynamic = "force-dynamic";
 
+const SEVERITIES = ["kritik", "yuksek", "orta", "dusuk", "bilgi"];
+
 const map = (r: typeof notifications.$inferSelect) => ({
   id: r.id,
   createdAt: r.createdAt,
@@ -96,15 +98,18 @@ export async function POST(req: NextRequest) {
     recommendedIntervalDays?: number | null;
     dueDate?: string;
     reportId?: number | null;
+    severity?: string;
   };
   const msg = (b.message ?? "").trim();
   if (msg.length < 3 || msg.length > 2000) return NextResponse.json({ error: "Mesaj 3–2000 karakter olmalı" }, { status: 400 });
   const days = b.recommendedIntervalDays;
+  const sev: string = SEVERITIES.includes(b.severity ?? "") ? (b.severity as string) : "bilgi";
   const ins = await db
     .insert(notifications)
     .values({
       kind: "followup",
-      severity: "bilgi",
+      // Bildirimin önem derecesi (D1 kapanış döngüsünde aynı değer taşınır).
+      severity: sev,
       studyUid: (b.studyUid ?? "").slice(0, 64),
       message: msg,
       modality: (b.modality ?? "").slice(0, 16),

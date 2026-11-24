@@ -54,6 +54,18 @@ services:
     command: >
       sh -c "npx drizzle-kit push --config=drizzle.config.ts --force && npm start"
 
+  # Gerçek PACS (Orthanc, DICOMweb) — okuma/yazma uçtan uca doğrulama için.
+  # Kullanım: docker compose --profile pacs up -d  → http://localhost:8042
+  # (anonim erişim). Test: npm run test:pacs-e2e
+  orthanc:
+    image: jodogne/orthanc:latest
+    profiles: ["pacs"]
+    restart: unless-stopped
+    environment:
+      ORTHANC__NAME: "ArenaViewer E2E PACS"
+    ports:
+      - "${ORTHANC_PORT:-8042}:8042"
+
   # Yerel derin AI worker'ı (opsiyonel). `docker compose --profile ai up --build -d`
   # ile başlatılır; ilk açılışta iki modeli (~231 MB) indirip /models volume'üne yazar.
   ai-worker:
