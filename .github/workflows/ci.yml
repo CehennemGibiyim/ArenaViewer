@@ -66,11 +66,9 @@ jobs:
           ORTHANC__NAME: "ArenaViewer E2E PACS"
         ports:
           - 8042:8042
-        options: >-
-          --health-cmd "curl -sf http://localhost:8042/system"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 20
+        # Saglik kontrolu bilinçli olarak YOK: komut servis container'ının içinde
+        # çalişir ve jodogne/orthanc imajinda curl bulunmayabilir. Hazirlik, iş
+        # akışindaki 'Orthanc hazır' adimindaki anfiton curl döngüsüyle yapilir.
     env:
       ORTHANC_URL: http://localhost:8042
     steps:
@@ -85,13 +83,13 @@ jobs:
 
       - name: Orthanc hazır
         run: |
-          for i in $(seq 1 60); do
+          for i in $(seq 1 90); do
             if curl -sf "$ORTHANC_URL/system" > /dev/null; then
-              echo "Orthanc hazır"; exit 0
+              echo "Orthanc hazır"; curl -s "$ORTHANC_URL/system" | head -c 400; echo; exit 0
             fi
             sleep 2
           done
-          echo "Orthanc 120 sn içinde hazır olmadı"; exit 1
+          echo "Orthanc 180 sn içinde hazır olmadı"; curl -sv "$ORTHANC_URL/system" 2>&1 | tail -20; exit 1
 
       - name: DICOMweb uçtan uca testi (STOW/QIDO/WADO)
         run: npm run test:pacs-e2e
