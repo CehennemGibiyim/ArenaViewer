@@ -335,8 +335,8 @@ const BASE_ITEMS: GapItem[] = [
     id: "r-struct", category: "report", title: "Yapısal rapor, A4 çıktı, filigran, anahtar kesit görseli",
     status: "var", priority: "P3", effort: "S",
     market: ["PowerScribe", "Rad AI"],
-    ours: "Teknik / Bulgular / Sonuç / Öneri; onaysız taslak filigranı; tek anahtar kesit.",
-    action: "Çoklu anahtar kesit ve ölçüm tablosu (bkz. Ölçüm).",
+    ours: "Teknik / Bulgular / Sonuç / Öneri; onaysız taslak filigranı; kanıtsal kesitlerden en fazla 4 anahtar kesit.",
+    action: "Ölçüm tablosunu rapora ekleme; filigran/anahtar kesit düzeni kuruma özelleştirilir.",
   },
   {
     id: "r-review", category: "report", title: "Bulgu bazlı hekim doğrulaması (zorunlu gözden geçirme)",
@@ -347,10 +347,17 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "r-template", category: "report", title: "Şablon kütüphanesi (modalite/bölge/endikasyon), makro ve seçim listeleri",
-    status: "yok", priority: "P1", effort: "M",
+    status: "var", priority: "P1", effort: "M",
     market: ["PowerScribe", "Rad AI", "RadPal"],
-    ours: "Tek sabit şablon.",
-    action: "Veritabanında şablon yönetimi; RSNA RadReport şablonlarıyla uyum.",
+    ours: "42 hazır şablon (CT 11 / MR 17 / US 6 / MG 3 / NM-PET-CT-CR-DX); her şablonda endikasyon + protokol; /api/templates GET/POST/PATCH/DELETE; rapor ekranında modaliteye göre aranabilir seçici.",
+    action: "RSNA RadReport/Radslex ile eşleştirme; kullanıcı başına şablon favorileri.",
+  },
+  {
+    id: "r-structured-score", category: "report", title: "Yapılandırılmış skorlama (Lung-RADS, TI-RADS, BI-RADS, PI-RADS)",
+    status: "var", priority: "P1", effort: "M",
+    market: ["RadPal", "PowerScribe", "Aidoc"],
+    ours: "Skor motoru + rapor paneli: Lung-RADS 1.1, ACR TI-RADS, BI-RADS 0–6, PI-RADS v2.1, ACR meme yoğunluğu; skor rapora 'öneri' satırı olarak eklenir ve takip/biyopsi görevine dönüşür.",
+    action: "Bulgu metninden özellik çıkarımı (NLP); hekim onaylı skor revizyon geçmişi.",
   },
   {
     id: "r-dictate", category: "report", title: "Sesle dikte (Türkçe) ve sesli komutlar",
@@ -405,10 +412,10 @@ const BASE_ITEMS: GapItem[] = [
   // ───────── WORKFLOW ─────────
   {
     id: "w-pacs", category: "workflow", title: "PACS / DICOMweb bağlantısı (QIDO-RS, WADO-RS, STOW-RS, C-FIND/C-MOVE)",
-    status: "yok", priority: "P1", effort: "L",
+    status: "kismi", priority: "P1", effort: "L",
     market: ["OHIF", "Weasis", "RadiAnt", "Horos", "Aidoc"],
-    ours: "Yok; yalnızca yerel dosya/klasör açma.",
-    action: "Orthanc/dcm4chee ile DICOMweb istemcisi; ardından C-FIND/C-MOVE.",
+    ours: "QIDO/WADO istemcisi + yapılandırılabilir bağlantı profilleri; 'bağlantıyı test et' raporu. STOW/QIDO/WADO uçtan uca doğrulaması CI'da gerçek Orthanc üzerinde çalışır (tests/pacs.orthanc.e2e.ts).",
+    action: "STOW-RS'e rapor/KO/SR gönderme diyaloğu; ardından C-FIND/C-MOVE.",
   },
   {
     id: "w-worklist", category: "workflow", title: "Çalışma listesi: hasta/tetkik, durum, atama, öncelik",
@@ -529,10 +536,10 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "a-calcium", category: "ai", title: "Agatston kalsiyum skoru + kemik yoğunluğu ölçümü",
-    status: "yok", priority: "P2", effort: "M",
+    status: "kismi", priority: "P2", effort: "M",
     market: ["Aidoc", "3D Slicer"],
-    ours: "HU ölçümü var; kalsiyum/kemik yoğunluğu modülü yok.",
-    action: "BT'de L1–L4 HU ölçümünden Agatston; HU tabanlı kemik yoğunluğu kategorisi.",
+    ours: "Damar bazlı Agatston (HU ağırlıkları, ≥1 mm² alan eşiği, S0–S4 kategori) + oportünist L1–L4 trabeküler HU kategorisi + PA kardiyotorasik oran hesaplayıcı; hekim ölçü değerlerini girer.",
+    action: "Piksel tabanlı otomatik kalsiyum algılama/segmentasyonu (model veya bağlamsal çekirdek); DEXA korelasyonu.",
   },
   {
     id: "a-lungquant", category: "ai", title: "Akciğer kvantifikasyonu: lob/emphisema (LAA-950)/volüm",
@@ -1012,7 +1019,7 @@ const ROADMAP_OLD: RoadmapPhase[] = [
 ];
 
 export const ROADMAP: RoadmapPhase[] = [
-  { id: "done", title: "Bu turda tamamlananlar (test edildi)", timeframe: "Tamam", goal: "Gerçek veri, güvenlik temeli, workstation çekirdeği.", itemIds: ["f-codec", "w-auth", "w-audit", "r-version", "t-privacy", "m-persist", "w-storage", "w-worklist", "v-mip", "v-mpr", "a-model", "a-card", "w-deid"] },
+  { id: "done", title: "Bu turda tamamlananlar (test edildi)", timeframe: "Tamam", goal: "Gerçek veri, güvenlik temeli, workstation çekirdeği.", itemIds: ["f-codec", "w-auth", "w-audit", "r-version", "t-privacy", "m-persist", "w-storage", "w-worklist", "v-mip", "v-mpr", "a-model", "a-card", "w-deid", "r-template", "r-structured-score", "a-calcium"] },
   { id: "code", title: "Sıradaki mühendislik işleri (kodla yapılabilir)", timeframe: "1–3 ay", goal: "Kalan teknik boşluklar.", itemIds: ["v-vr", "v-mpr", "f-codec", "m-shapes", "r-export", "w-pacs", "v-perf", "v-hanging", "f-objects"] },
   { id: "ai", title: "Gerçek model ve doğrulama", timeframe: "3–9 ay", goal: "Lisanslı/doğrulanmış modeller + kendi verinizde ölçüm.", itemIds: ["a-model", "a-heat", "a-uncert", "t-validation", "a-track", "a-prior"] },
   { id: "org", title: "Kurum/üretici süreçleri (kodla bitmez)", timeframe: "Sürekli", goal: "Düzenleyici uyum, NES, altyapı ve entegrasyon sözleşmeleri.", itemIds: ["t-mdr", "r-esign", "t-privacy", "w-his", "a-notify", "w-pacs"] },
