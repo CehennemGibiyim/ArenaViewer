@@ -210,6 +210,7 @@ export async function POST(req: NextRequest) {
     if (worst === "kritik" || worst === "yuksek") {
       const top = abn[0];
       await db.insert(notifications).values({
+        kind: "finding",
         severity: worst,
         studyUid: body.studyUid ?? "",
         message: `ÇOKLU-SERİ · ${body.series.length} seri: ${top?.label || "Aday bulgu"} — radyolog teyidi gerekir`,

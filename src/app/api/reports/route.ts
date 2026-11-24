@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { reportVersions, reports, studies } from "@/db/schema";
 import { audit } from "@/lib/server/audit";
 import { authorize, sha256 } from "@/lib/server/auth";
+import { createFollowupFromReport } from "@/lib/server/closeLoop";
 import { encryptText } from "@/lib/server/crypto";
 import { mapReport, upsertStudy, type StudyMeta } from "@/lib/server/studyRepo";
 import type { Finding, FindingApprovalStatus } from "@/lib/types";
@@ -115,8 +116,25 @@ export async function POST(req: NextRequest) {
   }).where(eq(studies.id, studyId));
   await audit(user, approve ? "report.approve" : "report.save", "report", reportId, { version, studyId, ...(approve ? { contentHash } : {}) });
 
+  // D2: onaylı rapordaki takip önerisi çalışma listesine yapılan bir görev olarak düşer.
+  let followupId: number | null = null;
+  if (approve) {
+    try {
+      followupId = await createFollowupFromReport({
+        studyUid: body.study.studyUid,
+        reportId,
+        modality: body.study.modality ?? "",
+        bodyPart: body.study.bodyPart ?? "",
+        recommendation: r.recommendation,
+      });
+      if (followupId) await audit(user, "notify.followup.fromReport", "notification", followupId, { reportId });
+    } catch (e) {
+      console.error("takip önerisi oluşturulamadı:", e);
+    }
+  }
+
   return NextResponse.json({
-    ok: true, reportId, studyId, status: values.status, version, contentHash,
+    ok: true, reportId, studyId, status: values.status, version, contentHash, followupId,
     approvedAt: approvedAt?.toISOString() ?? null, approvedBy: values.approvedBy, doctorTitle: values.doctorTitle, doctorRegNo: values.doctorRegNo,
   });
 }

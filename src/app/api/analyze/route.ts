@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     }
     if (engine === "cv-heuristic" && top && (worst === "kritik" || worst === "yuksek")) {
       const message = `${meta.modality} · ${meta.seriesDescription}: ${top.label} (Kesit ${top.keySliceNumber}) — aday bulgu, radyolog teyidi gerekir`;
-      await db.insert(notifications).values({ severity: worst, studyUid: body.studyUid ?? "", message });
+      await db.insert(notifications).values({ kind: "finding", severity: worst, studyUid: body.studyUid ?? "", message });
       const hook = await getSetting("criticalWebhookUrl");
       let hookStatus = "yok";
       if (hook) {

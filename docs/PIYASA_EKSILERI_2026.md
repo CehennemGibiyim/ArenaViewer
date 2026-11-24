@@ -69,8 +69,8 @@
 
 | ID | Özellik | P | Çaba | Bizde şu an | Fikir |
 |---|---|---|---|---|---|
-| D1 | **Kritik sonuç kapanış döngüsü:** ACK + süreşme + eskalasyon + iletişim kaydı | P1 | M | Bildirim “alındı” var; kimlik/süre/eskalasyon yok | Zaman damgalı ACK, okundu/iletildi kanıtı, hekime tekrar hatırlatma, denetim satırı. |
-| D2 | **Takip önerilerini iş listesine taşıma** | P1 | S–M | Öneri raporda kalıyor | “Takip öner” nesnesi: modalite/bölge/süre + durum; çalışma listesinde görünür. |
+| D1 | **Kritik sonuç kapanış döngüsü:** ACK + iletim kanıtı + eskalasyon kaydı | P1 | M | Bildirim “alındı” var; kim/süre/eskalasyon ve iletilme kanıtı yok | Zaman damgalı ACK, okundu/iletildi kanıtı, hekime tekrar hatırlatma, denetim satırı. **Bu sürümde kısmen uygulandı:** `notifications.relayedTo`/`relayedAt`/`escalated`/`escalatedAt` + zil üzerinde “İletildi…/Eskalasyon” ve `notify.relay` denetim kaydı; süre hatırlatması yok. |
+| D2 | **Takip önerilerini iş listesine taşıma** | P1 | S | Öneri raporda kalıyor; görev kuyruğuna düşmüyor | “Takip önerisi” nesnesi: modalite/bölge/süre + durum; çalışma listesinde görünür. **Bu sürümde uygulandı:** onaylı raporun “Öneri” metni otomatik göreve dönüşür (`acik/tamamlandi/iptal`), gün/hafta/ay/yıl süresi ayrıştırılır; yaklaşan tarih bildirimi yok. |
 | D3 | **Peer review / ikinci okuma / uyuşmazlık kaydı (RADPEER)** | P2 | M | Yok | Rapor yanında ikinci hekim ataması, uyuşmazlık kategorisi, kalite metriği. |
 | D4 | **Ambient dokümantasyon + yapılandırılmış makrolar** | P2 | M | Web Speech dikte var; ambient tıbbi sözlük yok | Makro kitaplığı (cümle/blok), ACR uygunluk sorgusu; sözlük genişletilebilir. |
 | D5 | **ICD-10 / ACR Appropriateness / kodlama desteği** | P3 | S | Yok | Bulgu→ICD-10 öneri tablosu; istek uygunluğu sorgulama (RadPal benzeri). |

@@ -151,15 +151,36 @@ export const storedFiles = pgTable("stored_files", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+/**
+ * Kritik bulgu bildirimi (D1) ve takip önerisi görevi (D2) tek tabloda.
+ *
+ * `kind` ile ayrılır; mevcut satırlar kind=NULL bırakılır ve geriye dönük olarak
+ * kural tabanlı “bulgu bildirimi” sayılır. Yeni sütunların tamamı opsiyoneldir, yani
+ * eski veri bozulmadan şema uygulanabilir.
+ */
 export const notifications = pgTable("notifications", {
   id: serial("id").primaryKey(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  kind: text("kind"), // null | finding | followup
   severity: text("severity").notNull(),
   studyUid: text("study_uid").notNull().default(""),
   message: text("message").notNull(),
   ackBy: integer("ack_by"),
   ackByName: text("ack_by_name").notNull().default(""),
   ackAt: timestamp("ack_at"),
+  /** Kapanış döngüsü: bildirimin iletildiği kişi/kanal ve kanıt zamanı. */
+  relayedTo: text("relayed_to").notNull().default(""),
+  relayedAt: timestamp("relayed_at"),
+  escalated: boolean("escalated").notNull().default(false),
+  escalatedAt: timestamp("escalated_at"),
+  /** Takip önerisi alanları (D2). */
+  modality: text("modality").notNull().default(""),
+  bodyRegion: text("body_region").notNull().default(""),
+  recommendedIntervalDays: integer("recommended_interval_days"),
+  dueDate: text("due_date").notNull().default(""),
+  status: text("status").notNull().default("acik"), // acik | tamamlandi | iptal
+  completedAt: timestamp("completed_at"),
+  reportId: integer("report_id"),
 });
 
 export const reportTemplates = pgTable("report_templates", {
