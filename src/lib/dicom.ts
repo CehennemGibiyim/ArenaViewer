@@ -19,6 +19,18 @@ import {
   SOP_PREFIX_SR,
 } from "./dicomSpecial";
 
+function randomPatientId(): string {
+  const random = new Uint32Array(1);
+  const range = 900_000;
+  const limit = Math.floor(0x1_0000_0000 / range) * range;
+  let value: number;
+  do {
+    globalThis.crypto.getRandomValues(random);
+    value = random[0]!;
+  } while (value >= limit);
+  return `TR-${100_000 + (value % range)}`;
+}
+
 const TAG_NAMES: Record<string, string> = {
   x00020010: "Transfer Syntax UID", x00080008: "Image Type", x00080016: "SOP Class UID",
   x00080018: "SOP Instance UID", x00080020: "Study Date", x00080030: "Study Time",
@@ -723,7 +735,7 @@ export async function loadMedicalFiles(
       description: seriesDesc,
       bodyPart: first.string("x00180015") ?? "TÜM VÜCUT",
       patientName: first.string("x00100010")?.replace(/\^/g, " ") || "ANONİM HASTA",
-      patientId: first.string("x00100020") || `TR-${Math.floor(Math.random() * 900000 + 100000)}`,
+      patientId: first.string("x00100020") || randomPatientId(),
       patientAge: first.string("x00101010") || "-",
       patientSex: first.string("x00100040") || "-",
       studyDate: first.string("x00080020") || new Date().toISOString().slice(0, 10),
