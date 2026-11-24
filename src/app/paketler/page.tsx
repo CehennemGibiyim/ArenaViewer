@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import type { Metadata } from "next";
 import Link from "next/link";
 import AiWorkerStatus from "@/components/AiWorkerStatus";
@@ -9,7 +11,11 @@ export const metadata: Metadata = {
 };
 
 const VERSION = "0.1.0";
-const ZIP = `/downloads/ATIKVIEWER-${VERSION}-kurulum.zip`;
+const ZIP_FILE = `ATIKVIEWER-${VERSION}-kurulum.zip`;
+const ZIP = `/downloads/${ZIP_FILE}`;
+// Arşiv CI/release akışında üretilip GitHub Releases'e eklenir; yerel derlemede
+// public/downloads altında yoksa sayfa ölü bağlantı vermek yerine üretim komutunu gösterir.
+const ZIP_EXISTS = fs.existsSync(path.join(process.cwd(), "public", "downloads", ZIP_FILE));
 
 interface Row {
   path: string;
@@ -208,14 +214,22 @@ export default function PaketlerPage() {
             yapılandırma ve belgeleri içerir; <span className="text-emerald-300">node_modules, .env ve hasta verisi içermez</span>.
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-3">
-            <a
-              href={ZIP}
-              download
-              className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-emerald-500 px-5 py-3 text-sm font-black text-[#06131a] shadow-lg shadow-cyan-500/20 transition hover:brightness-110"
-            >
-              ⬇ İndir — ATIKVIEWER-{VERSION}-kurulum.zip
-            </a>
-            <span className="font-mono text-[11px] text-slate-500">110 KB · SHA yok · dosya yolları korunur</span>
+            {ZIP_EXISTS ? (
+              <a
+                href={ZIP}
+                download
+                className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-emerald-500 px-5 py-3 text-sm font-black text-[#06131a] shadow-lg shadow-cyan-500/20 transition hover:brightness-110"
+              >
+                ⬇ İndir — ATIKVIEWER-{VERSION}-kurulum.zip
+              </a>
+            ) : (
+              <code className="rounded-lg border border-[#2d3b4e] bg-[#080c12] px-3 py-2 font-mono text-[11px] text-cyan-200">
+                bash packaging/universal/build-source-zip.sh   # → dist/{ZIP_FILE}
+              </code>
+            )}
+            <span className="font-mono text-[11px] text-slate-500">
+              {ZIP_EXISTS ? "110 KB · SHA yok · dosya yolları korunur" : "arşiv bu derlemede yok; ürettikten sonra public/downloads/ altına koyun"}
+            </span>
           </div>
           <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {[

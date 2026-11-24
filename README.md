@@ -59,9 +59,12 @@ olarak bunu belirtir; hasta verisi bu servise yalnızca makine içinden gider.
 
 ## Kurulum paketleri — Windows · Linux · macOS
 
-Tüm kurulum dosyaları **orijinal dosya yollarıyla** tek arşivdedir:
-`public/downloads/ATIKVIEWER-0.1.0-kurulum.zip` (uygulama içinde: **📦 Kurulum**
-→ `/paketler`). Ayrıntılı yol ve komut tablosu: **[packaging/README.md](packaging/README.md)**.
+Tüm kurulum dosyaları **orijinal dosya yollarıyla** tek arşiv üretilir:
+`dist/ATIKVIEWER-<sürüm>-kurulum.zip` (`bash packaging/universal/build-source-zip.sh`).
+Uygulama içindeki **📦 Kurulum → `/paketler`** sayfası bu arşivi
+`public/downloads/` altında bulduğunda doğrudan indirme bağlantısı sunar; yoksa
+üretim komutunu gösterir. Ayrıntılı yol ve komut tablosu:
+**[packaging/README.md](packaging/README.md)**.
 
 | İşletim sistemi | Tek komutla kurulum | Paket üretimi |
 |---|---|---|
