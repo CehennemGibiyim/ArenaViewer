@@ -93,8 +93,6 @@ function decodeScan(data, offset, frame, components, resetInterval, spectralStar
         var n = 0;
         while (length > 0) {
             var bit = readBit();
-            if (bit === null)
-                return;
             n = (n << 1) | bit;
             length--;
         }
