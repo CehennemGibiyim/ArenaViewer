@@ -3,6 +3,7 @@
 import { buildReportSr, type EvidenceRef } from "@/lib/dicomSr";
 import { processDictation } from "@/lib/dictate";
 import { appropriatenessFor, isValidIcd10, suggestIcd10 } from "@/lib/icd10";
+import { SIGNATURE_METHODS, signatureNote, type SignatureMethod, type SignatureRecord } from "@/lib/esign";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fmtConf } from "@/lib/format";
 import StructuredScorePanel from "@/components/StructuredScorePanel";
@@ -160,6 +161,13 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
   /** Eklenen ICD-10 kodları (rapora yazılan öneriler; kodlama hekime aittir). */
   const [icdCodes, setIcdCodes] = useState<string[]>([]);
+  // Elektronik imza kaydı (kayıt/denetim; NES sağlayıcısı yoksa nesne nitelikli değildir)
+  const [sigOpen, setSigOpen] = useState(false);
+  const [sigMethod, setSigMethod] = useState<SignatureMethod>("hesap-parola-mfa");
+  const [sigAck, setSigAck] = useState(false);
+  const [sigBusy, setSigBusy] = useState(false);
+  const [sigMsg, setSigMsg] = useState("");
+  const [sigRecords, setSigRecords] = useState<SignatureRecord[]>([]);
   const [tplQuery, setTplQuery] = useState("");
   const [versions, setVersions] = useState<ReportVersion[]>([]);
   const [addenda, setAddenda] = useState<ReportAddendum[]>([]);
@@ -186,6 +194,8 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
     setError("");
     setEditing(false);
     setIcdCodes([]);
+    setSigOpen(false);
+    setSigRecords([]);
   }
 
   // ICD-10 önerileri: rapor metnine göre yaklaşık eşleme (hekim onayı şart).
@@ -195,6 +205,31 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
     () => (report.clinicalInfo ? appropriatenessFor(report.modality, report.bodyPart, report.clinicalInfo) : null),
     [report.clinicalInfo, report.modality, report.bodyPart],
   );
+
+  const loadSignatures = useCallback(async (id: number) => {
+    try {
+      const r = await fetch(`/api/reports/${id}/signature`);
+      if (!r.ok) return;
+      const d = (await r.json()) as { records?: SignatureRecord[] };
+      setSigRecords(Array.isArray(d.records) ? d.records : []);
+    } catch { /* kayıt listesi yüklenemezse sessiz geç */ }
+  }, []);
+
+  const signReport = useCallback(async () => {
+    if (!report.id) return;
+    setSigBusy(true);
+    setSigMsg("");
+    try {
+      const r = await fetch(`/api/reports/${report.id}/signature`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ method: sigMethod }),
+      });
+      const d = (await r.json().catch(() => ({}))) as { error?: string };
+      if (!r.ok) setSigMsg(d.error ?? "İmza kaydı oluşturulamadı.");
+      else { setSigAck(false); await loadSignatures(report.id); setSigMsg("İmza kaydı denetim zincirine işlendi."); }
+    } catch { setSigMsg("Ağ hatası — imza kaydı oluşturulamadı."); }
+    finally { setSigBusy(false); }
+  }, [report.id, sigMethod, loadSignatures]);
 
   const loadDetail = useCallback(async (id: number) => {
     const r = await fetch(`/api/reports/${id}`);
@@ -462,6 +497,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
               </>
             )}
             <button type="button" onClick={downloadSr} disabled={!approved} title={approved ? "Radyoloji raporu → DICOM Basic Text SR" : "Sadece radyoloji uzmanı onayı sonrası alınabilir"} className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${approved ? "cursor-pointer border-[#2d3b4e] bg-[#141b24] text-slate-200 hover:bg-[#1a2330]" : "cursor-not-allowed border-[#2d3b4e] bg-[#141b24]/50 text-slate-500 opacity-60"}`}>DICOM SR ⬇</button>
+            {report.id && <button type="button" onClick={() => { setSigOpen((v) => !v); setSigMsg(""); if (!sigOpen) void loadSignatures(report.id!); }} title="Elektronik imza kaydı (NES değildir; içerik SHA-256 ile mühürlenir)" className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${sigOpen ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-200" : "cursor-pointer border-[#2d3b4e] bg-[#141b24] text-slate-200 hover:bg-[#1a2330]"}`}>✍ İmza kaydı</button>}
             {report.id && <button type="button" onClick={() => void downloadFhir(report.id!)} disabled={!approved} title={approved ? "FHIR DiagnosticReport indir" : "Sadece radyoloji uzmanı onayı sonrası alınabilir"} className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${approved ? "cursor-pointer border-[#2d3b4e] bg-[#141b24] text-slate-200 hover:bg-[#1a2330]" : "cursor-not-allowed border-[#2d3b4e] bg-[#141b24]/50 text-slate-500 opacity-60"}`}>FHIR ⬇</button>}
             {report.id && <button type="button" onClick={() => void sendToPacs(report.id!)} disabled={!approved || busy} title={approved ? "Raporu DICOM SR olarak yapılandırılmış PACS'e gönder (STOW-RS)" : "Sadece radyoloji uzmanı onayı sonrası gönderilebilir"} className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${approved ? "cursor-pointer border-violet-400/50 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20" : "cursor-not-allowed border-[#2d3b4e] bg-[#141b24]/50 text-slate-500 opacity-60"}`}>PACS’e gönder ⇧</button>}
             <button onClick={approved ? printReport : undefined} disabled={!approved} title={approved ? "Yazdır / PDF olarak kaydet" : "Sadece radyoloji uzmanı onayı sonrası alınabilir"} className={`rounded-lg px-3.5 py-1.5 text-xs font-bold ${approved ? "cursor-pointer bg-cyan-500 text-slate-950 hover:bg-cyan-400" : "cursor-not-allowed bg-slate-600 text-slate-400 opacity-60"}`}>🖨 Yazdır / PDF</button>
@@ -473,6 +509,43 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
           <div className="shrink-0 space-y-1 border-b border-[#1e2735] bg-[#0b0f16] px-4 py-2 text-[11px] print:hidden">
             {error && <div className="font-semibold text-rose-300">⚠ {error}</div>}
             {!approved && pending > 0 && <div className="text-amber-300">{pending} bulgu henüz gözden geçirilmedi — tablodaki durum düğmesine tıklayarak Onayla/Reddet/Düzenlendi olarak işaretleyin. Onay için hepsi işaretlenmeli.</div>}
+          </div>
+        )}
+
+        {sigOpen && report.id && (
+          <div className="shrink-0 space-y-2 border-b border-[#1e2735] bg-[#0b0f16] px-4 py-3 text-[11px] print:hidden">
+            <div className="flex items-center justify-between">
+              <span className="font-bold uppercase tracking-wider text-slate-300">Elektronik imza kaydı</span>
+              <button onClick={() => setSigOpen(false)} className="cursor-pointer text-slate-500 hover:text-slate-200">✕</button>
+            </div>
+            <p className="text-slate-500">
+              Kayıt; içeriğin SHA-256 hash değeri, imza sahibi, zaman ve yöntemi denetim zincirine yazar.
+              Nitelikli elektronik imza (NES) için akreditasyonlu bir sağlayıcı entegrasyonu gerekir.
+            </p>
+            {!approved && <p className="font-semibold text-amber-300">Rapor henüz onaylanmadı: onaylanmamış içeriğe imza kaydı düşürülemez.</p>}
+            <label className="block">
+              <span className="mb-1 block font-bold text-slate-400">Yöntem</span>
+              <select value={sigMethod} onChange={(e) => setSigMethod(e.target.value as SignatureMethod)} className="w-full rounded-lg border border-[#232e40] bg-[#0e141d] px-2 py-1.5 text-xs text-slate-200">
+                {SIGNATURE_METHODS.map((m) => <option key={m.id} value={m.id} disabled={m.qualified}>{m.label}{m.qualified ? " (entegre edilmedi)" : ""}</option>)}
+              </select>
+            </label>
+            <label className="flex items-start gap-2 text-slate-400">
+              <input type="checkbox" checked={sigAck} onChange={(e) => setSigAck(e.target.checked)} className="mt-0.5" />
+              <span>Kaydın <b>nesne nitelikli elektronik imza olmadığını</b>, yalnızca içerik değişikliğini saptayan bir kayıt olduğunu anladım.</span>
+            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <button onClick={() => void signReport()} disabled={sigBusy || !approved || !sigAck} className="cursor-pointer rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40">{sigBusy ? "Kaydediliyor…" : "✍ Kaydı oluştur"}</button>
+              {sigMsg && <span className="text-slate-300">{sigMsg}</span>}
+            </div>
+            {sigRecords.length > 0 && (
+              <ul className="space-y-1 border-t border-[#1e2735] pt-2">
+                {sigRecords.slice(-5).map((r, i) => (
+                  <li key={`${r.signedAt}-${i}`} className="rounded border border-[#1a2230] bg-[#0e141d] px-2 py-1 font-mono text-[10px] text-slate-400">
+                    {signatureNote(r)}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
 
