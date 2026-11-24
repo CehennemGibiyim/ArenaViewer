@@ -37,6 +37,7 @@ import type {
   AiMode, AiProtocol, AnalysisResult, Annotation, EngineKind, Finding, FindingApprovalStatus,
   HangingProtocolRule, ImageReview, KeyImage, Layout, Lesion, SavedReport, SeriesData, StudyRow, ToolName, UserInfo, WindowPreset,
 } from "@/lib/types";
+import { LAYOUTS, WINDOW_PRESETS, type UserPrefs } from "@/lib/prefs";
 
 type Rot = 0 | 90 | 180 | 270;
 const CELLS: Record<Layout, number> = { "1x1": 1, "1x2": 2, "2x1": 2, "2x2": 4, "1x3": 3, "3x1": 3, "2x3": 6, "3x2": 6 };
@@ -191,6 +192,8 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   const [refWins, setRefWins] = useState<({ wl: number; ww: number } | undefined)[]>([undefined, undefined, undefined, undefined, undefined]);
   const [syncPanels, setSyncPanels] = useState(true);
   const [autoLayout, setAutoLayout] = useState(true);
+  /** Kayıtlı pencere ön ayarı (F3) — protokol belirtmezse uygulanır. */
+  const [defaultWindow, setDefaultWindow] = useState<string>("");
   const [mpr, setMpr] = useState(false);
   const [mprInitialTab, setMprInitialTab] = useState<"not" | "3b">("not");
   const [showOverlays, setShowOverlays] = useState(true);
@@ -1247,7 +1250,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
 
   // Pencere ön ayarları tüm modalitelerde listelenir: aynı isimler MR/US grafide de
   // yardımcı olur; özel AR/Onc olayları kullanıcı kendi ayarını kaydedebilir.
-  const allPresets = series ? [...CT_PRESETS, ...presets] : CT_PRESETS;
+  const allPresets = useMemo<WindowPreset[]>(() => series ? [...CT_PRESETS, ...presets] : CT_PRESETS, [series, presets]);
   const overlay: OverlayData | null = masks ? { masks, opacity: overlayOpacity } : null;
   const cells = CELLS[layout];
   const refLabel = ["Panel 2", "Panel 3", "Panel 4", "Panel 5", "Panel 6"];
@@ -1259,6 +1262,28 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
       if (t) document.documentElement.setAttribute("data-theme", t);
     } catch { /* depolama kapalıysa varsayılan tema */ }
   }, []);
+
+  // Sunucudaki tercihler (F3): yalnız açılışta; istasyonda elle değiştirilebilir.
+  useEffect(() => {
+    fetch("/api/profile/preferences").then((r) => (r.ok ? r.json() : null)).then((d: { prefs?: UserPrefs } | null) => {
+      const p = d?.prefs;
+      if (!p) return;
+      if ((LAYOUTS as readonly string[]).includes(p.layout)) setLayout(p.layout as Layout);
+      if ((WINDOW_PRESETS as readonly string[]).includes(p.defaultWindow) && p.defaultWindow !== "") setDefaultWindow(p.defaultWindow);
+    }).catch(() => { /* tercih alınamazsa yerel davranış */ });
+  }, []);
+
+  // Tercih edilen pencere ön ayarı (F3): yalnızca seri anahtarı değiştiğinde,
+  // otomatik protokol kapalıysa uygulanır (elle W/L daha sonra üstün kalır).
+  const prefWinKey = useRef("");
+  const effectiveSeriesKey = series ? seriesKey(series) : "";
+  if (effectiveSeriesKey !== prefWinKey.current) {
+    prefWinKey.current = effectiveSeriesKey;
+    if (series && !autoLayout && defaultWindow) {
+      const p = allPresets.find((x) => x.name.toLowerCase() === defaultWindow.toLowerCase());
+      if (p) { setWl(p.wl); setWw(p.ww); }
+    }
+  }
 
   return (
     <div data-testid="workstation" className="relative isolate flex h-dvh w-full flex-col overflow-hidden bg-[#070a0f] text-slate-200" onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false); }} onDrop={onDrop}>
@@ -1355,6 +1380,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
           <Link href="/paketler" prefetch={false} title="Windows · Linux · macOS kurulum paketleri ve dosya yolları" className="rounded-lg border border-emerald-400/50 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-bold text-emerald-200 hover:bg-emerald-500/20">📦 Kurulum</Link>
           <Link href="/kiyaslama" prefetch={false} className="rounded-lg border border-violet-400/50 bg-violet-500/10 px-2.5 py-1.5 text-xs font-bold text-violet-200 hover:bg-violet-500/20">📊 Kıyaslama</Link>
           <Link href="/yonetim" prefetch={false} className="rounded-lg border border-slate-500/50 px-2.5 py-1.5 text-xs font-bold text-slate-200 hover:bg-slate-500/10">⚙ Yönetim</Link>
+          <Link href="/tercihler" prefetch={false} title="Kullanıcı tercihleri (düzen, pencere ön ayarı, otomatik protokol)" className="rounded-lg border border-slate-500/50 px-2.5 py-1.5 text-xs font-bold text-slate-200 hover:bg-slate-500/10">🧰 Tercihler</Link>
           <button onClick={() => void fetch("/api/auth/logout", { method: "POST" }).finally(() => { window.location.reload(); })} title="Oturumu kapat" className="rounded-lg border border-rose-400/40 px-2.5 py-1.5 text-xs font-bold text-rose-300 hover:bg-rose-400/10">⎋ Çıkış</button>
           <NotificationsBell />
           <button onClick={openReport} className="cursor-pointer rounded-lg border border-cyan-400/60 bg-gradient-to-r from-cyan-500/20 to-emerald-500/20 px-3 py-1.5 text-xs font-bold text-cyan-200 hover:text-white">📄 Rapor <span className={`ml-1 rounded-full px-1.5 text-[9px] font-black ${reportStatus === "onaylandi" ? "bg-emerald-500 text-slate-950" : "bg-rose-500 text-white"}`}>{reportStatus === "onaylandi" ? "ONAYLI" : "TASLAK"}</span></button>

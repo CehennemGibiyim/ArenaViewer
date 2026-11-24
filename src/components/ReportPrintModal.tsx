@@ -4,6 +4,7 @@ import { buildReportSr, type EvidenceRef } from "@/lib/dicomSr";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fmtConf } from "@/lib/format";
 import StructuredScorePanel from "@/components/StructuredScorePanel";
+import { MACRO_GROUPS, macroById, macrosByGroup, type MacroGroup } from "@/lib/macros";
 import type {
   Finding, FindingApprovalStatus, KeyImage, ModelCard, ReportAddendum, ReportVersion, TemplateRow, UserInfo,
 } from "@/lib/types";
@@ -388,6 +389,25 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                 <option key={t.id} value={t.id}>
                   {t.name}{t.indication ? ` — ${t.indication}` : ""}{t.protocol ? ` · ${t.protocol}` : ""}
                 </option>
+              ))}
+            </select>
+            <select
+              defaultValue=""
+              onChange={(e) => {
+                const m = macroById(e.target.value);
+                if (!m) return;
+                const target = m.group === "teknik" ? "technique" : m.group === "bulgu" ? "findingsText" : "recommendation";
+                append(target)(`${m.text} `);
+                e.target.value = "";
+              }}
+              aria-label="Makro ekle"
+              className="max-w-56 rounded border border-[#1e2735] bg-[#0e141d] px-2 py-1 text-slate-200"
+            >
+              <option value="" disabled>Makro ekle…</option>
+              {(Object.keys(MACRO_GROUPS) as MacroGroup[]).map((g) => (
+                <optgroup key={g} label={MACRO_GROUPS[g]}>
+                  {macrosByGroup(g).map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+                </optgroup>
               ))}
             </select>
             <button onClick={() => void saveTemplate()} className="rounded border border-[#2d3b4e] px-2 py-1 text-slate-200 hover:bg-[#1a2330]">Şablon olarak kaydet</button>

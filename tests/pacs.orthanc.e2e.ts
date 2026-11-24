@@ -11,7 +11,7 @@
  * ara/bul → WADO-RS ile geri al → temizlik için sil. Böylece okuma VE yazma
  * yönü de gerçek bir PACS üzerinde doğrulanır.
  */
-import assert from "node:assert/strict";
+import { randomInt } from "node:crypto";
 
 const BASE = (process.env.ORTHANC_URL ?? "").replace(/\/$/, "");
 const USER = process.env.ORTHANC_USER ?? "atik";
@@ -23,7 +23,7 @@ if (!BASE) {
 }
 
 const auth = "Basic " + Buffer.from(`${USER}:${PASS}`).toString("base64");
-const uid = (root: string) => `${root}.${Math.floor(Math.random() * 1e6)}.${Date.now()}`;
+const uid = (root: string) => `${root}.${randomInt(0, 1_000_000)}.${Date.now()}`;
 
 // ───────── Minimal Explicit VR Little Endian DICOM üreteci ─────────
 

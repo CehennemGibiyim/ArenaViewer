@@ -72,7 +72,6 @@ export function ticCurve(t: number[], v: number[]): TicResult {
   const n = Math.min(t.length, v.length);
   if (n < 3) return { pattern: "yetersiz", peakValue: 0, peakTimeSec: 0, washIn: null, washOutPct: null, advice: "En az 3 zaman noktası gerekli." };
 
-  const base = Math.min(...v);
   let iPeak = 0;
   for (let i = 0; i < n; i++) if (v[i] > v[iPeak]) iPeak = i;
 

@@ -1,5 +1,4 @@
 /** Model operasyonları testleri: kalibrasyon/ECE, drift, parmak izi. */
-import assert from "node:assert/strict";
 import { calibrationBins, driftCheck, expectedCalibrationError, modelFingerprint } from "../src/lib/modelOps";
 
 let failed = 0;

@@ -181,11 +181,6 @@ export function cxrCardiothoracicRatio(cardiacMm: number | null, thoracicMm: num
   };
 }
 
-const mm = (s: string): number | null => {
-  const v = parseFloat(String(s).replace(",", "."));
-  return Number.isFinite(v) && v > 0 ? v : null;
-};
-
 // ─────────────── LUNG-RADS 1.1 ───────────────
 
 export interface LungRadsInput {

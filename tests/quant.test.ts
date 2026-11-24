@@ -2,7 +2,6 @@
  * Kantitatif modül testleri: ASPECTS + CTP özeti (stroke.ts), akciğer
  * kantitasyonu (lungQuant.ts), nükleer tıp yardımcıları (nuclear.ts).
  */
-import assert from "node:assert/strict";
 import { aspectsScore } from "../src/lib/stroke";
 import { ctpSummary } from "../src/lib/stroke";
 import { lungQuant } from "../src/lib/lungQuant";

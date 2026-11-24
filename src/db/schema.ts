@@ -209,6 +209,16 @@ export const reportTemplates = pgTable("report_templates", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+/**
+ * Kullanıcı tercihleri (F3). `prefs` JSONB, yalniz beyaz-listeli alanlar
+ * (`src/lib/prefs.ts`) kabul edilir; eski kayitlar bos nesne alir.
+ */
+export const userPreferences = pgTable("user_preferences", {
+  userId: integer("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  prefs: jsonb("prefs").notNull().default({}),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const appSettings = pgTable("app_settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull().default(""),

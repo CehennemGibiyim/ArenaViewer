@@ -1,5 +1,4 @@
 /** Lezyon izleme / RECIST tamamlayıcı testleri. */
-import assert from "node:assert/strict";
 import {
   isLymphNode, lesionSignature, lymphNodeCategory, lymphNodeTable, matchLesions, nonTargetStatus,
 } from "../src/lib/lesionTracking";

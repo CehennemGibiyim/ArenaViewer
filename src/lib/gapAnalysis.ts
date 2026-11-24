@@ -614,9 +614,16 @@ const BASE_ITEMS: GapItem[] = [
   {
     id: "d-ambient", category: "report", title: "Ambient dokümantasyon + yapılandırılmış makrolar",
     status: "kismi", priority: "P2", effort: "M",
-    market: ["PowerScribe", "Rad AI"],
-    ours: "Web Speech dikte var; tıbbi sözlük/ortam dinleme ve makro kitaplığı yok.",
-    action: "Makro/blok kitaplığı ve genişletilebilir sözlük; ACR uygunluk sorgusu.",
+    market: ["Nuance", "Rad AI"],
+    ours: "**Bu sürümde eklendi:** rapor düzenleme ekranında 14 hazır makro (teknik/bulgu/öneri; RadReport benzeri cümle blokları) + Türkçe Web Speech dikte. Ambient tıbbi sözlük/otomatik konuşmadan metne çevrim yok.",
+    action: "Konuşmadan yapılandırılmış metin üretimi; Radlex/ACR ile eşleştirilmiş makro sözlüğü.",
+  },
+  {
+    id: "f3-prefs", category: "viewing", title: "Kullanıcı tercihleri kaydetme",
+    status: "kismi", priority: "P2", effort: "S",
+    market: ["syngo.via", "Sectra", "Visage"],
+    ours: "**Bu sürümde eklendi:** /api/profile/preferences (GET/PATCH/DELETE; yalnız beyaz-listeli alanlar) + `/tercihler` sayfası. Düzen istasyonda açılışta uygulanır.",
+    action: "Pencere ön ayarının seri seçiminde otomatik kullanımı ve tema/altyazı ayarlarının genişletilmesi.",
   },
   {
     id: "d-icd", category: "report", title: "ICD-10 / ACR Appropriateness ve kodlama desteği",
@@ -713,15 +720,15 @@ const BASE_ITEMS: GapItem[] = [
     id: "g-audit-export", category: "trust", title: "Denetim dışa aktarımı (Syslog/CEF/JSON) + uzun vadeli arşiv",
     status: "kismi", priority: "P2", effort: "M",
     market: ["Aidoc", "Viz.ai"],
-    ours: "UI/API okuma var; dışa aktarım yok.",
+    ours: "**Bu sürümde eklendi:** `/api/audit/export?format=json|jsonl|cef` (yonetici only, zincir dogrulamali) ve `AUDIT_SYSLOG_HOST` ile UDP CEF (atesle-unut). Sifreli arşiv/saklama politikasi yok.",
     action: "Hook ile log collector; şifreli arşiv ve saklama politikası.",
   },
   {
     id: "g-supplychain", category: "trust", title: "Tedarik zinciri: CodeQL, SBOM, imzalı derleme (SLSA), dependency review",
     status: "kismi", priority: "P1", effort: "M",
     market: ["Tüm kurumsal ürünler"],
-    ours: "Dependabot var; CodeQL/SBOM/imzalı derleme yok.",
-    action: "GitHub Actions job'ları + release attestation.",
+    ours: "**Bu sürümde eklendi:** CodeQL (JS/TS, security-and-quality), CycloneDX SBOM (release'a yüklenir), PR'de dependency-review (critical uyarılarını kırar), Dependabot. İmzalı derleme (SLSA attestation) yok.",
+    action: "Release attestation (SLSA builder) ekle.",
   },
   {
     id: "g-backup-dr", category: "trust", title: "Yedek/geri yükleme/DR + nesne depolama adaptörü (S3/MinIO)",
@@ -739,10 +746,10 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "g-metrics", category: "trust", title: "Gözlem: Prometheus metrik, yapılandırılabilir log, readiness/liveness ayrımı",
-    status: "yok", priority: "P2", effort: "M",
-    market: ["OHIF", "Weasis"],
-    ours: "/api/health var; metrik ve yapılandırılabilir log yok.",
-    action: "/metrics + log seviyesi; DB'ye bağımlı health readiness olarak ayrılmalı.",
+    status: "kismi", priority: "P2", effort: "M",
+    market: ["Tüm kurumsal ürünler"],
+    ours: "**Bu sürümde eklendi:** `/api/metrics` (Prometheus metin, opsiyonel Bearer), liveness/ready ayrımı (`/api/health/live`, `/api/health/ready`). Yapılandırılabilir/şifrelenmiş log ve panel altyapısı yok.",
+    action: "Loglama seviyesi ortam değişkenine bağla; Grafana panosu örneği ekle.",
   },
   {
     id: "i-mobile", category: "trust", title: "Mobil/PWA + çevrimdışı okuma",
