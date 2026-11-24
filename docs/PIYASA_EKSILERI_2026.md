@@ -24,14 +24,15 @@
 
 ## 0.1 Modalite bazında donanım durumu (tarama)
 
-Görüntüleme altyapısı (MPR/MIP/füzyon/ölçüm/pencere) tüm modalitelerde ortaktır;
-modaliteye özel **AI bulgu motoru** ve **rapor şablonu** kapsamı aşağıdadır:
+Görüntüleme altyapısı (füzyon, ölçüm, pencere, hanging protocol) tüm modalitelerde
+ortaktır; **MPR/MIP/VR henüz yoktur**. Modaliteye özel **AI bulgu motoru** ve
+**rapor şablonu** kapsamı aşağıdadır:
 
 | Modalite | Görüntüleme | AI bulgu/analiz | Rapor şablonu | Asma protokolü |
 |---|---|---|---|---|
-| CT | Tam (pencereler, MPR, kalibrasyon) | ICH kanama + toraks nodül (kural tabanlı, yerel MONAI modeli worker'a bağlanabilir) | 11 | BT Beyin / Toraks / Abdomen-Pelvis / Anjiyo / Ürotrakt |
+| CT | Tam (pencereler, kalibrasyon, füzyon); MPR/MIP yok | **Yerel modeller:** toraks nodül (MONAI, bbox) + beyin İCH (6 sınıf, bbox) — hasta verisi dış ağa çıkmaz | 11 | BT Beyin / Toraks / Abdomen-Pelvis / Anjiyo / Ürotrakt |
 | MR | Tam (sekans listesi, karşılaştırma, ölçüm) | **Yalnız görüntü incelemesi** (tanı üretmez) — MR'ya özel model yok | 17 | MR Çoklu Sekans (T1/T2/FLAIR/DWI düzeni) |
-| CR / DX | Tam (PA/lateral düzeni) | Görüntü ölçümü + CTR hesaplayıcı; sınıflandırma modeli yok | 2 | Direkt Grafi |
+| CR / DX | Tam (PA/lateral düzeni, teknik kalite kontrolü) | **Yerel derin model:** Medical_X DenseNet121 (Apache-2.0) — 14 torasik bulgu olasılığı + Grad-CAM ısı örtüsü; CTR hesaplayıcı. Lokalizasyon kutusu YOK, skorlar kalibre değil, klinik doğrulaması yok | 2 | Direkt Grafi |
 | US | Tam (cine + renkli Doppler) | TI-RADS skor paneli; tanı motoru yok | 6 | Yok |
 | MG | Tam (RCC/LCC/RMLO/LMLO 2×2) | BI-RADS/ACR yoğunluk paneli + DBT şablonu; otomatik yoğunluk algılama yok | 3 | Mamografi |
 | PET / NM | Füzyon + SUVbw | TIC/DSA/MTV yok | 1 | PET-CT füzyon |

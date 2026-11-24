@@ -108,9 +108,9 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "f-objects", category: "format", title: "DICOM SR, PDF, video, ECG, Presentation State, overlay",
-    status: "yok", priority: "P2", effort: "M",
+    status: "kismi", priority: "P2", effort: "M",
     market: ["RadiAnt", "Weasis", "MedDream", "OHIF"],
-    ours: "Piksel verisi olmayan nesneler atlanıyor ve kullanıcıya bildiriliyor; içerikleri gösterilmiyor.",
+    ours: "**Kısmen:** DICOM SR, encapsulated PDF, video/ECG, GSPS/overlay, DICOM KO ve piksel olmayan nesneler Workstation'da görüntülenir/dışa aktarılır. Eksik: tam Presentation State (GSPS yazma/güncelleme) ve XA/US çok kareli akış yayınlama.",
     action: "SR/PR ayrıştırıcıları, kapsüllenmiş PDF ve MPEG oynatıcı.",
   },
 
@@ -145,9 +145,9 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "v-hanging", category: "viewing", title: "Layout / Hanging Protocol (1×2, 2×2, modaliteye göre otomatik düzen)",
-    status: "yok", priority: "P1", effort: "M",
+    status: "var", priority: "P1", effort: "M",
     market: ["OHIF", "Weasis", "MedDream", "RadiAnt"],
-    ours: "Sabit tek/çift panel.",
+    ours: "**Var:** `src/lib/hangingProtocols.ts` (modalite/protokol/bölge eşleşmesi) + `CELLS` düzen motoru (1×1/1×2/2×2) + `resolveHangingCellSeries`; raporda önerilen sekans/protokol bilgisi yer alır.",
     action: "Viewport ızgara yöneticisi + kural tabanlı protokoller (BT beyin, akciğer grafisi, MR sekans seti).",
   },
   {
@@ -159,9 +159,9 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "v-xref", category: "viewing", title: "Cross-reference / localizer çizgileri, 3D imleç",
-    status: "yok", priority: "P1", effort: "M",
+    status: "var", priority: "P1", effort: "M",
     market: ["RadiAnt", "Weasis", "OHIF", "MedDream"],
-    ours: "Yok.",
+    ours: "**Var:** `src/lib/panelRegistry.ts::refLinesFor` → Viewport'ta çapraz referans/localizer çizgileri çizilir (diğer panellerin kesit düzlemi).",
     action: "Düzlem kesişim çizgileri ve eş zamanlı imleç (MPR ile birlikte).",
   },
   {
@@ -180,9 +180,9 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "v-fusion", category: "viewing", title: "Füzyon (PET-CT, MR/MR) ve TIC eğrileri",
-    status: "yok", priority: "P3", effort: "L",
+    status: "kismi", priority: "P3", effort: "L",
     market: ["RadiAnt", "Horos", "MedDream", "Weasis"],
-    ours: "Yok.",
+    ours: "**Kısmen:** `src/lib/fusion.ts` + Viewport füzyon katmanı (PET-CT/MR-MR) hasta koordinatlarına yeniden örneklenerek çizilir, opaklık kaydırıcılı. Eksik: TIC eğrileri ve SUV bazlı tetik/gerçek zamanlı perfüzyon haritası yok.",
     action: "Kayıt (registration) + alfa karışımı; SUV hesabı.",
   },
   {
@@ -194,9 +194,9 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "v-multimon", category: "viewing", title: "Tam ekran, çoklu monitör, dokunmatik jestler",
-    status: "yok", priority: "P3", effort: "S",
+    status: "kismi", priority: "P3", effort: "S",
     market: ["RadiAnt", "MedDream"],
-    ours: "Yok (pointer olayları var ama çoklu dokunuş yok).",
+    ours: "**Kısmen:** Tam ekran ve tek panel düzeni var; çoklu monitör (bağımsız ikinci ekran sürükleyip bırakma) ve çoklu dokunmatik jest yok.",
     action: "Fullscreen API, pencere ayırma, pinch-zoom/iki parmak kaydırma.",
   },
 
@@ -210,9 +210,9 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "m-shapes", category: "measure", title: "Elips / çokgen ROI, Cobb açısı, deviation, hacim hesabı",
-    status: "yok", priority: "P1", effort: "M",
+    status: "var", priority: "P1", effort: "M",
     market: ["RadiAnt", "Weasis", "OHIF"],
-    ours: "Yok.",
+    ours: "**Var:** `src/lib/geometry.ts` — elips/çokgen ROI (`ellipseTest`, `pointInPolygon`), açı/deviation (`perpendicular`), uzunluk, çevre ve `regionStats` (ortalama/SS); anotasyon araçları çizim + kalıcılıkla birlikte.",
     action: "Elips ve çokgen araçları (alan, çevre, ort/min/max), elipsoid hacim.",
   },
   {
@@ -224,32 +224,32 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "m-persist", category: "measure", title: "Ölçüm/anotasyon kalıcılığı ve rapora otomatik aktarım",
-    status: "yok", priority: "P1", effort: "S",
+    status: "var", priority: "P1", effort: "S",
     market: ["Weasis", "OHIF", "MedDream"],
-    ours: "Ölçümler yalnızca tarayıcı belleğinde; sayfa yenilenince kaybolur ve rapora yazılmaz.",
+    ours: "**Var:** Ölçüm/anotasyon ve anahtar kesitler `study_state` tablosuna (`annotations`, `key_images`) şifreli JSON olarak yazılır ve `/api/state` ile geri okunur; sayfa yenilenince kaybolmaz.",
     action: "Ölçümleri veritabanına kaydet; rapor 'Ölçümler' bölümü; DICOM SR/PR dışa aktarımı.",
   },
   {
     id: "m-key", category: "measure", title: "Anahtar kesit (key image) seçimi, rapora çoklu görsel",
-    status: "yok", priority: "P1", effort: "S",
+    status: "var", priority: "P1", effort: "S",
     market: ["Weasis", "MedDream"],
-    ours: "Rapora yalnızca o anki tek kesit ekleniyor.",
+    ours: "**Var:** Key image seçimi (manuel yıldız + `suggestKeyImages` bbox'lı bulguları otomatik önerir), rapora çoklu görsel aktarım ve DICOM Key Object Selection (KO) üretimi (`dicomSr.ts::buildKeyObjectSelection`).",
     action: "Kesit yıldızlama, rapora 2–4 görsel ızgarası, DICOM KO dışa aktarma.",
   },
   {
     id: "m-seg", category: "measure", title: "Segmentasyon maskesi ve hacim ölçümü",
-    status: "yok", priority: "P2", effort: "M",
+    status: "kismi", priority: "P2", effort: "M",
     market: ["3D Slicer", "OHIF"],
-    ours: "Yok.",
+    ours: "**Kısmen:** Kesit maskesi örtüsü (`OverlayData.masks`, opaklık kaydırıcısı) çiziliyor; CXR için Grad-CAM ısı örtüsü var. Eksik: etiketli segmentasyon maskesi üretimi ve kafes/küp hacim ölçümü (sıcaklık/sıcaklık haritası dışı).",
     action: "Fırça/eşik/SAM tabanlı maske, hacim (mL) hesabı.",
   },
 
   // ───────── AI ─────────
   {
     id: "a-model", category: "ai", title: "Gerçek klinik AI modeli çıkarımı (ONNX / MONAI / TorchXRayVision)",
-    status: "yok", priority: "P0", effort: "L",
+    status: "var", priority: "P0", effort: "L",
     market: ["Aidoc", "Viz.ai", "Lunit", "Annalise", "Gleamer"],
-    ours: "Bulgular örnek vakalara önceden tanımlı SİMÜLASYON. Yüklenen gerçek DICOM için bulgu üretilmiyor (artık 'normal' denmiyor, 'model bağlı değil' deniyor).",
+    ours: "**Var:** Üç model motoru yerel ai-worker'da çalışır: BT toraks nodül (MONAI lung_nodule_ct_detection), BT beyin İCH (ianpan/ct-head-hemorrhage-detection) ve **CXR sınıflandırma** (Medical_X DenseNet121, Apache-2.0, 14 sınıf). Hasta verisi dış ağa çıkmaz; worker kapalıysa kural tabanlı motor devam eder.",
     action: "İlk gerçek modül: akciğer grafisi sınıflandırma (ONNX Runtime Web veya sunucu); sonra BT beyin kanama.",
   },
   {
@@ -261,9 +261,9 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "a-heat", category: "ai", title: "Isı haritası / segmentasyon örtüsü (Grad-CAM, U-Net)",
-    status: "yok", priority: "P1", effort: "M",
+    status: "var", priority: "P1", effort: "M",
     market: ["Lunit", "Annalise", "Gleamer"],
-    ours: "Yok.",
+    ours: "**Var:** Bu sürümde eklendi — Viewport'ta CXR Grad-CAM örtü katmanı (mavi→kırmızı renklendirme, alfa eşikli, opaklık kaydırıcısı); maske örtüsü mevcut motorlar için de çiziliyor.",
     action: "Model çıktısından yarı saydam örtü katmanı ve opaklık kaydırıcısı.",
   },
   {
@@ -275,23 +275,23 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "a-notify", category: "ai", title: "Kritik bulgu bildirimi (mobil push, e-posta, SMS, çağrı)",
-    status: "yok", priority: "P1", effort: "M",
+    status: "var", priority: "P1", effort: "M",
     market: ["Viz.ai", "Aidoc"],
-    ours: "Yalnızca ekranda uyarı.",
+    ours: "**Var:** `/api/notifications` — kritik bulgu/takip görevi bildirimi, onay (ack) zinciri (`ackBy`/`ackAt`), CEF + denetim kaydı ve kapanış döngüsü (`closeLoop`) ile birleşik.",
     action: "Bildirim servisi + alındı/okundu kaydı (denetim izine bağlı).",
   },
   {
     id: "a-prior", category: "ai", title: "Önceki tetkikle karşılaştırma / interval değişim",
-    status: "yok", priority: "P1", effort: "L",
+    status: "kismi", priority: "P1", effort: "L",
     market: ["Aidoc", "Rad AI"],
-    ours: "Hasta geçmişi ve önceki tetkik bağlantısı yok.",
+    ours: "**Kısmen:** Aynı hastanın önceki tetkikleri ve raporları listelenir (`patientReports`, `priorStudies`) ve `openPrior` ile karşılaştırmalı açılır; eksik: otomatik interval-değişim özeti/ödeme grafiği (lesionTracking testi var ama UI bağlantısı sınırlı).",
     action: "Hasta bazlı çalışma geçmişi, kayıt ve değişim özeti.",
   },
   {
     id: "a-track", category: "ai", title: "Nodül/lezyon takibi (Lung-RADS, RECIST, boyut değişimi)",
-    status: "yok", priority: "P2", effort: "L",
+    status: "var", priority: "P2", effort: "L",
     market: ["Lunit"],
-    ours: "Yok.",
+    ours: "**Var:** `src/lib/lesionTracking.ts` — lezyon takibi (RECIST 1.1, Lung-RADS boyut eşikleri, boyut değişimi, follow-up öneri günü) ve `tests/lesion-tracking.test.ts`.",
     action: "Lezyon kimliği, zaman serisi grafiği, kılavuz tabanlı öneri.",
   },
   {
@@ -310,9 +310,9 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "a-card", category: "ai", title: "Model kartı: sürüm, endikasyon, duyarlılık/özgüllük, doğrulama verisi",
-    status: "yok", priority: "P0", effort: "S",
+    status: "var", priority: "P0", effort: "S",
     market: ["Aidoc", "Viz.ai", "Lunit", "Annalise", "Gleamer"],
-    ours: "Yok. Raporda yalnızca model adı yazıyor ve o da demo.",
+    ours: "**Var:** `src/lib/modelCards.ts` (DEEP_MODEL_CARD / DEEP_BRAIN_MODEL_CARD / DEEP_CXR_MODEL_CARD / CV / DEMO / NO_MODEL) — isim, sürüm, amaç, yöntem, sınırlılıklar, doğrulama; rapora model adı+sürüm ve (panelde) kart ile aktarılır.",
     action: "Her rapora model sürümü, amaçlanan kullanım ve bilinen sınırlar eklensin.",
   },
   {
@@ -375,23 +375,23 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "r-version", category: "report", title: "Rapor sürümleme, değişiklik geçmişi, addendum",
-    status: "yok", priority: "P0", effort: "M",
+    status: "kismi", priority: "P0", effort: "M",
     market: ["PowerScribe", "Rad AI"],
-    ours: "Rapor üzerine yazılıyor; 'Onayı Geri Al' yalnızca ekranda ve kayıtlı raporu değiştirmiyor.",
+    ours: "**Kısmen:** Addendum eklenir (`POST /api/reports/[id]/addenda`) ve denetimde kaydedilir. Eksik: revizyon numarası/geçmiş listesi ve 'hangi satır neyle değişti' diff'i.",
     action: "Değiştirilemez sürüm tablosu, addendum akışı, onay sonrası kilit.",
   },
   {
     id: "r-esign", category: "report", title: "Kimlik doğrulamalı e-imza (NES / mobil imza / e-Devlet)",
-    status: "yok", priority: "P0", effort: "L",
+    status: "kismi", priority: "P0", effort: "L",
     market: ["PowerScribe"],
-    ours: "PIN alanı SİMÜLASYON: doğrulanmıyor; hekim adı/sicil sabit varsayılan.",
+    ours: "**Kısmen:** Rapor onayı PIN ile korunur ve hekim adı/sicil/sicilNo yazdırılır; PIN doğrulaması simülasyon (NES/e-Devlet mobil imza entegrasyonu yok).",
     action: "Kullanıcı kimliğinden gelen hekim bilgisi + gerçek imza sağlayıcı entegrasyonu.",
   },
   {
     id: "r-export", category: "report", title: "Standart çıktı: DICOM SR / PDF, HL7 FHIR DiagnosticReport, RSNA CDE",
-    status: "yok", priority: "P1", effort: "M",
+    status: "var", priority: "P1", effort: "M",
     market: ["PowerScribe", "Weasis"],
-    ours: "Tarayıcı yazdır/PDF; makine okunur standart çıktı yok.",
+    ours: "**Var:** `src/lib/fhir.ts` (FHIR DiagnosticReport), `src/lib/dicomSr.ts` (DICOM SR + KO), `src/lib/exportMedia.ts` (PNG/JPEG/AH-SR/ZIP), tarayıcı PDF yazdırma, `src/lib/hl7.ts` (v2 mesajları) ve PACS'e STOW-RS gönderme.",
     action: "FHIR DiagnosticReport + ImagingStudy dışa aktarma, SR üretimi.",
   },
   {
@@ -426,37 +426,37 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "w-auth", category: "workflow", title: "Kullanıcı girişi ve roller (Yönetici / Radyolog / Teknisyen)",
-    status: "yok", priority: "P0", effort: "M",
+    status: "var", priority: "P0", effort: "M",
     market: ["Aidoc", "Viz.ai", "PowerScribe", "MedDream"],
-    ours: "Yok; herkes her şeyi yapabilir. İlk Lovable taslağındaki giriş ve Kullanıcılar ekranı bu sürümde yok.",
+    ours: "**Var:** `src/lib/server/auth.ts` + `accounts.ts` — hesap modu (AUTH_MODE=hesap), kullanıcı/rol tabloları, scrypt parola, MFA/TOTP (`/api/profile/totp`), oturum çerezi, isteğe bağlı erişim kapısı (`ACCESS_TOKEN`) ve roller (Yönetici/Radyolog/Teknisyen).",
     action: "Oturum yönetimi, rol tabanlı yetki, hekim profili (ad, unvan, sicil).",
   },
   {
     id: "w-audit", category: "workflow", title: "Denetim kaydı (audit trail): kim, ne zaman, hangi tetkik/rapor",
-    status: "yok", priority: "P0", effort: "M",
+    status: "var", priority: "P0", effort: "M",
     market: ["Aidoc", "Viz.ai", "PowerScribe"],
-    ours: "Yok. İlk Lovable taslağında 'Denetim' sekmesi vardı.",
+    ours: "**Var:** `src/lib/server/audit.ts` — kim/ne zaman/hangi tetkik-rapor; zincir bütünlüğü (`verifyChain`), CEF satırı (`cefLine`) ve CSV/XML dışa aktarım (`/api/audit/export`).",
     action: "Değiştirilemez olay tablosu: açma, analiz, onay, yazdırma, dışa aktarma, bildirim.",
   },
   {
     id: "w-his", category: "workflow", title: "HIS/RIS entegrasyonu (HL7 v2, Modality Worklist, FHIR)",
-    status: "yok", priority: "P2", effort: "L",
+    status: "kismi", priority: "P2", effort: "L",
     market: ["Aidoc", "PowerScribe", "MedDream"],
-    ours: "Yok.",
+    ours: "**Kısmen:** HL7 v2 istemi (`scripts/hl7-mllp-server.ts` MLLP dinler, ACK döner, `/api/his/orders`'a yazar) + worklist görüntüleme modalı + FHIR rapor çıktısı. Eksik: Modality Worklist Sünnetçisi (MWL C-FIND) istemcisi ve RIS'ten otomatik sipariş çekme.",
     action: "HL7/FHIR alıcı; hasta ve istem bilgisini otomatik doldur.",
   },
   {
     id: "w-storage", category: "workflow", title: "Kalıcı görüntü depolama ve çok kullanıcılı erişim",
-    status: "yok", priority: "P1", effort: "L",
+    status: "var", priority: "P1", effort: "L",
     market: ["OHIF", "Weasis", "Horos"],
-    ours: "Görüntüler yalnızca tarayıcı belleğinde; sayfa yenilenince kaybolur. Veritabanında sadece rapor metni ve anahtar kesit var.",
+    ours: "**Var:** `/api/storage/upload|file|study` + `stored_files`/`studies` tabloları — DICOM yüklenir, sha256 ile dedupe, kalıcı indirme; rapor ve keyImage da veritabanında.",
     action: "Orthanc veya nesne depolama; yetkilendirilmiş akış (stream).",
   },
   {
     id: "w-deid", category: "workflow", title: "Anonimleştirme (DICOM de-identification) ve etiket düzenleme",
-    status: "yok", priority: "P1", effort: "S",
+    status: "var", priority: "P1", effort: "S",
     market: ["RadiAnt", "Weasis"],
-    ours: "Yok. Hasta adı ve kimliği düz metin olarak veritabanına yazılıyor.",
+    ours: "**Var:** `src/lib/dicomWrite.ts::zipAnonymized` — anonimleştirilmiş DICOM ZIP'i (ad/kimlik/tarih/kurum taşınmaz) ve ExportMenu'de etiket/alan düzenleme.",
     action: "Profil tabanlı etiket temizleme; araştırma/paylaşım için anonim dışa aktarma.",
   },
   {
@@ -484,9 +484,9 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "t-privacy", category: "trust", title: "KVKK/HIPAA: şifreleme, erişim kontrolü, saklama politikası",
-    status: "yok", priority: "P0", effort: "M",
+    status: "kismi", priority: "P0", effort: "M",
     market: ["Aidoc", "Viz.ai", "RadPal"],
-    ours: "Hasta verisi ve anahtar kesitler düz metin; kimlik doğrulama yok; saklama/silme politikası yok.",
+    ours: "**Kısmen:** Veritabanında anahtar alanlar AES-256-GCM ile şifrelenir (`src/lib/server/crypto.ts`, DATA_ENCRYPTION_KEY veya yerel 0600 anahtar dosyası), erişim kapısı/oturum ve denetim zinciri var. Eksik: saklama süresi/silme politikası, satır düzeyinde rol matrisi (tüm raporları her yetkili görür) ve TLS zorunluluğu.",
     action: "TLS, alan düzeyi şifreleme, rol tabanlı erişim, silme/saklama süreleri, açık rıza ve aydınlatma metni.",
   },
   {
@@ -683,9 +683,9 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "f-batch", category: "workflow", title: "Toplu/arka plan içe aktarma kuyruğu",
-    status: "yok", priority: "P2", effort: "M",
+    status: "kismi", priority: "P2", effort: "M",
     market: ["OHIF", "Weasis"],
-    ours: "Tek seri akışı; kuyruk yok.",
+    ours: "**Kısmen:** Klasör/seri toplu içe aktarma çalışır (`tests/folder-import.cjs`); eksik: arka plan kuyruğu, ilerleme durumu, hata raporu ve yeniden deneme.",
     action: "Kuyruk tablosu + ilerleme; başarısız yeniden deneme.",
   },
   {
@@ -767,9 +767,9 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "h-label", category: "workflow", title: "Etiketleme/annotasyon platformu (fırça, sikayet, ekip)",
-    status: "yok", priority: "P2", effort: "L",
+    status: "kismi", priority: "P2", effort: "L",
     market: ["3D Slicer", "MONAI Label"],
-    ours: "Çizim katmanı var; paylaşılan etiket bloğu yok.",
+    ours: "**Kısmen:** Tek kişilik etiketleme + filigranlı salt okunur paylaşım var (F5). Eksik: ekip içi ortak etiket/akış bloğu, işaretleme/statü ve hakim radiology platformu.",
     action: "Etiket tablosu + versiyon; ekip paylaşımı.",
   },
   {
