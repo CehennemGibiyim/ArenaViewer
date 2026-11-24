@@ -67,80 +67,33 @@ const SPOKEN_PUNCTUATION: Array<[RegExp, string]> = [
 const MEDICAL_FIXES: Array<[RegExp, string]> = [
   [/\bakciger\b/gi, "akciğer"],
   [/\bakçiğer\b/gi, "akciğer"],
-  [/\bkardiyomegali\b/gi, "kardiyomegali"],
   [/\bkardiyo mega li\b/gi, "kardiyomegali"],
-  [/\bperikard effüzyon\b/gi, "perikardiyal effüzyon"],
-  [/\bperikard effuzyon\b/gi, "perikardiyal effüzyon"],
-  [/\bpleural effuzyon\b/gi, "plevral effüzyon"],
-  [/\bplevral efüzyon\b/gi, "plevral effüzyon"],
-  [/\bpnomoni\b/gi, "pnömoni"],
+  [/\bperikard(?:iyal)? eff[üu]zyon\b/gi, "perikardiyal effüzyon"],
+  [/\bpleural eff[üu]zyon\b/gi, "plevral effüzyon"],
+  [/\bplevral eff[üu]zyon\b/gi, "plevral effüzyon"],
   [/\bpneumoni\b/gi, "pnömoni"],
-  [/\btelektazi\b/gi, "telektazi"],
-  [/\btelektazik\b/gi, "telektazik"],
+  [/\bpnomoni\b/gi, "pnömoni"],
+  [/\btelektaz\b/gi, "telektazi"],
   [/\batelaktazi\b/gi, "atelektazi"],
-  [/\bkonsolidasyon\b/gi, "konsolidasyon"],
   [/\bkonsolidayon\b/gi, "konsolidasyon"],
   [/\bkirik\b/gi, "kırık"],
   [/\blomnidene\b/gi, "lomber vertebra"],
-  [/\blomber vertebrası\b/gi, "lomber vertebra"],
-  [/\btorakal\b/gi, "torakal"],
-  [/\btoraksik\b/gi, "toraksik"],
-  [/\bservikal\b/gi, "servikal"],
+  [/\bverterbra\b/gi, "vertebra"],
   [/\bkranial\b/gi, "kraniyal"],
-  [/\bkraniyum\b/gi, "kraniyum"],
-  [/\bmiyokard\b/gi, "miyokard"],
   [/\bserebrovaskuler\b/gi, "serebrovasküler"],
-  [/\bserebral\b/gi, "serebral"],
-  [/\bintraserebral\b/gi, "intraserebral"],
-  [/\bsubaraknoid\b/gi, "subaraknoid"],
-  [/\bsubarahnoid\b/gi, "subaraknoid"],
-  [/\bsubdural\b/gi, "subdural"],
-  [/\bepidual\b/gi, "epidural"],
-  [/\bhemojenom\b/gi, "hemotoraks"],
-  [/\bhemotoraks\b/gi, "hemotoraks"],
+  [/\bsubarakh?noid\b/gi, "subaraknoid"],
   [/\bpnomotoraks\b/gi, "pnömotoraks"],
   [/\bpneomotoraks\b/gi, "pnömotoraks"],
-  [/\bmediyasten\b/gi, "mediasten"],
-  [/\bmediastinum\b/gi, "mediastinum"],
-  [/\bdiyafragmay\b/gi, "diyafragma"],
-  [/\bdiyafram\b/gi, "diyafram"],
-  [/\bkostofrenik\b/gi, "kostofrenik"],
-  [/\bhilus\b/gi, "hilus"],
-  [/\bretikülar\b/gi, "retiküler"],
-  [/\bretikuler\b/gi, "retiküler"],
+  [/\bdiyafragmay?\b/gi, "diyafragma"],
+  [/\bretik[üu]lar\b/gi, "retiküler"],
   [/\bnoduler\b/gi, "nodüler"],
-  [/\bnodul\b/gi, "nodül"],
-  [/\bkistik lezyon\b/gi, "kistik lezyon"],
-  [/\bheterojen\b/gi, "heterojen"],
-  [/\bhomojen\b/gi, "homojen"],
-  [/\bizomorfik\b/gi, "izomorfik"],
-  [/\banjiyosentez\b/gi, "anjiyosentez"],
-  [/\banjiyo\b/gi, "anjiyo"],
-  [/\bkardiyak\b/gi, "kardiyak"],
-  [/\bpulmoner\b/gi, "pulmoner"],
-  [/\bvenöz\b/gi, "venöz"],
-  [/\barteriyel\b/gi, "arteriyel"],
-  [/\bpateji\b/gi, "patoloji"],
-  [/\bpatolojik\b/gi, "patolojik"],
-  [/\bnormal sınırlar içinde\b/gi, "normal sınırlar içinde"],
-  [/\bdoğal sınırlar\b/gi, "doğal sınırlar"],
-  [/\bmeme kanseri\b/gi, "meme kanseri"],
-  [/\bmamografi\b/gi, "mamografi"],
-  [/\btomosentez\b/gi, "tomosentez"],
-  [/\bkalciyum\b/gi, "kalsiyum"],
-  [/\bkalsifikasyon\b/gi, "kalsifikasyon"],
-  [/\basket\b/gi, "basket"],
-  [/\bmetastaz\b/gi, "metastaz"],
-  [/\bmetastatik\b/gi, "metastatik"],
-  [/\bprimer\b/gi, "primer"],
-  [/\bsekonder\b/gi, "sekonder"],
-  [/\bkabartı\b/gi, "kabartı"],
-  [/\bprotez\b/gi, "protez"],
-  [/\bverterbra\b/gi, "vertebra"],
-  [/\bvertebraları\b/gi, "vertebraları"],
-  [/\bomurga\b/gi, "omurga"],
-  [/\bparametre\b/gi, "parametre"],
-  [/\bparametreler\b/gi, "parametreler"],
+  [/\bcalciyum\b/gi, "kalsiyum"],
+  [/\bosteomyelit\b/gi, "osteomiyelit"],
+  [/\bosteomielit\b/gi, "osteomiyelit"],
+  [/\bapendisit\b/gi, "apandisit"],
+  [/\bnefrolitiaz\b/gi, "nefrolitiaz"],
+  [/\bguatr\b/gi, "guatr"],
+  [/\bappendiks\b/gi, "apendiks"],
 ];
 
 /** Radyolojide sıklıkla söylenen ölçü kalıplarını birleştirir. */
@@ -214,11 +167,23 @@ function spellNumbers(text: string): string {
 export function splitDictationCommands(text: string): DictationResult {
   const commands: DictationCommand[] = [];
   let out = ` ${text} `;
-  out = out.replace(/\s*\btemizle\b\s*/gi, () => { commands.push("temizle"); return " "; });
+  out = out.replace(new RegExp(`\\s*(?<![${TR_LETTERS}])(temizle)(?![${TR_LETTERS}])\\s*`, "gi"), () => { commands.push("temizle"); return " "; });
   // "yeni satır/paragraf" zaten SPOKEN_PUNCTUATION ile kaça dönüşür; komut da işaretlenir.
-  out = out.replace(/\s*\byeni satır\b\s*/gi, () => { commands.push("yeniSatir"); return "\n"; });
-  out = out.replace(/\s*\byeni paragraf\b\s*/gi, () => { commands.push("yeniParagraf"); return "\n\n"; });
+  out = out.replace(new RegExp(`\\s*(?<![${TR_LETTERS}])(yeni satır)(?![${TR_LETTERS}])\\s*`, "gi"), () => { commands.push("yeniSatir"); return "\n"; });
+  out = out.replace(new RegExp(`\\s*(?<![${TR_LETTERS}])(yeni paragraf)(?![${TR_LETTERS}])\\s*`, "gi"), () => { commands.push("yeniParagraf"); return "\n\n"; });
   return { text: out.trim(), commands };
+}
+
+/**
+ * JS `\b`'si Türkçe harfleri kelime karakteri saymaz; kalıpların kenarlarını
+ * Türkçe karakterleri de kapsayan sınıflarla yeniden yazar ("virgül", "kabartı").
+ */
+const TR_LETTERS = "a-zçğıöşüâîû";
+function trBoundaries(re: RegExp): RegExp {
+  // "\b" iki karakterdir (backslash + b): Türkçe sınır normalizasyonu için.
+  const BOUNDARY = String.fromCharCode(92, 98);
+  const src = re.source.split(BOUNDARY).join("");
+  return new RegExp(`(?<![${TR_LETTERS}])(${src})(?![${TR_LETTERS}])`, re.flags);
 }
 
 /**
@@ -229,15 +194,15 @@ export function normalizeDictation(raw: string): string {
   let t = raw;
   // Önce noktalama/ölçü/tıbbi sözlük, en son sayı sözcükleri: böylece "üç
   // milimetre" → "üç mm" → "3 mm" olur, sayı grubu komşu sözcüksüz kalır.
-  for (const [re, rep] of SPOKEN_PUNCTUATION) t = t.replace(re, rep);
-  for (const [re, rep] of MEASURE_FIXES) t = t.replace(re, rep);
-  for (const [re, rep] of MEDICAL_FIXES) t = t.replace(re, rep);
+  for (const [re, rep] of SPOKEN_PUNCTUATION) t = t.replace(trBoundaries(re), rep);
+  for (const [re, rep] of MEASURE_FIXES) t = t.replace(trBoundaries(re), rep);
+  for (const [re, rep] of MEDICAL_FIXES) t = t.replace(trBoundaries(re), rep);
   t = spellNumbers(t);
   // Noktalama öncesi boşlukları temizle: "göğüs , akciğer ." → "göğüs, akciğer."
   t = t.replace(/\s+([,.;:!?)])/g, "$1");
   t = t.replace(/([(])\s+/g, "$1");
   // Sözcük içi yazım hatalarını kapat: "akcığer" gibi
-  t = t.replace(/\bakc(ı|i|)ğ?er\b/gi, "akciğer");
+  t = t.replace(new RegExp(`(?<![${TR_LETTERS}])akc(ı|i|)ğ?er(?![${TR_LETTERS}])`, "gi"), "akciğer");
   // Çift boşluk / boş paragrafları sadeleştir.
   t = t.replace(/[ \t]{2,}/g, " ");
   t = t.replace(/\n{3,}/g, "\n\n");

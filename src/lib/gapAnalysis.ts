@@ -620,10 +620,10 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "d-icd", category: "report", title: "ICD-10 / ACR Appropriateness ve kodlama desteği",
-    status: "yok", priority: "P3", effort: "S",
+    status: "kismi", priority: "P3", effort: "S",
     market: ["RadPal"],
-    ours: "Yok.",
-    action: "Bulgu→ICD-10 öneri tablosu; istek uygunluğu sorgulama.",
+    ours: "src/lib/icd10.ts: 28 kayıtlık bulgu→ICD-10 yaklaşık eşleme (hekim onayı zorunlu etiketiyle) ve 10 kurala dayalı istem uygunluğu puanı (1–9, ACR tarzı). Rapor düzenleme ekranında önerileri listeler, basıldıkça izlenim satırına 'ICD-10: kod — tanı' ekler; klinik bilgiden uygunluk notu gösterir. Öneriler kesin kodlama değildir.",
+    action: "Kurum kodlama veritabanı ve ACR Appropriateness tam tablo; elektronik istem formundan çekilen endikasyonla otomatik puanlama.",
   },
   {
     id: "d-patient-letter", category: "report", title: "Hasta dostu sonuç mektubu (çok dilli)",

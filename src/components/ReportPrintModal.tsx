@@ -2,6 +2,7 @@
 
 import { buildReportSr, type EvidenceRef } from "@/lib/dicomSr";
 import { processDictation } from "@/lib/dictate";
+import { appropriatenessFor, isValidIcd10, suggestIcd10 } from "@/lib/icd10";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fmtConf } from "@/lib/format";
 import StructuredScorePanel from "@/components/StructuredScorePanel";
@@ -157,6 +158,8 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
+  /** Eklenen ICD-10 kodları (rapora yazılan öneriler; kodlama hekime aittir). */
+  const [icdCodes, setIcdCodes] = useState<string[]>([]);
   const [tplQuery, setTplQuery] = useState("");
   const [versions, setVersions] = useState<ReportVersion[]>([]);
   const [addenda, setAddenda] = useState<ReportAddendum[]>([]);
@@ -182,7 +185,16 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
     setReport(initial);
     setError("");
     setEditing(false);
+    setIcdCodes([]);
   }
+
+  // ICD-10 önerileri: rapor metnine göre yaklaşık eşleme (hekim onayı şart).
+  const icdText = `${report.findingsText ?? ""} ${report.impression ?? ""}`;
+  const icdSuggest = useMemo(() => suggestIcd10(icdText, 5), [icdText]);
+  const icdAppropriate = useMemo(
+    () => (report.clinicalInfo ? appropriatenessFor(report.modality, report.bodyPart, report.clinicalInfo) : null),
+    [report.clinicalInfo, report.modality, report.bodyPart],
+  );
 
   const loadDetail = useCallback(async (id: number) => {
     const r = await fetch(`/api/reports/${id}`);
@@ -561,6 +573,40 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                       <ReportField name="Kesit bazlı bulgular" rows={8} value={report.findingsText} editing={editing} onChange={(v) => set("findingsText", v)} onMic={append("findingsText")} onClear={() => set("findingsText", "")} onGotoSlice={onGotoSlice} onClose={onClose} />
                       <ReportField name="Sonuç/İzlenim" rows={3} value={report.impression} editing={editing} onChange={(v) => set("impression", v)} onMic={append("impression")} onClear={() => set("impression", "")} onGotoSlice={onGotoSlice} onClose={onClose} />
                       <ReportField name="Öneri" rows={2} value={report.recommendation} editing={editing} onChange={(v) => set("recommendation", v)} onMic={append("recommendation")} onClear={() => set("recommendation", "")} onGotoSlice={onGotoSlice} onClose={onClose} />
+
+                      {editing && (
+                        <div className="rounded border border-slate-300 bg-slate-50 p-2">
+                          <div className="text-[10px] font-bold uppercase tracking-wide text-slate-700">ICD-10 önerileri</div>
+                          <p className="mt-0.5 text-[10px] leading-snug text-slate-500">
+                            Rapor metnine göre yaklaşık eşlemedir; kodlama ve doğrulama radyologa aittir.
+                            Üzerine basarak izlenim satırına eklenir.
+                          </p>
+                          {icdAppropriate?.score != null && (
+                            <p className="mt-1 text-[10.5px] font-bold text-[#0e7490]">
+                              İstem uygunluğu: {icdAppropriate.score}/9 — {icdAppropriate.note}
+                            </p>
+                          )}
+                          {icdSuggest.length === 0 ? (
+                            <p className="mt-1 text-[10.5px] italic text-slate-400">Metinde eşleşen öneri yok.</p>
+                          ) : (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {icdSuggest.map((c) => {
+                                const added = icdCodes.includes(c.code);
+                                return (
+                                  <button key={c.code} type="button" disabled={added || !isValidIcd10(c.code)}
+                                    onClick={() => {
+                                      setIcdCodes((p) => [...p, c.code]);
+                                      set("impression", `${report.impression}${report.impression && !report.impression.endsWith("\n") ? "\n" : ""}ICD-10: ${c.code} — ${c.label}`);
+                                    }}
+                                    className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${added ? "bg-emerald-100 text-emerald-700" : "bg-white text-slate-700 ring-1 ring-slate-300 hover:bg-slate-100"}`}>
+                                    {added ? "✓ " : ""}{c.code} · {c.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
                       {report.measurementsText && <div><div className="font-bold uppercase text-slate-900">Ölçümler</div><p className="mt-0.5 whitespace-pre-wrap font-mono text-[10.5px]">{report.measurementsText}</p></div>}
                       <p className="mt-1 text-[10px] italic text-slate-500">{report.engine === "image-review" ? "Bu protokol hastalık sınıflandırması yapmaz; kare başına piksel ölçümleri yazdırma raporuna dahil edilmemiştir. Görüntüler radyolog tarafından değerlendirilmelidir." : "Bu çıktı yapay zeka/kural tabanlı veya DEMO desteklidir; hekim doğrulaması gerekir."}</p>
                     </div>
