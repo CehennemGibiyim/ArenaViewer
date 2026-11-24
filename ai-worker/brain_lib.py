@@ -18,7 +18,12 @@ import time
 
 import numpy as np
 
-CACHE_DIR = os.path.join(os.path.expanduser("~"), ".cache", "atikviewer-ai", "brain")
+# Docker/konteyner ortamında ana dizin sabit olmadığı için ATIK_BRAIN_DIR ile
+# değiştirilebilir (varsayılan: ~/.cache/atikviewer-ai/brain).
+CACHE_DIR = os.environ.get(
+    "ATIK_BRAIN_DIR",
+    os.path.join(os.path.expanduser("~"), ".cache", "atikviewer-ai", "brain"),
+)
 MODEL_REPO = "ianpan/ct-head-hemorrhage-detection"
 
 # ich_inference.CLASS_NAMES ile birebir aynı sırada:

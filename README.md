@@ -48,6 +48,15 @@ docker compose up --build -d
 Ardından `http://localhost:3000` adresini açın. Veritabanı şeması ilk açılışta
 otomatik uygulanır. Durum: `http://localhost:3000/api/health`
 
+Yerel derin AI (MONAI akciğer + ICH beyin modelleri) **ayrı bir servis**tir:
+
+```bash
+docker compose --profile ai up --build -d   # ilk açılışta ~231 MB model indirir
+```
+
+Worker kapalıyken BT analizi kural tabanlı motora düşer ve ekran “worker: kapalı”
+olarak bunu belirtir; hasta verisi bu servise yalnızca makine içinden gider.
+
 ## Kurulum paketleri — Windows · Linux · macOS
 
 Tüm kurulum dosyaları **orijinal dosya yollarıyla** tek arşivdedir:

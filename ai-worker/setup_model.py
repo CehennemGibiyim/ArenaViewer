@@ -37,7 +37,11 @@ MODEL_DIR = os.environ.get(
 # Yol brain_lib.CACHE_DIR ile birebir aynı olmalıdır; dosya listesi ve boyutları
 # HuggingFace deposundaki LFS boyutlarıyla doğrulanmıştır (7 dosya, ≈147 MB).
 BRAIN_REPO = "ianpan/ct-head-hemorrhage-detection"
-BRAIN_DIR = os.path.join(os.path.expanduser("~"), ".cache", "atikviewer-ai", "brain")
+# Docker/konteyner için ATIK_BRAIN_DIR ile değiştirilebilir (varsayılan: ~/.cache/...).
+BRAIN_DIR = os.environ.get(
+    "ATIK_BRAIN_DIR",
+    os.path.join(os.path.expanduser("~"), ".cache", "atikviewer-ai", "brain"),
+)
 BRAIN_FILES = [
     ("classifier/model.safetensors", 122_429_448),
     ("sequence/model.safetensors", 11_098_536),
