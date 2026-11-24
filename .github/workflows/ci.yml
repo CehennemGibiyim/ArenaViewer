@@ -104,6 +104,10 @@ jobs:
   dependency-review:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
+    # Özet yorumu PR'a yazılacağı için pull-requests: write gerekir.
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
 

@@ -1,5 +1,4 @@
 /** Prometheus metrik biçimlendirici testleri. */
-import assert from "node:assert/strict";
 import { escapeLabelValue, prometheusText } from "../src/lib/server/metrics";
 
 let failed = 0;
