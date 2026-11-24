@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { reports } from "@/db/schema";
 import { authorize } from "@/lib/server/auth";
+import { calibrationBins, expectedCalibrationError, type CalibrationBin } from "@/lib/modelOps";
 import type { Finding, FindingApprovalStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -41,9 +42,32 @@ export async function GET(req: NextRequest) {
       map.set(key, row);
     }
   }
+  // Güven kalibrasyonu: bulgunun güven puanı ile hekim onayı arasındaki ilişki.
+  const calibMap = new Map<string, Array<{ score: number; approved: boolean }>>();
+  for (const r of rs) {
+    const findings = (r.f as Finding[]) ?? [];
+    const ap = (r.ap as Record<string, FindingApprovalStatus>) ?? {};
+    for (const f of findings) {
+      if (f.category === "Sistem" || f.category === "ROI" || f.source === "manual") continue;
+      if (f.confidenceKind === "none" || !Number.isFinite(f.confidence)) continue;
+      const st = ap[f.id];
+      if (st !== "onaylandi" && st !== "reddedildi") continue;
+      const key = `${r.e || "?"}|${f.category}`;
+      const arr = calibMap.get(key) ?? [];
+      arr.push({ score: f.confidence, approved: st === "onaylandi" });
+      calibMap.set(key, arr);
+    }
+  }
+  const calibration = [...calibMap.entries()].map(([key, data]) => {
+    const [engine, category] = key.split("|");
+    const bins: CalibrationBin[] = calibrationBins(data, 5);
+    return { engine: engine ?? "?", category: category ?? "?", n: data.length, bins, ece: expectedCalibrationError(bins) };
+  });
+
   const rows = [...map.values()].map((r) => ({ ...r, ppv: r.approved + r.rejected > 0 ? r.approved / (r.approved + r.rejected) : null }));
   return NextResponse.json({
     rows,
+    calibration,
     note: "Kesinlik (PPV) yalnızca hekim kararlarına dayanır. Duyarlılık için 'AI'nın kaçırdığı bulgu' girişleri (manualAdded) gerekir; bu, kontrollü bir klinik doğrulama çalışmasının yerini tutmaz.",
   });
 }

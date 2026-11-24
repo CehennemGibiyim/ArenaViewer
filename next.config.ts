@@ -11,7 +11,36 @@ const nextConfig: NextConfig = {
   ...(pages ? {} : { experimental: { proxyClientMaxBodySize: 700 * 1024 * 1024 } }),
   // statik dışa aktarımda başlıklar desteklenmez
   ...(pages ? {} : { async headers() {
+    // Kurumsal web hardening (G1): tüm yanıtlara temel güvenlik başlıkları.
+    // Not: CSP script-src 'unsafe-inline' gerektirir çünkü Next.js hidrolik
+    // önyükleme betiklerini satır içi ekler; stil de React satır içi stil
+    // nesneleri kullandığı için 'unsafe-inline' şarttır.
+    const securityHeaders = [
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+      { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
+      { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
+      {
+        key: "Content-Security-Policy",
+        value: [
+          "default-src 'self'",
+          "img-src 'self' data: blob:",
+          "style-src 'self' 'unsafe-inline'",
+          "script-src 'self' 'unsafe-inline'",
+          "connect-src 'self'",
+          "worker-src 'self' blob:",
+          "frame-ancestors 'self'",
+          "base-uri 'none'",
+          "form-action 'self'",
+        ].join("; "),
+      },
+    ];
     return [
+      {
+        source: "/:path*",
+        headers: [...securityHeaders, { key: "Cache-Control", value: "no-store, no-cache, must-revalidate" }],
+      },
       {
         source: "/",
         headers: [{ key: "Cache-Control", value: "no-store, no-cache, must-revalidate" }],

@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "npm run test:image-review && npm run test:pacs && npm run test:recist && npm run test:close-loop && npm run test:auth && npm run test:templates && npm run test:structured-report && npm run test:quant",
+    "test": "npm run test:image-review && npm run test:pacs && npm run test:recist && npm run test:close-loop && npm run test:auth && npm run test:templates && npm run test:structured-report && npm run test:quant && npm run test:tracking && npm run test:model-ops",
     "test:image-review": "tsx tests/image-review.test.ts",
     "test:pacs": "tsx tests/pacs.test.ts",
     "test:recist": "node --experimental-strip-types tests/recist.test.mjs",
@@ -21,7 +21,9 @@
     "test:templates": "tsx tests/templates.test.ts",
     "test:structured-report": "tsx tests/structured-report.test.ts",
     "test:pacs-e2e": "tsx tests/pacs.orthanc.e2e.ts",
-    "test:quant": "tsx tests/quant.test.ts"
+    "test:quant": "tsx tests/quant.test.ts",
+    "test:tracking": "tsx tests/lesion-tracking.test.ts",
+    "test:model-ops": "tsx tests/model-ops.test.ts"
   },
   "dependencies": {
     "dicom-parser": "^1.8.21",
