@@ -145,6 +145,7 @@ python ai-worker/server.py          # worker'ı başlatır (CPU'da da çalışı
 | `DATA_ENCRYPTION_KEY` | Üretimde | Base64, 32 bayt AES-256 anahtarı (boşsa `.data/enc.key` üretilir) |
 | `PACS_AUTH_HEADER` | Hayır | DICOMweb kimlik başlığı — yalnızca geriye dönük; kimlik/ayarlar Yönetim → Entegrasyon'dan girilir ve sunucuda şifrelenir |
 | `HIS_API_KEY` | Hayır | HBYS istem alımı API anahtarı |
+| `ACCESS_TOKEN` | Hayır | Tek erişim anahtarı; tanımlıysa `/giris` kapısı ve 401 koruması açılır (çok kullanıcılı yetki için SSO/rol gerekir) |
 | `LLM_API_URL` / `LLM_API_KEY` / `LLM_MODEL` | Hayır | Taslak izlenim LLM'i (yoksa kural tabanlı yedek). Ücretsiz yerel yol: [docs/OLLAMA.md](docs/OLLAMA.md) |
 | `AI_WORKER_URL` | Hayır | Yerel derin AI worker adresi (varsayılan `http://127.0.0.1:8787`) |
 
@@ -232,10 +233,17 @@ docs/             Yayınlama ve işletim kılavuzları
   yeni anahtar verin ve Yönetim → Güvenlik'teki “Mevcut kayıtları şifle” ile eski
   kayıtları yeni anahtarla yeniden şifreleyin.
 - Hasta verisi diskte AES-256-GCM ile şifrelidir; anahtar yedeğini saklayın.
-- Onay akışı kimlik doğrulamaz (giriş kaldırıldı): rapora profildeki hekim adı yazılır
-  ve içerik SHA-256 ile mühürlenir; mühür yalnızca sonradan değişikliği saptar.
-  Gerçek hasta verisi için ağ düzeyinde erişim kısıtı şarttır. Bu yazılım tıbbi cihaz
-  değildir ve düzenleyici onay süreçlerinin (MDR/TİTCK vb.) yerini tutmaz.
+- **İsteğe bağlı erişim kapısı:** `ACCESS_TOKEN` tanımlıysa tüm sayfa/API istekleri
+  `/giris` sayfasına düşer; doğru anahtar oturum çerezi (`httpOnly`, 30 gün) yazar.
+  API’ler 401 döner, `/api/health` ve giriş akışı kapalı kalmaz. Tanım **yoksa** kapı
+  açıktır (demo varsayılanı) ve adresi bilen herkes hasta verisini görebilir; bu
+  hâlde uygulamayı yalnızca VPN/güvenlik duvarı arkasında açın. Çıkış:
+  `POST /api/auth/logout`.
+- Onay akışı kişisel kimlik doğrulamaz: rapora profildeki hekim adı yazılır ve içerik
+  SHA-256 ile mühürlenir; mühür yalnızca sonradan değişikliği saptar. Gerçek hasta
+  verisi için ağ düzeyinde erişim kısıtı ya da kurumsal kimlik (SSO/rol) şarttır.
+  Bu yazılım tıbbi cihaz değildir ve düzenleyici onay süreçlerinin (MDR/TİTCK vb.)
+  yerini tutmaz.
 
 ## Lisans
 

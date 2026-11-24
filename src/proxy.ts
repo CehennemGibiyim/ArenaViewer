@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { accessEnabled, checkAccess } from "@/lib/server/access";
 
 /**
  * Önizleme panelleri uygulamayı bazen kökeni "null" olan kısıtlı bir iframe içinde açar.
@@ -19,6 +20,24 @@ function allowedOrigin(req: NextRequest): string | null {
   return null;
 }
 
+/** Erişim anahtarı varken kapıdan önce geçmesi gereken yollar. */
+function isPublic(pathname: string): boolean {
+  if (
+    pathname === "/api/health" ||
+    pathname === "/giris" ||
+    pathname === "/api/auth/login" ||
+    pathname === "/favicon.ico"
+  ) {
+    return true;
+  }
+  return (
+    pathname.startsWith("/_next/") ||
+    pathname.startsWith("/codecs/") ||
+    pathname.startsWith("/icons/") ||
+    pathname.startsWith("/downloads/")
+  );
+}
+
 export function proxy(req: NextRequest) {
   const origin = allowedOrigin(req);
   const cors: Record<string, string> = origin
@@ -30,10 +49,22 @@ export function proxy(req: NextRequest) {
         Vary: "Origin",
       }
     : {};
+
+  // İsteğe bağlı erişim kapısı: ACCESS_TOKEN tanımlıysa sayfa istekleri /giris'e,
+  // API istekleri 401 döner. Tanım yoksa davranış değişmez (demo).
+  if (accessEnabled() && !isPublic(req.nextUrl.pathname) && !checkAccess(req)) {
+    if (req.nextUrl.pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Kimlik doğrulama gerekli" }, { status: 401 });
+    }
+    const hedef = new URL("/giris", req.url);
+    hedef.searchParams.set("next", req.nextUrl.pathname + req.nextUrl.search);
+    return NextResponse.redirect(hedef, 303);
+  }
+
   if (req.method === "OPTIONS") return new NextResponse(null, { status: origin ? 204 : 403, headers: cors });
   const res = NextResponse.next();
   for (const [k, v] of Object.entries(cors)) res.headers.set(k, v);
   return res;
 }
 
-export const config = { matcher: ["/api/:path*"] };
+export const config = { matcher: ["/((?!_next/static|_next/image).*)"] };
