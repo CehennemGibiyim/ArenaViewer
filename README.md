@@ -135,11 +135,21 @@ python ai-worker/server.py          # worker'ı başlatır (CPU'da da çalışı
 ```
 
 - Windows'ta tüm bu adımları betik yapar: `windows\Kurulum.bat` (bkz. docs/WINDOWS_KURULUM.md §0).
-- Akciğer modeli: `~/.cache/atikviewer-ai/model/model.pt` (`ATIK_MODEL_DIR` ile değiştirilebilir).
+- Akciğer (BT) modeli: `~/.cache/atikviewer-ai/model/model.pt` (`ATIK_MODEL_DIR` ile değiştirilebilir).
 - Beyin (ICH) modeli: `~/.cache/atikviewer-ai/brain` (7 × `.safetensors`, MIT/RSNA).
-- Durum: `GET /api/deep-scan` → `{"worker":"up"|"down", ...}`
+- Akciğer grafisi (CXR) modeli: repoda `ai-worker/models/cxr_densenet121_medx_320.onnx`
+  (Medical_X DenseNet121, Apache-2.0, 28 MB). Öncelik sırası:
+  `CXR_MODEL_PATH` → `~/.cache/atikviewer-ai/cxr/` (`ATIK_CXR_DIR`) → depodaki dosya.
+  Türetimi: `python ai-worker/tools/export_cxr_onnx.py --verify`;
+  kaynak lisansı/bildirim: `ai-worker/models/LICENSE.Medical_X.txt` + `NOTICE.md`.
+- Durum: `GET /api/deep-scan` → `{"worker":"up"|"down", ...}`; worker `/health` içinde
+  `cxr.modelFile` / `cxr.modelLoaded`.
 - Uygulama içinde BT toraks analizi otomatik olarak bu uca gider; worker kapalıysa
   kural tabanlı motor devam eder ve uyarı satırı gösterilir.
+- Direkt grafilerde (CR/DX/RG) ise yerel CXR modeli çalışır: 14 torasik bulgu için olasılık
+  tablosu + **Grad-CAM ısı haritası** örtüsü. Model lokalizasyon kutusu vermez; bulgular
+  "aday" sayılır, klinik doğrulaması yoktur ve skorlar kalibre olasılık değildir.
+  Hasta görüntüsü yalnızca bu makinedeki worker'a gider, dış ağa çıkmaz.
 - Not: Büyük HU hacimleri için `next.config.ts` içinde gövde sınırı 700 MB'a ayarlıdır.
 
 ### HBYS/RIS sipariş köprüsü (HL7 v2 MLLP)

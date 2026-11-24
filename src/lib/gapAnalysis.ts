@@ -508,10 +508,10 @@ const BASE_ITEMS: GapItem[] = [
   // Detaylı analiz ve 90 günlük plan için docs/PIYASA_EKSILERI_2026.md dosyasına bakın.
   {
     id: "a-cxr", category: "ai", title: "Akciğer grafisi/filitrio AI + ısı haritası (pnömotoraks, effüzyon, konsolidasyon, TB)",
-    status: "kismi", priority: "P1", effort: "M",
+    status: "var", priority: "P1", effort: "M",
     market: ["Lunit", "Aidoc", "Gleamer"],
-    ours: "**Bu sürümde eklendi (teknik çekirdek):** CTR hesabı + **CXR teknik kalite modülü** (`src/lib/cxr.ts`): projeksiyon tanımı (PA/AP/yandan), inspirasyon (ön kosta sayısı), rotasyon (medial klavya farkı) ve penetrasyon ölçütleri tek satır olarak rapora yazılabilir; skor panelinde MG/CR için düzenlenir. Tanısal sınıflandırma ve Grad-CAM ısı haritası için model ağırlığı hâlâ yok.",
-    action: "CXR sınıflandırma modeli (ONNX) + ısı haritası; model ağırlığının nasıl temin edileceği kararı.",
+    ours: "**Tamamlandı:** CTR hesabı + **CXR teknik kalite modülü** (`src/lib/cxr.ts`: projeksiyon PA/AP/yandan, kosta sayısı, rotasyon, penetrasyon) + **yerel derin CXR sınıflandırması** (`Medical_X` DenseNet121, NIH ChestX-ray14, Apache-2.0; `ai-worker/models/cxr_densenet121_medx_320.onnx`, 14 sınıf, sigmoid + kaynak eşik tablosu). Çıkarım ONNX Runtime ile istemciden gelen gri tek kare üzerinde çalışır (`cxr_lib.py`); pozitif sınıflar için **Grad-CAM ısı haritası** (norm5 katmanı, gerçek gradyan referansıyla r=0,995 doğrulandı) Viewport'a örtü olarak çizilir. Model lokalizasyon KUTUSU vermez; raporda \"aday\" olarak işaretlenir, klinik doğrulama yoktur ve skorlar kalibre olasılık değildir. Kaynak lisansı/bildirim: `ai-worker/models/LICENSE.Medical_X.txt` + `NOTICE.md`; türetim: `ai-worker/tools/export_cxr_onnx.py`. Hasta verisi istemciden sunucuya gider ama dış ağa ÇIKMAZ (yalnızca yerel ai-worker 127.0.0.1:8787).",
+    action: "Opsiyonel sonraki adım: pnömotoraks/solitüd segmentasyonu (bbox'lı model) ve kendi cohort'unuzla in-vitro doğrulama; mevcut model yalnızca aday olasılık + ısı haritası üretir.",
   },
   {
     id: "a-stroke", category: "ai", title: "İnme paketi: ASPECTS skoru + CTP perfüzyon (CBF/CBV/MTT/Tmax)",

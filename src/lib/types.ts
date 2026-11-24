@@ -102,7 +102,12 @@ export interface Differential {
   probability: number;
 }
 
-export type EngineKind = "cv-heuristic" | "image-review" | "simulated-sample" | "no-model";
+/**
+ * cv-heuristic: kural tabanlı BT motoru; cxr-model: yerel derin CXR sınıflandırma;
+ * image-review: tanısal olmayan kare ölçümü; simulated-sample: önceden tanımlı demo;
+ * no-model: inceleme kapalı.
+ */
+export type EngineKind = "cv-heuristic" | "cxr-model" | "image-review" | "simulated-sample" | "no-model";
 
 /** Piksel verisinden gerçekten hesaplanır; hastalık tanısı veya akış hızı değildir. */
 export interface ReviewFrameMetric {

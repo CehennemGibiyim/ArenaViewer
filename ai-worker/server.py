@@ -11,6 +11,9 @@ Protokol:
        Kutular [0,1] normalleştirilmiş (gönderilen hacmin), z0/z1 kesit indisleri.
        protocol=ct-head → yerel ICH modeli (brain_lib) devreye girer; yanıta
        "label" (kanama alt tipi), "series" ve "slicePeaks" eklenir.
+       protocol=cxr   → tek karelik akciğer grafisi (gövde = gzip float32 LE,
+       Z=1,Y,X); cxr_lib 14 sınıflık olasılık + pozitif sınıfların ısı
+       haritası (64×64 base64) döndürür. Model depoda gömülüdür.
 
 Kurulum: python ai-worker/setup_model.py (model dosyalarını indirir).
 """
@@ -42,10 +45,12 @@ MAX_BODY = int(os.environ.get("ATIK_MAX_BODY_MB", "600")) * 1024 * 1024
 
 import model_lib  # noqa: E402
 import brain_lib  # noqa: E402
+import cxr_lib  # noqa: E402
 
 _infer_lock = threading.Lock()
 _load_lock = threading.Lock()
 _brain_lock = threading.Lock()
+_cxr_lock = threading.Lock()
 
 
 def _ensure_model():
@@ -91,6 +96,7 @@ class Handler(BaseHTTPRequestHandler):
                 "modelFile": ready,
                 "roi": list(model_lib.ROI_SIZE),
                 "brain": {"modelFile": brain_ready, "modelLoaded": brain_loaded},
+                "cxr": {"modelFile": cxr_lib.model_ready(), "modelLoaded": cxr_lib.STATE["session"] is not None},
             })
         else:
             self._send({"error": "not found"}, 404)
@@ -109,7 +115,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         qs = parse_qs(parsed.query)
         protocol = (qs.get("protocol") or ["ct-chest"])[0].strip().lower()
-        if protocol not in ("ct-chest", "ct-head"):
+        if protocol not in ("ct-chest", "ct-head", "cxr"):
             self._send({"error": f"Bilinmeyen protocol: {protocol}"}, 400)
             return
         try:
@@ -131,6 +137,29 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:  # noqa: BLE001 — sıkıştırılmamış gönderime de izin ver
             buf = raw
         z, y, x = dims
+
+        # ───── CXR: akciğer grafisi sınıflandırma (tek kare, serbest ölçekli gri) ─────
+        if protocol == "cxr":
+            if z != 1:
+                self._send({"error": f"CXR protokolü tek kare bekler (Z=1); gelen Z={z}"}, 400)
+                return
+            expected = z * y * x * 4
+            if len(buf) != expected:
+                self._send({"error": f"Veri boyutu tutmuyor: {len(buf)} != {expected}"}, 400)
+                return
+            gray = np.frombuffer(buf, dtype="<f4").reshape(y, x)
+            try:
+                with _cxr_lock:
+                    out = cxr_lib.run_inference(gray)
+            except ValueError as e:
+                self._send({"error": str(e)}, 400)
+                return
+            except Exception as e:  # noqa: BLE001 — model/ort hata mesajı istemciye netsin
+                self._send({"error": f"CXR çıkarım hatası: {e}"}, 500)
+                return
+            self._send(out)
+            return
+
         expected = z * y * x * 2
         if len(buf) != expected:
             self._send({"error": f"Veri boyutu tutmuyor: {len(buf)} != {expected}"}, 400)
@@ -224,6 +253,14 @@ def main():
         print(f"Beyin (ICH) modeli hazır: {brain_lib.CACHE_DIR} · ilk istekte yüklenir.", flush=True)
     else:
         print(f"UYARI: beyin modeli ağırlıkları yok ({brain_lib.CACHE_DIR}); /infer?protocol=ct-head 503 döner.", flush=True)
+    if cxr_lib.model_ready():
+        print(f"CXR modeli hazir: {cxr_lib.model_path()} · ilk istekte oturum açılır.", flush=True)
+    else:
+        print(
+            f"UYARI: CXR modeli yok ({cxr_lib.model_path()}); /infer?protocol=cxr 500 döner. "
+            f"NOTICE.md ve ai-worker/tools/export_cxr_onnx.py'ye bakın.",
+            flush=True,
+        )
     if not model_lib.model_ready():
         print(f"UYARI: model dosyası yok ({model_lib.MODEL_PATH}); /infer 503 döner.", flush=True)
     else:

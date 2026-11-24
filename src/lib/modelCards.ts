@@ -86,8 +86,28 @@ export const DEEP_BRAIN_MODEL_CARD: ModelCard = {
     "Yerel teknik doğrulama: sentetik gürültü serilerinde yanlış pozitif üretilmedi; klinik doğrulama (duyarlılık/özgüllük tablosu) YAPILMAMIŞTIR.",
 };
 
+/** Yerel derin öğrenme — akciğer grafisi (CXR) sınıflandırma + ısı haritası. */
+export const DEEP_CXR_MODEL_CARD: ModelCard = {
+  name: "Medical_X DenseNet121 (yerel ONNX) — akciğer grafisi",
+  version: "Apache-2.0 · NIH ChestX-ray14",
+  intendedUse:
+    "Akciğer grafisinde 14 torasik bulgu için ADAY olasılık ve ısı haritası üreterek radyoloğun incelemesini yönlendirmek. Tanı koymaz; nihai onay radyoloji uzmanına aittir.",
+  method:
+    "DenseNet121 (ImageNet ön eğitimi) + 14 sınıflı Lineer kafa; NIH ChestX-ray14 (112.120 grafi, rapor metni NLP etiketleri = zayıf etiketleme). Girdi tek karedir: %1–%99 persentil ölçekleme → 320×320 bilinear → ImageNet normalizasyonu. Çıkarım yerel ONNX Runtime ile çalışır; hasta verisi dışarı gönderilmez, ücret yoktur. Isı haritası, son birleştirilmiş özellik haritası (norm5) üzerinde hesaplanır; GAP + Lineer mimarisinde bu, gerçek gradyan ağırlıklı Grad-CAM ile birebir aşağı yukarı aynıdır (r=0,995 doğrulandı).",
+  limitations: [
+    "Model lokalizasyon KUTUSU üretmez; yalnızca görselleştirilebilir ısı haritası verir.",
+    "NIH ChestX-ray14 zayıf etiketlerine sahiptir (rapor NLP'i); sınıf dağılımı dengesizdir ve bazı sınıflar seyrektir (örn. Hernia, Pnömoni).",
+    "Yalnızca direkt grafilerde (CR/DX/RG) anlamlıdır; projeksiyon/kalite farkı performansı etkiler.",
+    "Klinik olarak doğrulanmamıştır; duyarlılık/özgüllük bilinmiyor. Skorlar kalibre olasılık değildir.",
+    "Tek karelik seriler içindir; çok kareli CR/DX serisinin yalnızca temsilci karesi değerlendirilir.",
+  ],
+  validation:
+    "Kaynak projenin doğrulama split'i: makro AUROC 0,851 (sınıf başına AUROC 0,73–0,98; en zayıf sınıf İnfiltrat 0,73). Kaynağın kendi kohortu DIŞINDA ve klinik olarak doğrulanmamıştır.",
+};
+
 export function modelCardFor(engine: EngineKind): ModelCard {
   if (engine === "cv-heuristic") return CV_MODEL_CARD;
+  if (engine === "cxr-model") return DEEP_CXR_MODEL_CARD;
   if (engine === "image-review") return IMAGE_REVIEW_CARD;
   return engine === "simulated-sample" ? DEMO_MODEL_CARD : NO_MODEL_CARD;
 }

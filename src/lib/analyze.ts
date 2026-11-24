@@ -44,7 +44,9 @@ function techniqueFor(b: AnalyzeBody["meta"], engine: EngineKind): string {
           ? `Direkt grafi (${b.seriesDescription}) değerlendirildi.`
           : `${b.modality} modalitesinde ${b.sliceCount} görüntü değerlendirildi.`;
   const note =
-    engine === "cv-heuristic"
+    engine === "cxr-model"
+      ? " [Yerel derin CXR modeli 14 torasik bulgu için aday olasılıkları üretti; skorlar kalibre değildir ve klinik olarak doğrulanmamıştır.]"
+      : engine === "cv-heuristic"
       ? " [Aday bulgular kural tabanlı görüntü işleme ile hesaplanmıştır; derin öğrenme modeli değildir ve klinik olarak doğrulanmamıştır.]"
       : engine === "image-review"
         ? " [Tüm karelerde gerçek piksel ölçümü yapıldı: sinyal/kontrast ve varsa RGB renkli alan. Bu bir hastalık/lezyon dedektörü DEĞİLDİR; acil triyaj veya tanı üretmez.]"
@@ -95,18 +97,28 @@ export function buildAnalysis(body: AnalyzeBody): AnalyzeOutcome {
   if (findings.length === 0) {
     const mid = Math.floor(total / 2);
     findings.push({
-      id: engine === "image-review" ? "ir0" : engine === "no-model" ? "nm1" : "nc1",
+      id: engine === "cxr-model" ? "xm1" : engine === "image-review" ? "ir0" : engine === "no-model" ? "nm1" : "nc1",
       sliceIndex: mid, sliceStart: 0, sliceEnd: total - 1, keySliceNumber: mid + 1,
       sliceRangeStr: total > 1 ? `Kesit 1 – ${total} (tüm seri)` : "Kesit 1",
       anatomicalLocation: "—", densityOrSignal: "—", sizeMmStr: "—", bbox: null,
-      label: engine === "image-review" ? "Kesit bazlı piksel ölçümü" : engine === "no-model" ? "Otomatik analiz kapalı" : "Aday odak işaretlenmedi",
+      label:
+        engine === "cxr-model"
+          ? "CXR modeli aday bulgu işaretlemedi"
+          : engine === "image-review"
+            ? "Kesit bazlı piksel ölçümü"
+            : engine === "no-model"
+              ? "Otomatik analiz kapalı"
+              : "Aday odak işaretlenmedi",
       detail:
-        engine === "image-review"
+        engine === "cxr-model"
+          ? `${meta.sliceCount} kareden temsilci kare yerel CXR modeline gönderildi; hiçbir sınıf eşiği geçmedi. Bu, normal olduğu anlamına gelmez; model klinik olarak doğrulanmamıştır ve radyolog değerlendirmesi gerekir.`
+          : engine === "image-review"
           ? `${body.review?.frames.length ?? 0} karede piksel sinyali ve kontrast ölçüldü; tanısal bir patoloji/normal sonuç çıkartılamaz.`
           : engine === "no-model"
             ? "Bu seri için otomatik inceleme seçilmedi. Görüntüler radyolog tarafından değerlendirilmelidir."
             : "Kural tabanlı BT dedektörü bu seride aday odak işaretlemedi. Bu, normal olduğu anlamına gelmez.",
-      category: "Sistem", severity: "normal", confidence: 0, confidenceKind: "none", source: engine === "image-review" ? "image-review" : "cv-heuristic",
+      category: "Sistem", severity: "normal", confidence: 0, confidenceKind: "none",
+      source: engine === "cxr-model" ? "ai-model" : engine === "image-review" ? "image-review" : "cv-heuristic",
     });
   }
 
@@ -185,7 +197,7 @@ export function buildAnalysis(body: AnalyzeBody): AnalyzeOutcome {
       ? "Yalnızca piksel istatistikleri hesaplanmıştır. Doppler RGB renkleri kalibrasyon olmadan hız/akış ölçümü değildir. Klinik tanısal sorumluluk radyoloğa aittir."
       : "Nihai tanısal sorumluluk raporu onaylayan radyoloğa aittir.",
     findingsText, impression, recommendation,
-    model: `${card.name} v${card.version}${engine === "simulated-sample" ? " (simülasyon)" : engine === "cv-heuristic" ? " (kural tabanlı)" : engine === "image-review" ? " (tanısal değil)" : ""}`,
+    model: `${card.name} v${card.version}${engine === "simulated-sample" ? " (simülasyon)" : engine === "cv-heuristic" ? " (kural tabanlı)" : engine === "cxr-model" ? " (yerel ONNX)" : engine === "image-review" ? " (tanısal değil)" : ""}`,
     engine, modelCard: card,
   };
   return { ok: true, result };

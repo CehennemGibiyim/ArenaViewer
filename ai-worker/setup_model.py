@@ -6,6 +6,12 @@ Kullanım:
 İkinci modeli de indirir: BT beyin ICH (ianpan/ct-head-hemorrhage-detection, MIT,
 ≈147 MB) → ~/.cache/atikviewer-ai/brain (ai-worker/brain_lib için zorunlu).
 
+Üçüncü model AKCIĞER GRAFİSİ (CXR) içindir ve DEPODA GÖMÜLÜDÜR
+(ai-worker/models/cxr_densenet121_medx_320.onnx, Apache-2.0; kaynak:
+Harsh-Prajapati54/Medical_X — bildirim: ai-worker/models/NOTICE.md). İndirme
+gerekmez; bu betik yalnızca dosyayı ve SHA-256 özetini denetler ve isteğe bağlı
+olarak ATIK_CXR_DIR dizinine kopyalar.
+
 Akciğer dosyaları ATIK_MODEL_DIR (varsayılan ~/.cache/atikviewer-ai/model) altına iner:
     model.pt            (≈84 MB, LUNA16 eğitimi RetinaNet+ResNet50-3D)
     inference.json      (bundle ön işleme/yapılandırma — model_lib ile birebir)
@@ -17,6 +23,7 @@ Mevcut ve boyutu doğrulanmış dosyalar atlanır (idempotent).
 
 import hashlib
 import os
+import shutil
 import sys
 import urllib.request
 
@@ -114,6 +121,51 @@ def setup_brain() -> int:
     return missing
 
 
+# ── Üçüncü model: CXR sınıflandırma (depoda gömülü ONNX) ─────────────
+CXR_MODEL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "cxr_densenet121_medx_320.onnx")
+CXR_SHA256 = "5471902106c5b7d8c7f40b7fdfa6b64d13a3f7ea12694d3979c5848391d1949b"
+CXR_BYTES = 28_270_117
+
+
+def setup_cxr(verbose: bool = True) -> int:
+    """Gömülü CXR ONNX'unu denetler; 0 = tamam, 1 = eksik/hatalı.
+
+    `CXR_MODEL_PATH` tanımlıysa o dosyayı kullanır; aksi halde depodaki gömülü
+    dosyaya işaret eder. ATIK_CXR_DIR tanımlıysa dosyanın bir kopyasını oraya
+    yazar (worker önce o dizine bakar).
+    """
+    path = os.environ.get("CXR_MODEL_PATH", "").strip() or CXR_MODEL
+    if not os.path.isfile(path):
+        print(f"HATA: CXR modeli bulunamadı: {path}", file=sys.stderr, flush=True)
+        return 1
+    actual = os.path.getsize(path)
+    if actual != CXR_BYTES:
+        print(f"HATA: CXR modeli boyutu tutmuyor ({actual} != {CXR_BYTES})", file=sys.stderr, flush=True)
+        return 1
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    digest = h.hexdigest()
+    if digest != CXR_SHA256:
+        print(f"HATA: CXR modeli sha256 tutmuyor\n  beklenen {CXR_SHA256}\n  gelen   {digest}", file=sys.stderr, flush=True)
+        return 1
+    if verbose:
+        print(f"CXR modeli hazir: {path} ({actual} bayt, sha256={digest[:12]}…)", flush=True)
+
+    cache_dir = os.environ.get("ATIK_CXR_DIR", "").strip()
+    if cache_dir and os.path.abspath(cache_dir) != os.path.dirname(os.path.abspath(path)):
+        os.makedirs(cache_dir, exist_ok=True)
+        dest = os.path.join(cache_dir, os.path.basename(path))
+        if not (os.path.isfile(dest) and os.path.getsize(dest) == actual):
+            try:
+                shutil.copyfile(path, dest)
+                print(f"  kopyalandı: {dest}", flush=True)
+            except OSError as e:  # noqa: BLE001
+                print(f"  UYARI: ATIK_CXR_DIR kopyalaması yapılamadı: {e}", file=sys.stderr, flush=True)
+    return 0
+
+
 def main() -> int:
     os.makedirs(MODEL_DIR, exist_ok=True)
     missing = 0
@@ -151,7 +203,10 @@ def main() -> int:
     print(f"Model dizini: {MODEL_DIR}", flush=True)
 
     # İkinci model: BT beyin ICH ağırlıkları (ai-worker/brain_lib kullanır)
-    return 1 if setup_brain() else 0
+    brain_missing = setup_brain()
+    # Üçüncü model: CXR (depoda gömülü; yalnızca denetlenir)
+    cxr_missing = setup_cxr()
+    return 1 if (brain_missing or cxr_missing) else 0
 
 
 if __name__ == "__main__":

@@ -2,7 +2,8 @@
 # Python 3.11–3.14 · kurulum:
 #   python -m venv .venv
 #   .venv\Scripts\python -m pip install -r ai-worker\requirements.txt
-#   .venv\Scripts\python ai-worker\setup_model.py     (akciğer + beyin modellerini indirir)
+#   .venv\Scripts\python ai-worker\setup_model.py     (BT akciğer + beyin modellerini indirir)
+#   CXR modeli indirmez: ai-worker/models/cxr_densenet121_medx_320.onnx depodadır.
 #
 # Windows'ta tek komutla:  powershell -ExecutionPolicy Bypass -File windows\Kurulum.ps1
 
@@ -11,6 +12,8 @@ torch>=2.3                 # tensör çıkarımı (model_lib, ich_inference)
 torchvision>=0.18          # skp model mimarisi torchvision.models.video kullanır
 monai>=1.4                 # akciğer nodül bundle çıkarımı (MONAI lung_nodule_ct_detection)
 numpy>=1.26,<3             # tüm modüller
+onnxruntime>=1.17          # CXR sınıflandırma + ısı haritası (ai-worker/cxr_lib.py)
+pillow>=10                 # cxr_lib ön işleme (persentil ölçekleme + bilinear yeniden örnekleme)
 opencv-python-headless>=4.9  # cv2: ICH ön işleme (GUI bağımlılığı yok, sunucuya uygun)
 safetensors>=0.4           # .safetensors ağırlık okuma (beyin modeli)
 huggingface_hub>=0.23      # model indirme (ai-worker/setup_model.py)
