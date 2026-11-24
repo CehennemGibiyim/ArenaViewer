@@ -614,9 +614,9 @@ const BASE_ITEMS: GapItem[] = [
   {
     id: "d-ambient", category: "report", title: "Ambient dokümantasyon + yapılandırılmış makrolar",
     status: "kismi", priority: "P2", effort: "M",
-    market: ["PowerScribe", "Rad AI"],
-    ours: "Web Speech dikte var; tıbbi sözlük/ortam dinleme ve makro kitaplığı yok.",
-    action: "Makro/blok kitaplığı ve genişletilebilir sözlük; ACR uygunluk sorgusu.",
+    market: ["Nuance", "Rad AI"],
+    ours: "**Bu sürümde eklendi:** rapor düzenleme ekranında 14 hazır makro (teknik/bulgu/öneri; RadReport benzeri cümle blokları) + Türkçe Web Speech dikte. Ambient tıbbi sözlük/otomatik konuşmadan metne çevrim yok.",
+    action: "Konuşmadan yapılandırılmış metin üretimi; Radlex/ACR ile eşleştirilmiş makro sözlüğü.",
   },
   {
     id: "d-icd", category: "report", title: "ICD-10 / ACR Appropriateness ve kodlama desteği",
