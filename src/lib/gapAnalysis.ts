@@ -522,10 +522,10 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "a-msk", category: "ai", title: "MSK/X-ışını kırık ve landmarke AI",
-    status: "yok", priority: "P2", effort: "L",
+    status: "kismi", priority: "P2", effort: "L",
     market: ["Gleamer"],
-    ours: "Yalnızca temel ölçümler; kırık/landmark AI yok.",
-    action: "Bölge/kırık sınıflandırma + heatmap; el/omurGAĞI/ayak landmarke nokta önerisi.",
+    ours: "Ölçüm yardımcısı: src/lib/msk.ts ile 4 protokol (el bileği AP, ayak bileği Böhler+tibiofibular, ayak lateral Meary/pitch, kalça AP CE+indeks); adlandırılmış anatomik noktaları sırayla alma, kenar-yapışmalı (snapPoint) nokta seçimi, mm/derece hesabı ve aralık yorumu. Araç çubuğunda 🦴 MSK ve Ölçüm sekmesinde panel; sonuçlar akışa/panoya kopyalanır. Kırık sınıflandırması ve heatmap için eğitimli model YOKTUR.",
+    action: "El/omurga/ayak landmark ve kırık sınıflandırma modeli (eğitim verisi + heatmap).",
   },
   {
     id: "a-mg", category: "ai", title: "Mamografi: BI-RADS yoğunluk + DBT (tomosentez) okuma akışı",

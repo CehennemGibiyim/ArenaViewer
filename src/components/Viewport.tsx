@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { snapPoint } from "@/lib/msk";
 import type { Annotation, Finding, SeriesData, ToolName } from "@/lib/types";
 import { annotationSummary, dist, ellipseTest, pointInPolygon, perpendicular, regionStats, type Pt } from "@/lib/geometry";
 import { buildFusionLayer, type FusionParams } from "@/lib/fusion";
@@ -78,6 +79,11 @@ interface ViewportProps {
   onZoom: (z: number) => void;
   onPan: (p: { x: number; y: number }) => void;
   onAddAnnotation?: (a: Omit<Annotation, "id">) => void;
+  /** MSK protokol nokta sayısı; tool "msk" iken noktalar bu kadar olunca bildirilir. */
+  mskPointCount?: number;
+  onMskPoints?: (pts: Pt[], slice: number) => void;
+  /** MSK noktasını belirgin özelliğe yapıştırır (px yarıçap; 0 = kapalı). */
+  snapRadius?: number;
   onCalibrate?: (pxLength: number) => void;
   onHover?: (v: number | null) => void;
 }
@@ -92,6 +98,7 @@ export default function Viewport(props: ViewportProps) {
     findings = EMPTY_FINDINGS, revealedIds = EMPTY_SET, activeFindingId = null, overlay = null,
     showDicomOverlays = true, annotations = EMPTY_ANN, readOnly = false, label, panelId, fusion = null,
     onSlice, onWL, onZoom, onPan, onAddAnnotation, onCalibrate, onHover,
+    mskPointCount = 0, onMskPoints, snapRadius = 0,
   } = props;
 
   const slice = series ? Math.max(0, Math.min(requestedSlice, series.slices.length - 1)) : 0;
@@ -427,11 +434,16 @@ export default function Viewport(props: ViewportProps) {
 
     const drawAnn = (a: { kind: Annotation["kind"]; points: Pt[]; text?: string; stats?: Annotation["stats"] }, temp: boolean) => {
       const P = a.points.map(toC);
-      const color = a.kind === "length" || a.kind === "calib" ? "#ffd60a" : a.kind === "angle" || a.kind === "cobb" ? "#ff66c4" : a.kind === "arrow" ? "#7dd3fc" : a.kind === "deviation" ? "#fb923c" : a.kind === "ellipsoid" ? "#34d399" : "#b388ff";
+      const color = (a.kind as string) === "msk" ? "#a78bfa" : a.kind === "length" || a.kind === "calib" ? "#ffd60a" : a.kind === "angle" || a.kind === "cobb" ? "#ff66c4" : a.kind === "arrow" ? "#7dd3fc" : a.kind === "deviation" ? "#fb923c" : a.kind === "ellipsoid" ? "#34d399" : "#b388ff";
       ctx.strokeStyle = color; ctx.fillStyle = color;
       ctx.setLineDash(temp || a.kind === "calib" ? [5, 3] : []);
       ctx.beginPath();
-      if (a.kind === "length" || a.kind === "calib" || a.kind === "arrow") { ctx.moveTo(P[0].x, P[0].y); if (P[1]) ctx.lineTo(P[1].x, P[1].y); }
+      if ((a.kind as string) === "msk") {
+        P.forEach((q, i) => { dot(q); ctx.fillText(String(i + 1), q.x + 6, q.y - 6); });
+        ctx.beginPath();
+        P.forEach((q, i) => (i === 0 ? ctx.moveTo(q.x, q.y) : ctx.lineTo(q.x, q.y)));
+      }
+      else if (a.kind === "length" || a.kind === "calib" || a.kind === "arrow") { ctx.moveTo(P[0].x, P[0].y); if (P[1]) ctx.lineTo(P[1].x, P[1].y); }
       else if (a.kind === "deviation") {
         ctx.moveTo(P[0].x, P[0].y); if (P[1]) ctx.lineTo(P[1].x, P[1].y);
         if (P[2] && a.points[1]) {
@@ -558,7 +570,7 @@ export default function Viewport(props: ViewportProps) {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     return { cx: e.clientX - r.left, cy: e.clientY - r.top };
   };
-  const annTool = !readOnly && (DRAG_TOOLS.includes(tool) || tool === "angle" || tool === "cobb" || tool === "deviation" || tool === "polygon");
+  const annTool = !readOnly && (DRAG_TOOLS.includes(tool) || tool === "angle" || tool === "cobb" || tool === "deviation" || tool === "polygon" || tool === "msk");
 
   const onDown = (e: React.PointerEvent) => {
     if (!series) return;
@@ -567,6 +579,19 @@ export default function Viewport(props: ViewportProps) {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     if (e.button === 0 && annTool) {
       if (DRAG_TOOLS.includes(tool)) setDraft({ mode: "drag", tool, a: p, b: p });
+      else if (tool === "msk") {
+        const need = Math.max(1, mskPointCount || 3);
+        const prev = draft?.mode === "multi" && draft.tool === tool ? draft.pts : [];
+        let np = p;
+        if (snapRadius > 0 && series && series.slices[slice]) {
+          np = snapPoint(series.slices[slice], series.width, series.height, p, snapRadius, "edge");
+        }
+        const pts = [...prev, np];
+        if (pts.length >= need) {
+          onMskPoints?.(pts.slice(0, need), slice);
+          setDraft(null);
+        } else setDraft({ mode: "multi", tool, pts, cursor: np });
+      }
       else {
         const need = MULTI_NEED[tool];
         const prev = draft?.mode === "multi" && draft.tool === tool ? draft.pts : [];

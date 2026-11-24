@@ -27,7 +27,9 @@ export type ToolName =
   | "arrow"
   | "calib"
   | "ellipsoid"
-  | "deviation";
+  | "deviation"
+  /** Adlandırılmış MSK protokol noktaları (ölçüm yardımcısı; kalıcı ek açkaydı yapılmaz). */
+  | "msk";
 
 export type Layout = "1x1" | "1x2" | "2x1" | "2x2" | "1x3" | "3x1" | "2x3" | "3x2";
 
@@ -382,7 +384,7 @@ export interface HangingProtocolRule {
 
 // ───────────── Annotations, Key Images, Reports & State ─────────────
 
-export type AnnotationKind = "length" | "angle" | "cobb" | "arrow" | "rect" | "ellipse" | "polygon" | "calib" | "ellipsoid" | "deviation";
+export type AnnotationKind = "length" | "angle" | "cobb" | "arrow" | "rect" | "ellipse" | "polygon" | "calib" | "ellipsoid" | "deviation" | "msk";
 
 export interface AnnotationStats {
   mean: number;

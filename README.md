@@ -20,6 +20,11 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   oblik (eğimli) MPR ve WebGL 3B hacim. Kesit konumu kaydı (IPP) varsa koronal/sagital
   gerçek hasta geometrisinden, ölçek kayması olmadan örneklenir (`src/lib/mpr.ts` +
   `VolumeView`). Kaynak seri salt okunur tutulur.
+- **MSK ölçüm yardımcısı:** El bileği (radiyal inklinasyon/ulnar varyans), ayak bileği
+  (Böhler, tibiofibular mesafe), ayak lateral (Meary, kalkaneal pitch) ve kalça AP
+  (CE/Wiberg, asetabular indeks) protokollerini adlandırılmış noktalarla çizer;
+  kenar-yapışmalı nokta seçimi ve aralık yorumu sunar (`src/lib/msk.ts`). **Tanısal
+  model değildir**; kırık/landmark sınıflandırması bu sürümde yoktur.
 - **ICD-10 / istem uygunluğu:** Rapor metninden yaklaşık ICD-10 önerileri ve
   ACR tarzı istem uygunluğu puanı (`src/lib/icd10.ts`). Öneriler raporda açıkça
   "yaklaşık eşleme; radyolog onayı şart" olarak etiketlenir.
@@ -228,6 +233,7 @@ npm run test:mpr                    # MPR geometrisi + trilinear yeniden kesit
 npm run test:dictate                 # sesle dikte: sayılar, komutlar, tıbbi sözlük
 npm run test:pwa                     # manifest + hizmet işçisi kapsamı
 npm run test:icd10                   # ICD-10 öneri + istem uygunluğu
+npm run test:msk                     # MSK protokol hesapları + nokta yapışması
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)

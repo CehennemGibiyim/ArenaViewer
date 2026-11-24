@@ -37,6 +37,7 @@ import { shadowModeEnabled, splitFindings, toShadowRecord } from "@/lib/shadowMo
 import { KIND_LABEL, annotationSummary } from "@/lib/geometry";
 import { zipAnonymized } from "@/lib/dicomWrite";
 import { findMatchingHangingProtocol, resolveHangingCellSeries } from "@/lib/hangingProtocols";
+import { findMskProtocol, type MskMetric } from "@/lib/msk";
 import type {
   AiMode, AiProtocol, AnalysisResult, Annotation, EngineKind, Finding, FindingApprovalStatus,
   HangingProtocolRule, ImageReview, KeyImage, Layout, Lesion, SavedReport, SeriesData, StudyRow, ToolName, UserInfo, WindowPreset,
@@ -181,6 +182,10 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [tool, setTool] = useState<ToolName>("wl");
+  /** MSK ölçüm yardımcısı: seçili protokol, toplanan nokta sayısı ve sonuçlar. */
+  const [mskProtocolId, setMskProtocolId] = useState<string | null>(null);
+  const [mskPointCount, setMskPointCount] = useState(0);
+  const [mskResults, setMskResults] = useState<MskMetric[] | null>(null);
   const [hoverVal, setHoverVal] = useState<number | null>(null);
   const [fusionCfg, setFusionCfg] = useState<FusionConfig | null>(null);
   const [refLinesOn, setRefLinesOn] = useState(true);
@@ -390,6 +395,39 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     if (!enabled) toast("Otomatik düzen kapatıldı; mevcut panel düzeni korunuyor.", 3500);
     else if (series) applyAutoLayout(series, all);
     else toast("Otomatik düzen açık. Bir görüntü serisi seçildiğinde uygulanacak.");
+  };
+
+  const mskSelect = (id: string | null) => {
+    setMskProtocolId(id);
+    setMskResults(null);
+    setMskPointCount(0);
+    if (id) { setCine(false); setTool("msk"); toast(`${findMskProtocol(id)?.title ?? "MSK"}: ${findMskProtocol(id)?.points.length ?? 0} adlandırılmış noktayı görüntüye tıklayın.`); }
+    else setTool("wl");
+  };
+
+  /** MSK noktaları tamamlanınca protokoldeki hesaplamaları çalıştırır. */
+  const onMskPoints = (pts: { x: number; y: number }[], _slice: number) => {
+    const proto = mskProtocolId ? findMskProtocol(mskProtocolId) : null;
+    if (!proto) return;
+    const map: Record<string, { x: number; y: number }> = {};
+    proto.points.forEach((ptDef, i) => { if (pts[i]) map[ptDef.id] = pts[i]; });
+    try {
+      const metrics = proto.compute(map, pxMm || 1);
+      setMskResults(metrics);
+      setMskPointCount(0);
+      toast(`${metrics.length} ölçüm hesaplandı (${proto.title}).`);
+    } catch {
+      toast("MSK ölçümü için eksik nokta var.");
+    }
+  };
+
+  /** Ölçüm özetini panoya kopyalar ve akışa yazar (rapor metni dış işlemde). */
+  const mskAddToFindings = () => {
+    if (!mskResults || !series) return;
+    const line = `MSK ölçümü (${findMskProtocol(mskProtocolId ?? "")?.title ?? "protokol"}): ${mskResults.map((m) => `${m.name} ${m.value.toFixed(1)} ${m.unit}`).join("; ")}. Ölçüm yardımcısıdır; tanısal değildir.`;
+    pushFeed(line, "finding");
+    void navigator.clipboard?.writeText(line).catch(() => {});
+    toast("MSK ölçüm özeti akışa yazıldı ve kopyalandı.");
   };
 
   const requestMpr = (initialTab: "not" | "3b" = "not") => {
@@ -1480,6 +1518,9 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
       {/* ── Üst Çubuk 2: Araçlar & Kontroller ── */}
       <div aria-label="Görüntü araçları" className="relative z-10 flex shrink-0 flex-wrap items-center gap-1 border-b border-[#1a2230] bg-[#0a0e15] px-2 py-1 print:hidden">
         {TOOLS.map((t) => <Btn key={t.id} on={tool === t.id} title={t.hint} onClick={() => setTool(t.id)}>{t.label}</Btn>)}
+        {series && series.modality !== "US" && series.slices.length > 0 && (
+          <Btn on={tool === "msk"} tone="violet" title="MSK ölçüm protokolleri: adlandırılmış noktalar, ölçümler ve aralık yorumu (ölçüm yardımcısı)" onClick={() => mskSelect(tool === "msk" ? null : (mskProtocolId ?? "wrist-pa"))}>🦴 MSK</Btn>
+        )}
         <div className="mx-1 h-5 w-px shrink-0 bg-[#1e2735]" />
         <Btn on={invert} tone="amber" onClick={() => setInvert((v) => !v)}>Ters</Btn>
         <Btn onClick={() => setRotation((r) => ((r + 90) % 360) as Rot)} title="R">⟳ Döndür</Btn>
@@ -1556,6 +1597,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
                 <Viewport
                   series={series} slice={slice} wl={wl} ww={ww} invert={invert} zoom={zoom} pan={pan} tool={tool} rotation={rotation} flipH={flipH} flipV={flipV} pxMm={pxMm}
                   scan={scan} findings={liveFindings} revealedIds={revealed} activeFindingId={activeFinding} overlay={overlay} showDicomOverlays={showOverlays} annotations={annotations}
+                  mskPointCount={mskProtocolId ? findMskProtocol(mskProtocolId)?.points.length ?? 0 : 0} onMskPoints={onMskPoints} snapRadius={4}
                   onSlice={setSlice} onWL={(a, b) => { setWl(a); setWw(b); }} onZoom={setZoom} onPan={setPan}
                   onAddAnnotation={addAnnotation} onCalibrate={calibrate} onHover={setHoverVal} panelId="main" fusion={fusion}
                 />
@@ -1598,6 +1640,9 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
             onOpenReportModal={openReport} currentReportStatus={reportStatus}
             onStartAll={() => void startAnalysisAll()}
             loadedCount={loaded.filter((s) => !(s.specialType && s.specialType !== "image")).length}
+            mskProtocolId={mskProtocolId} onMskSelect={(id) => mskSelect(id)} mskPointCount={mskPointCount}
+            mskDisabledReason={!series || series.modality === "US" ? "MSK ölçüm yardımcısı yalnızca piksel içeren BT/MR/grafi serilerinde kullanılır." : null}
+            mskResults={mskResults} onMskAddToFindings={() => mskAddToFindings()}
           />
           </ViewerErrorBoundary>
         </aside>}
