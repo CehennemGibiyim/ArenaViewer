@@ -36,6 +36,21 @@ powershell -ExecutionPolicy Bypass -File windows\Baslat.ps1 -Dev         # geli�
 | `windows\Baslat.ps1` | Worker (8787) + görüntüleyici (3000) başlatır, sağlık denetimi yapar, tarayıcıyı açar. Zaten çalışanı ikinci kez başlatmaz. |
 | `windows\Dur.bat` | 8787/3000 portlarındaki süreçleri kapatır. |
 
+### Kurulu sürümün otomatik güncellenmesi
+
+GitHub Releases'ten indirilen Setup ile `%LOCALAPPDATA%\ATIKVIEWER` altına
+kurulan Windows sürümü, her başlatmada en son kararlı sürümü kontrol eder. Yeni
+sürüm varsa Setup dosyası indirilir, `SHA256SUMS` ile doğrulanır ve uygulama
+başlamadan sessizce kurulur; ardından `npm ci` ve üretim derlemesi çalışır.
+`.env` ve `.data` kurulum paketinin dışında tutulur ve güncellemede korunur.
+
+İnternet yoksa veya yayın doğrulanamıyorsa güncelleme atlanır ve mevcut sürüm
+başlatılır. Uygulama/worker zaten çalışıyorsa, geliştirme modunda ya da kaynak
+klasöründen çalıştırılıyorsa otomatik güncelleme yapılmaz. Linux/macOS
+paketlerinde güncelleme şu anda Releases sayfasından elle yapılır. v0.1.0
+Windows kurulumlarının otomatik güncelleyiciyi edinmesi için v0.2.0 Setup'ı bir
+kez elle kurması gerekir; sonraki sürümler otomatik alınır.
+
 > **PostgreSQL notu:** betik PostgreSQL **kurmaz**. Veritabanı olmadan görüntüleyici,
 > ölçüm ve **yapay zekâ analizi** çalışır; yalnızca kalıcı özellikler (çalışma listesi,
 sunucuya kaydetme, kayıtlı rapor, denetim kaydı) çalışmaz. Onlar için §3'e bakın.
@@ -261,7 +276,7 @@ node tests\image-review.test.ts
 | `No matching distribution found for torch` | Python sürümü uyumsuz | `py -3.13 -m venv .venv` ile 3.11–3.14 arası bir sürüm kullanın |
 | `running scripts is disabled on this system` | PowerShell yürütme ilkesi | `Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned` |
 | Worker çıktısında `?` yerine Türkçe karakter | konsol kod sayfası | `chcp 65001` (cmd) veya PowerShell penceresini yeniden açın; loglar UTF-8 yazılır |
-| `npm ci` sırasında `7 vulnerabilities` uyarısı | `next` sürüm bağımlılığı | `npm audit` ile inceleyin; uygulama yalnızca yerel ağda çalıştırıldığında risk düşer (bkz. README "Güvenlik notları") |
+| `npm ci` sırasında güvenlik uyarısı | Bağımlılıkların yeni güvenlik duyuruları olabilir | `npm audit` ile inceleyin; Next.js güvenlik düzeltmeleri sürümlü Releases üzerinden dağıtılır |
 | `jest/playwright: Cannot find module 'playwright'` | test bağımlılığı package.json'da yok | `npm i -D --no-save playwright && npx playwright install chromium` |
 | Büyük BT serisinde analiz 413/502 | gövde boyutu sınırı | `next.config.ts` içinde `proxyClientMaxBodySize` 700 MB'a ayarlıdır; eski `.next` önbelleğini temizleyip sunucuyu yeniden başlatın: `Remove-Item -Recurse .next; npm run dev` |
 

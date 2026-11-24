@@ -1,6 +1,6 @@
 name: Release
 
-# v0.1.0 gibi bir etiket itildiğinde Windows kurulum paketi ve taşınabilir ZIP
+# vX.Y.Z gibi bir etiket itildiğinde Windows kurulum paketi ve taşınabilir ZIP
 # üretilir, GitHub Releases'e yüklenir. Uygulama açılışta bu sürümü kontrol eder.
 on:
   push:
@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Etiket olmadan derlemek için sürüm (örn. 0.1.0)"
+        description: "Etiket olmadan derlemek için sürüm (örn. 0.2.0)"
         required: true
 
 permissions:
@@ -47,6 +47,19 @@ jobs:
         shell: pwsh
         run: ./windows/Paket.ps1 -Version $env:VERSION
 
+      - name: SHA-256 özet dosyası üret
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem dist -File | Where-Object {
+            $_.Name -match '^ATIKVIEWER-[0-9]+\.[0-9]+\.[0-9]+-(Setup\.exe|portable\.zip)$'
+          }
+          if (-not $files) { throw "Paket dosyaları bulunamadı; SHA256SUMS üretilemedi." }
+          $lines = foreach ($file in $files) {
+            $hash = (Get-FileHash -Path $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($file.Name)"
+          }
+          Set-Content -Path dist/SHA256SUMS -Value $lines -Encoding ascii
+
       - name: Release yayınla
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
@@ -56,6 +69,7 @@ jobs:
           files: |
             dist/ATIKVIEWER-${{ env.VERSION }}-Setup.exe
             dist/ATIKVIEWER-${{ env.VERSION }}-portable.zip
+            dist/SHA256SUMS
 
       - name: Derleme çıktılarını sakla (elle çalıştırmada)
         if: github.ref_type != 'tag'

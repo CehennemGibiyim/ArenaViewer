@@ -7,7 +7,7 @@
  *   3) git etiketi (vX.Y.Z)
  * `windows/Paket.ps1` ve `.github/workflows/release.yml` bu üçünün uyuştuğunu denetler.
  */
-export const APP_VERSION = "0.1.0";
+export const APP_VERSION = "0.2.0";
 
 /** Güncellemelerin yayınlandığı depo (kendi sürüm kütüphanemiz). */
 export const GITHUB_REPO = "CehennemGibiyim/ArenaViewer";

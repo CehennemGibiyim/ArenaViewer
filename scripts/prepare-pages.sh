@@ -2,7 +2,7 @@
 # GitHub Pages için statik demo hazırlığı (yalnızca CI'da, geçici çalışma kopyasında çalıştırılır).
 # Sunucu/veritabanı gerektiren kısımları çıkarır; görüntüleyici tarayıcıda çalışır.
 set -euo pipefail
-rm -rf src/app/api src/app/yonetim src/proxy.ts
+rm -rf src/app/api src/app/yonetim src/app/giris src/proxy.ts
 mkdir -p src/app/yonetim
 cat > src/app/page.tsx <<'TSX'
 import Workstation from "@/components/Workstation";

@@ -75,6 +75,15 @@ Uygulama içindeki **📦 Kurulum → `/paketler`** sayfası bu arşivi
 | Çapraz platform arşivi | `bash packaging/universal/build-source-zip.sh` | `dist/*-kurulum.zip` |
 | Kurulum sonrası denetim | `bash packaging/universal/verify.sh` | `dist/ATIKVIEWER-dogrulama-*.log` |
 
+Windows Setup ile kurulan sürüm, her başlatmada en son kararlı GitHub sürümünü
+kontrol eder; yeni sürümün kurulum dosyasını SHA-256 ile doğrulayıp sessizce
+kurar, Node bağımlılıklarını ve uygulama derlemesini yeniler. Uygulama zaten
+çalışıyorsa veya kaynak koddan geliştirme modunda başlatılıyorsa güncelleme
+uygulanmaz. `.env` ve `.data` korunur. Linux/macOS paketlerinde güncelleme
+şimdilik Releases sayfasından elle yapılır. v0.1.0 Windows kurulumlarının bu
+özelliği edinmesi için v0.2.0 Setup'ı bir kez elle kurması gerekir; sonraki
+sürümler otomatik alınır.
+
 Ücretsiz yerel yapay zekâ (MONAI akciğer + ICH beyin modelleri) için:
 `ai-worker/setup_model.py` → `ai-worker/server.py` (yalnız `127.0.0.1:8787`,
 hasta verisi dışarı çıkmaz, ücretli servis kullanılmaz).

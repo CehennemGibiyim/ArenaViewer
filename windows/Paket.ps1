@@ -83,6 +83,19 @@ if (-not $SkipZip) {
     Write-Ok "$zip ($([math]::Round((Get-Item $zip).Length / 1MB, 1)) MB)"
 }
 
+# Paketleri GitHub Release için doğrulama özetiyle birlikte sun.
+$checksumFiles = Get-ChildItem $Dist -File | Where-Object {
+    $_.Name -match "^ATIKVIEWER-$([regex]::Escape($Version))-(Setup\.exe|portable\.zip)$"
+}
+if ($checksumFiles.Count -gt 0) {
+    $checksumLines = foreach ($file in $checksumFiles) {
+        $hash = (Get-FileHash -Path $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+        "$hash  $($file.Name)"
+    }
+    Set-Content -Path (Join-Path $Dist 'SHA256SUMS') -Value $checksumLines -Encoding ascii
+    Write-Ok 'SHA256SUMS'
+}
+
 Write-Host ""
 Write-Host "Paketler hazır: $Dist" -ForegroundColor Green
 

@@ -68,6 +68,16 @@ if ($missing.Count -gt 0) {
     exit 1
 }
 
+if (-not $Dev) {
+    try {
+        & (Join-Path $PSScriptRoot 'Guncelle.ps1') -Root $Root -Port $Port | Out-Null
+    } catch {
+        Write-Host "Güncelleme kurulamadı; güvenli olması için uygulama başlatılmadı." -ForegroundColor Red
+        Write-Host "Hata: $($_.Exception.Message)" -ForegroundColor Yellow
+        exit 1
+    }
+}
+
 $workerStarted = $false
 $appStarted = $false
 
