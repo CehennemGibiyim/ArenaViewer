@@ -1097,6 +1097,38 @@ export default function Workstation({ user }: { user: UserInfo }) {
           }
         : result;
 
+      // Derin AI bulguları bu akışta yalnızca istemciye ekleniyordu; sunucu bunları
+      // görmediği için kritik bildirim/webhook, triyaj güncellemesi ve denetim kaydı
+      // kaçırılıyordu (tek seri akışı derin bulguları /api/analyze'e gönderiyor).
+      // Birleşik sonucu bir kez daha /api/analyze'e gönderip bu farkı kapatıyoruz.
+      if (
+        deepRan &&
+        deepAdded.length > 0 &&
+        process.env.NEXT_PUBLIC_STATIC_DEMO !== "true" &&
+        imageSeries.length > 0
+      ) {
+        try {
+          await fetch("/api/analyze", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              studyUid: series?.studyUid || imageSeries[0].studyUid,
+              engine: "cv-heuristic",
+              findings: finalResult.findings,
+              clinicalNote,
+              meta: {
+                modality: "MULTI",
+                bodyPart: imageSeries.map((s) => s.bodyPart).filter(Boolean).join(" / ") || "-",
+                seriesDescription: `${imageSeries.length} seri birlikte değerlendirildi (derin AI dahil)`,
+                sliceCount: imageSeries.reduce((n, x) => n + (x.slices.length || 0), 0) || 1,
+              },
+            }),
+          });
+        } catch {
+          /* bildirim/triyaj yan etkisi zorunlu değil; görüntüleme akışı devam eder */
+        }
+      }
+
       setLiveFindings(finalResult.findings);
       setRevealed(new Set(finalResult.findings.map((f) => f.id)));
       setAnalysis(finalResult);
