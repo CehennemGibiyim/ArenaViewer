@@ -20,6 +20,10 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   oblik (eğimli) MPR ve WebGL 3B hacim. Kesit konumu kaydı (IPP) varsa koronal/sagital
   gerçek hasta geometrisinden, ölçek kayması olmadan örneklenir (`src/lib/mpr.ts` +
   `VolumeView`). Kaynak seri salt okunur tutulur.
+- **Mobil/PWA:** `public/manifest.webmanifest` (tr-TR, tek başına ekran), 192/512 simgeler
+  ve hizmet işçisi (`public/sw.js`). İşçi yalnızca statik varlıkları önbelleğe alır;
+  klinik veri ve API yanıtları asla önbelleğe girmez, çevrimdışıda eski hasta bilgisi
+  gösterilmez (`public/offline.html`).
 - **Sesle dikte:** Rapor alanlarında Türkçe dikte (Web Speech API). Sayı sözcükleri
   ("yirmi beş" → 25), noktalama komutları (virgül / iki nokta / yeni satır / yeni
   paragraf / temizle), ölçü birimleri (milimetre → mm) ve tıbbi sözlük düzeltmeleri
@@ -219,6 +223,7 @@ npm run test:pacs
 npm run test:recist
 npm run test:mpr                    # MPR geometrisi + trilinear yeniden kesit
 npm run test:dictate                 # sesle dikte: sayılar, komutlar, tıbbi sözlük
+npm run test:pwa                     # manifest + hizmet işçisi kapsamı
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)

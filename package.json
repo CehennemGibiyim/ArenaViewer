@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "npm run test:image-review && npm run test:pacs && npm run test:recist && npm run test:close-loop && npm run test:auth && npm run test:templates && npm run test:structured-report && npm run test:quant && npm run test:tracking && npm run test:model-ops && npm run test:metrics && npm run test:audit-export && npm run test:macros && npm run test:prefs && npm run test:workflow-stats && npm run test:stow && npm run test:peer-review && npm run test:hl7 && npm run test:share && npm run test:cxr && npm run test:cxr-model && npm run test:codecs && npm run test:mpr && npm run test:dictate && npm run test:shadow",
+    "test": "npm run test:image-review && npm run test:pacs && npm run test:recist && npm run test:close-loop && npm run test:auth && npm run test:templates && npm run test:structured-report && npm run test:quant && npm run test:tracking && npm run test:model-ops && npm run test:metrics && npm run test:audit-export && npm run test:macros && npm run test:prefs && npm run test:workflow-stats && npm run test:stow && npm run test:peer-review && npm run test:hl7 && npm run test:share && npm run test:cxr && npm run test:cxr-model && npm run test:codecs && npm run test:mpr && npm run test:dictate && npm run test:pwa && npm run test:shadow",
     "test:image-review": "tsx tests/image-review.test.ts",
     "test:pacs": "tsx tests/pacs.test.ts",
     "test:recist": "node --experimental-strip-types tests/recist.test.mjs",
@@ -39,6 +39,7 @@
     "test:codecs": "tsx tests/codecs.test.ts",
     "test:mpr": "tsx tests/mpr.test.ts",
     "test:dictate": "tsx tests/dictate.test.ts",
+    "test:pwa": "tsx tests/mobile-pwa.test.ts",
     "test:shadow": "tsx tests/shadow-mode.test.ts"
   },
   "dependencies": {

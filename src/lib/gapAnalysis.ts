@@ -746,10 +746,10 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "i-mobile", category: "trust", title: "Mobil/PWA + çevrimdışı okuma",
-    status: "yok", priority: "P2", effort: "M",
+    status: "kismi", priority: "P2", effort: "M",
     market: ["OHIF", "Weasis"],
-    ours: "Masaüstü odaklı; PWA yok.",
-    action: "Service worker + önbellek; dokunmatik jestler.",
+    ours: "PWA: public/manifest.webmanifest (tr-TR, standalone, 192/512 simge), layout viewport/themeColor/appleWebApp ve ServiceWorkerRegister. public/sw.js yalnızca statik varlıkları (_next/static, /wasm, /codecs, /icons) önbelleğe alır; /api ve /paylas hiç önbelleğe girmez, çevrimdışıda hasta verisi gösterilmez (public/offline.html). Viewport'ta dokunmatik (touchAction none) var. Kalan: tam dokunmatik gezinme (kaydırmalı düzen seçici), bölgesel yazı tipi/kontrast ayarları ve çevrimdışı okuma listesi.",
+    action: "Dokunmatik odaklı yerleşim ve çevrimdışı çalışma listesi önbelleği (yalnızca okunabilir meta veri).",
   },
   {
     id: "i-a11y", category: "trust", title: "Erişilebilirlik: WCAG, klavye taraması, ekran okuyucu etiketleri, yüksek kontrast",
