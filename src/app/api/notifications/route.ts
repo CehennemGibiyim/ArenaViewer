@@ -33,7 +33,7 @@ const map = (r: typeof notifications.$inferSelect) => ({
 
 /** Bildirimler; `?kind=followup` yalnız takip görevlerini verir. */
 export async function GET(req: NextRequest) {
-  const a = await authorize();
+  const a = await authorize(req);
   if ("error" in a) return a.error;
   const sp = req.nextUrl.searchParams;
   const limit = Math.min(Number(sp.get("limit") ?? "50") || 50, 200);
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
  *  - belirtmezse      → “alındı” (ack)
  */
 export async function PATCH(req: NextRequest) {
-  const a = await authorize(["radyolog", "yonetici"]);
+  const a = await authorize(req, ["radyolog", "yonetici"]);
   if ("error" in a) return a.error;
   const b = (await req.json().catch(() => ({}))) as {
     id?: number;
@@ -86,7 +86,7 @@ export async function PATCH(req: NextRequest) {
 
 /** Elle/dış kaynaktan yeni takip önerisi görevi. */
 export async function POST(req: NextRequest) {
-  const a = await authorize(["radyolog", "yonetici"]);
+  const a = await authorize(req, ["radyolog", "yonetici"]);
   if ("error" in a) return a.error;
   const b = (await req.json().catch(() => ({}))) as {
     studyUid?: string;

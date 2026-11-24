@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 /** İstemci tarafı dışa aktarma olaylarını denetim izine yazar (yalnızca izinli eylemler). */
 export async function POST(req: NextRequest) {
-  const a = await authorize();
+  const a = await authorize(req);
   if ("error" in a) return a.error;
   const b = (await req.json().catch(() => ({}))) as { action?: string; studyUid?: string };
   if (!b.action || !["export.png", "export.dicom_anon"].includes(b.action)) return NextResponse.json({ error: "Geçersiz eylem" }, { status: 400 });
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const a = await authorize(["yonetici"]);
+  const a = await authorize(req, ["yonetici"]);
   if ("error" in a) return a.error;
   const sp = req.nextUrl.searchParams;
   if (sp.get("verify") === "1") return NextResponse.json(await verifyChain());

@@ -11,7 +11,11 @@ import {
   index,
 } from "drizzle-orm/pg-core";
 
-/** Tek satırlık operatör profili (id=1). Giriş/parola yoktur; yalnızca rapor imza adı ve atama için. */
+/**
+ * Kullanıcı hesabı. `passwordHash` scrypt ile üretilir ("-" = parolasız/demo satırı).
+ * İki faktörlü doğrulama için `twoFactorSecret` (TOTP gizli anahtarı, açık metin:
+ * yalnızca bu sunucuda tutulur) ve `twoFactorEnabled`.
+ */
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
@@ -21,6 +25,8 @@ export const users = pgTable("users", {
   regNo: text("reg_no").notNull().default(""),
   role: text("role").notNull().default("radyolog"), // yonetici | radyolog | teknisyen
   active: boolean("active").notNull().default(true),
+  twoFactorSecret: text("two_factor_secret").notNull().default(""),
+  twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   lastLoginAt: timestamp("last_login_at"),
 });

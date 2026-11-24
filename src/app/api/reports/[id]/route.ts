@@ -8,8 +8,8 @@ import { mapReport } from "@/lib/server/studyRepo";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const a = await authorize();
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const a = await authorize(req);
   if ("error" in a) return a.error;
   const id = Number((await params).id);
   const rr = (await db.select({ r: reports, s: studies }).from(reports).innerJoin(studies, eq(reports.studyId, studies.id)).where(eq(reports.id, id)).limit(1))[0];

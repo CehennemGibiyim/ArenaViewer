@@ -9,8 +9,8 @@ import { SEED } from "@/lib/templates";
 export const dynamic = "force-dynamic";
 
 
-export async function GET() {
-  const a = await authorize();
+export async function GET(req: NextRequest) {
+  const a = await authorize(req);
   if ("error" in a) return a.error;
   const n = (await db.select({ n: count() }).from(reportTemplates))[0].n;
   if (n === 0) await db.insert(reportTemplates).values(SEED);
@@ -19,7 +19,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const a = await authorize(["radyolog", "yonetici"]);
+  const a = await authorize(req, ["radyolog", "yonetici"]);
   if ("error" in a) return a.error;
   const b = (await req.json().catch(() => ({}))) as Record<string, string>;
   if (!b.name?.trim()) return NextResponse.json({ error: "Şablon adı gerekli" }, { status: 400 });
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const a = await authorize(["radyolog", "yonetici"]);
+  const a = await authorize(req, ["radyolog", "yonetici"]);
   if ("error" in a) return a.error;
   const id = Number(req.nextUrl.searchParams.get("id"));
   const t = (await db.select().from(reportTemplates).where(eq(reportTemplates.id, id)).limit(1))[0];

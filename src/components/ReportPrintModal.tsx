@@ -56,6 +56,8 @@ interface Props {
   onGotoSlice?: (sliceNumber: number) => void;
   /** Anahtar kesitlerin DICOM başvuruları (SR kanıt listesi); yoksa SR başvurusuz üretilir. */
   srEvidence?: EvidenceRef | null;
+  /** AUTH_MODE=hesap'ta onay sahibi oturumla doğrulanmış sayılır; demo modunda false. */
+  sessionIdentity?: boolean;
 }
 
 // ───────── Web Speech API (Türkçe dikte) ─────────
@@ -130,7 +132,7 @@ function ReportField({ name, rows, value, editing, onChange, onMic, onGotoSlice,
 
 const STATUS_TR: Record<FindingApprovalStatus, string> = { onaylandi: "✓ Radyolog onayladı", reddedildi: "✗ Reddedildi", duzenlendi: "✎ Düzenlendi", bekliyor: "Onay bekliyor" };
 
-export default function ReportPrintModal({ open, onClose, report: initial, user, onSave, onGotoSlice, srEvidence = null }: Props) {
+export default function ReportPrintModal({ open, onClose, report: initial, user, onSave, onGotoSlice, srEvidence = null, sessionIdentity = false }: Props) {
   const [report, setReport] = useState<ReportData>(initial);
   const [editing, setEditing] = useState(false);
   const [dialog, setDialog] = useState(false);
@@ -517,8 +519,9 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
               <a href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/yonetim`} className="mt-1 inline-block text-[11px] text-cyan-400 hover:underline">Hekim profilini düzenle →</a>
             </div>
             <p className="mt-3 rounded-md border border-amber-400/40 bg-amber-400/10 p-2.5 text-[11px] leading-relaxed text-amber-200">
-              ⚠ Uygulamada oturum açma kapalıdır: bu onay <b>kimlik doğrulaması yapmaz</b>. Rapora yukarıdaki ad
-              yazılır ve içerik SHA-256 ile mühürlenir; bu, nitelikli elektronik imza (NES) değildir.
+              {sessionIdentity
+                ? <>Onay sahibi <b>{user.fullName}</b> olarak oturumla doğrulanmıştır; rapora bu ad yazılır ve içerik SHA-256 ile mühürlenir. Bu, nitelikli elektronik imza (NES) değildir.</>
+                : <>⚠ Uygulamada oturumsuz demo modundayız: bu onay kimlik doğrulaması yapmaz. Rapora yukarıdaki ad yazılır ve içerik SHA-256 ile mühürlenir; NES değildir.</>}
             </p>
             {error && <div className="mt-2 text-xs font-semibold text-rose-300">{error}</div>}
             <div className="mt-4 flex justify-end gap-2">

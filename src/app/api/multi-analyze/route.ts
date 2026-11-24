@@ -48,7 +48,7 @@ function validBbox(b: unknown): Finding["bbox"] {
  * - Ücretsizdir: harici ücretli servis kullanılmaz.
  */
 export async function POST(req: NextRequest) {
-  const auth = await authorize();
+  const auth = await authorize(req);
   if ("error" in auth) return auth.error;
   const { user } = auth;
 

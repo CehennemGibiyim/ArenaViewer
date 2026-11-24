@@ -13,7 +13,7 @@ const STATUSES = ["bekliyor", "okunuyor", "taslak", "onayli"];
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function PATCH(req: NextRequest, { params }: Ctx) {
-  const a = await authorize();
+  const a = await authorize(req);
   if ("error" in a) return a.error;
   const id = Number((await params).id);
   const b = (await req.json().catch(() => ({}))) as Record<string, unknown>;
@@ -37,8 +37,8 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   return NextResponse.json({ ok: true });
 }
 
-export async function DELETE(_req: NextRequest, { params }: Ctx) {
-  const a = await authorize(["yonetici"]);
+export async function DELETE(req: NextRequest, { params }: Ctx) {
+  const a = await authorize(req, ["yonetici"]);
   if ("error" in a) return a.error;
   const id = Number((await params).id);
   const files = await db.select({ p: storedFiles.path }).from(storedFiles).where(eq(storedFiles.studyId, id));

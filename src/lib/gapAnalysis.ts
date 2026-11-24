@@ -689,6 +689,13 @@ const BASE_ITEMS: GapItem[] = [
     action: "İmzalı URL, maske/watermark ve erişim logu.",
   },
   {
+    id: "f-kimlik-rbac", category: "trust", title: "Kullanıcı hesapları, rol denetimi (RBAC) ve iki faktörlü doğrulama",
+    status: "kismi", priority: "P0", effort: "M",
+    market: ["Tüm kurumsal ürünler"],
+    ours: "AUTH_MODE=hesap ile scrypt parola, imzalı oturum, TOTP/MFA ve rol bazlı authorize() aktif. SSO/OIDC/LDAP ve hekim profil çoklu üyelikleri yok.",
+    action: "Kurumsal dizine (OIDC/SAML/LDAP) bağlan; hekim profillerini kullanıcıya bağla ve onay için eşleştirme.",
+  },
+  {
     id: "g-webhard", category: "trust", title: "Web hardening: CSP, X-Frame-Options, CSRF, rate limiting",
     status: "kismi", priority: "P1", effort: "S",
     market: ["Tüm kurumsal ürünler"],

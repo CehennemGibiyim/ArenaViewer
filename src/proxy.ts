@@ -26,6 +26,8 @@ function isPublic(pathname: string): boolean {
     pathname === "/api/health" ||
     pathname === "/giris" ||
     pathname === "/api/auth/login" ||
+    pathname === "/api/auth/logout" ||
+    pathname === "/api/auth/setup" ||
     pathname === "/favicon.ico"
   ) {
     return true;

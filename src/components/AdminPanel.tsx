@@ -5,8 +5,9 @@ import { useCallback, useEffect, useState } from "react";
 import type { UserInfo } from "@/lib/types";
 import { AUTH_LABELS, PACS_PRESETS, type PacsAuthType, type PacsConfig } from "@/lib/pacsPresets";
 
-type Tab = "profile" | "audit" | "ai" | "security" | "integration" | "compliance";
+type Tab = "profile" | "users" | "audit" | "ai" | "security" | "integration" | "compliance";
 interface AuditRow { id: number; ts: string; username: string; action: string; entityType: string; entityId: string; details: string; hash: string }
+interface UserRow { id: number; username: string; fullName: string; title: string; regNo: string; role: string; active: boolean; twoFactorEnabled: boolean; lastLoginAt: string | null }
 interface PerfRow { engine: string; category: string; shown: number; approved: number; rejected: number; edited: number; pending: number; manualAdded: number; ppv: number | null }
 interface Status { keySource: string; plaintext: { studies: number; reports: number }; totals: Record<string, number>; retentionDraftDays: number }
 type Settings = {
@@ -72,6 +73,15 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
   const [pacsHint, setPacsHint] = useState("");
   const [pacsTest, setPacsTest] = useState<PacsTestOut | null>(null);
   const [pacsTesting, setPacsTesting] = useState(false);
+  // kullanıcı hesapları (F1) ve MFA kurulumu (F2)
+  const [userList, setUserList] = useState<UserRow[]>([]);
+  const [userMsg, setUserMsg] = useState("");
+  const [showUserForm, setShowUserForm] = useState(false);
+  const [userForm, setUserForm] = useState({ username: "", fullName: "", title: "", regNo: "", role: "radyolog", password: "" });
+  const [mfa, setMfa] = useState<{ enabled: boolean; secret?: string; qr?: string } | null>(null);
+  const [mfaCode, setMfaCode] = useState("");
+  const [mfaBusy, setMfaBusy] = useState(false);
+  const userFlash = (m: string) => { setUserMsg(m); setTimeout(() => setUserMsg(""), 4500); };
   const loadSettings = useCallback(async () => {
     const [s, st] = await Promise.all([api<Settings>("/api/settings"), api<Status>("/api/admin/status")]);
     if (s.ok) {
@@ -82,14 +92,24 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
     if (st.ok) setStatus(st.data);
   }, []);
 
+  const loadUsers = useCallback(async () => {
+    const r = await api<{ users: UserRow[] }>("/api/users");
+    if (r.ok) setUserList(r.data.users);
+  }, []);
+  const loadMfa = useCallback(async () => {
+    const r = await api<{ enabled: boolean; secret?: string; qr?: string }>("/api/profile/totp");
+    if (r.ok) setMfa({ enabled: r.data.enabled });
+  }, []);
+
   useEffect(() => {
     void (async () => {
-      if (tab === "profile") await loadProfile();
+      if (tab === "profile") { await loadProfile(); await loadMfa(); }
+      if (tab === "users") await loadUsers();
       if (tab === "audit") await loadAudit();
       if (tab === "ai") { const r = await api<{ rows: PerfRow[]; note: string }>("/api/ai/performance"); if (r.ok) setPerf(r.data); }
       if (["security", "integration", "compliance"].includes(tab)) await loadSettings();
     })();
-  }, [tab, loadProfile, loadAudit, loadSettings]);
+  }, [tab, loadProfile, loadAudit, loadSettings, loadUsers, loadMfa]);
 
   const saveSettings = async (patch: Record<string, unknown>) => {
     const r = await api<{ error?: string }>("/api/settings", json("PUT", patch));
@@ -137,6 +157,42 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
     void loadProfile();
   };
 
+  // ── Kullanıcı hesapları (F1) ────────────────────────────────────────────────
+  const createUser = async () => {
+    const r = await api<{ ok?: boolean; id?: number; error?: string }>("/api/users", json("POST", userForm));
+    if (!r.ok) { userFlash(r.data.error ?? "Kullanıcı oluşturulamadı"); return; }
+    userFlash(`Kullanıcı oluşturuldu (#${r.data.id}).`);
+    setUserForm({ username: "", fullName: "", title: "", regNo: "", role: "radyolog", password: "" });
+    setShowUserForm(false);
+    void loadUsers();
+  };
+  const patchUser = async (u: UserRow, patch: Record<string, unknown>) => {
+    const r = await api<{ ok?: boolean; error?: string }>("/api/users", json("PATCH", { id: u.id, ...patch }));
+    userFlash(r.ok ? "Kaydedildi" : r.data.error ?? "Hata");
+    void loadUsers();
+  };
+
+  // ── MFA kurulumu (F2) ───────────────────────────────────────────────────────
+  const startMfa = async () => {
+    const r = await api<{ secret?: string; qr?: string }>("/api/profile/totp");
+    if (r.ok && r.data.secret) setMfa({ enabled: false, secret: r.data.secret, qr: r.data.qr });
+  };
+  const enableMfa = async () => {
+    if (!mfa?.secret) return;
+    setMfaBusy(true);
+    const r = await api<{ ok?: boolean; error?: string }>("/api/profile/totp", json("POST", { secret: mfa.secret, code: mfaCode }));
+    setMfaBusy(false);
+    if (!r.ok) { userFlash(r.data.error ?? "Kod doğrulanamadı"); return; }
+    userFlash("İki faktörlü doğrulama açıldı.");
+    setMfaCode("");
+    void loadMfa();
+  };
+  const disableMfa = async () => {
+    const r = await api<{ ok?: boolean; error?: string }>("/api/profile/totp", { method: "DELETE" });
+    userFlash(r.ok ? "İki faktörlü doğrulama kapatıldı" : r.data.error ?? "Hata");
+    void loadMfa();
+  };
+
   // Denetim kaydını (ekrandaki filtreli/sınırlı liste) CSV olarak indir
   const exportAuditCsv = () => {
     const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
@@ -161,14 +217,17 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
     flash(`CSV indirildi (${audit.length} kayıt${aq ? ", filtreli" : ""}). Tüm geçmiş için arama kutusunu boş bırakıp yenileyin.`);
   };
 
-  const tabs: [Tab, string][] = [["profile", "Hekim profili"], ["audit", "Denetim kaydı"], ["ai", "AI performans"], ["security", "Güvenlik & saklama"], ["integration", "Entegrasyon"], ["compliance", "Uyum"]];
+  const tabs: [Tab, string][] = [["profile", "Profil & MFA"], ["users", "Kullanıcılar"], ["audit", "Denetim kaydı"], ["ai", "AI performans"], ["security", "Güvenlik & saklama"], ["integration", "Entegrasyon"], ["compliance", "Uyum"]];
 
   return (
     <div className="h-screen w-screen overflow-y-auto bg-[#070a0f] text-slate-200">
       <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-[#1a2230] bg-[#0b0f16]/95 px-5 py-3 backdrop-blur print:hidden">
         <Link href="/" className="rounded-md border border-cyan-400/40 bg-cyan-500/10 px-3 py-1.5 text-xs font-bold text-cyan-300 hover:bg-cyan-500/20">← Görüntüleyici</Link>
         <h1 className="font-mono text-sm font-black tracking-[0.15em] text-slate-100">ATIK<span className="text-cyan-400">VIEWER</span> · YÖNETİM</h1>
-        <span className="ml-auto text-xs text-slate-400">{user.fullName}</span>
+        <span className="ml-auto flex items-center gap-3">
+          <span className="text-xs text-slate-400" title={`Rol: ${user.role}`}>{user.title} {user.fullName} · <span className="font-mono text-[10px] text-slate-500">{user.role}</span></span>
+          <button className={`${btn} border border-rose-400/40 text-rose-300 hover:bg-rose-400/10`} onClick={() => void fetch("/api/auth/logout", { method: "POST" }).finally(() => { window.location.reload(); })}>⎋ Çıkış</button>
+        </span>
       </header>
       <main className="mx-auto max-w-6xl px-5 py-6">
         <div className="flex flex-wrap gap-1.5 print:hidden">
@@ -179,10 +238,10 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
         {tab === "profile" && (
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <div className={card}>
-              <h2 className="text-sm font-bold text-slate-100">Rapor imzası — hekim bilgileri</h2>
+              <h2 className="text-sm font-bold text-slate-100">Profil — hekim bilgileri</h2>
               <p className="mt-2 text-xs leading-relaxed text-slate-400">
-                Bu bilgiler onaylanan raporların imza satırına yazılır. Uygulamada <b>oturum açma kapalıdır</b>;
-                bu alanlar kimlik doğrulamaz, yalnızca rapora basılacak adı belirler.
+                Bu bilgiler onaylanan raporların imza satırına yazılır. Hesabınız oturumla
+                bağlıdır; bu ad raporlarda kimliğinizi temsil eder.
               </p>
               <div className="mt-3 grid gap-2">
                 <label className="text-[11px] font-semibold text-slate-400">Ad soyad
@@ -205,14 +264,105 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
               </div>
             </div>
             <div className={card}>
-              <h2 className="text-sm font-bold text-rose-300">⚠ Oturum açma kapalı</h2>
-              <ul className="mt-2 list-disc space-y-1.5 pl-4 text-xs leading-relaxed text-slate-300">
-                <li>Uygulamanın adresine erişebilen <b>herkes</b> hasta verilerini görebilir, görüntü yükleyebilir ve rapor onaylayabilir.</li>
-                <li>Raporlardaki onay <b>kimlik doğrulamaz</b>; yalnızca yukarıdaki adı yazar ve içeriği SHA-256 ile mühürler.</li>
-                <li>Denetim kaydı tutulmaya devam eder, ancak tüm işlemler tek bir operatöre atfedilir — kişi bazlı sorumluluk izi yoktur.</li>
-                <li>Gerçek hasta verisiyle kullanılacaksa erişimi ağ düzeyinde kısıtlayın (VPN, güvenlik duvarı veya ters vekilde kimlik doğrulama).</li>
-              </ul>
-              <p className="mt-3 text-[11px] text-slate-500">Kullanıcı hesapları, roller ve parola ile giriş bu sürümde kaldırılmıştır.</p>
+              <h2 className="text-sm font-bold text-emerald-300">İki faktörlü doğrulama (MFA)</h2>
+              <p className="mt-2 text-xs leading-relaxed text-slate-400">
+                Girişe ek olarak, authenticator uygulamasındaki zaman tabanlı kod (TOTP) istenir.
+                Yönetici hesapları için MFA <b>zorunlu</b>dur
+                {` (${process.env.REQUIRE_TOTP_FOR_ROLES ?? "yonetici"})`}.
+              </p>
+              {userMsg && tab === "profile" && <div className="mt-2 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-200">{userMsg}</div>}
+              {!mfa && <p className="mt-3 text-xs text-slate-500">Durum yüklenmedi.</p>}
+              {mfa?.enabled && (
+                <div className="mt-3 rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-xs text-emerald-200">
+                  ✓ MFA açık. Girişlerde kod istenir.
+                  <button className={`${btn} mt-2 border border-rose-400/40 text-rose-300 hover:bg-rose-400/10`} onClick={() => void disableMfa()}>MFA&apos;yı kapat</button>
+                </div>
+              )}
+              {!mfa?.enabled && !mfa?.qr && (
+                <button className={`${btn} mt-3 bg-emerald-500 text-slate-950`} onClick={() => void startMfa()}>MFA kurulumunu başlat</button>
+              )}
+              {!mfa?.enabled && mfa?.qr && (
+                <div className="mt-3 space-y-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- QR kod önceden üretilmiş veri URL'si; statik dosya değil */}
+                  <img src={mfa.qr} alt="MFA QR kodu" className="h-40 w-40 rounded-lg border border-[#232e40] bg-white p-1" />
+                  <p className="font-mono text-[10px] break-all text-slate-400">{mfa.secret}</p>
+                  <label className="block text-[11px] font-semibold text-slate-400">Doğrulama kodu
+                    <input value={mfaCode} onChange={(e) => setMfaCode(e.target.value.replace(/\s/g, ""))} inputMode="numeric" autoComplete="one-time-code" maxLength={6} className={`${input} mt-1 w-40 tracking-[0.4em]`} placeholder="000000" />
+                  </label>
+                  <div className="flex gap-2">
+                    <button className={`${btn} bg-emerald-500 text-slate-950 disabled:opacity-40`} disabled={mfaBusy || mfaCode.length !== 6} onClick={() => void enableMfa()}>Doğrula ve aç</button>
+                    <button className={`${btn} border border-slate-400/40 text-slate-300`} onClick={() => setMfa({ enabled: false })}>Vazgeç</button>
+                  </div>
+                </div>
+              )}
+              <p className="mt-3 text-[11px] text-slate-500">Rapor onayı hâlâ kimlik kanıtı değildir; içerik SHA-256 ile mühürlenir, denetim zinciri değişikliği saptar.</p>
+            </div>
+          </div>
+        )}
+
+        {tab === "users" && (
+          <div className="mt-4 space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-sm font-bold text-slate-100">Kullanıcı hesapları ve roller</h2>
+              <button className={`${btn} ml-auto bg-cyan-500 text-slate-950`} onClick={() => setShowUserForm((v) => !v)}>+ Yeni kullanıcı</button>
+            </div>
+            {userMsg && <div className="rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-200">{userMsg}</div>}
+            {showUserForm && (
+              <div className={`${card} grid gap-2 sm:grid-cols-2 lg:grid-cols-3`}>
+                <label className="text-[11px] font-semibold text-slate-400">Kullanıcı adı
+                  <input value={userForm.username} onChange={(e) => setUserForm({ ...userForm, username: e.target.value })} className={`${input} mt-1 w-full`} placeholder="ornek.doktor" />
+                </label>
+                <label className="text-[11px] font-semibold text-slate-400">Ad soyad
+                  <input value={userForm.fullName} onChange={(e) => setUserForm({ ...userForm, fullName: e.target.value })} className={`${input} mt-1 w-full`} placeholder="Ayşe Kaya" />
+                </label>
+                <label className="text-[11px] font-semibold text-slate-400">Unvan
+                  <input value={userForm.title} onChange={(e) => setUserForm({ ...userForm, title: e.target.value })} className={`${input} mt-1 w-full`} placeholder="Uzm. Dr." />
+                </label>
+                <label className="text-[11px] font-semibold text-slate-400">Sicil
+                  <input value={userForm.regNo} onChange={(e) => setUserForm({ ...userForm, regNo: e.target.value })} className={`${input} mt-1 w-full`} />
+                </label>
+                <label className="text-[11px] font-semibold text-slate-400">Rol
+                  <select value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })} className={`${input} mt-1 w-full`}>
+                    <option value="radyolog">radyolog</option>
+                    <option value="teknisyen">teknisyen</option>
+                    <option value="yonetici">yonetici</option>
+                  </select>
+                </label>
+                <label className="text-[11px] font-semibold text-slate-400">Parola (en az 8, harf+rakam)
+                  <input type="password" value={userForm.password} onChange={(e) => setUserForm({ ...userForm, password: e.target.value })} className={`${input} mt-1 w-full`} />
+                </label>
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <button className={`${btn} bg-cyan-500 text-slate-950 disabled:opacity-40`} disabled={!userForm.username.trim() || userForm.fullName.trim().length < 3 || userForm.password.length < 8} onClick={() => void createUser()}>Oluştur</button>
+                </div>
+              </div>
+            )}
+            <div className={`${card} overflow-x-auto p-0`}>
+              <table className="w-full text-[11px]">
+                <thead className="bg-[#0b1018] text-left text-slate-500"><tr>{["#", "Kullanıcı", "Ad soyad", "Rol", "MFA", "Son giriş", "Durum", ""].map((h) => <th key={h} className="border-b border-[#1a2230] px-3 py-2 font-semibold">{h}</th>)}</tr></thead>
+                <tbody>
+                  {userList.map((u) => (
+                    <tr key={u.id} className="hover:bg-[#101722]">
+                      <td className="px-3 py-2 font-mono text-slate-500">{u.id}</td>
+                      <td className="px-3 py-2 text-slate-200">{u.username}{u.id === user.id ? " (siz)" : ""}</td>
+                      <td className="px-3 py-2 text-slate-300">{[u.title, u.fullName].filter(Boolean).join(" ") || "—"}</td>
+                      <td className="px-3 py-2">
+                        <select value={u.role} onChange={(e) => void patchUser(u, { role: e.target.value })} className="rounded border border-[#1e2735] bg-[#0e141d] px-1.5 py-1 text-[10.5px] text-slate-100">
+                          <option value="radyolog">radyolog</option><option value="teknisyen">teknisyen</option><option value="yonetici">yonetici</option>
+                        </select>
+                      </td>
+                      <td className={`px-3 py-2 ${u.twoFactorEnabled ? "text-emerald-300" : "text-slate-500"}`}>{u.twoFactorEnabled ? "açık" : "kapalı"}</td>
+                      <td className="px-3 py-2 font-mono text-[10px] text-slate-500">{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString("tr-TR") : "—"}</td>
+                      <td className="px-3 py-2">
+                        <button onClick={() => void patchUser(u, { active: !u.active })} className={`${btn} border ${u.active ? "border-rose-400/40 text-rose-300 hover:bg-rose-400/10" : "border-emerald-400/40 text-emerald-300 hover:bg-emerald-400/10"}`}>{u.active ? "Pasif yap" : "Etkinleştir"}</button>
+                      </td>
+                      <td className="px-3 py-2">
+                        <button onClick={() => { const p = window.prompt("Yeni parola (en az 8 karakter, harf+rakam):"); if (p) void patchUser(u, { password: p }); }} className={`${btn} border border-slate-400/40 text-slate-300 hover:bg-slate-400/10`}>Parola sıfırla</button>
+                      </td>
+                    </tr>
+                  ))}
+                  {userList.length === 0 && <tr><td colSpan={8} className="px-3 py-6 text-center text-slate-500">Kullanıcı yok.</td></tr>}
+                </tbody>
+              </table>
             </div>
           </div>
         )}

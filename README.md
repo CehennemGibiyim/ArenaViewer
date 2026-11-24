@@ -148,7 +148,10 @@ python ai-worker/server.py          # worker'ı başlatır (CPU'da da çalışı
 | `DATA_ENCRYPTION_KEY` | Üretimde | Base64, 32 bayt AES-256 anahtarı (boşsa `.data/enc.key` üretilir) |
 | `PACS_AUTH_HEADER` | Hayır | DICOMweb kimlik başlığı — yalnızca geriye dönük; kimlik/ayarlar Yönetim → Entegrasyon'dan girilir ve sunucuda şifrelenir |
 | `HIS_API_KEY` | Hayır | HBYS istem alımı API anahtarı |
-| `ACCESS_TOKEN` | Hayır | Tek erişim anahtarı; tanımlıysa `/giris` kapısı ve 401 koruması açılır (çok kullanıcılı yetki için SSO/rol gerekir) |
+| `ACCESS_TOKEN` | Hayır | Tek erişim anahtarı (kapı); tanımlıysa `/giris` kapısı ve 401 koruması açılır |
+| `AUTH_MODE` | Hayır | Boş/demo: ACCESS_TOKEN varsa onunla, yoksa tek operatör. `hesap`: kullanıcı adı/parola (+MFA) zorunlu, rol denetimi aktif |
+| `SESSION_SECRET` | Hesap modunda | Oturum çerezini imzalayan gizli anahtar (tanımsızsa `DATA_ENCRYPTION_KEY` kullanılır) |
+| `REQUIRE_TOTP_FOR_ROLES` | Hayır | MFA zorunluluğu olan roller (varsayılan `yonetici`). Bu rollerdeki hesaplar authenticator kodu olmadan giremez |
 | `LLM_API_URL` / `LLM_API_KEY` / `LLM_MODEL` | Hayır | Taslak izlenim LLM'i (yoksa kural tabanlı yedek). Ücretsiz yerel yol: [docs/OLLAMA.md](docs/OLLAMA.md) |
 | `AI_WORKER_URL` | Hayır | Yerel derin AI worker adresi (varsayılan `http://127.0.0.1:8787`) |
 
@@ -239,15 +242,26 @@ docs/             Yayınlama ve işletim kılavuzları
   kayıtları şifle” yalnız aynı anahtarla yeniden şifreler, anahtar rotasyonu için
   çift anahtarlı çözüm ya da yeni kurulum + içe aktarma gerekir.
 - Hasta verisi diskte AES-256-GCM ile şifrelidir; anahtar yedeğini saklayın.
-- **İsteğe bağlı erişim kapısı:** `ACCESS_TOKEN` tanımlıysa tüm sayfa/API istekleri
-  `/giris` sayfasına düşer; doğru anahtar oturum çerezi (`httpOnly`, 30 gün) yazar.
-  API’ler 401 döner, `/api/health` ve giriş akışı kapalı kalmaz. Tanım **yoksa** kapı
+- **Erişim kapısı:** `ACCESS_TOKEN` tanımlıysa tüm sayfa/API istekleri `/giris`
+  sayfasına düşer; doğru anahtar oturum çerezi (`httpOnly`, 30 gün) yazar. API’ler
+  401 döner, `/api/health` ve giriş akışı kapalı kalmaz. Tanım **yoksa** kapı
   açıktır (demo varsayılanı) ve adresi bilen herkes hasta verisini görebilir; bu
   hâlde uygulamayı yalnızca VPN/güvenlik duvarı arkasında açın. Çıkış:
   `POST /api/auth/logout`.
-- Onay akışı kişisel kimlik doğrulamaz: rapora profildeki hekim adı yazılır ve içerik
-  SHA-256 ile mühürlenir; mühür yalnızca sonradan değişikliği saptar. Gerçek hasta
-  verisi için ağ düzeyinde erişim kısıtı ya da kurumsal kimlik (SSO/rol) şarttır.
+- **Kullanıcı hesapları ve roller (F1):** `AUTH_MODE=hesap` yapıldığında her işlem
+  kullanıcı adı/parola ile doğrulanmış bir oturum ister; `yonetici`, `radyolog`,
+  `teknisyen` rolleri işlem bazında denetlenir (ör. rapor onayı radyolog/yönetici,
+  silme ve ayarlar yalnız yönetici). İlk yönetici `/giris` sayfasındaki kurulum
+  formuyla oluşturulur; sonraki hesaplar Yönetim → Kullanıcılar bölümünden eklenir.
+  Oturum imzalı bir çerezle taşınır (`SESSION_SECRET`/`DATA_ENCRYPTION_KEY` anahtarı).
+- **İki faktörlü doğrulama (F2):** `REQUIRE_TOTP_FOR_ROLES` (varsayılan `yonetici`)
+  bu rollere sahip hesaplara TOTP/MFA şart koşar; Yönetim → Profil & MFA ekranından
+  authenticator uygulamasıyla kurulur. Hesap MFA kurmadan giriş yapamaz, denetim
+  kaydına `auth.login`/`profile.totp.*` olarak yazılır.
+- Onay akışı hâlâ kişisel kimlik kanıtı değildir: rapora oturumdaki hekim adı
+  yazılır ve içerik SHA-256 ile mühürlenir; mühür yalnızca sonradan değişikliği
+  saptar. Gerçek hasta verisi için ağ düzeyinde erişim kısıtı ve kurumsal kimlik
+  (SSO/rol) şarttır; bu yazılım tıbbi cihaz değildir.
   Bu yazılım tıbbi cihaz değildir ve düzenleyici onay süreçlerinin (MDR/TİTCK vb.)
   yerini tutmaz.
 

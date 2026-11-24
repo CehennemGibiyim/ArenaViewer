@@ -10,7 +10,7 @@ import { buildAnalysis, type AnalyzeBody } from "@/lib/analyze";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  const auth = await authorize();
+  const auth = await authorize(req);
   if ("error" in auth) return auth.error;
   const { user } = auth;
 

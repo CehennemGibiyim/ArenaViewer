@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 const WORKER = process.env.AI_WORKER_URL ?? "http://127.0.0.1:8787";
 const err = (m: string, s = 400) => NextResponse.json({ error: m }, { status: s });
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const r = await fetch(`${WORKER}/health`, { signal: AbortSignal.timeout(3000) });
     const data = (await r.json()) as Record<string, unknown>;
@@ -26,7 +26,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const a = await authorize();
+  const a = await authorize(req);
   if ("error" in a) return a.error;
 
   const protocol = new URL(req.url).searchParams.get("protocol") ?? "ct-chest";

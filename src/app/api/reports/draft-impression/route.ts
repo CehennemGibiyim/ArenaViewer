@@ -15,7 +15,7 @@ interface DraftBody {
  * Yalnızca hekimin doğruladığı/düzenlediği bulgular gönderilir; hasta adı/kimliği ASLA gönderilmez.
  */
 export async function POST(req: NextRequest) {
-  const a = await authorize(["radyolog", "yonetici"]);
+  const a = await authorize(req, ["radyolog", "yonetici"]);
   if ("error" in a) return a.error;
   const b = (await req.json().catch(() => null)) as DraftBody | null;
   const verified = (b?.findings ?? []).filter((f) => (f.status === "onaylandi" || f.status === "duzenlendi") && f.category !== "Sistem" && f.category !== "ROI");

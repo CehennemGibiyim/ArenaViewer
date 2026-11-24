@@ -1,21 +1,22 @@
 import { createHash } from "node:crypto";
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import type { Role, UserInfo } from "@/lib/types";
+import { sessionUserId } from "./session";
 
 /**
- * KİMLİK DOĞRULAMA KAPALI.
+ * KİMLİK DOĞRULAMA KATMANI.
  *
- * Bu sürümde kullanıcı adı/parola ile oturum açma kaldırılmıştır: uygulamayı açan herkes
- * doğrudan arayüze girer ve tüm yetkilere sahiptir. Raporların imza satırında bir ad
- * bulunabilmesi için tek bir "operatör profili" (ad, unvan, sicil) saklanır; bu profil
- * kimlik DOĞRULAMAZ, yalnızca rapora yazılacak adı belirler.
+ * İki mod vardır:
+ *  - `demo` (varsayılan): oturum çerezinde kullanıcı yoksa id=1 "operatör" profiline
+ *    düşülür (ACCESS_TOKEN kapısı access.ts'te hâlâ geçerliyse kapıyı onun belirler).
+ *  - `hesap` (AUTH_MODE=hesap): her istek geçerli bir oturum çerezine ve etkin hesaba
+ *    sahip olmalıdır; oturum yoksa 401 döner.
  *
- * Güvenlik etkisi: Uygulamanın adresine erişebilen herkes hasta verilerini görebilir ve
- * rapor onaylayabilir. Ağ düzeyinde erişim kısıtlaması (VPN, güvenlik duvarı, ters vekilde
- * kimlik doğrulama) olmadan hasta verisiyle kullanılmamalıdır.
+ * `authorize(req, roles)` gerçekten rol kontrolü yapar: verilen rollerden biri
+ * kullanıcının rolüne uymalı; "yonetici" her role yetişir. Geçemeyen istek 403 döner.
  */
 export const OPERATOR_ID = 1;
 
@@ -30,9 +31,14 @@ const FALLBACK: UserInfo = {
 
 export const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 
+/** AUTH_MODE=hesap ise kimlik her zaman bir oturum gerektirir. */
+export function authRequired(): boolean {
+  return process.env.AUTH_MODE === "hesap";
+}
+
 let ensured = false;
 
-/** Operatör profili satırını (id=1) garanti eder; çalışma atama gibi yabancı anahtarlar buna bağlıdır. */
+/** Operatör profili satırını (id=1) garanti eder; atama gibi yabancı anahtarlar buna bağlıdır. */
 async function ensureOperator(): Promise<void> {
   if (ensured) return;
   await db
@@ -40,7 +46,7 @@ async function ensureOperator(): Promise<void> {
     .values({
       id: OPERATOR_ID,
       username: FALLBACK.username,
-      passwordHash: "-", // kullanılmıyor: parola ile giriş yok
+      passwordHash: "-", // parolasız demo satırı
       fullName: FALLBACK.fullName,
       title: FALLBACK.title,
       regNo: FALLBACK.regNo,
@@ -50,21 +56,56 @@ async function ensureOperator(): Promise<void> {
   ensured = true;
 }
 
-export async function getCurrentUser(): Promise<UserInfo> {
+function toUserInfo(r: {
+  id: number;
+  username: string;
+  fullName: string;
+  title: string;
+  regNo: string;
+  role: string;
+}): UserInfo {
+  return { id: r.id, username: r.username, fullName: r.fullName, title: r.title, regNo: r.regNo, role: r.role as Role };
+}
+
+/** Etkin kullanıcıyı id ile okur; yok/pasifse null. */
+export async function getUserById(id: number | null): Promise<UserInfo | null> {
+  if (!id) return null;
   try {
-    await ensureOperator();
     const r = (
       await db
-        .select({ id: users.id, username: users.username, fullName: users.fullName, title: users.title, regNo: users.regNo, role: users.role })
+        .select({ id: users.id, username: users.username, fullName: users.fullName, title: users.title, regNo: users.regNo, role: users.role, active: users.active })
         .from(users)
-        .where(eq(users.id, OPERATOR_ID))
+        .where(eq(users.id, id))
         .limit(1)
     )[0];
-    return r ? { ...r, role: r.role as Role } : FALLBACK;
+    return r && r.active ? toUserInfo(r) : null;
   } catch {
-    // Veritabanı erişilemiyorsa bile arayüz açılabilmeli (giriş engeli yok).
+    return null;
+  }
+}
+
+/**
+ * Geçerli kullanıcıyı döndürür.
+ *  - oturum varsa ve hesabı etkinse → o kullanıcı;
+ *  - oturum yoksa: `hesap` modunda null (kapı 401 verir), demo modunda operatör profili.
+ */
+export async function getCurrentUser(sessionUid?: number | null): Promise<UserInfo | null> {
+  if (sessionUid != null) return getUserById(sessionUid);
+  if (authRequired()) {
+    // Hesap modunda oturumsuz istek kabul edilmez.
+    return null;
+  }
+  try {
+    await ensureOperator();
+    return await getUserById(OPERATOR_ID);
+  } catch {
     return FALLBACK;
   }
+}
+
+/** İstekteki oturum çerezinden kullanıcıyı döndürür. */
+export async function currentUser(req: NextRequest): Promise<UserInfo | null> {
+  return getCurrentUser(sessionUserId(req));
 }
 
 export async function updateOperator(p: { fullName?: string; title?: string; regNo?: string }): Promise<UserInfo> {
@@ -74,14 +115,23 @@ export async function updateOperator(p: { fullName?: string; title?: string; reg
   if (typeof p.title === "string") set.title = p.title.trim().slice(0, 60);
   if (typeof p.regNo === "string") set.regNo = p.regNo.trim().slice(0, 40);
   if (Object.keys(set).length > 0) await db.update(users).set(set).where(eq(users.id, OPERATOR_ID));
-  return getCurrentUser();
+  return (await getUserById(OPERATOR_ID)) ?? FALLBACK;
 }
 
 /**
- * Geriye dönük uyumluluk için korunur: artık her zaman başarılıdır ve operatör profilini döndürür.
- * `roles` parametresi yok sayılır (rol ayrımı kalktı).
+ * Rol denetimi. `roles` boşsa yalnız oturum/sistem varlığı aranır (demo'da operatör).
+ * "yonetici" her isteğe yetişir; diğer rollerden biri seçili olmalı.
  */
-export async function authorize(_roles?: Role[]): Promise<{ user: UserInfo } | { error: NextResponse }> {
-  void _roles;
-  return { user: await getCurrentUser() };
+export async function authorize(
+  req: NextRequest,
+  roles?: Role[]
+): Promise<{ user: UserInfo } | { error: NextResponse }> {
+  const user = await currentUser(req);
+  if (!user) return { error: NextResponse.json({ error: "Oturum gerekli" }, { status: 401 }) };
+  if (roles && roles.length > 0) {
+    if (user.role !== "yonetici" && !roles.includes(user.role)) {
+      return { error: NextResponse.json({ error: "Bu işlem için yetkiniz yok" }, { status: 403 }) };
+    }
+  }
+  return { user };
 }

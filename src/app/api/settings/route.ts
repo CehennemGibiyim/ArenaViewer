@@ -9,8 +9,8 @@ import { DEFAULT_PACS, type PacsAuthType, type PacsConfig } from "@/lib/pacsPres
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  const a = await authorize(["yonetici"]);
+export async function GET(req: NextRequest) {
+  const a = await authorize(req, ["yonetici"]);
   if ("error" in a) return a.error;
   const cfg = await loadPacsConfig();
   return NextResponse.json({
@@ -76,7 +76,7 @@ async function savePacs(b: Record<string, unknown>): Promise<string | null> {
 }
 
 export async function PUT(req: NextRequest) {
-  const a = await authorize(["yonetici"]);
+  const a = await authorize(req, ["yonetici"]);
   if ("error" in a) return a.error;
   const b = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const changed: string[] = [];
