@@ -34,7 +34,9 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   **Çıkarım tamamen bu makinede çalışır; hasta verisi dışarı çıkmaz, ücretli servis
   kullanılmaz. Klinik doğrulanmamıştır; her bulgu radyoloji uzmanı onayı gerektirir.**
 - **Raporlama:** taslak → onay akışı, bulgu bazlı hekim doğrulaması, sürümleme,
-  addendum, A4 yazdırma, FHIR R4 DiagnosticReport dışa aktarma
+  addendum, A4 yazdırma, FHIR R4 DiagnosticReport dışa aktarma, ikinci okuma (peer review) kaydı
+- **Süreli paylaşım:** onaylı rapor için süre seçilebilir (1–30 gün), kapatılabilir,
+  filigranlı salt okunur bağlantı (`/paylas/<token>`); her erişim denetimde işlenir. Ham görüntü paylaşılmaz.
 - **İş akışı:** çalışma listesi, PACS (DICOMweb QIDO/WADO — hazır sistem ayarları, şifreli kimlik, bağlantı testi), HBYS istem alımı,
   kritik bulgu bildirimleri, şifreli sunucu depolaması, hash zincirli denetim kaydı
 

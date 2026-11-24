@@ -690,10 +690,10 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "f-share", category: "workflow", title: "Süreli paylaşım bağlantısı + watermark + denetim",
-    status: "yok", priority: "P2", effort: "M",
+    status: "kismi", priority: "P2", effort: "M",
     market: ["RadiAnt", "Weasis"],
-    ours: "Yok.",
-    action: "İmzalı URL, maske/watermark ve erişim logu.",
+    ours: "**Bu sürümde eklendi:** `share_links` tablosu + `/api/shares` (GET/POST), `/api/shares/{token}` (DELETE) ve herkese açık `/paylas/{token}` sayfası (filigranlı salt okunur rapor özeti + anahtar kesitler). Bağlantı süre seçimi 1–30 gün, kapatılabilir, her erişim erişim sayacıyla denetimde işlenir. Ham DICOM/görüntü paylaşımı (imzalı URL) yoktur.",
+    action: "Görüntü (kesit) paylaşımı için imzalı/nesne depolama URL'si; paylaşım linki yönetim paneli.",
   },
   {
     id: "f-kimlik-rbac", category: "trust", title: "Kullanıcı hesapları, rol denetimi (RBAC) ve iki faktörlü doğrulama",

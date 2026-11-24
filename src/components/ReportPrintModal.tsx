@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fmtConf } from "@/lib/format";
 import StructuredScorePanel from "@/components/StructuredScorePanel";
 import { PEER_RESULTS, RESULT_LABELS, type PeerResult } from "@/lib/peerReview";
+import { SHARE_TTL_HOURS, shareState } from "@/lib/share";
 import { MACRO_GROUPS, macroById, macrosByGroup, type MacroGroup } from "@/lib/macros";
 import type {
   Finding, FindingApprovalStatus, KeyImage, ModelCard, ReportAddendum, ReportVersion, TemplateRow, UserInfo,
@@ -154,6 +155,10 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
   const [peerType, setPeerType] = useState("");
   const [peerNote, setPeerNote] = useState("");
   const [peerMsg, setPeerMsg] = useState("");
+  // süreli paylaşım bağlantısı
+  const [shares, setShares] = useState<{ token: string; reportId: number | null; expiresAt: string | Date; revokedAt: string | Date | null; accessCount: number; createdAt: string | Date }[]>([]);
+  const [shareTtl, setShareTtl] = useState<number>(24);
+  const [shareMsg, setShareMsg] = useState("");
   // createdAt yoksa yazdırma başlığında tutulacak yedik zaman damgası (mount anında bir kez).
   const [createdFallback] = useState(() => Date.now());
 
@@ -172,6 +177,9 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
     const d = (await r.json()) as { versions: ReportVersion[]; addenda: ReportAddendum[] };
     setVersions(d.versions);
     setAddenda(d.addenda);
+    fetch("/api/shares").then((sr) => (sr.ok ? sr.json() : null)).then((sd: { shares?: typeof shares } | null) => {
+      if (sd?.shares) setShares(sd.shares.filter((x) => x.reportId === id));
+    }).catch(() => {});
     fetch(`/api/reports/${id}/peer-reviews`).then((pr) => (pr.ok ? pr.json() : null)).then((pd: { reviews?: typeof peerList } | null) => {
       if (pd?.reviews) setPeerList(pd.reviews);
     }).catch(() => {});
@@ -289,6 +297,33 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
       setPeerNote("");
       await loadDetail(report.id);
     } catch (e) { setError(e instanceof Error ? e.message : "Kaydedilemedi"); }
+    finally { setBusy(false); }
+  };
+
+  /** Süreli paylaşım bağlantısı oluşturur ve panoya kopyalar. */
+  const createShare = async () => {
+    if (!report.id) return;
+    setBusy(true); setShareMsg(""); setError("");
+    try {
+      const r = await fetch("/api/shares", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "report", reportId: report.id, ttlHours: shareTtl }) });
+      const d = (await r.json().catch(() => ({}))) as { ok?: boolean; url?: string; error?: string };
+      if (!r.ok || !d.url) throw new Error(d.error ?? "Bağlantı oluşturulamadı");
+      try { await navigator.clipboard.writeText(`${window.location.origin}${d.url}`); setShareMsg("Bağlantı kopyalandı."); }
+      catch { setShareMsg(`Bağlantı: ${d.url}`); }
+      await loadDetail(report.id);
+    } catch (e) { setError(e instanceof Error ? e.message : "Bağlantı oluşturulamadı"); }
+    finally { setBusy(false); }
+  };
+
+  /** Bağlantıyı kapatır. */
+  const revokeShare = async (token: string) => {
+    setBusy(true); setShareMsg(""); setError("");
+    try {
+      const r = await fetch(`/api/shares/${token}`, { method: "DELETE" });
+      if (!r.ok) throw new Error(((await r.json().catch(() => ({}))) as { error?: string }).error ?? "Kapatılamadı");
+      setShareMsg("Bağlantı kapatıldı.");
+      if (report.id) await loadDetail(report.id);
+    } catch (e) { setError(e instanceof Error ? e.message : "Kapatılamadı"); }
     finally { setBusy(false); }
   };
 
@@ -637,6 +672,33 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                       {p.note && <div className="mt-0.5 whitespace-pre-wrap text-[11px] text-slate-300">{p.note}</div>}
                     </li>
                   ))}
+                </ul>
+              </div>
+            )}
+            {approved && report.id && (
+              <div className="rounded-lg border border-[#1e2735] bg-[#0b0f16] p-3 text-xs text-slate-300">
+                <div className="font-bold text-slate-200">Süreli paylaşım bağlantısı</div>
+                <div className="mt-1 text-[11px] text-slate-400">Salt okunur rapor özeti + anahtar kesitler; her erişim denetimde işlenir, süresi gelince ya da siz kapatana kadar geçerlidir.</div>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <select aria-label="Bağlantı süresi" value={shareTtl} onChange={(e) => setShareTtl(Number(e.target.value))} className="rounded border border-[#232e40] bg-[#141b24] px-2 py-1 text-xs text-slate-200">
+                    {SHARE_TTL_HOURS.map((h) => <option key={h} value={h}>{h >= 24 ? `${h / 24} gün` : `${h} saat`}</option>)}
+                  </select>
+                  <button disabled={busy} onClick={() => void createShare()} className="cursor-pointer rounded bg-cyan-500 px-3 py-1 text-xs font-bold text-slate-950 hover:bg-cyan-400 disabled:opacity-40">Bağlantı oluştur + kopyala</button>
+                </div>
+                {shareMsg && <div className="mt-2 text-emerald-300">✓ {shareMsg}</div>}
+                <ul className="mt-2 space-y-1.5">
+                  {shares.length === 0 && <li className="text-slate-500">Bu rapor için bağlantı yok.</li>}
+                  {shares.map((sh) => {
+                    const st = shareState(sh);
+                    return (
+                      <li key={sh.token} className="flex flex-wrap items-center gap-2 rounded border border-[#1a2230] bg-[#0e141d] px-2 py-1.5">
+                        <span className="font-mono text-[10.5px] text-cyan-300">…{sh.token.slice(-8)}</span>
+                        <span className={`text-[10.5px] font-bold ${st === "aktif" ? "text-emerald-300" : st === "kapatildi" ? "text-rose-300" : "text-amber-300"}`}>{st === "aktif" ? "aktif" : st}</span>
+                        <span className="text-[10.5px] text-slate-500">{new Date(sh.expiresAt).toLocaleString("tr-TR")} · {sh.accessCount} erişim</span>
+                        {st === "aktif" && <button onClick={() => void revokeShare(sh.token)} className="ml-auto cursor-pointer rounded border border-rose-400/40 px-2 py-0.5 text-[10.5px] font-bold text-rose-200 hover:bg-rose-400/10">Kapat</button>}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}

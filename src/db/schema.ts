@@ -131,6 +131,25 @@ export const reportAddenda = pgTable("report_addenda", {
 });
 
 /**
+ * Süreli paylaşım bağlantısı (F5): rapor/çalışma özetinin dışa açık, süreli,
+ * kapatılabilir ve erişimleri denetlenen şekilde paylaşılması.
+ */
+export const shareLinks = pgTable("share_links", {
+  id: serial("id").primaryKey(),
+  token: text("token").notNull().unique(),
+  kind: text("kind").notNull(), // report | study
+  reportId: integer("report_id").references(() => reports.id, { onDelete: "cascade" }),
+  studyId: integer("study_id").references(() => studies.id, { onDelete: "cascade" }),
+  createdBy: integer("created_by"),
+  createdByName: text("created_by_name").notNull().default(""),
+  expiresAt: timestamp("expires_at").notNull(),
+  revokedAt: timestamp("revoked_at"),
+  accessCount: integer("access_count").notNull().default(0),
+  lastAccessAt: timestamp("last_access_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+/**
  * İkinci okuma / peer review (D): raporun değerlendiren ikinci hekimden gelen uyum kaydı.
  * contentHash, incelemenin hangi rapor sürümüne ait olduğunu taşır.
  */

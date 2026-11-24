@@ -129,7 +129,7 @@ Notlar:
 | F3 | **Kullanıcı başına tercihler** (layout, preset, kısayol) sunucuda | P2 | S–M | **Bu sürümde eklendi:** `/tercihler` sayfası + `/api/profile/preferences`; açılış düzeni uygulanır. | Kalanlar arşiv/KMS ve SLSA attestation; log seviyesi ortam değişkenine bağlanacak.
 | F4 | **Turnaround/istatistik panosu** (TAT, bulgu/adet, onay süresi) | P2 | M | **Bu sürümde eklendi:** `/api/reports/stats` + Yönetim > İş akışı (TAT medyan/p90, durum/modalite dağılımı, eski taslak). | Haftalık trend grafikleri ve hedef eşik uyarıları.
 | F5 | **Toplu/arka plan içe aktarma kuyruğu** | P2 | M | Tek seri akışı | Kuyruk tablosu + ilerleme; başarısız yeniden deneme. |
-| F6 | **Paylaşım:** süreli bağlantı + watermark + denetim | P2 | M | Yok | imzalı URL, maske/watermark, erişim logu. |
+| F6 | **Paylaşım:** süreli bağlantı + watermark + denetim | P2 | M | **Bu sürümde eklendi:** `/paylas/{token}` filigranlı salt okunur sayfa + `share_links` tablosu; 1–30 gün süreli, kapatılabilir, erişim sayaclı ve denetimli (rapor metni + anahtar kesit). | Ham görüntü/DICOM paylaşımı için imzalı URL ve nesne depolama adaptörü.
 | F7 | **Hasta CD’si / ISO** (DICOM CD, otomatik görüntüleyici) | P3 | M | ZIP + kurulum var | ISO üretimi + DICOMDIR + autostart viewer. |
 
 ---
