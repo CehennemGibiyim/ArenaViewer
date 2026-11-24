@@ -12,29 +12,14 @@ const nextConfig: NextConfig = {
   // statik dışa aktarımda başlıklar desteklenmez
   ...(pages ? {} : { async headers() {
     // Kurumsal web hardening (G1): tüm yanıtlara temel güvenlik başlıkları.
-    // Not: CSP script-src 'unsafe-inline' gerektirir çünkü Next.js hidrolik
-    // önyükleme betiklerini satır içi ekler; stil de React satır içi stil
-    // nesneleri kullandığı için 'unsafe-inline' şarttır.
+    // CSP bilinçli olarak EKLENMEDİ: tarayıcı regresyon testlerinde menü
+    // etkileşimleri bozuldu; önce nonce/strict-dynamic altyapısı kurulmalı.
     const securityHeaders = [
       { key: "X-Content-Type-Options", value: "nosniff" },
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
       { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
       { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
       { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
-      {
-        key: "Content-Security-Policy",
-        value: [
-          "default-src 'self'",
-          "img-src 'self' data: blob:",
-          "style-src 'self' 'unsafe-inline'",
-          "script-src 'self' 'unsafe-inline'",
-          "connect-src 'self'",
-          "worker-src 'self' blob:",
-          "frame-ancestors 'self'",
-          "base-uri 'none'",
-          "form-action 'self'",
-        ].join("; "),
-      },
     ];
     return [
       {
