@@ -1,3 +1,5 @@
+import type { AspectsResult } from "@/lib/stroke";
+
 /**
  * Yapılandırılmış radyoloji skorlama motoru (Lung-RADS, TI-RADS, BI-RADS,
  * PI-RADS v2.1, ACR meme yoğunluğu).
@@ -14,6 +16,7 @@
  */
 
 export type ScoreSystemId =
+  | "aspects"
   | "lungRads"
   | "tiRads"
   | "biRads"
@@ -34,6 +37,11 @@ export interface ScoreSystemMeta {
 }
 
 export const SCORE_SYSTEMS: ScoreSystemMeta[] = [
+  {
+    id: "aspects", title: "ASPECTS (iç serebral arter alanı)", modality: "CT",
+    bodyPart: "BEYIN", source: "ASPECTS (Barber/Adams), MCA",
+    disclaimer: "Bölge işaretlemesi radyologa aittir; skor yalnız tarama ve tedavi yanıtı korelasyonu içindir.",
+  },
   {
     id: "lungRads", title: "Lung-RADS 1.1 (akciğer nodülü)", modality: "CT",
     bodyPart: "TORAKS", source: "ACR Lung-RADS v1.1",
@@ -395,4 +403,15 @@ export function scoreToText(r: ScoreResult): string {
 /** Sistem meta bilgisini id ile döndürür. */
 export function scoreSystem(id: ScoreSystemId): ScoreSystemMeta {
   return SCORE_SYSTEMS.find((s) => s.id === id) ?? SCORE_SYSTEMS[0];
+}
+
+/** ASPECTS sonucunu skor paneli biçimine çevirir. */
+export function aspectsToScore(r: AspectsResult): ScoreResult {
+  return {
+    system: "aspects", label: `ASPECTS ${r.score}`, category: String(r.score),
+    weight: r.score >= 8 ? 0.25 : r.score >= 6 ? 0.55 : 0.85,
+    advice: r.note,
+    basis: `Anormal bölgeler: ${r.abnormal.length ? r.abnormal.join(", ") : "yok"}`,
+    followUpDays: null, tissueSampling: false,
+  };
 }

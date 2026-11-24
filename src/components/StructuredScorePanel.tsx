@@ -9,9 +9,10 @@
  * Klinik karar aracı değildir; her satır “hekim onayına tabidir” notu taşır.
  */
 import { useMemo, useState } from "react";
+import { ASPECTS_LABELS, ASPECTS_REGIONS, aspectsScore } from "@/lib/stroke";
 import {
   acrDensity, agatston, biRads, boneDensity, cxrCardiothoracicRatio, lungRads, piRadsV2,
-  scoreSystem, scoreToText, tiRads, CALCIUM_VESSELS,
+  scoreSystem, scoreToText, tiRads, CALCIUM_VESSELS, aspectsToScore,
   type AgatstonResult,
   SCORE_SYSTEMS as SCORE_LIST,
   type ScoreResult, type ScoreSystemId,
@@ -62,6 +63,8 @@ export default function StructuredScorePanel({ modality, bodyPart, onApply, onCr
   const [piDce, setPiDce] = useState(false);
   // Yoğunluk
   const [dens, setDens] = useState<"a" | "b" | "c" | "d">("b");
+  // ASPECTS: anormal işaretli bölgeler
+  const [aspectsSet, setAspectsSet] = useState<string[]>([]);
   // Agatston: damar bazlı (peck HU, alan mm²)
   const [ca, setCa] = useState<Record<string, { hu: string; area: string }>>({
     LM: { hu: "", area: "" }, LAD: { hu: "", area: "" }, LCx: { hu: "", area: "" }, RCA: { hu: "", area: "" },
@@ -100,6 +103,7 @@ export default function StructuredScorePanel({ modality, bodyPart, onApply, onCr
         dce: piDce,
       });
     }
+    if (system === "aspects") return aspectsToScore(aspectsScore(aspectsSet));
     if (system === "agatston") {
       const num = (v: string) => Number(v.replace(",", "."));
       return agatston(CALCIUM_VESSELS.map((v) => ({
@@ -121,7 +125,7 @@ export default function StructuredScorePanel({ modality, bodyPart, onApply, onCr
       );
     }
     return acrDensity(dens);
-  }, [system, lrSolid, lrPartSolid, lrNonsolid, lrCalc, lrSusp, tiComp, tiEcho, tiShape, tiMargin, tiFoci, biCat, piZone, piT2, piDwi, piDce, dens, ca, boneHu, cxrCardiac, cxrThoracic]);
+  }, [system, lrSolid, lrPartSolid, lrNonsolid, lrCalc, lrSusp, tiComp, tiEcho, tiShape, tiMargin, tiFoci, biCat, piZone, piT2, piDwi, piDce, dens, ca, boneHu, cxrCardiac, cxrThoracic, aspectsSet]);
 
   const meta = scoreSystem(system);
   const canTask = result.followUpDays !== null || result.tissueSampling;
@@ -239,6 +243,21 @@ export default function StructuredScorePanel({ modality, bodyPart, onApply, onCr
               DCE pozitif
             </label>
           </>
+        )}
+
+        {system === "aspects" && (
+          <div className="col-span-2 sm:col-span-3 md:col-span-4">
+            <span className={lbl}>Anormal bulgu verilen bölgeler (işaretleyin)</span>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {ASPECTS_REGIONS.map((r) => {
+                const on = aspectsSet.includes(r);
+                return (
+                  <button key={r} type="button" onClick={() => setAspectsSet((cur) => (on ? cur.filter((x) => x !== r) : [...cur, r]))} className={`cursor-pointer rounded border px-2 py-1 text-[11px] ${on ? "border-rose-400/60 bg-rose-400/15 text-rose-200" : "border-[#232e40] text-slate-400 hover:bg-[#141b24]"}`}>{ASPECTS_LABELS[r]}</button>
+                );
+              })}
+            </div>
+            <p className="mt-1 text-[10px] text-slate-500">İşaretsiz bölgeler normal sayılır; skor 10 eksi anormal bölge sayısıdır.</p>
+          </div>
         )}
 
         {system === "acrDensity" && (
