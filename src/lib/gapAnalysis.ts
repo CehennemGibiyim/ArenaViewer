@@ -619,6 +619,13 @@ const BASE_ITEMS: GapItem[] = [
     action: "Konuşmadan yapılandırılmış metin üretimi; Radlex/ACR ile eşleştirilmiş makro sözlüğü.",
   },
   {
+    id: "f3-prefs", category: "viewing", title: "Kullanıcı tercihleri kaydetme",
+    status: "kismi", priority: "P2", effort: "S",
+    market: ["syngo.via", "Sectra", "Visage"],
+    ours: "**Bu sürümde eklendi:** /api/profile/preferences (GET/PATCH/DELETE; yalnız beyaz-listeli alanlar) + `/tercihler` sayfası. Düzen istasyonda açılışta uygulanır.",
+    action: "Pencere ön ayarının seri seçiminde otomatik kullanımı ve tema/altyazı ayarlarının genişletilmesi.",
+  },
+  {
     id: "d-icd", category: "report", title: "ICD-10 / ACR Appropriateness ve kodlama desteği",
     status: "yok", priority: "P3", effort: "S",
     market: ["RadPal"],
