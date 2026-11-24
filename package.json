@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "npm run test:image-review && npm run test:pacs && npm run test:recist && npm run test:close-loop && npm run test:auth && npm run test:templates",
+    "test": "npm run test:image-review && npm run test:pacs && npm run test:recist && npm run test:close-loop && npm run test:auth && npm run test:templates && npm run test:structured-report",
     "test:image-review": "tsx tests/image-review.test.ts",
     "test:pacs": "tsx tests/pacs.test.ts",
     "test:recist": "node --experimental-strip-types tests/recist.test.mjs",
@@ -18,7 +18,9 @@
     "test:review": "node tests/image-review-browser.cjs",
     "test:report-flow": "node tests/report-flow.cjs",
     "test:auth": "tsx tests/auth.test.ts",
-    "test:templates": "tsx tests/templates.test.ts"
+    "test:templates": "tsx tests/templates.test.ts",
+    "test:structured-report": "tsx tests/structured-report.test.ts",
+    "test:pacs-e2e": "tsx tests/pacs.orthanc.e2e.ts"
   },
   "dependencies": {
     "dicom-parser": "^1.8.21",

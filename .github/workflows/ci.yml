@@ -52,6 +52,51 @@ jobs:
       - name: Birim testleri
         run: npm test
 
+
+  # Gerçek PACS (Orthanc) ile uçtan uca DICOMweb testi: STOW yükle → QIDO bul →
+  # WADO geri al → temizlik. ORTHANC_URL tanımsızca test kendini atlar; burada tanımlıdır.
+  pacs-e2e:
+    runs-on: ubuntu-latest
+    services:
+      orthanc:
+        image: jodogne/orthanc:latest
+        env:
+          ORTHANC__NAME: "ArenaViewer E2E PACS"
+          ORTHANC__REGISTERED_USERS__atik: "atik123"
+        ports:
+          - 8042:8042
+        options: >-
+          --health-cmd "curl -sf -u atik:atik123 http://localhost:8042/system"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      ORTHANC_URL: http://localhost:8042
+      ORTHANC_USER: atik
+      ORTHANC_PASS: atik123
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Orthanc hazır
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf -u "$ORTHANC_USER:$ORTHANC_PASS" "$ORTHANC_URL/system" > /dev/null; then
+              echo "Orthanc hazır"; exit 0
+            fi
+            sleep 2
+          done
+          echo "Orthanc 120 sn içinde hazır olmadı"; exit 1
+
+      - name: DICOMweb uçtan uca testi (STOW/QIDO/WADO)
+        run: npm run test:pacs-e2e
+
   # Tarayıcı regresyon testleri: menü etkileşimleri, klasör içe aktarma,
   # görüntü incelemesi (15 + 3 + 5 kontrol). Üretim derlemesi + next start
   # ile çalışır; WebGL/headless chromium yeterlidir.
