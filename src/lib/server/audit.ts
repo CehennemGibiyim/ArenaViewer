@@ -1,4 +1,8 @@
 import { createHash } from "node:crypto";
+import dgram from "node:dgram";
+import { cefLine } from "@/lib/server/cef";
+
+export { cefLine };
 import { asc, desc, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { auditLogs } from "@/db/schema";
@@ -61,6 +65,28 @@ export async function audit(
       hash,
     });
   });
+}
+
+/**
+ * Denetim kaydını dış toplayıcıya iletmek için UDP/syslog hat askısı.
+ * `AUDIT_SYSLOG_HOST`/`AUDIT_SYSLOG_PORT` tanımlıysa her kayıt tek bir CEF satırı
+ * olarak gönderilir; hata üretim akışını bloklamaz (ateşle-unut).
+ */
+let udpClient: dgram.Socket | null = null;
+
+export async function forwardAudit(row: { ts: Date | string; username: string; action: string; entityType: string; entityId: string; details: string }): Promise<void> {
+  const host = process.env.AUDIT_SYSLOG_HOST;
+  if (!host) return;
+  try {
+    udpClient ??= dgram.createSocket("udp4");
+    const port = Number(process.env.AUDIT_SYSLOG_PORT ?? "514");
+    const payload = Buffer.from(cefLine(row), "utf8");
+    await new Promise<void>((resolve) => {
+      udpClient!.send(payload, port, host, () => resolve());
+    });
+  } catch (e) {
+    console.error("denetim dışa aktarımı başarısız:", e instanceof Error ? e.message : e);
+  }
 }
 
 export async function verifyChain(): Promise<{ ok: boolean; count: number; brokenAtId?: number; reason?: string }> {
