@@ -31,3 +31,7 @@
 *.zip   binary
 *.dcm   binary
 *.pt    binary
+
+# Codec ikilileri ve test fixtureları (ikili dosya, diff yok)
+*.jls   binary
+*.RAW   binary

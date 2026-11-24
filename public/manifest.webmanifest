@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "AtikViewer — Radyoloji İş İstasyonu",
+  "short_name": "AtikViewer",
+  "description": "DICOM görüntüleme, MPR/3B yeniden kesit ve yapısal radyoloji raporu. Araştırma amaçlıdır.",
+  "lang": "tr-TR",
+  "dir": "ltr",
+  "start_url": "/giris",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#070a0f",
+  "theme_color": "#0b0f16",
+  "categories": ["medical", "productivity"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

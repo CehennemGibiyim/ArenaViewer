@@ -8,6 +8,7 @@ import type {
   AiMode, AiProtocol, AnalysisResult, Annotation, Finding, KeyImage, SavedReport, SeriesData, StudyRow, UserInfo,
 } from "@/lib/types";
 import type { ScanState } from "./Viewport";
+import type { CxrResult } from "@/lib/cxrModel";
 
 const SEV: Record<string, { color: string; bg: string; label: string }> = {
   kritik: { color: "#ff3b5c", bg: "rgba(255,59,92,0.14)", label: "KRİTİK" },
@@ -54,6 +55,15 @@ interface Props {
   overlayOpacity: number;
   setOverlayOpacity: (n: number) => void;
   hasMasks: boolean;
+  /** CXR modelinden gelen çözülmüş ısı haritaları (bulgu id anahtarlı). */
+  hasHeats?: boolean;
+  heatOpacity?: number;
+  setHeatOpacity?: (n: number) => void;
+  /** CXR model olasılıkları (14 sınıf); yoksa null. */
+  cxr?: CxrResult | null;
+  /** Gölge modda rapora girmeyen AI adayı sayısı > 0 ise gösterge görünür. */
+  shadowMode?: boolean;
+  shadowCount?: number;
   annotations: Annotation[];
   pxMm: number;
   onDeleteAnnotation: (id: string) => void;
@@ -189,14 +199,15 @@ export default function RightPanel(p: Props) {
 
             {status === "done" && analysis && (
               <>
-                <div className={`rounded-lg border p-2.5 text-[11px] leading-snug ${analysis.engine === "cv-heuristic" || analysis.engine === "image-review" ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-100" : analysis.engine === "no-model" ? "border-slate-500/40 bg-slate-500/10 text-slate-300" : "border-amber-400/40 bg-amber-400/10 text-amber-200"}`}>
-                  <div className="font-bold">{analysis.engine === "image-review" ? `📊 ${analysis.review?.frameCount ?? 0} karede gerçek piksel incelemesi tamamlandı` : analysis.engine === "cv-heuristic" ? "ℹ Kural tabanlı BT aday odakları (derin öğrenme değil)" : analysis.engine === "no-model" ? "ℹ Otomatik inceleme kapalı" : "⚠ DEMO — önceden tanımlı örnek bulgular"}</div>
+                <div className={`rounded-lg border p-2.5 text-[11px] leading-snug ${analysis.engine === "cv-heuristic" || analysis.engine === "cxr-model" || analysis.engine === "image-review" ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-100" : analysis.engine === "no-model" ? "border-slate-500/40 bg-slate-500/10 text-slate-300" : "border-amber-400/40 bg-amber-400/10 text-amber-200"}`}>
+                  <div className="font-bold">{analysis.engine === "cxr-model" ? "🧠 Yerel derin CXR sınıflandırması tamamlandı (14 bulgu)" : analysis.engine === "image-review" ? `📊 ${analysis.review?.frameCount ?? 0} karede gerçek piksel incelemesi tamamlandı` : analysis.engine === "cv-heuristic" ? "ℹ Kural tabanlı BT aday odakları (derin öğrenme değil)" : analysis.engine === "no-model" ? "ℹ Otomatik inceleme kapalı" : "⚠ DEMO — önceden tanımlı örnek bulgular"}</div>
                   <p className="mt-0.5">
-                    {analysis.engine === "image-review" ? "Her karenin parlaklık/kontrast ve varsa renkli piksel dağılımı ölçüldü. Bu tanısal AI, hastalık saptaması veya acil klinik triyaj değildir; görüntüleri hekim değerlendirmelidir."
+                    {analysis.engine === "cxr-model" ? "Grafik yerel ONNX modeline gönderildi; 14 torasik bulgu için olasılıklar ve isı haritası üretildi. Skorlar kalibre değildir; lokalizasyon kutusu YOKTUR ve klinik doğrulama yapılmamıştır."
+                      : analysis.engine === "image-review" ? "Her karenin parlaklık/kontrast ve varsa renkli piksel dağılımı ölçüldü. Bu tanısal AI, hastalık saptaması veya acil klinik triyaj değildir; görüntüleri hekim değerlendirmelidir."
                       : analysis.engine === "cv-heuristic" ? "BT piksellerinden aday odaklar hesaplandı (HU, boyut, hacim). Klinik doğrulama yok; yanlış pozitif/negatif olabilir."
                         : analysis.engine === "no-model" ? "İnceleme bu seri için kapalı. Boş sonuç 'normal' demek değildir." : "Bulgular örnek vakaya önceden tanımlanmıştır; gerçek model çıktısı değildir."}
                   </p>
-                  <button onClick={() => setCardOpen((v) => !v)} className="mt-1 cursor-pointer text-[10.5px] font-bold underline">{analysis.engine === "image-review" ? (cardOpen ? "Ölçüm yöntemini gizle" : "Ölçüm yöntemini göster") : (cardOpen ? "Model kartını gizle" : "Model kartını göster")}</button>
+                  <button onClick={() => setCardOpen((v) => !v)} className="mt-1 cursor-pointer text-[10.5px] font-bold underline">{analysis.engine === "image-review" ? (cardOpen ? "Ölçüm yöntemini gizle" : "Ölçüm yöntemini göster") : analysis.engine === "cxr-model" ? (cardOpen ? "CXR model kartını gizle" : "CXR model kartını göster") : (cardOpen ? "Model kartını gizle" : "Model kartını göster")}</button>
                   {cardOpen && (
                     <div className="mt-1.5 space-y-1 rounded bg-black/30 p-2 text-[10.5px] text-slate-200">
                       <div><b>{analysis.modelCard.name}</b> v{analysis.modelCard.version}</div>
@@ -214,16 +225,48 @@ export default function RightPanel(p: Props) {
                   </div>
                 )}
                 {analysis.review && <ReviewMetrics review={analysis.review} currentSlice={p.currentSlice} unit={unit} onGotoSlice={p.onGotoSlice} />}
-                {(analysis.engine === "cv-heuristic" || analysis.engine === "simulated-sample") && (
+                {(analysis.engine === "cv-heuristic" || analysis.engine === "cxr-model" || analysis.engine === "simulated-sample") && (
                   <div className="rounded-lg border p-3" style={{ borderColor: analysis.triage.score > 0.8 ? "#ff3b5c66" : analysis.triage.score > 0.6 ? "#ff9f1c55" : "#2ee6a844", background: analysis.triage.score > 0.8 ? "rgba(255,59,92,0.08)" : "rgba(46,230,168,0.05)" }}>
                     <div className="flex items-center justify-between"><span className="text-xs font-black tracking-wide text-slate-100">TRİYAJ: {analysis.triage.level}</span><span className="font-mono text-[10px] text-slate-400">öncelik {analysis.triage.score.toFixed(2)}</span></div>
                     <p className="mt-1 text-[11px] leading-snug text-slate-300">{analysis.triage.note}</p>
+                  </div>
+                )}
+                {p.cxr && (
+                  <div className="rounded-lg border border-rose-400/25 bg-rose-400/5 p-2.5">
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-rose-200">CXR model olasılıkları (tüm sınıflar)</span>
+                      <span className="font-mono text-[9.5px] text-slate-500">{p.cxr.elapsedMs} ms · {p.cxr.model}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                      {[...p.cxr.scores].sort((a, b) => b.prob - a.prob).map((c) => (
+                        <div key={c.index} className="flex items-center gap-1.5 text-[10px]" title={`eşik %${Math.round(c.threshold * 100)}`}>
+                          <span className={`w-11 shrink-0 truncate font-mono ${c.positive ? "font-bold text-rose-200" : "text-slate-500"}`}>{c.labelTr}</span>
+                          <div className="h-1.5 flex-1 overflow-hidden rounded bg-black/40">
+                            <div className={`h-full ${c.positive ? "bg-rose-400" : "bg-slate-600"}`} style={{ width: `${Math.min(100, c.prob * 100)}%` }} />
+                          </div>
+                          <span className={`w-8 shrink-0 text-right font-mono ${c.positive ? "text-rose-200" : "text-slate-500"}`}>%{Math.round(c.prob * 100)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-1.5 text-[9.5px] leading-relaxed text-slate-500">Kalibre olasılık değildir; sınıf eşikleri kaynak doğrulama split&apos;inden alınmadır. Model lokalizasyon kutusu üretmez.</p>
                   </div>
                 )}
                 {p.hasMasks && (
                   <label className="flex items-center gap-2 text-[11px] text-slate-300">AI maske örtüsü
                     <input type="range" min={0} max={0.8} step={0.05} value={p.overlayOpacity} onChange={(e) => p.setOverlayOpacity(Number(e.target.value))} className="flex-1" />
                     <span className="w-8 font-mono text-cyan-300">{Math.round(p.overlayOpacity * 100)}%</span>
+                  </label>
+                )}
+                {p.shadowMode && (
+                  <div role="note" className="rounded-lg border border-violet-400/35 bg-violet-400/5 p-2.5 text-[10.5px] leading-relaxed text-violet-100">
+                    <b>Gölge mod aktif:</b> bu oturumda {p.shadowCount ?? 0} yapay zeka adayı rapora girilmedi; yalnızca değerlendirme için kaydedildi.
+                    Model henüz klinik doğrulamasını tamamlamadığı için ekran ve rapor AI bulgusu göstermez.
+                  </div>
+                )}
+                {p.hasHeats && (
+                  <label className="flex items-center gap-2 text-[11px] text-slate-300">CXR ısı haritası
+                    <input type="range" min={0} max={0.9} step={0.05} value={p.heatOpacity ?? 0} onChange={(e) => p.setHeatOpacity?.(Number(e.target.value))} className="flex-1" />
+                    <span className="w-8 font-mono text-rose-300">{Math.round((p.heatOpacity ?? 0) * 100)}%</span>
                   </label>
                 )}
               </>

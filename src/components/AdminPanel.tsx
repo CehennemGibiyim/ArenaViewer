@@ -5,10 +5,16 @@ import { useCallback, useEffect, useState } from "react";
 import type { UserInfo } from "@/lib/types";
 import { AUTH_LABELS, PACS_PRESETS, type PacsAuthType, type PacsConfig } from "@/lib/pacsPresets";
 
-type Tab = "profile" | "users" | "audit" | "ai" | "security" | "integration" | "compliance";
+type Tab = "profile" | "users" | "audit" | "ai" | "stats" | "security" | "integration" | "compliance";
 interface AuditRow { id: number; ts: string; username: string; action: string; entityType: string; entityId: string; details: string; hash: string }
 interface UserRow { id: number; username: string; fullName: string; title: string; regNo: string; role: string; active: boolean; twoFactorEnabled: boolean; lastLoginAt: string | null }
 interface PerfRow { engine: string; category: string; shown: number; approved: number; rejected: number; edited: number; pending: number; manualAdded: number; ppv: number | null }
+interface WorkflowStats {
+  total: number; byStatus: Record<string, number>; byModality: Record<string, number>;
+  approved: number; medianHours: number | null; p90Hours: number | null; meanHours: number | null;
+  pendingDrafts: number; staleDrafts: { olderDays: number; count: number };
+  perRadiologist: { name: string; approved: number; medianHours: number | null; p90Hours: number | null }[];
+}
 interface Status { keySource: string; plaintext: { studies: number; reports: number }; totals: Record<string, number>; retentionDraftDays: number }
 type Settings = {
   retentionDraftDays: number;
@@ -42,6 +48,8 @@ async function api<T>(url: string, init?: RequestInit): Promise<{ ok: boolean; d
   return { ok: r.ok, data: (await r.json().catch(() => ({}))) as T };
 }
 const json = (method: string, body: unknown): RequestInit => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+import { formatHours } from "@/lib/workflowStats";
+
 const card = "rounded-xl border border-[#1e2735] bg-[#0b1018] p-4";
 const input = "rounded-lg border border-[#1e2735] bg-[#0e141d] px-2.5 py-1.5 text-xs text-slate-100 focus:border-cyan-400/50 focus:outline-none";
 const btn = "cursor-pointer rounded-lg px-3 py-1.5 text-xs font-bold";
@@ -64,6 +72,13 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
   const loadAudit = useCallback(async () => { const r = await api<AuditRow[]>(`/api/audit?limit=300&q=${encodeURIComponent(aq)}`); if (r.ok) setAudit(r.data); }, [aq]);
   // AI
   const [perf, setPerf] = useState<{ rows: PerfRow[]; note: string } | null>(null);
+  // iş akışı istatistikleri (F4)
+  const [stats, setStats] = useState<WorkflowStats | null>(null);
+  const [statsNote, setStatsNote] = useState("");
+  const loadStats = useCallback(async () => {
+    const r = await api<{ stats: WorkflowStats; note: string }>("/api/reports/stats");
+    if (r.ok && r.data.stats) { setStats(r.data.stats); setStatsNote(r.data.note); }
+  }, []);
   // güvenlik / ayarlar
   const [status, setStatus] = useState<Status | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -107,9 +122,10 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
       if (tab === "users") await loadUsers();
       if (tab === "audit") await loadAudit();
       if (tab === "ai") { const r = await api<{ rows: PerfRow[]; note: string }>("/api/ai/performance"); if (r.ok) setPerf(r.data); }
+      if (tab === "stats") await loadStats();
       if (["security", "integration", "compliance"].includes(tab)) await loadSettings();
     })();
-  }, [tab, loadProfile, loadAudit, loadSettings, loadUsers, loadMfa]);
+  }, [tab, loadProfile, loadAudit, loadStats, loadSettings, loadUsers, loadMfa]);
 
   const saveSettings = async (patch: Record<string, unknown>) => {
     const r = await api<{ error?: string }>("/api/settings", json("PUT", patch));
@@ -217,7 +233,7 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
     flash(`CSV indirildi (${audit.length} kayıt${aq ? ", filtreli" : ""}). Tüm geçmiş için arama kutusunu boş bırakıp yenileyin.`);
   };
 
-  const tabs: [Tab, string][] = [["profile", "Profil & MFA"], ["users", "Kullanıcılar"], ["audit", "Denetim kaydı"], ["ai", "AI performans"], ["security", "Güvenlik & saklama"], ["integration", "Entegrasyon"], ["compliance", "Uyum"]];
+  const tabs: [Tab, string][] = [["profile", "Profil & MFA"], ["users", "Kullanıcılar"], ["audit", "Denetim kaydı"], ["ai", "AI performans"], ["stats", "İş akışı"], ["security", "Güvenlik & saklama"], ["integration", "Entegrasyon"], ["compliance", "Uyum"]];
 
   return (
     <div className="h-screen w-screen overflow-y-auto bg-[#070a0f] text-slate-200">
@@ -416,6 +432,69 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {tab === "stats" && (
+          <div className="mt-4 space-y-3">
+            <div className="rounded-lg border border-cyan-400/25 bg-cyan-400/5 p-3 text-xs text-cyan-200">{statsNote}</div>
+            {!stats && <div className={`${card}`}>Yükleniyor…</div>}
+            {stats && (
+              <>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {[
+                    ["Toplam rapor", String(stats.total)],
+                    ["Onaylanan", String(stats.approved)],
+                    ["Ortalama TAT", formatHours(stats.meanHours)],
+                    ["Medyan TAT", formatHours(stats.medianHours)],
+                    ["p90 TAT", formatHours(stats.p90Hours)],
+                    ["Bekleyen taslak", String(stats.pendingDrafts)],
+                    [`${stats.staleDrafts.olderDays}+ gündür taslak`, String(stats.staleDrafts.count)],
+                    ["Modalite çeşidi", String(Object.keys(stats.byModality).length)],
+                  ].map(([l, v]) => (
+                    <div key={l} className={card}>
+                      <div className="text-[10px] uppercase tracking-wide text-slate-500">{l}</div>
+                      <div className="mt-1 font-mono text-xl font-black text-cyan-300">{v}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className={`${card} overflow-x-auto`}>
+                    <h3 className="mb-2 text-xs font-bold text-slate-200">Durum dağılımı</h3>
+                    <table className="w-full text-[11.5px]">
+                      <tbody>{Object.entries(stats.byStatus).sort((a, b) => b[1] - a[1]).map(([k, v]) => (
+                        <tr key={k}><td className="py-1 pr-3 text-slate-300">{k}</td><td className="py-1 text-right font-mono text-cyan-300">{v}</td></tr>
+                      ))}</tbody>
+                    </table>
+                  </div>
+                  <div className={`${card} overflow-x-auto`}>
+                    <h3 className="mb-2 text-xs font-bold text-slate-200">Modalite dağılımı</h3>
+                    <table className="w-full text-[11.5px]">
+                      <tbody>{Object.entries(stats.byModality).sort((a, b) => b[1] - a[1]).map(([k, v]) => (
+                        <tr key={k}><td className="py-1 pr-3 text-slate-300">{k}</td><td className="py-1 text-right font-mono text-cyan-300">{v}</td></tr>
+                      ))}</tbody>
+                    </table>
+                  </div>
+                </div>
+                <div className={`${card} overflow-x-auto`}>
+                  <h3 className="mb-2 text-xs font-bold text-slate-200">Hekim başına onaylanan rapor ve TAT</h3>
+                  <table className="w-full text-[11.5px]">
+                    <thead className="text-left text-slate-500"><tr>{["Hekim", "Onaylanan", "Medyan TAT", "p90 TAT"].map((h) => <th key={h} className="border-b border-[#1a2230] px-3 py-2 font-semibold">{h}</th>)}</tr></thead>
+                    <tbody>
+                      {stats.perRadiologist.length === 0 && <tr><td colSpan={4} className="px-3 py-4 text-center text-slate-500">Henüz onaylanmış rapor yok.</td></tr>}
+                      {stats.perRadiologist.map((r) => (
+                        <tr key={r.name} className="hover:bg-[#101722]">
+                          <td className="border-b border-[#141b26] px-3 py-2 text-slate-200">{r.name}</td>
+                          <td className="border-b border-[#141b26] px-3 py-2 font-mono text-emerald-300">{r.approved}</td>
+                          <td className="border-b border-[#141b26] px-3 py-2 font-mono">{formatHours(r.medianHours)}</td>
+                          <td className="border-b border-[#141b26] px-3 py-2 font-mono">{formatHours(r.p90Hours)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </div>
         )}
 
