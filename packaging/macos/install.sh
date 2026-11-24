@@ -15,7 +15,7 @@
 set -euo pipefail
 
 APP_PORT="${ATIKVIEWER_PORT:-3000}"
-REPO_URL="https://github.com/CehennemGibiyim/AtikViewer.git"
+REPO_URL="https://github.com/CehennemGibiyim/ArenaViewer.git"
 INSTALL_DIR="${ATIKVIEWER_HOME:-$HOME/atikviewer}"
 
 info() { printf '\033[36m==>\033[0m %s\n' "$*"; }

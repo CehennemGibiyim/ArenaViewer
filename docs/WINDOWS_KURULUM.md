@@ -80,7 +80,7 @@ winget install Python.Python.3.13
 ## 2. Hızlı kurulum (uyulama)
 
 ```powershell
-git clone https://github.com/CehennemGibiyim/AtikViewer.git
+git clone https://github.com/CehennemGibiyim/ArenaViewer.git
 cd AtikViewer
 
 Copy-Item .env.example .env     # cmd.exe: copy .env.example .env

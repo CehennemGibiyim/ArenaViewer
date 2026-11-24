@@ -20,7 +20,7 @@ set -euo pipefail
 APP_NAME="atikviewer"
 APP_PORT="${ATIKVIEWER_PORT:-3000}"
 INSTALL_DIR="${ATIKVIEWER_HOME:-$HOME/atikviewer}"
-REPO_URL="https://github.com/CehennemGibiyim/AtikViewer.git"
+REPO_URL="https://github.com/CehennemGibiyim/ArenaViewer.git"
 PYTHON_MIN="3.11"
 
 info()  { printf '\033[36m==>\033[0m %s\n' "$*"; }

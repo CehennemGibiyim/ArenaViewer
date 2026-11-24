@@ -186,7 +186,7 @@ Ayrıntılı kılavuz: **[docs/GITHUB_YAYINLAMA.md](docs/GITHUB_YAYINLAMA.md)**
 ```bash
 git init && git add . && git commit -m "ATIKVIEWER ilk sürüm"
 git branch -M main
-git remote add origin https://github.com/KULLANICI/atikviewer.git
+git remote add origin https://github.com/CehennemGibiyim/ArenaViewer.git
 git push -u origin main
 ```
 

@@ -10,7 +10,7 @@
 export const APP_VERSION = "0.1.0";
 
 /** Güncellemelerin yayınlandığı depo (kendi sürüm kütüphanemiz). */
-export const GITHUB_REPO = "CehennemGibiyim/AtikViewer";
+export const GITHUB_REPO = "CehennemGibiyim/ArenaViewer";
 
 /** Son sürüm sayfası; API'ye ulaşılamazsa kullanıcı buraya yönlendirilir. */
 export const RELEASES_PAGE = `https://github.com/${GITHUB_REPO}/releases/latest`;

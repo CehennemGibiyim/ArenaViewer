@@ -96,7 +96,7 @@ Architecture: amd64
 Maintainer: CehennemGibiyim <cehennemgibiyim@users.noreply.github.com>
 Installed-Size: $SIZE_KB
 Depends: nodejs (>= 18)
-Homepage: https://github.com/CehennemGibiyim/AtikViewer
+Homepage: https://github.com/CehennemGibiyim/ArenaViewer
 Description: ATIKVIEWER - Vision AI radyoloji istasyonu (DICOM + yerel yapay zeka)
  DICOM goruntuleme, kesit kesit AI analizi ve yapilas radyoloji raporu uretimi.
  Tamamen yerel ve ucretsiz derin ogrenme cikarimi (MONAI). Hasta verisi disari

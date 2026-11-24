@@ -8,7 +8,7 @@
 
 [Unit]
 Description=ATIKVIEWER — Vision AI Radyoloji İstasyonu (Next.js sunucusu)
-Documentation=https://github.com/CehennemGibiyim/AtikViewer
+Documentation=https://github.com/CehennemGibiyim/ArenaViewer
 After=network-online.target
 Wants=network-online.target
 

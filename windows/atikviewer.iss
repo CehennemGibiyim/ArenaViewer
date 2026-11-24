@@ -11,7 +11,7 @@
 
 #define AppName "ATIKVIEWER"
 #define AppPublisher "CehennemGibiyim"
-#define AppUrl "https://github.com/CehennemGibiyim/AtikViewer"
+#define AppUrl "https://github.com/CehennemGibiyim/ArenaViewer"
 
 #ifndef AppVersion
   #define AppVersion "0.1.0"
