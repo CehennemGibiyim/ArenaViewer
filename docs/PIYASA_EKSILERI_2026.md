@@ -98,7 +98,7 @@ Notlar:
 | D1 | **Kritik sonuç kapanış döngüsü:** ACK + iletim kanıtı + eskalasyon kaydı | P1 | M | Bildirim “alındı” var; kim/süre/eskalasyon ve iletilme kanıtı yok | Zaman damgalı ACK, okundu/iletildi kanıtı, hekime tekrar hatırlatma, denetim satırı. **Bu sürümde kısmen uygulandı:** `notifications.relayedTo`/`relayedAt`/`escalated`/`escalatedAt` + zil üzerinde “İletildi…/Eskalasyon” ve `notify.relay` denetim kaydı; süre hatırlatması yok. |
 | D2 | **Takip önerilerini iş listesine taşıma** | P1 | S | Öneri raporda kalıyor; görev kuyruğuna düşmüyor | “Takip önerisi” nesnesi: modalite/bölge/süre + durum; çalışma listesinde görünür. **Bu sürümde uygulandı:** onaylı raporun “Öneri” metni otomatik göreve dönüşür (`acik/tamamlandi/iptal`), gün/hafta/ay/yıl süresi ayrıştırılır; biyopsi/kritik ifadelerde önem derecesi ve varsayılan süre otomatik atanır (`followupText.ts`, `closeLoop.ts`). Yaklaşan tarih bildirimi yok. |
 | D3 | **Peer review / ikinci okuma / uyuşmazlık kaydı (RADPEER)** | P2 | M | Yok | Rapor yanında ikinci hekim ataması, uyuşmazlık kategorisi, kalite metriği. |
-| D4 | **Ambient dokümantasyon + yapılandırılmış makrolar** | P2 | M | **Bu sürümde kısmen:** 14 hazır makro bloğu (teknik/bulgu/öneri) rapor düzenleme ekranından eklenir (`src/lib/macros.ts`); Türkçe sesle dikte zaten var. Ambient tıbbi sözlük yok. | Kalan: konuşmadan yapılandırılmış metin; Radlex/ACR eşleşmeli makro sözlüğü.
+| D4 | **Ambient dokümantasyon + yapılandırılmış makrolar** | P2 | M | **Bu sürümde kısmen:** 14 hazır makro bloğu rapor ekranından eklenebilir; ambient tıbbi sözlük yok. | Kalanlar arşiv/KMS ve SLSA attestation; log seviyesi ortam değişkenine bağlanacak.
 | D5 | **ICD-10 / ACR Appropriateness / kodlama desteği** | P3 | S | Yok | Bulgu→ICD-10 öneri tablosu; istek uygunluğu sorgulama (RadPal benzeri). |
 | D6 | **Hasta dostu sonuç mektubu (çok dilli)** | P3 | S | Hasta özeti var | PDF/e-posta çıktısı; okuma düzeyi seçeneği. |
 | D7 | **Üretken AI’da hekim üslubu öğrenme + alıntı** | P2 | M | LLM taslak var; üslup yok | Hekim düzeltmelerinden stil öğrenimi (opsiyonel, gönüllü); çıktıda kesit referansları. |
@@ -126,7 +126,7 @@ Notlar:
 |---|---|---|---|---|---|
 | F1 | **Kimlik:** kullanıcı adı/parola + MFA + oturum zaman aşımı (SSO sırasıyla) | P0 | L | ACCESS_TOKEN tek kapıydı; parola/oturum/MFA yoktu | **Bu sürümde minimum uygulandı:** `AUTH_MODE=hesap` ile scrypt parola, imzalı oturum çerezi (8 saat), TOTP/MFA (`otplib`), `REQUIRE_TOTP_FOR_ROLES`. Kalan: SSO/OIDC/LDAP/SAML entegrasyonu. |
 | F2 | **RBAC detayı:** radyolog/teknisyen/arator/yönetici + hekim profilleri | P0 | M | Tek operatör profili; `authorize()` rolleri yok sayıyordu | **Bu sürümde uygulandı:** `yonetici/radyolog/teknisyen` rol denetimi tüm API uçlarında aktif, Yönetim → Kullanıcılar (ekle/rol/pasif/parola sıfırla). Kalan: arator rolü ve hekim profil çoklu üyelikleri. |
-| F3 | **Kullanıcı başına tercihler** (layout, preset, kısayol) sunucuda | P2 | S–M | **Bu sürümde eklendi:** `/tercihler` sayfası + `/api/profile/preferences` (GET/PATCH/DELETE; beyaz liste); açılış düzeni istasyonda uygulanır. | Pencere ön ayarının seri seçiminde otomatik kullanımı.
+| F3 | **Kullanıcı başına tercihler** (layout, preset, kısayol) sunucuda | P2 | S–M | **Bu sürümde eklendi:** `/tercihler` sayfası + `/api/profile/preferences`; açılış düzeni uygulanır. | Kalanlar arşiv/KMS ve SLSA attestation; log seviyesi ortam değişkenine bağlanacak.
 | F4 | **Turnaround/istatistik panosu** (TAT, bulgu/adet, onay süresi) | P2 | M | Çalışma listesi var, metrik yok | Denetim + rapor verisinden agregasyon; Yönetim sekmesi. |
 | F5 | **Toplu/arka plan içe aktarma kuyruğu** | P2 | M | Tek seri akışı | Kuyruk tablosu + ilerleme; başarısız yeniden deneme. |
 | F6 | **Paylaşım:** süreli bağlantı + watermark + denetim | P2 | M | Yok | imzalı URL, maske/watermark, erişim logu. |
@@ -139,11 +139,11 @@ Notlar:
 | ID | Özellik | P | Çaba | Bizde şu an | Fikir |
 |---|---|---|---|---|---|
 | G1 | **Web hardening:** CSP, X-Frame-Options, CSRF koruması, rate limiting | P1 | S–M | **Bu sürümde kısmen:** nosniff, Referrer-Policy, COOP/CORP, Permissions-Policy ve CSP (`frame-ancestors 'self'`) tüm yanıtlara; no-store. Rate limiting ve CSRF token yok. | Kalan: IP/kullanıcı bazlı hız sınırı + state-değiştiren uçlar için CSRF koruması.
-| G2 | **Denetim dışa aktarımı** (Syslog/CEF/JSON) + uzun vadeli arşiv | P2 | M | UI/API okuma var | Hook ile log collector. |
-| G3 | **Tedarik zinciri:** CodeQL, SBOM, imzalı derleme (SLSA), dependency review | P1 | M | Dependabot var; CodeQL/SBOM yok | GitHub Actions job’ları + sign/release attestation. |
+| G2 | **Denetim dışa aktarımı** (Syslog/CEF/JSON) + uzun vadeli arşiv | P2 | M | **Bu sürümde:** `/api/audit/export` (JSON/JSONL/CEF, yönetici only, zincir doğrulamalı) + UDP CEF (syslog). | Kalanlar arşiv/KMS ve SLSA attestation; log seviyesi ortam değişkenine bağlanacak.
+| G3 | **Tedarik zinciri:** CodeQL, SBOM, imzalı derleme (SLSA), dependency review | P1 | M | **Bu sürümde:** CodeQL, SBOM (release'a yüklenir), PR'de dependency-review; imzalı derleme yok. | Kalanlar arşiv/KMS ve SLSA attestation; log seviyesi ortam değişkenine bağlanacak.
 | G4 | **Yedek/geri yükleme/DR + nesne depolama adaptörü** (S3/MinIO) | P1 | L | Dosya sistemi; elle yedek | Depolama arayüzü + S3/MinIO; `pg_dump` playbook’u, DR tatbikatı. |
 | G5 | **KMS/anahtar rotasyonu** (yazılımsal KMS, otomatik rotation) | P1 | M | Anahtar env dosya; rotasyon yok | Arayüz + rotasyon akışı; eski anahtarla çöz, yeniyle şifrele. |
-| G6 | **Gözlem:** Prometheus metrik, yapılandırılabilir log, readiness/liveness ayrımı | P2 | M | `/api/health` var; metrik yok | `/metrics` + yapılandırılabilir log seviyesi; health DB’ye bağımlı olduğu için readiness ayrılmalı. |
+| G6 | **Gözlem:** Prometheus metrik, yapılandırılabilir log, readiness/liveness ayrımı | P2 | M | **Bu sürümde:** `/api/metrics` (Prometheus) + liveness/readiness ayrımı; yapılandırılabilir log yok. | Kalanlar arşiv/KMS ve SLSA attestation; log seviyesi ortam değişkenine bağlanacak.
 | G7 | **Uyum günlüğü:** MDR/TİTCK/FDA sınıflandırma, ISO 13485/62304/14971 takibi | P0 (kurum) | L | Yönetim → Uyum kontrol listesi var | Dokümantal süreç; kodla kapatılamaz. |
 
 ---
