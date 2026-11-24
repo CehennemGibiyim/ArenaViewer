@@ -111,11 +111,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Dependency graph bu depoda etkin değilse (ayarlar > Security analysis)
+      # eylem "desteklenmiyor" hatası verir; o durumda iş kırmasın diye
+      # continue-on-error uygulanır. Ayrıntı: docs/PIYASA_EKSILERI_2026.md (G3).
       - name: Bağımlılık denetimi
+        continue-on-error: true
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: critical
-          comment-summary-always: true
+          comment-summary-in-pr: true
 
   # Tarayıcı regresyon testleri: menü etkileşimleri, klasör içe aktarma,
   # görüntü incelemesi (15 + 3 + 5 kontrol). Üretim derlemesi + next start

@@ -727,7 +727,7 @@ const BASE_ITEMS: GapItem[] = [
     id: "g-supplychain", category: "trust", title: "Tedarik zinciri: CodeQL, SBOM, imzalı derleme (SLSA), dependency review",
     status: "kismi", priority: "P1", effort: "M",
     market: ["Tüm kurumsal ürünler"],
-    ours: "**Bu sürümde eklendi:** CodeQL (JS/TS, security-and-quality), CycloneDX SBOM (release'a yüklenir), PR'de dependency-review (critical uyarılarını kırar), Dependabot. İmzalı derleme (SLSA attestation) yok.",
+    ours: "**Bu sürümde eklendi:** CodeQL (JS/TS, security-and-quality), CycloneDX SBOM (release'a yüklenir), PR'de dependency-review (critical uyarılarını kırar; depo için Dependency graph açık olmalı), Dependabot. İmzalı derleme (SLSA attestation) yok.",
     action: "Release attestation (SLSA builder) ekle.",
   },
   {
