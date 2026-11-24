@@ -56,14 +56,13 @@ services:
 
   # Gerçek PACS (Orthanc, DICOMweb) — okuma/yazma uçtan uca doğrulama için.
   # Kullanım: docker compose --profile pacs up -d  → http://localhost:8042
-  # (kimlik: atik / atik123). Test: npm run test:pacs-e2e
+  # (anonim erişim). Test: npm run test:pacs-e2e
   orthanc:
     image: jodogne/orthanc:latest
     profiles: ["pacs"]
     restart: unless-stopped
     environment:
       ORTHANC__NAME: "ArenaViewer E2E PACS"
-      ORTHANC__REGISTERED_USERS__atik: "atik123"
     ports:
       - "${ORTHANC_PORT:-8042}:8042"
 

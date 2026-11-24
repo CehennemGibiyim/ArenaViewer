@@ -58,22 +58,21 @@ jobs:
   pacs-e2e:
     runs-on: ubuntu-latest
     services:
+      # Kayıtlı kullanıcı tanımlamadan (anonim) başlatılır; böylece ayakta
+      # kalma koşulu yalnizca servisin yanıt vermesine bağlanır.
       orthanc:
         image: jodogne/orthanc:latest
         env:
           ORTHANC__NAME: "ArenaViewer E2E PACS"
-          ORTHANC__REGISTERED_USERS__atik: "atik123"
         ports:
           - 8042:8042
         options: >-
-          --health-cmd "curl -sf -u atik:atik123 http://localhost:8042/system"
+          --health-cmd "curl -sf http://localhost:8042/system"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 20
     env:
       ORTHANC_URL: http://localhost:8042
-      ORTHANC_USER: atik
-      ORTHANC_PASS: atik123
     steps:
       - uses: actions/checkout@v4
 
@@ -87,7 +86,7 @@ jobs:
       - name: Orthanc hazır
         run: |
           for i in $(seq 1 60); do
-            if curl -sf -u "$ORTHANC_USER:$ORTHANC_PASS" "$ORTHANC_URL/system" > /dev/null; then
+            if curl -sf "$ORTHANC_URL/system" > /dev/null; then
               echo "Orthanc hazır"; exit 0
             fi
             sleep 2
