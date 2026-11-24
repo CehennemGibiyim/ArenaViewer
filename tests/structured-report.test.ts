@@ -3,12 +3,8 @@
  * PI-RADS v2.1 / ACR yoğunluk). Saf fonksiyonlar; veritabanı gerektirmez.
  */
 import {
-  acrDensity,
-  biRads,
-  lungRads,
-  piRadsV2,
-  scoreToText,
-  tiRads,
+  acrDensity, agatston, agatstonWeight, biRads, boneDensity, cxrCardiothoracicRatio,
+  lungRads, piRadsV2, scoreToText, tiRads,
 } from "@/lib/structuredReport";
 
 let failed = 0;
@@ -48,6 +44,25 @@ const tz = piRadsV2({ zone: "TZ", t2: 3, dwi: 5 });
 ok(tz.label === "PI-RADS 4", "PI-RADS: TZ T2 3 + DWI 5 → 4");
 ok(piRadsV2({ zone: "TZ", t2: 2 }).tissueSampling === false, "PI-RADS 2 → biyopsi önerilmez");
 ok(piRadsV2({ zone: "PZ" }).label === "PI-RADS ?", "PI-RADS: DWI eksik → tanımsız");
+
+// ── Agatston / kemik yoğunluğu / CXR ──
+ok(agatstonWeight(129) === null && agatstonWeight(130) === 1 && agatstonWeight(250) === 2 && agatstonWeight(400) === 4, "Agatston HU ağırlıkları (130/200/300/400 eşikleri)");
+const ca = agatston([
+  { vessel: "LAD", peakHu: 300, areaMm2: 10 },   // 3 × 10 = 30
+  { vessel: "RCA", peakHu: 150, areaMm2: 20 },    // 1 × 20 = 20
+  { vessel: "LCx", peakHu: 420, areaMm2: 5 },     // 4 × 5 = 20
+  { vessel: "LM", peakHu: 90, areaMm2: 30 },      // atlanır (HU<130)
+]);
+ok(ca.total === 70 && ca.category.startsWith("10–99"), `Agatston toplam 70 → hafif kalsifiye (bulunan: ${ca.total}, ${ca.category})`);
+ok(ca.perVessel.LAD === 30 && ca.ignored === 1, "Agatston damar bazlı skor + geçersiz lezyon atlanması");
+ok(agatston([]).label === "Agatston 0" && agatston([]).followUpDays === 365, "Agatston 0 → skor yok kategorisi");
+
+ok(boneDensity(170).category === "normal" && boneDensity(130).category === "sinirda" && boneDensity(90).category === "yuksek-risk", "Kemik yoğunluğu HU kategorileri (≥160 / 120–159 / <120)");
+ok(boneDensity(null).followUpDays === null, "Kemik yoğunluğu: eksik HU → takip önerilmez");
+
+ok(cxrCardiothoracicRatio(160, 300).label.includes("0.53"), "CXR CTR 160/300 = 0.53 sınırda/artmış");
+ok(cxrCardiothoracicRatio(170, 300).weight > cxrCardiothoracicRatio(140, 300).weight, "CXR CTR >0.55 daha yüksek gösterge");
+ok(cxrCardiothoracicRatio(null, 300).label.startsWith("CTR ?"), "CXR CTR eksik ölçüm → tanımsız");
 
 // ── Rapor satırı ──
 const line = scoreToText(l4);

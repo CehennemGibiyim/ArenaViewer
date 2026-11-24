@@ -20,6 +20,31 @@ export function parseIntervalDays(text: string): number | null {
   return n * 365;
 }
 
+/** Doku örneklemesi/biyopsi önerisi içeriyor mu? (görev önem derecesi için) */
+export function isBiopsySuggestion(text: string): boolean {
+  return /(biyopsi|doku\s*örneklemesi|doku\s*orneklemesi|fnab|ince\s*i[gğ]ne)/i.test(text ?? "");
+}
+
+/** Kritik sonuç bildirimi içeriyor mu? (D1 eskalasyon gerektirebilir) */
+export function isCriticalSuggestion(text: string): boolean {
+  return /(kritik|acil\s*olarak|derhal|kitle\s*lezyon|medül|yayılmış)/i.test(text ?? "");
+}
+
+/**
+ * Takip görevinin önem derecesi: biyopsi/doku önerisi “yuksek”, kritik ifade
+ * “kritik”, diğer takip “bilgi”. Şema `severity` alanıyla taşınır.
+ */
+export type FollowupSeverity = "kritik" | "yuksek" | "orta" | "dusuk" | "bilgi";
+
+export function followupSeverityFor(text: string): FollowupSeverity {
+  if (isCriticalSuggestion(text)) return "kritik";
+  if (isBiopsySuggestion(text)) return "yuksek";
+  return "bilgi";
+}
+
+/** Biyopsi öneriliyorsa varsayılan takip süresi 14 gündür; aksi halde null. */
+export const BIOPSY_FOLLOWUP_DAYS = 14;
+
 /** Görev başlığı: metnin ilk 90 karakteri (bozuk kelime yarıda kesilmez). */
 export function followupTitle(text: string): string {
   const clean = text.replace(/\s+/g, " ").trim();

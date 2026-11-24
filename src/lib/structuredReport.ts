@@ -13,7 +13,15 @@
  *  - PI-RADS v2.1 (2019)
  */
 
-export type ScoreSystemId = "lungRads" | "tiRads" | "biRads" | "piRads" | "acrDensity";
+export type ScoreSystemId =
+  | "lungRads"
+  | "tiRads"
+  | "biRads"
+  | "piRads"
+  | "acrDensity"
+  | "agatston"
+  | "boneDensity"
+  | "cxr";
 
 export interface ScoreSystemMeta {
   id: ScoreSystemId;
@@ -51,7 +59,119 @@ export const SCORE_SYSTEMS: ScoreSystemMeta[] = [
     bodyPart: "MEME", source: "ACR BI-RADS Atlas, 5. baskı",
     disclaimer: "Yoğunluk görsel tahmindir; otomatik yoğunluk ölçümü cihaz/modele özgüdür.",
   },
+  {
+    id: "agatston", title: "Agatston kalsiyum skoru (kalp BT)", modality: "CT",
+    bodyPart: "KALP", source: "Agatston/ACC-AHA (kontrastsız kalp BT)",
+    disclaimer: "Skor, hekimin ölçtüğü piksel/HU alanlarına dayanır; hastanın yaş/cinsiyet ve kardiyovasküler risk faktörleri klinik yorumda birlikte değerlendirilmelidir.",
+  },
+  {
+    id: "boneDensity", title: "Kemik yoğunluğu (oportünist HU)", modality: "CT",
+    bodyPart: "OMURGA", source: "ACR/ISCD oportünist kriter (T-skor DEXA onaylıdır)",
+    disclaimer: "BT HU ölçümü DEXA T-skoru değildir; osteoporoz tanısı DEXA ile konur.",
+  },
+  {
+    id: "cxr", title: "Akciğer grafisi nicel ölçümler (CTR)", modality: "CR",
+    bodyPart: "TORAKS", source: "Standart PA lateral ölçüm",
+    disclaimer: "Kardiyomegali göstergesi PA filmde anlamlıdır; AP/portatif serilerde güvenilirlik düşer.",
+  },
 ];
+
+/** Agatston ağırlığı: lezyondaki en yüksek HU'ya göre (≥130 HU eşiği). */
+export function agatstonWeight(peakHu: number): number | null {
+  if (!Number.isFinite(peakHu) || peakHu < 130) return null;
+  if (peakHu < 200) return 1;
+  if (peakHu < 300) return 2;
+  if (peakHu < 400) return 3;
+  return 4;
+}
+
+export interface CalciumLesion {
+  vessel: "LM" | "LAD" | "LCx" | "RCA" | "diger";
+  /** Lezyon içindeki en yüksek HU (130 üzeri sayılır) */
+  peakHu: number;
+  /** Lezyon alanı mm² (en az 3 komşu piksel / ≥1 mm² olmalı) */
+  areaMm2: number;
+}
+
+export const CALCIUM_VESSELS = ["LM", "LAD", "LCx", "RCA"] as const;
+
+export interface AgatstonResult extends ScoreResult {
+  total: number;
+  perVessel: Record<string, number>;
+  ignored: number;
+}
+
+/**
+ * Agatston kalsiyum skoru: Σ (alan × HU ağırlığı).
+ * Eksik/geçersiz lezyonlar toplama girmez ve raporlanır.
+ */
+export function agatston(lesions: CalciumLesion[]): AgatstonResult {
+  const perVessel: Record<string, number> = {};
+  let total = 0;
+  let ignored = 0;
+  for (const l of lesions) {
+    const w = agatstonWeight(l.peakHu);
+    const area = Number.isFinite(l.areaMm2) ? l.areaMm2 : 0;
+    if (w === null || area <= 0) { ignored++; continue; }
+    // Skor eşiği: alan < 1 mm² olan odaklar skora girmez.
+    if (area < 1) { ignored++; continue; }
+    const s = Math.round(area * w);
+    perVessel[l.vessel] = (perVessel[l.vessel] ?? 0) + s;
+    total += s;
+  }
+
+  let category: string; let advice: string; let days: number | null = 365;
+  if (total === 0) { category = "0"; advice = "Kalsiyum skoru 0: koronaryum kalsifikasyonu yok. Kardiyovasküler risk yine de klinik risk faktörlerine göre değerlendirilmelidir."; }
+  else if (total < 10) { category = "1–9 (minimal)"; advice = "Minimal kalsifiye (1–9): düşük şiddet; yaşam tarzı önerileri ve risk faktörü kontrolü."; }
+  else if (total < 100) { category = "10–99 (hafif)"; advice = "Hafif kalsifiye (10–99): statin endikasyonu ve diyet/egzersiz önerisi; ASCVD riskinin yüksek olduğu durumlarda agresif risk faktörü tedavisi."; days = 180; }
+  else if (total < 300) { category = "100–299 (orta)"; advice = "Orta şiddette kalsifiye (100–299): statin tedavisi genelde önerilir; semptomatikse iskemi değerlendirmesi."; days = 180; }
+  else { category = "≥300 (ağır)"; advice = "Ağır kalsifiye (≥300): yüksek koronary yük; kardiyoloji konsültasyonu ve gerekirse fonksiyonel/anjiyografik değerlendirme."; days = 90; }
+
+  const order = ["LM", "LAD", "LCx", "RCA"];
+  const detail = Object.keys(perVessel).length
+    ? `Damar bazlı skor: ${order.filter((v) => perVessel[v]).map((v) => `${v} ${perVessel[v]}`).join(", ")}${perVessel.diger ? `, diğer ${perVessel.diger}` : ""}`
+    : "Ölçülebilir kalsifikasyon yok";
+
+  return {
+    system: "agatston", label: `Agatston ${total}`, category,
+    weight: Math.min(0.95, total / 400), advice,
+    basis: `${detail}; toplam ${total} (≥130 HU, alan ≥1 mm²)`, followUpDays: days, tissueSampling: false,
+    total, perVessel, ignored,
+  };
+}
+
+/** Oportünist kemik yoğunluğu: L1–L4 trabeküler ortalama HU. */
+export function boneDensity(meanHu: number | null): ScoreResult {
+  const hu = meanHu ?? NaN;
+  let label: string; let advice: string; let category: string; let weight: number;
+  if (!Number.isFinite(hu)) { label = "HU yetersiz"; advice = "L1–L4 trabeküler HU ortalaması girin."; category = "—"; weight = 0; }
+  else if (hu >= 160) { label = "Normal (HU ≥160)"; category = "normal"; weight = 0.15; advice = "Trabeküler HU ≥160: oportünist kriterlere göre normal sınırlarda; klinik risk faktörleri yine de değerlendirilmeli."; }
+  else if (hu >= 120) { label = "Sınırda (120–159)"; category = "sinirda"; weight = 0.45; advice = "Trabeküler HU 120–159: osteopeni riski; DEXA ile ölçüm ve klinik risk faktörlerine göre tedavi kararı önerilir."; }
+  else { label = "Osteoporoz riski (HU <120)"; category = "yuksek-risk"; weight = 0.75; advice = "Trabeküler HU <120: osteoporoz riski taşıyan sınır; kesin tanı için DEXA önerilir."; }
+  return {
+    system: "boneDensity", label, category, weight, advice,
+    basis: `Trabeküler ortalama HU: ${Number.isFinite(hu) ? hu.toFixed(0) : "—"}`,
+    followUpDays: Number.isFinite(hu) && hu < 160 ? 365 : null, tissueSampling: false,
+  };
+}
+
+/** Akciğer grafisi kardiyotorasik oran (PA). */
+export function cxrCardiothoracicRatio(cardiacMm: number | null, thoracicMm: number | null): ScoreResult {
+  const c = cardiacMm ?? NaN; const t = thoracicMm ?? NaN;
+  if (!Number.isFinite(c) || !Number.isFinite(t) || t <= 0) {
+    return { system: "cxr", label: "CTR ?", category: "?", weight: 0, advice: "Kardiyal ve torasik çapları girin.", basis: "ölçüm eksik", followUpDays: null, tissueSampling: false };
+  }
+  const ratio = c / t;
+  let label: string; let advice: string; let weight: number;
+  if (ratio > 0.55) { label = `CTR ${ratio.toFixed(2)} — belirgin artmış`; advice = "PA filmde kardiyotorasik oran >0.55: kardiyomegali göstergesi; klinik/EKO korelasyonu önerilir."; weight = 0.6; }
+  else if (ratio > 0.5) { label = `CTR ${ratio.toFixed(2)} — sınırda/artmış`; advice = "PA filmde CTR >0.5: kardiyomegali göstergesi; AP/portatif seride bu bulgu abartılabilir."; weight = 0.4; }
+  else { label = `CTR ${ratio.toFixed(2)} — normal sınır`; advice = "CTR ≤0.5: PA filmde normal sınırda."; weight = 0.1; }
+  return {
+    system: "cxr", label, category: ratio.toFixed(2), weight, advice,
+    basis: `En geniş kardiyal çap ${c.toFixed(1)} mm / iç torasik çap ${t.toFixed(1)} mm`, followUpDays: ratio > 0.5 ? 180 : null,
+    tissueSampling: false,
+  };
+}
 
 const mm = (s: string): number | null => {
   const v = parseFloat(String(s).replace(",", "."));

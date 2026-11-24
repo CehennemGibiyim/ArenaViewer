@@ -10,7 +10,9 @@
  */
 import { useMemo, useState } from "react";
 import {
-  acrDensity, biRads, lungRads, piRadsV2, scoreSystem, scoreToText, tiRads,
+  acrDensity, agatston, biRads, boneDensity, cxrCardiothoracicRatio, lungRads, piRadsV2,
+  scoreSystem, scoreToText, tiRads, CALCIUM_VESSELS,
+  type AgatstonResult,
   SCORE_SYSTEMS as SCORE_LIST,
   type ScoreResult, type ScoreSystemId,
 } from "@/lib/structuredReport";
@@ -21,7 +23,7 @@ interface Props {
   /** Skor satırını rapora ekler (izlenim/öneri alanı). */
   onApply: (text: string) => void;
   /** Takip görevi oluşturur; mesaj ve süre hazır gelir. */
-  onCreateTask?: (t: { message: string; intervalDays: number | null }) => Promise<void> | void;
+  onCreateTask?: (t: { message: string; intervalDays: number | null; severity: string }) => Promise<void> | void;
 }
 
 const lbl = "block text-[10px] font-bold uppercase tracking-wide text-slate-400";
@@ -60,6 +62,15 @@ export default function StructuredScorePanel({ modality, bodyPart, onApply, onCr
   const [piDce, setPiDce] = useState(false);
   // Yoğunluk
   const [dens, setDens] = useState<"a" | "b" | "c" | "d">("b");
+  // Agatston: damar bazlı (peck HU, alan mm²)
+  const [ca, setCa] = useState<Record<string, { hu: string; area: string }>>({
+    LM: { hu: "", area: "" }, LAD: { hu: "", area: "" }, LCx: { hu: "", area: "" }, RCA: { hu: "", area: "" },
+  });
+  // Kemik yoğunluğu
+  const [boneHu, setBoneHu] = useState("");
+  // Akciğer grafisi ölçümleri
+  const [cxrCardiac, setCxrCardiac] = useState("");
+  const [cxrThoracic, setCxrThoracic] = useState("");
 
   const result: ScoreResult = useMemo(() => {
     if (system === "lungRads") {
@@ -89,8 +100,28 @@ export default function StructuredScorePanel({ modality, bodyPart, onApply, onCr
         dce: piDce,
       });
     }
+    if (system === "agatston") {
+      const num = (v: string) => Number(v.replace(",", "."));
+      return agatston(CALCIUM_VESSELS.map((v) => ({
+        vessel: v,
+        peakHu: Number.isFinite(num(ca[v].hu)) ? num(ca[v].hu) : 0,
+        areaMm2: Number.isFinite(num(ca[v].area)) ? num(ca[v].area) : 0,
+      })));
+    }
+    if (system === "boneDensity") {
+      const v = boneHu.trim() ? Number(boneHu.replace(",", ".")) : null;
+      return boneDensity(Number.isFinite(v) ? v : null);
+    }
+    if (system === "cxr") {
+      const c = cxrCardiac.trim() ? Number(cxrCardiac.replace(",", ".")) : null;
+      const t = cxrThoracic.trim() ? Number(cxrThoracic.replace(",", ".")) : null;
+      return cxrCardiothoracicRatio(
+        c !== null && Number.isFinite(c) ? c : null,
+        t !== null && Number.isFinite(t) ? t : null,
+      );
+    }
     return acrDensity(dens);
-  }, [system, lrSolid, lrPartSolid, lrNonsolid, lrCalc, lrSusp, tiComp, tiEcho, tiShape, tiMargin, tiFoci, biCat, piZone, piT2, piDwi, piDce, dens]);
+  }, [system, lrSolid, lrPartSolid, lrNonsolid, lrCalc, lrSusp, tiComp, tiEcho, tiShape, tiMargin, tiFoci, biCat, piZone, piT2, piDwi, piDce, dens, ca, boneHu, cxrCardiac, cxrThoracic]);
 
   const meta = scoreSystem(system);
   const canTask = result.followUpDays !== null || result.tissueSampling;
@@ -220,6 +251,43 @@ export default function StructuredScorePanel({ modality, bodyPart, onApply, onCr
             </select>
           </label>
         )}
+
+        {system === "agatston" && (
+          <>
+            <div className="col-span-2 flex items-center justify-between sm:col-span-3 md:col-span-4">
+              <span className={lbl}>Damarlardaki kalsifikasyonlar (en yüksek HU / alan mm²)</span>
+              <span className="text-[10px] text-slate-500">Skor eşiği: ≥130 HU ve alan ≥1 mm²</span>
+            </div>
+            {CALCIUM_VESSELS.map((v) => (
+              <div key={v} className="col-span-2 flex items-end gap-2 sm:col-span-1">
+                <span className="pb-1 font-mono text-[11px] font-bold text-cyan-300">{v}</span>
+                <label className="flex-1 text-[10px] text-slate-500">peck HU
+                  <input className={num} inputMode="decimal" placeholder="HU" value={ca[v].hu} onChange={(e) => setCa({ ...ca, [v]: { ...ca[v], hu: e.target.value } })} />
+                </label>
+                <label className="flex-1 text-[10px] text-slate-500">alan mm²
+                  <input className={num} inputMode="decimal" placeholder="mm²" value={ca[v].area} onChange={(e) => setCa({ ...ca, [v]: { ...ca[v], area: e.target.value } })} />
+                </label>
+              </div>
+            ))}
+          </>
+        )}
+
+        {system === "boneDensity" && (
+          <label className={lbl}>L1–L4 trabeküler ortalama HU
+            <input className={num} inputMode="decimal" placeholder="örn. 145" value={boneHu} onChange={(e) => setBoneHu(e.target.value)} />
+          </label>
+        )}
+
+        {system === "cxr" && (
+          <>
+            <label className={lbl}>En geniş kardiyal çap (mm)
+              <input className={num} inputMode="decimal" placeholder="PA film" value={cxrCardiac} onChange={(e) => setCxrCardiac(e.target.value)} />
+            </label>
+            <label className={lbl}>İç torasik çap (mm)
+              <input className={num} inputMode="decimal" placeholder="ria kostal ark" value={cxrThoracic} onChange={(e) => setCxrThoracic(e.target.value)} />
+            </label>
+          </>
+        )}
       </div>
 
       <div className="mt-3 rounded border border-[#232e40] bg-[#0e141d] p-2">
@@ -227,6 +295,11 @@ export default function StructuredScorePanel({ modality, bodyPart, onApply, onCr
           <span className="rounded bg-cyan-400/15 px-2 py-0.5 font-mono text-[11px] font-bold text-cyan-200">{result.label}</span>
           <span className="text-[10px] text-slate-500">{result.basis}</span>
         </div>
+        {system === "agatston" && "total" in result && (
+          <p className="mt-1 font-mono text-[10px] text-slate-400">
+            Toplam {(result as AgatstonResult).total} · {Object.entries((result as AgatstonResult).perVessel).map(([v, n]) => `${v} ${n}`).join(" / ") || "damarsal skor yok"} · atlanan lezyon {(result as AgatstonResult).ignored}
+          </p>
+        )}
         <p className="mt-1 text-[11px] leading-relaxed text-slate-300">{result.advice}</p>
         <p className="mt-1 text-[9.5px] italic text-slate-500">{meta.disclaimer}</p>
       </div>
@@ -238,7 +311,7 @@ export default function StructuredScorePanel({ modality, bodyPart, onApply, onCr
         {canTask && onCreateTask && (
           <button
             type="button"
-            onClick={() => void onCreateTask({ message: `${meta.title}: ${result.label} — ${result.advice}`, intervalDays: result.followUpDays })}
+            onClick={() => void onCreateTask({ message: `${meta.title}: ${result.label} — ${result.advice}`, intervalDays: result.followUpDays, severity: result.tissueSampling ? "yuksek" : "orta" })}
             className="cursor-pointer rounded border border-emerald-400/40 px-2 py-1 font-bold text-emerald-200 hover:bg-emerald-400/10"
           >
             {result.tissueSampling ? "🔬 Biyopsi/takip görevi oluştur" : "🗓 Takip görevi oluştur"}

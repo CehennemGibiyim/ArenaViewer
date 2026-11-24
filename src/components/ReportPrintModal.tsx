@@ -229,7 +229,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
     set("impression", `${d.text}\n[Taslak — ${d.source === "llm" ? "LLM" : "kural tabanlı"}; hekim doğrulaması gerekir]`);
   };
   /** Yapılandırılmış skordan gelen takip/biyopsi görevini kaydeder. */
-  const createScoreTask = async (t: { message: string; intervalDays: number | null }) => {
+  const createScoreTask = async (t: { message: string; intervalDays: number | null; severity?: string }) => {
     if (!report.id) { setError("Önce raporu taslak olarak kaydedin; görevler yalnız kayıtlı rapora bağlanır."); return; }
     const days = t.intervalDays ?? 0;
     const due = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
@@ -242,6 +242,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
         modality: report.modality,
         bodyRegion: report.bodyPart,
         recommendedIntervalDays: t.intervalDays,
+        severity: t.severity ?? "",
         dueDate: due,
         reportId: report.id,
       }),

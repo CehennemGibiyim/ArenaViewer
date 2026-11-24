@@ -96,8 +96,15 @@ export default function NotificationsBell() {
               {followups.map((n) => (
                 <div key={n.id} className={`border-b border-[#141b26] p-3 text-[11px] ${n.status !== "acik" ? "opacity-60" : ""}`}>
                   <div className="flex items-center justify-between gap-2">
-                    <span className={`rounded px-1.5 py-0.5 text-[9px] font-black ${n.status === "acik" ? "bg-emerald-500/20 text-emerald-300" : n.status === "tamamlandi" ? "bg-slate-500/20 text-slate-400" : "bg-rose-500/20 text-rose-300"}`}>
-                      {n.status === "acik" ? "AÇIK" : n.status === "tamamlandi" ? "TAMAMLANDI" : "İPTAL"}
+                    <span className="flex items-center gap-1.5">
+                      {n.severity !== "bilgi" && (
+                        <span className={`rounded px-1.5 py-0.5 text-[9px] font-black ${n.severity === "kritik" ? "bg-rose-500/25 text-rose-200" : "bg-orange-500/25 text-orange-200"}`}>
+                          {n.severity.toUpperCase()}
+                        </span>
+                      )}
+                      <span className={`rounded px-1.5 py-0.5 text-[9px] font-black ${n.status === "acik" ? "bg-emerald-500/20 text-emerald-300" : n.status === "tamamlandi" ? "bg-slate-500/20 text-slate-400" : "bg-rose-500/20 text-rose-300"}`}>
+                        {n.status === "acik" ? "AÇIK" : n.status === "tamamlandi" ? "TAMAMLANDI" : "İPTAL"}
+                      </span>
                     </span>
                     <span className="font-mono text-[9.5px] text-slate-500">
                       {[n.modality, n.bodyRegion].filter(Boolean).join(" · ") || "—"} {n.dueDate ? `· son ${n.dueDate}` : ""}
