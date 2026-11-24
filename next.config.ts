@@ -31,6 +31,11 @@ const nextConfig: NextConfig = {
         headers: [{ key: "Cache-Control", value: "no-store, no-cache, must-revalidate" }],
       },
       {
+        // Prometheus metrik uç noktası: önbelleğe alınmaz.
+        source: "/metrics",
+        headers: [{ key: "Cache-Control", value: "no-store" }],
+      },
+      {
         source: "/yonetim",
         headers: [{ key: "Cache-Control", value: "no-store, no-cache, must-revalidate" }],
       },

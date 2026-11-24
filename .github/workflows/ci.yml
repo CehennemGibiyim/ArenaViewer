@@ -99,6 +99,20 @@ jobs:
       - name: DICOMweb uçtan uca testi (STOW/QIDO/WADO)
         run: npm run test:pacs-e2e
 
+  # Güvenlik açısından bağımlılık denetimi (G3): PR'da yeni/ değişen bağımlılıklar
+  # bilinen açığa göre işaretlenir; high/critical ise iş kırmadı (rapor niteliği).
+  dependency-review:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bağımlılık denetimi
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: critical
+          comment-summary-always: true
+
   # Tarayıcı regresyon testleri: menü etkileşimleri, klasör içe aktarma,
   # görüntü incelemesi (15 + 3 + 5 kontrol). Üretim derlemesi + next start
   # ile çalışır; WebGL/headless chromium yeterlidir.
