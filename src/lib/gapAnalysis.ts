@@ -152,10 +152,10 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "v-mpr", category: "viewing", title: "MPR (axial / coronal / sagittal) ve oblik MPR",
-    status: "yok", priority: "P1", effort: "L",
+    status: "kismi", priority: "P1", effort: "L",
     market: ["RadiAnt", "OHIF", "Weasis", "Horos", "3D Slicer"],
-    ours: "Yok. Yalnızca çekim düzleminde gezilebiliyor.",
-    action: "Hacmi 3D Float32/Int16 olarak birleştir; GPU (WebGL) veya worker tabanlı yeniden kesit.",
+    ours: "VolumeView: üçlü koronal/sagital + aksiyel, kalın kesit (Ort./MIP/MinIP), oblik MPR, 3B hacim. Koronal/sagital kalınlık/kesit sayısını serinin ölçeğine ölçekliyor; IPP kaydı yoksa sıralı tarama sanaline dayanır. Kaynak seri yalnızca trilinear örnekleme ile okunur.",
+    action: "Ondalıklı (sub-voxel) örnekleme ve dağıtılmış GPU yeniden kesit; kesit konumu etiketi taşımayan eski seriler için otomatik geometri çıkarımı.",
   },
   {
     id: "v-xref", category: "viewing", title: "Cross-reference / localizer çizgileri, 3D imleç",
@@ -166,10 +166,10 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "v-mip", category: "viewing", title: "MIP / MinIP / Avg kalın kesit (slab)",
-    status: "yok", priority: "P1", effort: "M",
+    status: "var", priority: "P1", effort: "M",
     market: ["RadiAnt", "Weasis", "Horos", "OHIF"],
-    ours: "Yok.",
-    action: "Slab kalınlığı kaydırıcısı + max/min/ortalama projeksiyon.",
+    ours: "VolumeView'da kalın kesit kaydırıcısı (mm) + Ort./MIP/MinIP; aksiyel ve yeniden kesit düzlemlerinde uygulanır. Oblik MPR'de de slab + mod vardır.",
+    action: "—",
   },
   {
     id: "v-vr", category: "viewing", title: "3D hacim görüntüleme (VR), STL dışa aktarma",
@@ -837,7 +837,7 @@ const PATCHES: Record<string, Patch> = {
   "w-deid": { status: "var", ours: "Anonim DICOM (ZIP) dışa aktarma: bellekten sıfırdan yazılır (özel etiket/UID/ad/kimlik/tarih/kurum taşınmaz), gerçek dosyayla gidiş-dönüş doğrulandı, denetim kaydı tutulur. Etiket düzenleyici yok." },
   "w-export": { status: "kismi", ours: "PNG, anonim DICOM (ZIP), cine video (WebM, kesit aralığı/kare hızı), tüm kesitler PNG (ZIP), anahtar kesitler DICOM KO, SR, FHIR, STL. Video tarayıcıda MediaRecorder ile üretilir (VP9 ile doğrulandı). CD/DVD ve paylaşım bağlantısı yok.", action: "Hasta CD'si/ISO, süreli paylaşım bağlantısı, MP4 çıktı." },
   "t-disclaimer": { ours: "Üst çubuk, durum çubuğu, panel ve rapor çıktısında; model kartı ve DEMO/kural tabanlı etiketleri." },
-  "t-mdr": { status: "yok", ours: "Yok ve kodla çözülemez. Yönetim → Uyum sekmesi 12 maddelik takip listesi sunar (yapılmadı/devam/tamam).", action: "Amaçlanan kullanım, sınıflandırma, ISO 13485/62304/14971, klinik değerlendirme; hukuki danışmanlık." },
+  "t-mdr": { status: "kismi", ours: "Kodla tamamen çözülemez; belgeler ve izlenebilirlik eklendi. docs/RISK_YONETIMI.md (ISO 14971 biçiminde genel + model bazlı risk tabloları, kalan risk) ve docs/KLINIK_DOGRULAMA_PLANI.md hazır. Yönetim → Uyum sekmesindeki 12 maddelik takip listesi devrede. Amaçlanan kullanım/sınıflandırma, ISO 13485/62304/14971 sertifikası ve klinik değerlendirme kurumsal süreçler olarak açık.", action: "Kurumsal kalite yönetim sistemi: amaçlanan kullanım beyanı, sınıflandırma, ISO 13485/62304/14971, klinik değerlendirme; hukuki danışmanlık." },
   "t-privacy": { status: "kismi", priority: "P0", ours: "Veriler diskte AES-256-GCM ile şifreli (hasta adı/kimliği, klinik bilgi, anahtar kesit, DICOM dosyaları) ve saklama politikası var. ERİŞİM DENETİMİ: AUTH_MODE=hesap ile kullanıcı+parola(+MFA) ve rol denetimi sunucuda uygulanıyor; ACCESS_TOKEN kapısı ve demo modu da mevcut. Tam KVKK uyumu için kurumsal kimlik, KMS/TLS ve ilgili süreçler gerekir.", action: "Erişim kısıtı (ağ düzeyinde veya uygulama içi oturum) zorunlu; ayrıca KMS, TLS ve ilgili kişi başvuru süreçleri." },
   "t-validation": { status: "kismi", ours: "Hekim geri bildirimi → PPV panosu, 'kaçırılan bulgu' girişi. Derin model için yerel TEKNİK doğrulama yapıldı (sentetik toraks phantoms'ında bilinen nodüller, konum/boyut isabeti, e2e test). Gölge mod iş akışı ve kontrollü KLİNİK doğrulama çalışması yok." },
   "t-automation": { ours: "Bulgular 'Onay bekliyor' gelir; hekim her bulguyu işaretlemeden onay verilemez (sunucuda da zorunlu); skor 'kalibre değil' etiketli; demo/motor yok durumları açık." },

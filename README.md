@@ -16,7 +16,10 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
 - **Fotometrik yorumlar:** MONOCHROME1/2, RGB, YBR, PALETTE COLOR; DICOM Overlay
   (60xx) ve GSPS sunum durumları
 - **Özel nesneler:** DICOM SR (yapısal rapor), Encapsulated PDF, 12-derivasyonlu EKG
-- **MPR:** axial/koronal/sagittal yeniden kesit, MIP/MinIP/ortalama kalın kesit
+- **MPR:** axial/koronal/sagital yeniden kesit; kalın kesitte ortalama/MIP/MinIP;
+  oblik (eğimli) MPR ve WebGL 3B hacim. Kesit konumu kaydı (IPP) varsa koronal/sagital
+  gerçek hasta geometrisinden, ölçek kayması olmadan örneklenir (`src/lib/mpr.ts` +
+  `VolumeView`). Kaynak seri salt okunur tutulur.
 - **Hanging Protocol motoru:** 1×1'den 3×2'ye düzenler, modaliteye göre otomatik
   protokoller ve görsel özel protokol editörü (JSON içe/dışa aktarma)
 - **Görüntü incelemesi:** US renkli Doppler, MR, direkt grafi ve diğer piksel içeren
@@ -204,10 +207,12 @@ npm ci
 npx playwright install chromium     # tarayıcı için (playwright artık devDependency)
 
 # Birim/entegrasyon testleri (sunucu gerektirmez)
-npm test                            # image-review + PACS + RECIST (tsx ile)
+npm test                            # tam birim/entegrasyon zinciri (~276 PASS)
 npm run test:image-review
 npm run test:pacs
 npm run test:recist
+npm run test:mpr                    # MPR geometrisi + trilinear yeniden kesit
+npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)
 npm run build && npm start &

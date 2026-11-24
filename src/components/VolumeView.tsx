@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { SeriesData } from "@/lib/types";
 import ObliquePanel from "./ObliquePanel";
 import VolumeRender from "./VolumeRender";
+import { obliquePlane, sampleTrilinear, type SlabMode } from "@/lib/volume";
 
 type Mode = "single" | "avg" | "mip" | "minip";
 
@@ -187,13 +188,94 @@ export default function VolumeView({ series, wl: wl0, ww: ww0, invert, initialTa
   const [ww, setWw] = useState(ww0);
   const [tab, setTab] = useState<"not" | "oblik" | "3b">(initialTab);
   const [big, setBig] = useState(false);
+  /** Kullanıcının seçtiği kalıcı MPR katsayısı (varsayılan: kalp-damar). */
+  const [prefFilter, setPrefFilter] = useState<{ wl: number; ww: number } | null>(null);
+
+  /**
+   * Üç düzlemin de geometrisi: kesit konumları (IPP) varsa hasta uzayından,
+   * yoksa sıralı tarama sanalı üretilir. Koronal/sagittal bu sayede gerçek
+   * kesit aralığına ve ölçeğe göre örneklenir (ölçek bozulması yaşanmaz).
+   */
+  const planeW = useMemo(() => {
+    if (!series.ipp || series.ipp.length !== N) return W;
+    let xs = 0, ys = 0, zs = 0;
+    for (let i = 1; i < N; i++) { xs += Math.abs(series.ipp[i][0] - series.ipp[i - 1][0]); ys += Math.abs(series.ipp[i][1] - series.ipp[i - 1][1]); zs += Math.abs(series.ipp[i][2] - series.ipp[i - 1][2]); }
+    const d = Math.hypot(xs, ys, zs) / Math.max(1, N - 1);
+    // koronal: satır = kesit normali (mm), sütun = kaynak yatay (psX)
+    return Math.max(W, Math.min(N, Math.round((d * N) / (series.pixelSpacingX ?? 1))));
+  }, [series, N, W]);
+  const planeH = useMemo(() => N, [N]);
+
+  /** Hasta uzayından MPR düzlemi (trilinear). `rows`/`rowScale` ekrana çizim içindir. */
+  function planeFor(axis: "axial" | "coronal" | "sagittal", idx: number, slabPx: number, mode: Mode): { data: Float32Array; w: number; rows: number; rowScale: number } {
+    const hasGeo = Array.isArray(series.ipp) && series.ipp.length === N && series.orientation && series.orientation.length >= 6;
+    if (!hasGeo) {
+      const p = axis === "axial" ? axialPlane(series, idx, kz, mode) : axis === "coronal" ? coronalPlane(series, idx, kxy, mode) : sagittalPlane(series, idx, kxy, mode);
+      const w = axis === "sagittal" ? H : W;
+      const rows = axis === "axial" ? H : N;
+      return { data: p, w, rows, rowScale: ratio };
+    }
+    const o = series.ipp![Math.max(0, Math.min(N - 1, idx))];
+    const r: [number, number, number] = [series.orientation![0], series.orientation![1], series.orientation![2]];
+    const c: [number, number, number] = [series.orientation![3], series.orientation![4], series.orientation![5]];
+    const cross = (a: [number, number, number], b: [number, number, number]): [number, number, number] => [
+      a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0],
+    ];
+    const norm = (a: [number, number, number]): [number, number, number] => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+    const nrm = norm(cross(r, c));
+    const psX = series.pixelSpacingX ?? series.pixelSpacing ?? 1;
+    const psY = series.pixelSpacing ?? 1;
+    let u: [number, number, number], v: [number, number, number], du: number, dv: number, outW: number, outRows: number;
+    if (axis === "axial") {
+      u = r; v = c; du = psY; dv = psX; outW = W; outRows = H;
+    } else if (axis === "coronal") {
+      u = c; v = nrm; du = psX; dv = spacing; outW = planeW; outRows = planeH;
+    } else {
+      u = r; v = nrm; du = psY; dv = spacing; outW = planeW; outRows = planeH;
+    }
+    const halfU = ((outW - 1) / 2) * du, halfV = ((outRows - 1) / 2) * dv;
+    const slabMm = slabPx * (axis === "axial" ? spacing : du);
+    const out = new Float32Array(outW * outRows);
+    for (let q = 0; q < outRows; q++) {
+      for (let p = 0; p < outW; p++) {
+        const a = p * du - halfU, b = q * dv - halfV;
+        const px = o[0] + u[0] * a + v[0] * b, py = o[1] + u[1] * a + v[1] * b, pz = o[2] + u[2] * a + v[2] * b;
+        // px,py,pz → kaynak vokseller: sütun = (p-o)·c/psX, satır = (p-o)·r/psY, kesit ≈ (p-o)·n/adım
+        const dx = px - o[0], dy = py - o[1], dz = pz - o[2];
+        const j = dot3([dx, dy, dz], c) / psX, i = dot3([dx, dy, dz], r) / psY;
+        const step = spacing || 1;
+        const k = dot3([dx, dy, dz], nrm) / step;
+        if (slabMm <= 0) out[q * outW + p] = sampleTrilinear(series, j, i, k);
+        else {
+          let acc = 0, cnt = 0;
+          for (let m = -slabPx; m <= slabPx; m++) {
+            const val = sampleTrilinear(series, j, i, k + m);
+            if (val === null || Number.isNaN(val)) continue;
+            if (mode === "mip") acc = Math.max(acc, val); else if (mode === "minip") acc = acc === 0 && cnt === 0 ? val : Math.min(acc, val);
+            else acc += val;
+            cnt++;
+          }
+          out[q * outW + p] = cnt === 0 ? NaN : mode === "avg" ? acc / cnt : acc;
+        }
+      }
+    }
+    return { data: out, w: outW, rows: outRows, rowScale: axis === "axial" ? 1 : spacing / (du || 1) };
+  }
+  const dot3 = (a: [number, number, number], b: [number, number, number]) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 
   const m: Mode = slab === 0 ? "single" : mode === "single" ? "avg" : mode;
   const kz = Math.round(slab / 2 / spacing);
   const kxy = Math.round(slab / 2 / (series.pixelSpacing || 1));
-  const ax = useMemo(() => axialPlane(series, cur.z, kz, m), [series, cur.z, kz, m]);
-  const co = useMemo(() => coronalPlane(series, cur.y, kxy, m), [series, cur.y, kxy, m]);
-  const sa = useMemo(() => sagittalPlane(series, cur.x, kxy, m), [series, cur.x, kxy, m]);
+  // planeFor bu bileşen kapsamında seri/ölçek/kalınlıkla sınırlı; türetilmiş değerler bağımlılık dizisine yazılır.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const scaleIdx = (idx: number, rows: number) => (rows === N ? idx : Math.max(0, Math.min(rows - 1, Math.round(idx * (rows - 1) / Math.max(1, N - 1)))));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const axG = useMemo(() => planeFor("axial", cur.z, 0, "single"), [series, cur.z, planeW, planeH]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const coG = useMemo(() => planeFor("coronal", scaleIdx(cur.y, planeH), kz, m), [series, cur.y, kz, m, planeW, planeH]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const saG = useMemo(() => planeFor("sagittal", scaleIdx(cur.x, planeH), kz, m), [series, cur.x, kz, m, planeW, planeH]);
+  const ax = axG.data, co = coG.data, sa = saG.data;
   const clamp = (v: number, max: number) => Math.max(0, Math.min(max - 1, v));
   const val = series.slices[cur.z]?.[cur.y * W + cur.x];
   const zMm = series.slicePositions ? series.slicePositions[cur.z] : cur.z * spacing;
@@ -213,6 +295,16 @@ export default function VolumeView({ series, wl: wl0, ww: ww0, invert, initialTa
               {k === "avg" ? "Ort." : k === "mip" ? "MIP" : "MinIP"}
             </button>
           ))}
+          <div className="flex items-center gap-1">
+            {([["soft", "Yumuşak"], ["bone", "Kemik"]] as const).map(([key, label]) => (
+              <button key={key} onClick={() => {
+                const f = key === "soft" ? { wl: 40, ww: 400 } : { wl: 350, ww: 1800 };
+                setPrefFilter((p) => (p && p.wl === f.wl && p.ww === f.ww ? null : f));
+                setWl(f.wl); setWw(f.ww);
+              }} className={`cursor-pointer rounded px-2 py-0.5 font-bold ${prefFilter?.wl === (key === "soft" ? 40 : 350) ? "bg-cyan-400/20 text-cyan-200 ring-1 ring-cyan-400/50" : "text-slate-300 hover:bg-[#161e2b]"}`}>{label}</button>
+            ))}
+            <button onClick={() => { setPrefFilter(null); setWl(wl0); setWw(ww0); }} className="cursor-pointer rounded bg-[#141b24] px-2 py-0.5 font-bold text-slate-300 hover:bg-[#1f2937]">Filtreyi sıfırla</button>
+          </div>
           <label className="flex items-center gap-1 text-slate-300">WL
             <input type="number" value={Math.round(wl)} onChange={(e) => setWl(Number(e.target.value))} className="w-16 rounded border border-[#1e2735] bg-[#0e141d] px-1 py-0.5 text-slate-100" />
           </label>
@@ -224,17 +316,17 @@ export default function VolumeView({ series, wl: wl0, ww: ww0, invert, initialTa
       </div>
       <div className="grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-1 p-1">
         {!big && <>
-        <Plane title="AKSİYEL" w={W} rows={H} rowScale={1} data={ax} wl={wl} ww={ww} invert={invert} color="#22d3ee"
+        <Plane title="AKSİYEL" w={axG.w} rows={axG.rows} rowScale={axG.rowScale} data={ax} wl={wl} ww={ww} invert={invert} color="#22d3ee"
           cross={{ x: cur.x + 0.5, y: cur.y + 0.5 }}
           onPick={(ix, iy) => setCur((c) => ({ ...c, x: clamp(ix, W), y: clamp(iy, H) }))}
           onWheel={(d) => setCur((c) => ({ ...c, z: clamp(c.z + d, N) }))} />
-        <Plane title="KORONAL" w={W} rows={N} rowScale={ratio} data={co} wl={wl} ww={ww} invert={invert} color="#fbbf24"
-          cross={{ x: cur.x + 0.5, y: N - 1 - cur.z + 0.5 }}
-          onPick={(ix, iy) => setCur((c) => ({ ...c, x: clamp(ix, W), z: clamp(N - 1 - iy, N) }))}
+        <Plane title="KORONAL" w={coG.w} rows={coG.rows} rowScale={coG.rowScale} data={co} wl={wl} ww={ww} invert={invert} color="#fbbf24"
+          cross={{ x: cur.x + 0.5, y: coG.rows - 1 - scaleIdx(cur.z, coG.rows) + 0.5 }}
+          onPick={(ix, iy) => setCur((c) => ({ ...c, x: clamp(ix, W), z: scaleIdx(coG.rows - 1 - iy, N) }))}
           onWheel={(d) => setCur((c) => ({ ...c, y: clamp(c.y + d, H) }))} />
-        <Plane title="SAGİTAL" w={H} rows={N} rowScale={ratio} data={sa} wl={wl} ww={ww} invert={invert} color="#f472b6"
-          cross={{ x: cur.y + 0.5, y: N - 1 - cur.z + 0.5 }}
-          onPick={(ix, iy) => setCur((c) => ({ ...c, y: clamp(ix, H), z: clamp(N - 1 - iy, N) }))}
+        <Plane title="SAGİTAL" w={saG.w} rows={saG.rows} rowScale={saG.rowScale} data={sa} wl={wl} ww={ww} invert={invert} color="#f472b6"
+          cross={{ x: cur.y + 0.5, y: saG.rows - 1 - scaleIdx(cur.z, saG.rows) + 0.5 }}
+          onPick={(ix, iy) => setCur((c) => ({ ...c, y: clamp(ix, H), z: scaleIdx(saG.rows - 1 - iy, N) }))}
           onWheel={(d) => setCur((c) => ({ ...c, x: clamp(c.x + d, W) }))} />
         </>}
         <div className={`flex min-h-0 flex-col overflow-hidden border border-[#1a2230] bg-[#0b0f16] ${big ? "col-span-2 row-span-2" : ""}`}>
