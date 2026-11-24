@@ -18,9 +18,28 @@ export interface ScanState {
   phaseLabel: string;
 }
 
+/** CXR model çıktısından gelen çözülmüş ısı haritası (64×64 gri). */
+export interface HeatData {
+  w: number;
+  h: number;
+  data: Uint8Array;
+}
+
 export interface OverlayData {
   masks: Map<string, Map<number, Uint8Array>>;
   opacity: number;
+  /** bulgu id → ısı haritası; yalnızca ilgili karede çizilir. */
+  heats?: Map<string, HeatData>;
+  heatOpacity?: number;
+}
+
+/** Isı haritası renklaması (mavi → camgöbeği → yeşil → sarı → kırmızı), alfa eşikli. */
+function heatColor(v: number): [number, number, number] {
+  const t = Math.max(0, Math.min(255, v)) / 255;
+  if (t < 0.25) return [0, Math.round((t / 0.25) * 255), 255];
+  if (t < 0.5) return [0, 255, Math.round((1 - (t - 0.25) / 0.25) * 255)];
+  if (t < 0.75) return [Math.round(((t - 0.5) / 0.25) * 255), 255, 0];
+  return [255, Math.round((1 - (t - 0.75) / 0.25) * 255), 0];
 }
 
 type Rot = 0 | 90 | 180 | 270;
@@ -85,6 +104,7 @@ export default function Viewport(props: ViewportProps) {
   const [size, setSize] = useState({ w: 800, h: 600 });
   const [renderTick, setTick] = useState(0);
   const fusRef = useRef<{ key: string; canvas: HTMLCanvasElement | null }>({ key: "", canvas: null });
+  const heatRef = useRef<Map<string, { key: string; canvas: HTMLCanvasElement }>>(new Map());
   const registryVersion = usePanelRegistry();
   const suvFactor = series?.suv?.factor ?? null;
 
@@ -221,6 +241,44 @@ export default function Viewport(props: ViewportProps) {
       }
     }
 
+    // 2b. CXR ısı haritası katmanı (Grad-CAM): modelin baktığı alanlar
+    let heatCanvas: HTMLCanvasElement | null = null;
+    if (overlay?.heats && (overlay.heatOpacity ?? 0) > 0) {
+      const alpha = Math.round(Math.max(0, Math.min(0.95, overlay.heatOpacity ?? 0)) * 255);
+      const vis = findings.filter(
+        (f) => revealedIds.has(f.id) && f.sliceIndex === slice && overlay.heats!.get(f.id),
+      );
+      if (vis.length) {
+        const layer = document.createElement("canvas");
+        layer.width = W; layer.height = H;
+        const lctx = layer.getContext("2d")!;
+        for (const f of vis) {
+          const hd = overlay.heats!.get(f.id)!;
+          const key = `${f.id}|${alpha}`;
+          let cached = heatRef.current.get(f.id);
+          if (!cached || cached.key !== key) {
+            const c = document.createElement("canvas");
+            c.width = hd.w; c.height = hd.h;
+            const cctx = c.getContext("2d")!;
+            const img = cctx.createImageData(hd.w, hd.h);
+            const u32 = new Uint32Array(img.data.buffer);
+            for (let i = 0; i < hd.data.length; i++) {
+              const v = hd.data[i];
+              if (v < 26) { u32[i] = 0; continue; } // düşük aktivasyon gizlenir
+              const [r, g, b] = heatColor(v);
+              u32[i] = ((alpha * (v / 255)) << 24) | (b << 16) | (g << 8) | r;
+            }
+            cctx.putImageData(img, 0, 0);
+            cached = { key, canvas: c };
+            heatRef.current.set(f.id, cached);
+          }
+          lctx.imageSmoothingEnabled = true;
+          lctx.drawImage(cached.canvas, 0, 0, W, H);
+        }
+        heatCanvas = layer;
+      }
+    }
+
     // 1b. Füzyon katmanı (ör. PET → BT): hasta koordinatlarına göre yeniden örneklenir
     let fusCanvas: HTMLCanvasElement | null = null;
     let fusNote = "";
@@ -258,6 +316,7 @@ export default function Viewport(props: ViewportProps) {
     drawLayer(baseRef.current.canvas!);
     if (fusCanvas) drawLayer(fusCanvas);
     if (ovCanvas) drawLayer(ovCanvas);
+    if (heatCanvas) drawLayer(heatCanvas);
 
     const toC = (p: Pt) => {
       const d = imgToDisp(p);

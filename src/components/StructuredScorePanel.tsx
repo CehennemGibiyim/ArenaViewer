@@ -10,6 +10,7 @@
  */
 import { useMemo, useState } from "react";
 import { ASPECTS_LABELS, ASPECTS_REGIONS, aspectsScore } from "@/lib/stroke";
+import { cxrProjection, cxrQuality, cxrQualityLine, type CxrProjection } from "@/lib/cxr";
 import {
   acrDensity, agatston, biRads, boneDensity, cxrCardiothoracicRatio, lungRads, piRadsV2,
   scoreSystem, scoreToText, tiRads, CALCIUM_VESSELS, aspectsToScore,
@@ -74,6 +75,11 @@ export default function StructuredScorePanel({ modality, bodyPart, onApply, onCr
   // Akciğer grafisi ölçümleri
   const [cxrCardiac, setCxrCardiac] = useState("");
   const [cxrThoracic, setCxrThoracic] = useState("");
+  // CXR teknik kalite (QC)
+  const [cxrProj, setCxrProj] = useState<CxrProjection>("belirsiz");
+  const [cxrRibs, setCxrRibs] = useState("");
+  const [cxrRot, setCxrRot] = useState("");
+  const [cxrPen, setCxrPen] = useState<boolean | null>(null);
 
   const result: ScoreResult = useMemo(() => {
     if (system === "lungRads") {
@@ -126,6 +132,17 @@ export default function StructuredScorePanel({ modality, bodyPart, onApply, onCr
     }
     return acrDensity(dens);
   }, [system, lrSolid, lrPartSolid, lrNonsolid, lrCalc, lrSusp, tiComp, tiEcho, tiShape, tiMargin, tiFoci, biCat, piZone, piT2, piDwi, piDce, dens, ca, boneHu, cxrCardiac, cxrThoracic, aspectsSet]);
+
+  const qc = useMemo(() => {
+    const ribs = cxrRibs.trim() ? Number(cxrRibs) : null;
+    const rot = cxrRot.trim() ? Number(cxrRot.replace(",", ".")) : null;
+    return cxrQuality({
+      anteriorRibs: ribs !== null && Number.isFinite(ribs) ? ribs : null,
+      rotationMm: rot !== null && Number.isFinite(rot) ? rot : null,
+      penetrationAdequate: cxrPen,
+      projection: cxrProj,
+    });
+  }, [cxrRibs, cxrRot, cxrPen, cxrProj]);
 
   const meta = scoreSystem(system);
   const canTask = result.followUpDays !== null || result.tissueSampling;
@@ -299,12 +316,29 @@ export default function StructuredScorePanel({ modality, bodyPart, onApply, onCr
 
         {system === "cxr" && (
           <>
-            <label className={lbl}>En geniş kardiyal çap (mm)
-              <input className={num} inputMode="decimal" placeholder="PA film" value={cxrCardiac} onChange={(e) => setCxrCardiac(e.target.value)} />
+            <label className={lbl}>Projeksiyon (otomatik/manuel)
+              <select className={sel} value={cxrProj} onChange={(e) => setCxrProj(e.target.value as CxrProjection)}>
+                {(["belirsiz", "PA", "AP", "yandan"] as const).map((v) => <option key={v} value={v}>{v}</option>)}
+              </select>
             </label>
-            <label className={lbl}>İç torasik çap (mm)
-              <input className={num} inputMode="decimal" placeholder="ria kostal ark" value={cxrThoracic} onChange={(e) => setCxrThoracic(e.target.value)} />
+            <label className={lbl}>Görünen ön kosta sayısı
+              <input className={num} inputMode="numeric" placeholder="örn. 7" value={cxrRibs} onChange={(e) => setCxrRibs(e.target.value)} />
             </label>
+            <label className={lbl}>Medial klavya rotasyon farkı (mm)
+              <input className={num} inputMode="decimal" placeholder="örn. 10" value={cxrRot} onChange={(e) => setCxrRot(e.target.value)} />
+            </label>
+            <label className={`${lbl} self-end`}>Penetrasyon yeterli
+              <select className={sel} value={cxrPen === null ? "" : String(cxrPen)} onChange={(e) => setCxrPen(e.target.value === "" ? null : e.target.value === "true")}>
+                <option value="">bilinmiyor</option>
+                <option value="true">evet</option>
+                <option value="false">hayır</option>
+              </select>
+            </label>
+            <div className="col-span-2 flex flex-wrap items-center gap-2 sm:col-span-3 md:col-span-4">
+              <span className="text-[10px] text-slate-500">{qc.note.slice(0, 150)}{qc.note.length > 150 ? "…" : ""}</span>
+              <button onClick={() => onApply(cxrQualityLine(qc))} className="cursor-pointer rounded border border-cyan-400/40 bg-cyan-400/10 px-2 py-1 text-[11px] font-bold text-cyan-200 hover:bg-cyan-400/20">Teknik kalite satırını rapora ekle</button>
+            </div>
+            <span className="col-span-2 text-[10px] text-slate-500 sm:col-span-3 md:col-span-4">CTR ölçümleri için: en geniş kardiyal çap ve ria kostal ark çapı girin.</span>
           </>
         )}
       </div>

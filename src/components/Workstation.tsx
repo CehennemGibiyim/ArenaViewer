@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import Viewport, { type OverlayData, type ScanState } from "./Viewport";
+import Viewport, { type HeatData, type OverlayData, type ScanState } from "./Viewport";
 import RefPanel from "./RefPanel";
 import RightPanel, { type FeedItem } from "./RightPanel";
 import ReportPrintModal, { type ReportData, type SaveResult } from "./ReportPrintModal";
@@ -30,6 +30,10 @@ import { resolveProtocol, runEngine } from "@/lib/ai/engine";
 import { runImageReview } from "@/lib/ai/imageReview";
 import { modelCardFor, DEEP_MODEL_CARD, DEEP_BRAIN_MODEL_CARD } from "@/lib/modelCards";
 import { deepScan, deepScanEligible, mergeDeepFindings, type DeepScanOutput } from "@/lib/deepScan";
+import {
+  CXR_CLASSES, cxrScan, cxrEligible, cxrResultsToFindings, decodeCxrHeat, type CxrResult,
+} from "@/lib/cxrModel";
+import { shadowModeEnabled, splitFindings, toShadowRecord } from "@/lib/shadowMode";
 import { KIND_LABEL, annotationSummary } from "@/lib/geometry";
 import { zipAnonymized } from "@/lib/dicomWrite";
 import { findMatchingHangingProtocol, resolveHangingCellSeries } from "@/lib/hangingProtocols";
@@ -226,8 +230,15 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   const [activeFinding, setActiveFinding] = useState<string | null>(null);
   const [liveFindings, setLiveFindings] = useState<Finding[]>([]);
   const [masks, setMasks] = useState<OverlayData["masks"] | null>(null);
+  /** CXR modelinden gelen çözülmüş ısı haritaları (bulgu id anahtarlı). */
+  const [heats, setHeats] = useState<Map<string, HeatData> | null>(null);
+  const [heatOpacity, setHeatOpacity] = useState(0.6);
+  /** CXR model olasılıkları (panel tablosu için; rapora işlenmez). */
+  const [cxr, setCxr] = useState<CxrResult | null>(null);
   const [overlayOpacity, setOverlayOpacity] = useState(0.35);
   const [engineNotes, setEngineNotes] = useState<string[]>([]);
+  /** Gölge modda bu oturumda rapora girmeyen AI adayı sayısı (yalnızca bilgi amaçlı). */
+  const [shadowHidden, setShadowHidden] = useState(0);
   const runRef = useRef(0);
 
   // ───── Rapor & Modallar ─────
@@ -403,6 +414,9 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     setRevealed(new Set());
     setLiveFindings([]);
     setMasks(null);
+    setHeats(null);
+    setCxr(null);
+    setShadowHidden(0);
     setEngineNotes([]);
     setFeed([]);
     setScan(null);
@@ -818,7 +832,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     const s = series;
     const run = ++runRef.current;
     const N = s.slices.length;
-    setStatus("infer"); setAnalysis(null); setRevealed(new Set()); setLiveFindings([]); setMasks(null); setEngineNotes([]);
+    setStatus("infer"); setAnalysis(null); setRevealed(new Set()); setLiveFindings([]); setMasks(null); setHeats(null); setCxr(null); setShadowHidden(0); setEngineNotes([]);
     setActiveFinding(null); setFeed([]); setCine(false);
     setScan({ active: false, sliceProgress: 0, scannedSlices: 0, totalSlices: N, phaseLabel: "Hazırlanıyor" });
     pushFeed(`Oturum: ${s.modality} · ${s.description} · ${N} kesit`);
@@ -844,8 +858,18 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     };
 
     try {
+      const cxrAllowed = protocol !== "none" && protocol !== "review" && cxrEligible(s) === null;
       if (proto === "none") {
         pushFeed("Otomatik inceleme kapalı (seçiminiz). Görüntüleri radyolog değerlendirmelidir.", "info");
+      } else if (cxrAllowed) {
+        // Direkt grafi: yerel derin CXR modeli. Kare bazlı ölçüm (image-review) bunun
+        // YERİNE geçer; sonuç model bulgularıdır ve raporlaştırılır.
+        engine = "cxr-model";
+        pushFeed(
+          `CXR: ${s.modality} serisi yerel derin modele gönderilecek (Medical_X DenseNet121 · Apache-2.0 · ücretsiz · hasta verisi dışarı çıkmaz). ` +
+          `${N > 1 ? `Çok kareli seri: yalnızca temsilci kare değerlendirilir (${N} kare).` : "Tek kare."}`,
+          "info",
+        );
       } else if (proto === "image-review") {
         engine = "image-review";
         pushFeed(`${s.modality} için ${N} ${frameName.toLowerCase()} gerçek piksel verisinden ölçülecek; klinik tanı/triyaj değildir.`, "info");
@@ -920,6 +944,42 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         }
       }
     }
+    // ───── Derin AI: akciğer grafisi (CXR) sınıflandırma + ısı haritası ─────
+    if (engine === "cxr-model" && runRef.current === run) {
+      setScan({ active: true, sliceProgress: 1, scannedSlices: N, totalSlices: N, phaseLabel: "CXR derin sınıflandırma (yerel model)" });
+      pushFeed(`🩻 Derin AI: grafi yerel CXR modeline gönderiliyor (Medical_X DenseNet121 · yerel ONNX · ücretsiz)…`);
+      try {
+        const res = await cxrScan(s);
+        if (runRef.current !== run) return;
+        findings = cxrResultsToFindings(res, s);
+        // Bulgu id'leri cxrResultsToFindings ile birebir aynı sırada üretilir:
+        // pozitif sınıflar prob'a göre azalan ve ilk 8 ile sınırlıdır.
+        const positiveSorted = [...res.scores]
+          .filter((c) => Number(c.prob) >= CXR_CLASSES[c.index]?.threshold)
+          .sort((a, b) => b.prob - a.prob)
+          .slice(0, 8);
+        const heatMap = new Map<string, HeatData>();
+        positiveSorted.forEach((c, i) => {
+          const h = res.heats.find((hh) => hh.index === c.index);
+          if (h) heatMap.set(`cx${i + 1}`, decodeCxrHeat(h));
+        });
+        setHeats(heatMap);
+        setCxr(res);
+        const pos = res.scores.filter((c) => c.positive);
+        pushFeed(
+          pos.length
+            ? `✓ CXR modeli tamamlandı: ${res.elapsedMs} ms · ${pos.length} aday bulgu (${pos.map((c) => `${c.labelTr} %${Math.round(c.prob * 100)}`).join(", ")})`
+            : `✓ CXR modeli tamamlandı: ${res.elapsedMs} ms · hiçbir sınıf eşiği geçmedi (bu, normal olduğu anlamına gelmez)`,
+          "done",
+        );
+        for (const f of findings) pushFeed(`🩻 [${f.sliceRangeStr}] ${f.label} — ${f.densityOrSignal}`, "finding");
+        if (heatMap.size === 0) pushFeed("Isı haritası üretilmedi (pozitif sınıf yok).", "warn");
+      } catch (e) {
+        if (runRef.current !== run) return;
+        pushFeed(`CXR modeli çalıştırılamadı: ${e instanceof Error ? e.message : "hata"} — görüntüler radyolog tarafından değerlendirilmelidir.`, "warn");
+      }
+    }
+
     if (runRef.current !== run) return;
     if (deepOut && deepOut.findings.length > 0) {
       const merged = mergeDeepFindings(findings, deepOut.findings);
@@ -954,6 +1014,29 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         model: `${result.model} + ${deepProto === "ct-head" ? "ct-head-hemorrhage-detection" : "MONAI lung_nodule_ct_detection"} (yerel, ücretsiz)`,
         modelCard: deepProto === "ct-head" ? DEEP_BRAIN_MODEL_CARD : DEEP_MODEL_CARD,
       };
+    }
+
+    // ── Gölge mod: doğrulanmamış AI adayları rapora girmez, yalnızca kayda alınır. ──
+    // Bulguların kendileri diske/sunucuya gönderilmez; yalnızca etiket/şiddet/skor özeti.
+    const shadowActive = shadowModeEnabled();
+    if (shadowActive) {
+      const { report, hidden } = splitFindings(result.findings, true);
+      if (hidden.length > 0) {
+        setShadowHidden((n) => n + hidden.length);
+        try {
+          const rec = toShadowRecord(engine || "unknown", result.model, s.studyUid, s.modality, hidden);
+          await fetch("/api/shadow", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(rec),
+          });
+        } catch {
+          /* kayıt hatası akışı durdurmaz */
+        }
+        pushFeed(`◑ GÖLGE MOD: ${hidden.length} yapay zeka adayı rapora GİRMEDİ; yalnızca değerlendirme için kaydedildi.`, "info");
+        notes.push(`Gölge mod açık: AI adayları rapora işlenmedi (${hidden.length}). Model henüz doğrulanmadığı için ekran/rapor AI bulgusu göstermez.`);
+        result = { ...result, findings: report };
+      }
     }
 
     setLiveFindings(result.findings); setMasks(maskMap); setRevealed(new Set(result.findings.map((f) => f.id)));
@@ -1137,9 +1220,10 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
       setRevealed(new Set(finalResult.findings.map((f) => f.id)));
       setAnalysis(finalResult);
       setStatus("done");
+      // Maske örtüsü bu motor için geçersizdir; CXR ısı haritası bulgularla birlikte
+      // kalır (aynı liste besliyor). Motor değişince startAnalysis temizler.
       setMasks(null);
       setEngineNotes([]);
-      setScan({ active: false, sliceProgress: 1, scannedSlices: 1, totalSlices: 1, phaseLabel: "Tamamlandı" });
       setActiveReport(buildReport(finalResult));
       toast(`Birleşik analiz tamamlandı: ${finalResult.findings.length} bulgu${deepRan ? " (derin AI dahil)" : ""}`, 3000);
       // Derin AI bulguları anahtar kesitlere dönüştürülür (rapor bulgularına aktarım buildReport ile)
@@ -1251,7 +1335,9 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   // Pencere ön ayarları tüm modalitelerde listelenir: aynı isimler MR/US grafide de
   // yardımcı olur; özel AR/Onc olayları kullanıcı kendi ayarını kaydedebilir.
   const allPresets = useMemo<WindowPreset[]>(() => series ? [...CT_PRESETS, ...presets] : CT_PRESETS, [series, presets]);
-  const overlay: OverlayData | null = masks ? { masks, opacity: overlayOpacity } : null;
+  const overlay: OverlayData | null = masks || heats
+    ? { masks: masks ?? new Map(), opacity: overlayOpacity, heats: heats ?? undefined, heatOpacity }
+    : null;
   const cells = CELLS[layout];
   const refLabel = ["Panel 2", "Panel 3", "Panel 4", "Panel 5", "Panel 6"];
 
@@ -1504,6 +1590,8 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
             analysis={analysis} revealedIds={revealed} feed={feed} engineNotes={engineNotes}
             onStart={() => void startAnalysis()} onGotoFinding={gotoFinding} activeFindingId={activeFinding}
             overlayOpacity={overlayOpacity} setOverlayOpacity={setOverlayOpacity} hasMasks={!!masks && masks.size > 0}
+            hasHeats={!!heats && heats.size > 0} heatOpacity={heatOpacity} setHeatOpacity={setHeatOpacity} cxr={cxr}
+            shadowMode={shadowModeEnabled() && shadowHidden > 0} shadowCount={shadowHidden}
             annotations={annotations} pxMm={pxMm} onDeleteAnnotation={(id) => setAnnotations((a) => a.filter((x) => x.id !== id))} onClearAnnotations={() => setAnnotations([])} onGotoSlice={setSlice}
             keyImages={keyImages} onRemoveKeyImage={(id) => setKeyImages((k) => k.filter((x) => x.id !== id))}
             patientReports={patientReports} priorStudies={priorStudies} onOpenSaved={(id) => void openSaved(id)} onOpenPrior={(s) => void openPrior(s)} onRefreshReports={() => void refreshContext()}

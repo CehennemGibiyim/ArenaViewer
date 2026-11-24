@@ -1,0 +1,10 @@
+MIT License
+
+OpenJPEG (https://github.com/uclouvain/openjpeg) JavaScript/WebAssembly build
+generated with Emscripten, packaged as @cornerstonejs/codec-openjpeg.
+Upstream OpenJPEG is distributed under the BSD 2-Clause license; see
+https://github.com/uclouvain/openjpeg/blob/master/LICENSE
+
+This file accompanies public/codecs/openjpegwasm_decode.{js,wasm}.
+The decoder API and build are MIT-licensed by their authors; the OpenJPEG
+library itself remains BSD-2-Clause. Provided without warranty of any kind.

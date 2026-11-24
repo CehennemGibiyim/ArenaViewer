@@ -1,9 +1,13 @@
 "use client";
 
 import { buildReportSr, type EvidenceRef } from "@/lib/dicomSr";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { processDictation } from "@/lib/dictate";
+import { appropriatenessFor, isValidIcd10, suggestIcd10 } from "@/lib/icd10";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fmtConf } from "@/lib/format";
 import StructuredScorePanel from "@/components/StructuredScorePanel";
+import { PEER_RESULTS, RESULT_LABELS, type PeerResult } from "@/lib/peerReview";
+import { SHARE_TTL_HOURS, shareState } from "@/lib/share";
 import { MACRO_GROUPS, macroById, macrosByGroup, type MacroGroup } from "@/lib/macros";
 import type {
   Finding, FindingApprovalStatus, KeyImage, ModelCard, ReportAddendum, ReportVersion, TemplateRow, UserInfo,
@@ -70,19 +74,18 @@ interface SpeechRec {
 }
 type SpeechCtor = new () => SpeechRec;
 
-function postProcess(t: string): string {
-  return t
-    .replace(/\s*\byeni satır\b\s*/gi, "\n")
-    .replace(/\s*\biki nokta üst üste\b/gi, ":")
-    .replace(/\s*\bvirgül\b/gi, ",")
-    .replace(/\s*\bnokta\b/gi, ".");
-}
-
-function MicButton({ onText }: { onText: (t: string) => void }) {
+/**
+ * Dikte komutları ve tıbbi sözlük `src/lib/dictate.ts` içinde uygulanır:
+ * sayı sözcükleri, noktalama ("virgül", "iki nokta üst üste"), ölçü birimleri
+ * ("milimetre" → mm) ve tipik ASR bozuklukları ("akciger" → akciğer).
+ */
+function MicButton({ onText, onClear }: { onText: (t: string) => void; onClear?: () => void }) {
   const [on, setOn] = useState(false);
+  const [hint, setHint] = useState("");
   const rec = useRef<SpeechRec | null>(null);
+  const stop = () => { rec.current?.stop(); };
   const toggle = () => {
-    if (on) { rec.current?.stop(); return; }
+    if (on) { stop(); return; }
     const w = window as unknown as { SpeechRecognition?: SpeechCtor; webkitSpeechRecognition?: SpeechCtor };
     const C = w.SpeechRecognition ?? w.webkitSpeechRecognition;
     if (!C) { alert("Bu tarayıcı konuşma tanımayı desteklemiyor (Chrome/Edge önerilir)."); return; }
@@ -91,29 +94,42 @@ function MicButton({ onText }: { onText: (t: string) => void }) {
     r.onresult = (e) => {
       let s = "";
       for (let i = e.resultIndex; i < e.results.length; i++) if (e.results[i].isFinal) s += e.results[i][0].transcript;
-      if (s) onText(postProcess(s.trim()) + " ");
+      if (!s.trim()) return;
+      const d = processDictation(s);
+      if (d.commands.includes("temizle")) {
+        onClear?.();
+        setHint(" alan temizlendi");
+      } else {
+        onText(d.text + " ");
+        setHint(d.commands.length > 0 ? ` komut: ${d.commands.join(", ")}` : "");
+      }
     };
-    r.onend = () => setOn(false);
-    r.onerror = () => setOn(false);
+    r.onend = () => { setOn(false); setHint(""); };
+    r.onerror = () => { setOn(false); setHint(" dinleme hatası — tekrar deneyin"); };
     rec.current = r;
     r.start();
     setOn(true);
   };
   return (
-    <button type="button" onClick={toggle} title="Sesle dikte (Türkçe). Komutlar: nokta, virgül, yeni satır" className={`ml-2 rounded px-1.5 text-[10px] font-bold ${on ? "animate-pulse bg-rose-500 text-white" : "bg-slate-200 text-slate-700 hover:bg-slate-300"}`}>
-      {on ? "● dinliyor" : "🎤 dikte"}
-    </button>
+    <span className="inline-flex items-center">
+      <button type="button" onClick={toggle} title="Sesle dikte (Türkçe). Komutlar: nokta, virgül, iki nokta, yeni satır, yeni paragraf, temizle; sayılar ve tıbbi terimler otomatik düzeltilir." className={`ml-2 rounded px-1.5 text-[10px] font-bold ${on ? "animate-pulse bg-rose-500 text-white" : "bg-slate-200 text-slate-700 hover:bg-slate-300"}`}>
+        {on ? "● dinliyor" : "🎤 dikte"}
+      </button>
+      {hint && <span className="ml-1 text-[9px] italic text-slate-500">{hint}</span>}
+    </span>
   );
 }
 
 /** Rapor metin alanı. Modül seviyesinde tanımlıdır; render sırasında bileşen oluşturulmaz. */
-function ReportField({ name, rows, value, editing, onChange, onMic, onGotoSlice, onClose }: {
+function ReportField({ name, rows, value, editing, onChange, onMic, onClear, onGotoSlice, onClose }: {
   name: string;
   rows: number;
   value: string;
   editing: boolean;
   onChange: (v: string) => void;
   onMic: (t: string) => void;
+  /** "temizle" sesli komutu bu alanı boşaltır. */
+  onClear?: () => void;
   onGotoSlice?: (sliceNumber: number) => void;
   onClose: () => void;
 }) {
@@ -126,7 +142,7 @@ function ReportField({ name, rows, value, editing, onChange, onMic, onGotoSlice,
     });
   return (
     <div>
-      <div className="flex items-center font-bold uppercase text-slate-900">{name}{editing && <MicButton onText={onMic} />}</div>
+      <div className="flex items-center font-bold uppercase text-slate-900">{name}{editing && <MicButton onText={onMic} onClear={onClear} />}</div>
       {editing ? <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={rows} className="mt-1 w-full rounded border border-slate-300 p-2 text-xs" /> : <p className="mt-0.5 whitespace-pre-wrap">{linkify(value)}</p>}
     </div>
   );
@@ -140,12 +156,25 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
   const [dialog, setDialog] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
+  /** Eklenen ICD-10 kodları (rapora yazılan öneriler; kodlama hekime aittir). */
+  const [icdCodes, setIcdCodes] = useState<string[]>([]);
   const [tplQuery, setTplQuery] = useState("");
   const [versions, setVersions] = useState<ReportVersion[]>([]);
   const [addenda, setAddenda] = useState<ReportAddendum[]>([]);
   const [addText, setAddText] = useState("");
   const [showVersions, setShowVersions] = useState(false);
+  // ikinci okuma (peer review)
+  const [peerList, setPeerList] = useState<{ id: number; result: string; discrepancyType: string; note: string; reviewedByName: string; createdAt: string }[]>([]);
+  const [peerResult, setPeerResult] = useState<PeerResult>("uyumlu");
+  const [peerType, setPeerType] = useState("");
+  const [peerNote, setPeerNote] = useState("");
+  const [peerMsg, setPeerMsg] = useState("");
+  // süreli paylaşım bağlantısı
+  const [shares, setShares] = useState<{ token: string; reportId: number | null; expiresAt: string | Date; revokedAt: string | Date | null; accessCount: number; createdAt: string | Date }[]>([]);
+  const [shareTtl, setShareTtl] = useState<number>(24);
+  const [shareMsg, setShareMsg] = useState("");
   // createdAt yoksa yazdırma başlığında tutulacak yedik zaman damgası (mount anında bir kez).
   const [createdFallback] = useState(() => Date.now());
 
@@ -156,15 +185,30 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
     setReport(initial);
     setError("");
     setEditing(false);
+    setIcdCodes([]);
   }
 
-  const loadDetail = async (id: number) => {
+  // ICD-10 önerileri: rapor metnine göre yaklaşık eşleme (hekim onayı şart).
+  const icdText = `${report.findingsText ?? ""} ${report.impression ?? ""}`;
+  const icdSuggest = useMemo(() => suggestIcd10(icdText, 5), [icdText]);
+  const icdAppropriate = useMemo(
+    () => (report.clinicalInfo ? appropriatenessFor(report.modality, report.bodyPart, report.clinicalInfo) : null),
+    [report.clinicalInfo, report.modality, report.bodyPart],
+  );
+
+  const loadDetail = useCallback(async (id: number) => {
     const r = await fetch(`/api/reports/${id}`);
     if (!r.ok) return;
     const d = (await r.json()) as { versions: ReportVersion[]; addenda: ReportAddendum[] };
     setVersions(d.versions);
     setAddenda(d.addenda);
-  };
+    fetch("/api/shares").then((sr) => (sr.ok ? sr.json() : null)).then((sd: { shares?: typeof shares } | null) => {
+      if (sd?.shares) setShares(sd.shares.filter((x) => x.reportId === id));
+    }).catch(() => {});
+    fetch(`/api/reports/${id}/peer-reviews`).then((pr) => (pr.ok ? pr.json() : null)).then((pd: { reviews?: typeof peerList } | null) => {
+      if (pd?.reviews) setPeerList(pd.reviews);
+    }).catch(() => {});
+  }, []);
   useEffect(() => {
     if (!open) return;
     fetch("/api/templates").then((r) => (r.ok ? r.json() : [])).then((t: TemplateRow[]) => setTemplates(t)).catch(() => {});
@@ -174,7 +218,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
       if (open && report.id) await loadDetail(report.id);
       else { setVersions([]); setAddenda([]); }
     })();
-  }, [open, report.id, report.version]);
+  }, [open, report.id, report.version, loadDetail]);
 
   const card = useMemo<ModelCard | null>(() => { try { return report.modelCard ? (JSON.parse(report.modelCard) as ModelCard) : null; } catch { return null; } }, [report.modelCard]);
 
@@ -263,6 +307,51 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
     setReport((r) => ({ ...r, findings: [...r.findings, f], findingsApproval: { ...r.findingsApproval, [f.id]: "onaylandi" }, findingsText: `${r.findingsText}\n\n+ ${label} [Kesit ${slice}] (radyolog eklemesi)` }));
   };
 
+  /** İkinci okuma kaydı gönderir (yalnızca onaylı rapor). */
+  const sendPeerReview = async () => {
+    if (!report.id) return;
+    setBusy(true); setPeerMsg(""); setError("");
+    try {
+      const r = await fetch(`/api/reports/${report.id}/peer-reviews`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ result: peerResult, discrepancyType: peerType, note: peerNote }),
+      });
+      const d = (await r.json().catch(() => ({}))) as { ok?: boolean; error?: string; advice?: string };
+      if (!r.ok) throw new Error(d.error ?? "Kaydedilemedi");
+      setPeerMsg(d.advice ?? "İkinci okuma kaydedildi.");
+      setPeerNote("");
+      await loadDetail(report.id);
+    } catch (e) { setError(e instanceof Error ? e.message : "Kaydedilemedi"); }
+    finally { setBusy(false); }
+  };
+
+  /** Süreli paylaşım bağlantısı oluşturur ve panoya kopyalar. */
+  const createShare = async () => {
+    if (!report.id) return;
+    setBusy(true); setShareMsg(""); setError("");
+    try {
+      const r = await fetch("/api/shares", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "report", reportId: report.id, ttlHours: shareTtl }) });
+      const d = (await r.json().catch(() => ({}))) as { ok?: boolean; url?: string; error?: string };
+      if (!r.ok || !d.url) throw new Error(d.error ?? "Bağlantı oluşturulamadı");
+      try { await navigator.clipboard.writeText(`${window.location.origin}${d.url}`); setShareMsg("Bağlantı kopyalandı."); }
+      catch { setShareMsg(`Bağlantı: ${d.url}`); }
+      await loadDetail(report.id);
+    } catch (e) { setError(e instanceof Error ? e.message : "Bağlantı oluşturulamadı"); }
+    finally { setBusy(false); }
+  };
+
+  /** Bağlantıyı kapatır. */
+  const revokeShare = async (token: string) => {
+    setBusy(true); setShareMsg(""); setError("");
+    try {
+      const r = await fetch(`/api/shares/${token}`, { method: "DELETE" });
+      if (!r.ok) throw new Error(((await r.json().catch(() => ({}))) as { error?: string }).error ?? "Kapatılamadı");
+      setShareMsg("Bağlantı kapatıldı.");
+      if (report.id) await loadDetail(report.id);
+    } catch (e) { setError(e instanceof Error ? e.message : "Kapatılamadı"); }
+    finally { setBusy(false); }
+  };
+
   /** Raporu DICOM Basic Text SR olarak indirir (onaylıysa "VERIFIED" işaretli; elektronik imza değildir). */
   const downloadSr = () => {
     try {
@@ -292,6 +381,18 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 2000);
     } catch (e) { setError(e instanceof Error ? e.message : "FHIR dışa aktarılamadı"); }
+  };
+
+  /** Raporu sunucudan STOW-RS ile PACS'e gönderir (DICOM SR). */
+  const sendToPacs = async (id: number) => {
+    setBusy(true); setError("");
+    try {
+      const r = await fetch("/api/pacs/stow", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reportId: id }) });
+      const d = (await r.json().catch(() => ({}))) as { ok?: boolean; message?: string; stored?: number; pacs?: string; error?: string };
+      if (!r.ok) throw new Error(d.error ?? "PACS'e gönderilemedi");
+      setNotice(`PACS'e gönderildi: ${d.stored ?? 1} nesne kaydedildi (${d.pacs ?? "PACS"}).`);
+    } catch (e) { setError(e instanceof Error ? e.message : "PACS'e gönderilemedi"); }
+    finally { setBusy(false); }
   };
 
   /**
@@ -362,6 +463,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
             )}
             <button type="button" onClick={downloadSr} disabled={!approved} title={approved ? "Radyoloji raporu → DICOM Basic Text SR" : "Sadece radyoloji uzmanı onayı sonrası alınabilir"} className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${approved ? "cursor-pointer border-[#2d3b4e] bg-[#141b24] text-slate-200 hover:bg-[#1a2330]" : "cursor-not-allowed border-[#2d3b4e] bg-[#141b24]/50 text-slate-500 opacity-60"}`}>DICOM SR ⬇</button>
             {report.id && <button type="button" onClick={() => void downloadFhir(report.id!)} disabled={!approved} title={approved ? "FHIR DiagnosticReport indir" : "Sadece radyoloji uzmanı onayı sonrası alınabilir"} className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${approved ? "cursor-pointer border-[#2d3b4e] bg-[#141b24] text-slate-200 hover:bg-[#1a2330]" : "cursor-not-allowed border-[#2d3b4e] bg-[#141b24]/50 text-slate-500 opacity-60"}`}>FHIR ⬇</button>}
+            {report.id && <button type="button" onClick={() => void sendToPacs(report.id!)} disabled={!approved || busy} title={approved ? "Raporu DICOM SR olarak yapılandırılmış PACS'e gönder (STOW-RS)" : "Sadece radyoloji uzmanı onayı sonrası gönderilebilir"} className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${approved ? "cursor-pointer border-violet-400/50 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20" : "cursor-not-allowed border-[#2d3b4e] bg-[#141b24]/50 text-slate-500 opacity-60"}`}>PACS’e gönder ⇧</button>}
             <button onClick={approved ? printReport : undefined} disabled={!approved} title={approved ? "Yazdır / PDF olarak kaydet" : "Sadece radyoloji uzmanı onayı sonrası alınabilir"} className={`rounded-lg px-3.5 py-1.5 text-xs font-bold ${approved ? "cursor-pointer bg-cyan-500 text-slate-950 hover:bg-cyan-400" : "cursor-not-allowed bg-slate-600 text-slate-400 opacity-60"}`}>🖨 Yazdır / PDF</button>
             <button onClick={onClose} className="cursor-pointer rounded-lg border border-[#2d3b4e] bg-[#141b24] p-1.5 text-xs text-slate-400 hover:text-slate-100">✕</button>
           </div>
@@ -467,10 +569,44 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                   <div className="mt-3 grid grid-cols-1 items-start gap-5 md:grid-cols-12">
                     <div className="flex flex-col gap-3 text-[11.5px] leading-relaxed text-slate-800 md:col-span-8">
                       {report.clinicalInfo && <div><div className="font-bold uppercase text-slate-900">Klinik bilgi</div><p className="mt-0.5 whitespace-pre-wrap">{report.clinicalInfo}</p></div>}
-                      <ReportField name="Teknik" rows={3} value={report.technique} editing={editing} onChange={(v) => set("technique", v)} onMic={append("technique")} onGotoSlice={onGotoSlice} onClose={onClose} />
-                      <ReportField name="Kesit bazlı bulgular" rows={8} value={report.findingsText} editing={editing} onChange={(v) => set("findingsText", v)} onMic={append("findingsText")} onGotoSlice={onGotoSlice} onClose={onClose} />
-                      <ReportField name="Sonuç/İzlenim" rows={3} value={report.impression} editing={editing} onChange={(v) => set("impression", v)} onMic={append("impression")} onGotoSlice={onGotoSlice} onClose={onClose} />
-                      <ReportField name="Öneri" rows={2} value={report.recommendation} editing={editing} onChange={(v) => set("recommendation", v)} onMic={append("recommendation")} onGotoSlice={onGotoSlice} onClose={onClose} />
+                      <ReportField name="Teknik" rows={3} value={report.technique} editing={editing} onChange={(v) => set("technique", v)} onMic={append("technique")} onClear={() => set("technique", "")} onGotoSlice={onGotoSlice} onClose={onClose} />
+                      <ReportField name="Kesit bazlı bulgular" rows={8} value={report.findingsText} editing={editing} onChange={(v) => set("findingsText", v)} onMic={append("findingsText")} onClear={() => set("findingsText", "")} onGotoSlice={onGotoSlice} onClose={onClose} />
+                      <ReportField name="Sonuç/İzlenim" rows={3} value={report.impression} editing={editing} onChange={(v) => set("impression", v)} onMic={append("impression")} onClear={() => set("impression", "")} onGotoSlice={onGotoSlice} onClose={onClose} />
+                      <ReportField name="Öneri" rows={2} value={report.recommendation} editing={editing} onChange={(v) => set("recommendation", v)} onMic={append("recommendation")} onClear={() => set("recommendation", "")} onGotoSlice={onGotoSlice} onClose={onClose} />
+
+                      {editing && (
+                        <div className="rounded border border-slate-300 bg-slate-50 p-2">
+                          <div className="text-[10px] font-bold uppercase tracking-wide text-slate-700">ICD-10 önerileri</div>
+                          <p className="mt-0.5 text-[10px] leading-snug text-slate-500">
+                            Rapor metnine göre yaklaşık eşlemedir; kodlama ve doğrulama radyologa aittir.
+                            Üzerine basarak izlenim satırına eklenir.
+                          </p>
+                          {icdAppropriate?.score != null && (
+                            <p className="mt-1 text-[10.5px] font-bold text-[#0e7490]">
+                              İstem uygunluğu: {icdAppropriate.score}/9 — {icdAppropriate.note}
+                            </p>
+                          )}
+                          {icdSuggest.length === 0 ? (
+                            <p className="mt-1 text-[10.5px] italic text-slate-400">Metinde eşleşen öneri yok.</p>
+                          ) : (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {icdSuggest.map((c) => {
+                                const added = icdCodes.includes(c.code);
+                                return (
+                                  <button key={c.code} type="button" disabled={added || !isValidIcd10(c.code)}
+                                    onClick={() => {
+                                      setIcdCodes((p) => [...p, c.code]);
+                                      set("impression", `${report.impression}${report.impression && !report.impression.endsWith("\n") ? "\n" : ""}ICD-10: ${c.code} — ${c.label}`);
+                                    }}
+                                    className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${added ? "bg-emerald-100 text-emerald-700" : "bg-white text-slate-700 ring-1 ring-slate-300 hover:bg-slate-100"}`}>
+                                    {added ? "✓ " : ""}{c.code} · {c.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
                       {report.measurementsText && <div><div className="font-bold uppercase text-slate-900">Ölçümler</div><p className="mt-0.5 whitespace-pre-wrap font-mono text-[10.5px]">{report.measurementsText}</p></div>}
                       <p className="mt-1 text-[10px] italic text-slate-500">{report.engine === "image-review" ? "Bu protokol hastalık sınıflandırması yapmaz; kare başına piksel ölçümleri yazdırma raporuna dahil edilmemiştir. Görüntüler radyolog tarafından değerlendirilmelidir." : "Bu çıktı yapay zeka/kural tabanlı veya DEMO desteklidir; hekim doğrulaması gerekir."}</p>
                     </div>
@@ -567,6 +703,62 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                 <div className="text-xs font-bold text-slate-200">Addendum ekle (onaylı rapor değiştirilemez; düzeltme ek olarak kaydedilir)</div>
                 <textarea value={addText} onChange={(e) => setAddText(e.target.value)} rows={3} className="mt-2 w-full rounded border border-[#1e2735] bg-[#0e141d] p-2 text-xs text-slate-200" placeholder="Ek bulgu / düzeltme metni…" />
                 <button disabled={busy || addText.trim().length < 3} onClick={() => void addAddendum()} className="mt-2 cursor-pointer rounded bg-cyan-500 px-3 py-1 text-xs font-bold text-slate-950 disabled:opacity-40">Addendum kaydet</button>
+              </div>
+            )}
+            {approved && report.id && (
+              <div className="rounded-lg border border-[#1e2735] bg-[#0b0f16] p-3 text-xs text-slate-300">
+                <div className="font-bold text-slate-200">İkinci okuma / peer review</div>
+                <div className="mt-1 text-[11px] text-slate-400">Raporu oluşturan hekim bu kaydı ekleyemez; kayıtlar denetimde görünür.</div>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <select aria-label="İkinci okuma sonucu" value={peerResult} onChange={(e) => setPeerResult(e.target.value as PeerResult)} className="rounded border border-[#232e40] bg-[#141b24] px-2 py-1 text-xs text-slate-200">
+                    {PEER_RESULTS.map((r) => <option key={r} value={r}>{RESULT_LABELS[r]}</option>)}
+                  </select>
+                  <select aria-label="Uyuşmazlık türü" value={peerType} onChange={(e) => setPeerType(e.target.value)} className="rounded border border-[#232e40] bg-[#141b24] px-2 py-1 text-xs text-slate-200">
+                    <option value="">(tür seç)</option>
+                    {["eksik bulgu", "fazladan bulgu", "ölçüm/yerelizasyon hatası", "yanlış yorum", "teknik/kalite", "diğer"].map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                  <input value={peerNote} onChange={(e) => setPeerNote(e.target.value)} maxLength={4000} placeholder={peerResult === "uyumsuz" ? "Açıklama zorunlu…" : "Not (opsiyonel)"} className="min-w-40 flex-1 rounded border border-[#232e40] bg-[#141b24] px-2 py-1 text-xs text-slate-200" />
+                  <button disabled={busy || (peerResult === "uyumsuz" && peerNote.trim().length < 5)} onClick={() => void sendPeerReview()} className="cursor-pointer rounded bg-violet-500 px-3 py-1 text-xs font-bold text-slate-950 hover:bg-violet-400 disabled:opacity-40">Kaydet</button>
+                </div>
+                {peerMsg && <div className="mt-2 text-emerald-300">✓ {peerMsg}</div>}
+                <ul className="mt-2 space-y-1.5">
+                  {peerList.length === 0 && <li className="text-slate-500">Henüz ikinci okuma kaydı yok.</li>}
+                  {peerList.map((p) => (
+                    <li key={p.id} className="rounded border border-[#1a2230] bg-[#0e141d] px-2 py-1.5">
+                      <span className="font-mono text-[10.5px] text-cyan-300">{p.result}</span>
+                      {p.discrepancyType && <span className="ml-2 text-[10.5px] text-amber-300">{p.discrepancyType}</span>}
+                      <span className="ml-2 text-[10.5px] text-slate-500">{p.reviewedByName} · {new Date(p.createdAt).toLocaleString("tr-TR")}</span>
+                      {p.note && <div className="mt-0.5 whitespace-pre-wrap text-[11px] text-slate-300">{p.note}</div>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {approved && report.id && (
+              <div className="rounded-lg border border-[#1e2735] bg-[#0b0f16] p-3 text-xs text-slate-300">
+                <div className="font-bold text-slate-200">Süreli paylaşım bağlantısı</div>
+                <div className="mt-1 text-[11px] text-slate-400">Salt okunur rapor özeti + anahtar kesitler; her erişim denetimde işlenir, süresi gelince ya da siz kapatana kadar geçerlidir.</div>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <select aria-label="Bağlantı süresi" value={shareTtl} onChange={(e) => setShareTtl(Number(e.target.value))} className="rounded border border-[#232e40] bg-[#141b24] px-2 py-1 text-xs text-slate-200">
+                    {SHARE_TTL_HOURS.map((h) => <option key={h} value={h}>{h >= 24 ? `${h / 24} gün` : `${h} saat`}</option>)}
+                  </select>
+                  <button disabled={busy} onClick={() => void createShare()} className="cursor-pointer rounded bg-cyan-500 px-3 py-1 text-xs font-bold text-slate-950 hover:bg-cyan-400 disabled:opacity-40">Bağlantı oluştur + kopyala</button>
+                </div>
+                {shareMsg && <div className="mt-2 text-emerald-300">✓ {shareMsg}</div>}
+                <ul className="mt-2 space-y-1.5">
+                  {shares.length === 0 && <li className="text-slate-500">Bu rapor için bağlantı yok.</li>}
+                  {shares.map((sh) => {
+                    const st = shareState(sh);
+                    return (
+                      <li key={sh.token} className="flex flex-wrap items-center gap-2 rounded border border-[#1a2230] bg-[#0e141d] px-2 py-1.5">
+                        <span className="font-mono text-[10.5px] text-cyan-300">…{sh.token.slice(-8)}</span>
+                        <span className={`text-[10.5px] font-bold ${st === "aktif" ? "text-emerald-300" : st === "kapatildi" ? "text-rose-300" : "text-amber-300"}`}>{st === "aktif" ? "aktif" : st}</span>
+                        <span className="text-[10.5px] text-slate-500">{new Date(sh.expiresAt).toLocaleString("tr-TR")} · {sh.accessCount} erişim</span>
+                        {st === "aktif" && <button onClick={() => void revokeShare(sh.token)} className="ml-auto cursor-pointer rounded border border-rose-400/40 px-2 py-0.5 text-[10.5px] font-bold text-rose-200 hover:bg-rose-400/10">Kapat</button>}
+                      </li>
+                    );
+                  })}
+                </ul>
               </div>
             )}
             {report.id && (

@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { SeriesData } from "@/lib/types";
 import ObliquePanel from "./ObliquePanel";
 import VolumeRender from "./VolumeRender";
+import { obliquePlane, sampleTrilinear, type SlabMode } from "@/lib/volume";
+import { renderMprPlane } from "@/lib/mpr";
 
 type Mode = "single" | "avg" | "mip" | "minip";
 
@@ -187,13 +189,40 @@ export default function VolumeView({ series, wl: wl0, ww: ww0, invert, initialTa
   const [ww, setWw] = useState(ww0);
   const [tab, setTab] = useState<"not" | "oblik" | "3b">(initialTab);
   const [big, setBig] = useState(false);
+  /** Kullanıcının seçtiği kalıcı MPR katsayısı (varsayılan: kalp-damar). */
+  const [prefFilter, setPrefFilter] = useState<{ wl: number; ww: number } | null>(null);
 
+  /**
+   * Düzlemleri `src/lib/mpr.ts` üzerinden üret: kesit konumları (IPP) varsa hasta
+   * uzayından trilinear örnekleme; yoksa sıralı tarama sanaline dayanır. Kalın kesit
+   * mm cinsindendir ve modu (Ort./MIP/MinIP) aynı motor tarafından uygulanır.
+   */
   const m: Mode = slab === 0 ? "single" : mode === "single" ? "avg" : mode;
   const kz = Math.round(slab / 2 / spacing);
   const kxy = Math.round(slab / 2 / (series.pixelSpacing || 1));
-  const ax = useMemo(() => axialPlane(series, cur.z, kz, m), [series, cur.z, kz, m]);
-  const co = useMemo(() => coronalPlane(series, cur.y, kxy, m), [series, cur.y, kxy, m]);
-  const sa = useMemo(() => sagittalPlane(series, cur.x, kxy, m), [series, cur.x, kxy, m]);
+  function planeFor(
+    axis: "axial" | "coronal" | "sagittal",
+    at: { index?: number; row?: number; col?: number },
+  ): { data: Float32Array; w: number; rows: number; rowScale: number } {
+    const r = renderMprPlane(series, axis, { ...at, slabMm: slab, mode: m });
+    if (!r) {
+      const p = axis === "axial"
+        ? axialPlane(series, at.index ?? 0, kz, m)
+        : axis === "coronal"
+          ? coronalPlane(series, at.row ?? 0, kxy, m)
+          : sagittalPlane(series, at.col ?? 0, kxy, m);
+      return { data: p, w: axis === "sagittal" ? H : W, rows: axis === "axial" ? H : N, rowScale: ratio };
+    }
+    return { data: r.data, w: r.w, rows: r.h, rowScale: r.dv / r.du };
+  }
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const axG = useMemo(() => planeFor("axial", { index: cur.z }), [series, cur.z, slab, mode]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const coG = useMemo(() => planeFor("coronal", { row: cur.y }), [series, cur.y, slab, mode]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const saG = useMemo(() => planeFor("sagittal", { col: cur.x }), [series, cur.x, slab, mode]);
+  const ax = axG.data, co = coG.data, sa = saG.data;
   const clamp = (v: number, max: number) => Math.max(0, Math.min(max - 1, v));
   const val = series.slices[cur.z]?.[cur.y * W + cur.x];
   const zMm = series.slicePositions ? series.slicePositions[cur.z] : cur.z * spacing;
@@ -213,6 +242,16 @@ export default function VolumeView({ series, wl: wl0, ww: ww0, invert, initialTa
               {k === "avg" ? "Ort." : k === "mip" ? "MIP" : "MinIP"}
             </button>
           ))}
+          <div className="flex items-center gap-1">
+            {([["soft", "Yumuşak"], ["bone", "Kemik"]] as const).map(([key, label]) => (
+              <button key={key} onClick={() => {
+                const f = key === "soft" ? { wl: 40, ww: 400 } : { wl: 350, ww: 1800 };
+                setPrefFilter((p) => (p && p.wl === f.wl && p.ww === f.ww ? null : f));
+                setWl(f.wl); setWw(f.ww);
+              }} className={`cursor-pointer rounded px-2 py-0.5 font-bold ${prefFilter?.wl === (key === "soft" ? 40 : 350) ? "bg-cyan-400/20 text-cyan-200 ring-1 ring-cyan-400/50" : "text-slate-300 hover:bg-[#161e2b]"}`}>{label}</button>
+            ))}
+            <button onClick={() => { setPrefFilter(null); setWl(wl0); setWw(ww0); }} className="cursor-pointer rounded bg-[#141b24] px-2 py-0.5 font-bold text-slate-300 hover:bg-[#1f2937]">Filtreyi sıfırla</button>
+          </div>
           <label className="flex items-center gap-1 text-slate-300">WL
             <input type="number" value={Math.round(wl)} onChange={(e) => setWl(Number(e.target.value))} className="w-16 rounded border border-[#1e2735] bg-[#0e141d] px-1 py-0.5 text-slate-100" />
           </label>
@@ -224,15 +263,15 @@ export default function VolumeView({ series, wl: wl0, ww: ww0, invert, initialTa
       </div>
       <div className="grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-1 p-1">
         {!big && <>
-        <Plane title="AKSİYEL" w={W} rows={H} rowScale={1} data={ax} wl={wl} ww={ww} invert={invert} color="#22d3ee"
+        <Plane title="AKSİYEL" w={axG.w} rows={axG.rows} rowScale={axG.rowScale} data={ax} wl={wl} ww={ww} invert={invert} color="#22d3ee"
           cross={{ x: cur.x + 0.5, y: cur.y + 0.5 }}
           onPick={(ix, iy) => setCur((c) => ({ ...c, x: clamp(ix, W), y: clamp(iy, H) }))}
           onWheel={(d) => setCur((c) => ({ ...c, z: clamp(c.z + d, N) }))} />
-        <Plane title="KORONAL" w={W} rows={N} rowScale={ratio} data={co} wl={wl} ww={ww} invert={invert} color="#fbbf24"
+        <Plane title="KORONAL" w={coG.w} rows={coG.rows} rowScale={coG.rowScale} data={co} wl={wl} ww={ww} invert={invert} color="#fbbf24"
           cross={{ x: cur.x + 0.5, y: N - 1 - cur.z + 0.5 }}
           onPick={(ix, iy) => setCur((c) => ({ ...c, x: clamp(ix, W), z: clamp(N - 1 - iy, N) }))}
           onWheel={(d) => setCur((c) => ({ ...c, y: clamp(c.y + d, H) }))} />
-        <Plane title="SAGİTAL" w={H} rows={N} rowScale={ratio} data={sa} wl={wl} ww={ww} invert={invert} color="#f472b6"
+        <Plane title="SAGİTAL" w={saG.w} rows={saG.rows} rowScale={saG.rowScale} data={sa} wl={wl} ww={ww} invert={invert} color="#f472b6"
           cross={{ x: cur.y + 0.5, y: N - 1 - cur.z + 0.5 }}
           onPick={(ix, iy) => setCur((c) => ({ ...c, y: clamp(ix, H), z: clamp(N - 1 - iy, N) }))}
           onWheel={(d) => setCur((c) => ({ ...c, x: clamp(c.x + d, W) }))} />

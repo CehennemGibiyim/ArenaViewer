@@ -16,7 +16,23 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
 - **Fotometrik yorumlar:** MONOCHROME1/2, RGB, YBR, PALETTE COLOR; DICOM Overlay
   (60xx) ve GSPS sunum durumları
 - **Özel nesneler:** DICOM SR (yapısal rapor), Encapsulated PDF, 12-derivasyonlu EKG
-- **MPR:** axial/koronal/sagittal yeniden kesit, MIP/MinIP/ortalama kalın kesit
+- **MPR:** axial/koronal/sagital yeniden kesit; kalın kesitte ortalama/MIP/MinIP;
+  oblik (eğimli) MPR ve WebGL 3B hacim. Kesit konumu kaydı (IPP) varsa koronal/sagital
+  gerçek hasta geometrisinden, ölçek kayması olmadan örneklenir (`src/lib/mpr.ts` +
+  `VolumeView`). Kaynak seri salt okunur tutulur.
+- **ICD-10 / istem uygunluğu:** Rapor metninden yaklaşık ICD-10 önerileri ve
+  ACR tarzı istem uygunluğu puanı (`src/lib/icd10.ts`). Öneriler raporda açıkça
+  "yaklaşık eşleme; radyolog onayı şart" olarak etiketlenir.
+- **Mobil/PWA:** `public/manifest.webmanifest` (tr-TR, tek başına ekran), 192/512 simgeler
+  ve hizmet işçisi (`public/sw.js`). İşçi yalnızca statik varlıkları önbelleğe alır;
+  klinik veri ve API yanıtları asla önbelleğe girmez, çevrimdışıda eski hasta bilgisi
+  gösterilmez (`public/offline.html`).
+- **Sesle dikte:** Rapor alanlarında Türkçe dikte (Web Speech API). Sayı sözcükleri
+  ("yirmi beş" → 25), noktalama komutları (virgül / iki nokta / yeni satır / yeni
+  paragraf / temizle), ölçü birimleri (milimetre → mm) ve tıbbi sözlük düzeltmeleri
+  (`src/lib/dictate.ts`); aynı normalize katmanı `/api/reports/normalize` ile
+  sunucuda da çağrılabilir. Dikte metni hekim metnidir; tarayıcı konuşma tanıma
+  motorunu kullanır.
 - **Hanging Protocol motoru:** 1×1'den 3×2'ye düzenler, modaliteye göre otomatik
   protokoller ve görsel özel protokol editörü (JSON içe/dışa aktarma)
 - **Görüntü incelemesi:** US renkli Doppler, MR, direkt grafi ve diğer piksel içeren
@@ -34,7 +50,9 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   **Çıkarım tamamen bu makinede çalışır; hasta verisi dışarı çıkmaz, ücretli servis
   kullanılmaz. Klinik doğrulanmamıştır; her bulgu radyoloji uzmanı onayı gerektirir.**
 - **Raporlama:** taslak → onay akışı, bulgu bazlı hekim doğrulaması, sürümleme,
-  addendum, A4 yazdırma, FHIR R4 DiagnosticReport dışa aktarma
+  addendum, A4 yazdırma, FHIR R4 DiagnosticReport dışa aktarma, ikinci okuma (peer review) kaydı
+- **Süreli paylaşım:** onaylı rapor için süre seçilebilir (1–30 gün), kapatılabilir,
+  filigranlı salt okunur bağlantı (`/paylas/<token>`); her erişim denetimde işlenir. Ham görüntü paylaşılmaz.
 - **İş akışı:** çalışma listesi, PACS (DICOMweb QIDO/WADO — hazır sistem ayarları, şifreli kimlik, bağlantı testi), HBYS istem alımı,
   kritik bulgu bildirimleri, şifreli sunucu depolaması, hash zincirli denetim kaydı
 
@@ -133,12 +151,36 @@ python ai-worker/server.py          # worker'ı başlatır (CPU'da da çalışı
 ```
 
 - Windows'ta tüm bu adımları betik yapar: `windows\Kurulum.bat` (bkz. docs/WINDOWS_KURULUM.md §0).
-- Akciğer modeli: `~/.cache/atikviewer-ai/model/model.pt` (`ATIK_MODEL_DIR` ile değiştirilebilir).
+- Akciğer (BT) modeli: `~/.cache/atikviewer-ai/model/model.pt` (`ATIK_MODEL_DIR` ile değiştirilebilir).
 - Beyin (ICH) modeli: `~/.cache/atikviewer-ai/brain` (7 × `.safetensors`, MIT/RSNA).
-- Durum: `GET /api/deep-scan` → `{"worker":"up"|"down", ...}`
+- Akciğer grafisi (CXR) modeli: repoda `ai-worker/models/cxr_densenet121_medx_320.onnx`
+  (Medical_X DenseNet121, Apache-2.0, 28 MB). Öncelik sırası:
+  `CXR_MODEL_PATH` → `~/.cache/atikviewer-ai/cxr/` (`ATIK_CXR_DIR`) → depodaki dosya.
+  Türetimi: `python ai-worker/tools/export_cxr_onnx.py --verify`;
+  kaynak lisansı/bildirim: `ai-worker/models/LICENSE.Medical_X.txt` + `NOTICE.md`.
+- Durum: `GET /api/deep-scan` → `{"worker":"up"|"down", ...}`; worker `/health` içinde
+  `cxr.modelFile` / `cxr.modelLoaded`.
 - Uygulama içinde BT toraks analizi otomatik olarak bu uca gider; worker kapalıysa
   kural tabanlı motor devam eder ve uyarı satırı gösterilir.
+- Direkt grafilerde (CR/DX/RG) ise yerel CXR modeli çalışır: 14 torasik bulgu için olasılık
+  tablosu + **Grad-CAM ısı haritası** örtüsü. Model lokalizasyon kutusu vermez; bulgular
+  "aday" sayılır, klinik doğrulaması yoktur ve skorlar kalibre olasılık değildir.
+  Hasta görüntüsü yalnızca bu makinedeki worker'a gider, dış ağa çıkmaz.
 - Not: Büyük HU hacimleri için `next.config.ts` içinde gövde sınırı 700 MB'a ayarlıdır.
+
+### HBYS/RIS sipariş köprüsü (HL7 v2 MLLP)
+
+Kurum içi HBYS, teknik olarak `ORM^O01` gibi sipariş mesajlarını TCP/MLLP ile gönderir.
+Bu mesajları ArenaViewer'ın `/api/his/orders` ucuna çeviren ayrı bir dinleyici script'i vardır:
+
+```bash
+HIS_API_KEY=<ayarlardaki anahtar> HL7_PORT=2575 npm run hl7:mllp
+```
+
+- Dinleme: `HL7_HOST`/`HL7_PORT` (varsayılan `127.0.0.1:2575`); kurum ağına açarken `HL7_HOST=0.0.0.0`.
+- Hedef: `HIS_BASE_URL` (varsayılan `http://127.0.0.1:3000`) → `/api/his/orders`, `x-api-key` başlığı ile.
+- Yanıt: PACS/HBYS'e `MSA|AA` (kabul), `AR` (eksik alan) veya `AE` (ulaşılamadı) ACK'i döner.
+- Ayrıştırma: `src/lib/hl7.ts` (saf fonksiyonlar, `npm run test:hl7`). MWL/C-FIND ve DIMSE tarafı bu script'te **yoktur**; siparişe dayalı çalışma listesi uygulamada oluşur.
 
 ## Ortam değişkenleri
 
@@ -166,6 +208,7 @@ Anahtar üretme: `node -e "console.log(require('crypto').randomBytes(32).toStrin
 | `npm run typecheck` | TypeScript kontrolü |
 | `npm run build` / `npm start` | Üretim derlemesi / sunucusu |
 | `npx drizzle-kit push` | Şemayı yerel DB'ye uygula |
+| `npm run hl7:mllp` | HL7 v2 (MLLP) sipariş alıcısını başlatır (`HIS_API_KEY` gerekir) |
 | `npx drizzle-kit push --config=drizzle.config.ts` | Şemayı `DATABASE_URL`'deki DB'ye uygula (Docker/üretim) |
 
 ## Testler
@@ -177,10 +220,15 @@ npm ci
 npx playwright install chromium     # tarayıcı için (playwright artık devDependency)
 
 # Birim/entegrasyon testleri (sunucu gerektirmez)
-npm test                            # image-review + PACS + RECIST (tsx ile)
+npm test                            # tam birim/entegrasyon zinciri (~276 PASS)
 npm run test:image-review
 npm run test:pacs
 npm run test:recist
+npm run test:mpr                    # MPR geometrisi + trilinear yeniden kesit
+npm run test:dictate                 # sesle dikte: sayılar, komutlar, tıbbi sözlük
+npm run test:pwa                     # manifest + hizmet işçisi kapsamı
+npm run test:icd10                   # ICD-10 öneri + istem uygunluğu
+npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)
 npm run build && npm start &
@@ -264,6 +312,26 @@ docs/             Yayınlama ve işletim kılavuzları
   (SSO/rol) şarttır; bu yazılım tıbbi cihaz değildir.
   Bu yazılım tıbbi cihaz değildir ve düzenleyici onay süreçlerinin (MDR/TİTCK vb.)
   yerini tutmaz.
+
+## Doğrulama, risk ve gölge mod
+
+- **Risk yönetimi:** [docs/RISK_YONETIMI.md](docs/RISK_YONETIMI.md) — ISO 14971
+  biçiminde tehlike/hasar/olasılık-şiddet tablosu ve mevcut azaltıcı kontroller
+  (genel + CXR/BT toraks/ICH modelleri).
+- **Doğrulama kayıtları ve planı:** [docs/KLINIK_DOGRULAMA_PLANI.md](docs/KLINIK_DOGRULAMA_PLANI.md)
+  mevcut doğrulama raporlarını (`Dogrulama_Raporu.md`, `Klinik_Dogrulama_ICH.md`,
+  `Klinik_Dogrulama_LUNA16.md`) ve açıkta kalan CXR modeli için yapılması gerekenleri
+  birleştirir; performans izleme `/yonetim → AI performans` üzerindedir (PPV,
+  kalibrasyon bölmeleri).
+- **Gölge mod:** Henüz doğrulanmamış bir modeli üretimde denemek için
+  `NEXT_PUBLIC_AI_SHADOW_MODE=true`. Bu durumda AI adayları **rapora/ekrana girmez**;
+  yalnızca etiket/şiddet/skor özeti `shadow_findings` tablosuna yazılır
+  (`POST /api/shadow`, özet `GET /api/shadow/summary`). Kapatıldığında bulgular yeniden
+  "aday" etiketiyle rapora girer. Yeni tabloyu veritabanına uygulamak için
+  `npx drizzle-kit push --config=drizzle.config.ts`.
+- **Uyum:** Yönetim → Uyum sekmesi kurumsal süreç takip listesidir (amaçlanan kullanım,
+  sınıflandırma, ISO 13485/IEC 62304/14971, klinik değerlendirme, KVKK, NES, satış
+  sonrası izleme). Liste kodla tamamlanamaz; sorumluluk üretici kuruma aittir.
 
 ## Lisans
 

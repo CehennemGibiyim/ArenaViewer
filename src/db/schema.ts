@@ -106,6 +106,23 @@ export const reports = pgTable("reports", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+/**
+ * Gölge mod (shadow mode) kaydı: henüz doğrulanmamış model çıktılarının rapora
+ * girilmeden toplanması. Bulgular "aday" niteliğinde kalır; değerlendirme hekim
+ * onayına bağlıdır. Ayrıntı: docs/KLINIK_DOGRULAMA_PLANI.md §2.
+ */
+export const shadowFindings = pgTable("shadow_findings", {
+  id: serial("id").primaryKey(),
+  engine: text("engine").notNull(),
+  model: text("model").notNull().default(""),
+  studyUid: text("study_uid").notNull().default(""),
+  modality: text("modality").notNull().default(""),
+  findingCount: integer("finding_count").notNull().default(0),
+  findingsJson: jsonb("findings_json").notNull().default([]),
+  createdBy: integer("created_by"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const reportVersions = pgTable("report_versions", {
   id: serial("id").primaryKey(),
   reportId: integer("report_id")
@@ -127,6 +144,43 @@ export const reportAddenda = pgTable("report_addenda", {
   text: text("text").notNull(),
   createdBy: integer("created_by"),
   createdByName: text("created_by_name").notNull().default(""),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+/**
+ * Süreli paylaşım bağlantısı (F5): rapor/çalışma özetinin dışa açık, süreli,
+ * kapatılabilir ve erişimleri denetlenen şekilde paylaşılması.
+ */
+export const shareLinks = pgTable("share_links", {
+  id: serial("id").primaryKey(),
+  token: text("token").notNull().unique(),
+  kind: text("kind").notNull(), // report | study
+  reportId: integer("report_id").references(() => reports.id, { onDelete: "cascade" }),
+  studyId: integer("study_id").references(() => studies.id, { onDelete: "cascade" }),
+  createdBy: integer("created_by"),
+  createdByName: text("created_by_name").notNull().default(""),
+  expiresAt: timestamp("expires_at").notNull(),
+  revokedAt: timestamp("revoked_at"),
+  accessCount: integer("access_count").notNull().default(0),
+  lastAccessAt: timestamp("last_access_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+/**
+ * İkinci okuma / peer review (D): raporun değerlendiren ikinci hekimden gelen uyum kaydı.
+ * contentHash, incelemenin hangi rapor sürümüne ait olduğunu taşır.
+ */
+export const peerReviews = pgTable("peer_reviews", {
+  id: serial("id").primaryKey(),
+  reportId: integer("report_id")
+    .notNull()
+    .references(() => reports.id, { onDelete: "cascade" }),
+  result: text("result").notNull(), // uyumlu | kismen-uyumlu | uyumsuz
+  discrepancyType: text("discrepancy_type").notNull().default(""),
+  note: text("note").notNull().default(""),
+  reviewedBy: integer("reviewed_by"),
+  reviewedByName: text("reviewed_by_name").notNull().default(""),
+  contentHash: text("content_hash").notNull().default(""),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

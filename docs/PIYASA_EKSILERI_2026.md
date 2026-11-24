@@ -24,14 +24,15 @@
 
 ## 0.1 Modalite bazında donanım durumu (tarama)
 
-Görüntüleme altyapısı (MPR/MIP/füzyon/ölçüm/pencere) tüm modalitelerde ortaktır;
-modaliteye özel **AI bulgu motoru** ve **rapor şablonu** kapsamı aşağıdadır:
+Görüntüleme altyapısı (füzyon, ölçüm, pencere, hanging protocol) tüm modalitelerde
+ortaktır; **MPR/MIP/VR henüz yoktur**. Modaliteye özel **AI bulgu motoru** ve
+**rapor şablonu** kapsamı aşağıdadır:
 
 | Modalite | Görüntüleme | AI bulgu/analiz | Rapor şablonu | Asma protokolü |
 |---|---|---|---|---|
-| CT | Tam (pencereler, MPR, kalibrasyon) | ICH kanama + toraks nodül (kural tabanlı, yerel MONAI modeli worker'a bağlanabilir) | 11 | BT Beyin / Toraks / Abdomen-Pelvis / Anjiyo / Ürotrakt |
+| CT | Tam (pencereler, kalibrasyon, füzyon); MPR/MIP yok | **Yerel modeller:** toraks nodül (MONAI, bbox) + beyin İCH (6 sınıf, bbox) — hasta verisi dış ağa çıkmaz | 11 | BT Beyin / Toraks / Abdomen-Pelvis / Anjiyo / Ürotrakt |
 | MR | Tam (sekans listesi, karşılaştırma, ölçüm) | **Yalnız görüntü incelemesi** (tanı üretmez) — MR'ya özel model yok | 17 | MR Çoklu Sekans (T1/T2/FLAIR/DWI düzeni) |
-| CR / DX | Tam (PA/lateral düzeni) | Görüntü ölçümü + CTR hesaplayıcı; sınıflandırma modeli yok | 2 | Direkt Grafi |
+| CR / DX | Tam (PA/lateral düzeni, teknik kalite kontrolü) | **Yerel derin model:** Medical_X DenseNet121 (Apache-2.0) — 14 torasik bulgu olasılığı + Grad-CAM ısı örtüsü; CTR hesaplayıcı. Lokalizasyon kutusu YOK, skorlar kalibre değil, klinik doğrulaması yok | 2 | Direkt Grafi |
 | US | Tam (cine + renkli Doppler) | TI-RADS skor paneli; tanı motoru yok | 6 | Yok |
 | MG | Tam (RCC/LCC/RMLO/LMLO 2×2) | BI-RADS/ACR yoğunluk paneli + DBT şablonu; otomatik yoğunluk algılama yok | 3 | Mamografi |
 | PET / NM | Füzyon + SUVbw | TIC/DSA/MTV yok | 1 | PET-CT füzyon |
@@ -52,7 +53,7 @@ Notlar:
 
 | ID | Özellik | P | Çaba | Piyasa örneği | Bizde şu an | Fikir / nasıl yapılır |
 |---|---|---|---|---|---|---|
-| A1 | **Akciğer grafisi/filitrio AI** (pnömotoraks, effüzyon, konsolidasyon, katlak, TB) + ısı haritası | P1 | M | Lunit, Aidoc, Gleamer | **Bu sürümde kısmen:** PA kardiyotorasik oran (CTR) hesaplayıcı eklendi (`structuredReport.ts`), ancak sınıflandırma/ısı haritası yok. Görüntü inceleme hâlâ yalnız piksel ölçümüdür. | Kalan: `torchxrayvision`/ONNX modeli + bbox/Grad-CAM; bulgu onay akışına bağlanır.
+| A1 | **Akciğer grafisi/filitrio AI** (pnömotoraks, effüzyon, konsolidasyon, katlak, TB) + ısı haritası | P1 | M | Lunit, Aidoc, Gleamer | **Bu sürümde kısmen:** CTR hesabı + CXR teknik kalite modülü (`src/lib/cxr.ts`: projeksiyon, inspirasyon, rotasyon, penetrasyon → rapora teknik satır); tanısal sınıflandırma ve ısı haritası hâlâ yok. | Kalan: CXR ONNX modeli + bbox/Grad-CAM (ağırlık kaynağı kararı gerekli); bulgu onay akışına bağlanır.
 | A2 | **İnme paketi: ASPECTS + CTP perfüzyon** (CBF/CBV/MTT/Tmax, core/penumbra) | P1 | L | Viz.ai, Aidoc | **Bu sürümde kısmen:** ASPECTS 10 bölge skoru panelde işaretlenir; `stroke.ts` basitleştirilmiş CTP özeti (TTP/gecikme, CBF/CBV oranları, core/penumbra adayı). Dekonvolüsyon/AIF seçimi yoktur. | Kalan: model tabanlı AIF + dekonvolüsyon; injeksiyon öncesi/sonrası seri eşleme.
 | A3 | **MSK/X-ışını kırık ve landmarke AI** | P2 | L | Gleamer | Yok (görüntü ölçümü var) | Öncelikle açık-kinelig/veya bölge sınıflandırma + heatmap; el/omurGAĞI/ayak Landmarke nokta önerisi. |
 | A4 | **Mamografi: BI-RADS yoğunluk + DBT (tomosentez)** | P2 | L | Lunit, iCAD | “MG modu” olduğu belgelenmiş ama yoğunluk/DBT özel akışı yok | CC/MLO layout + DBT slab navigasyonu + BI-RADS a/b/c/d yoğunluk önerisi; PI-RADS/Radslex benzeri sözlük. |
@@ -97,7 +98,7 @@ Notlar:
 |---|---|---|---|---|---|
 | D1 | **Kritik sonuç kapanış döngüsü:** ACK + iletim kanıtı + eskalasyon kaydı | P1 | M | Bildirim “alındı” var; kim/süre/eskalasyon ve iletilme kanıtı yok | Zaman damgalı ACK, okundu/iletildi kanıtı, hekime tekrar hatırlatma, denetim satırı. **Bu sürümde kısmen uygulandı:** `notifications.relayedTo`/`relayedAt`/`escalated`/`escalatedAt` + zil üzerinde “İletildi…/Eskalasyon” ve `notify.relay` denetim kaydı; süre hatırlatması yok. |
 | D2 | **Takip önerilerini iş listesine taşıma** | P1 | S | Öneri raporda kalıyor; görev kuyruğuna düşmüyor | “Takip önerisi” nesnesi: modalite/bölge/süre + durum; çalışma listesinde görünür. **Bu sürümde uygulandı:** onaylı raporun “Öneri” metni otomatik göreve dönüşür (`acik/tamamlandi/iptal`), gün/hafta/ay/yıl süresi ayrıştırılır; biyopsi/kritik ifadelerde önem derecesi ve varsayılan süre otomatik atanır (`followupText.ts`, `closeLoop.ts`). Yaklaşan tarih bildirimi yok. |
-| D3 | **Peer review / ikinci okuma / uyuşmazlık kaydı (RADPEER)** | P2 | M | Yok | Rapor yanında ikinci hekim ataması, uyuşmazlık kategorisi, kalite metriği. |
+| D3 | **Peer review / ikinci okuma / uyuşmazlık kaydı (RADPEER)** | P2 | M | **Bu sürümde eklendi:** rapor ekranında ikinci okuma kartı + `peer_reviews` tablosu (sonuç/fark türü/not; uyumsuzda açıklama zorunlu). | Rastgele örnekleme oranı, uzun vadeli uyuşmazlık istatistikleri ve RADPEER puanlama.
 | D4 | **Ambient dokümantasyon + yapılandırılmış makrolar** | P2 | M | **Bu sürümde kısmen:** 14 hazır makro bloğu rapor ekranından eklenebilir; ambient tıbbi sözlük yok. | Kalanlar arşiv/KMS ve SLSA attestation; log seviyesi ortam değişkenine bağlanacak.
 | D5 | **ICD-10 / ACR Appropriateness / kodlama desteği** | P3 | S | Yok | Bulgu→ICD-10 öneri tablosu; istek uygunluğu sorgulama (RadPal benzeri). |
 | D6 | **Hasta dostu sonuç mektubu (çok dilli)** | P3 | S | Hasta özeti var | PDF/e-posta çıktısı; okuma düzeyi seçeneği. |
@@ -111,9 +112,9 @@ Notlar:
 
 | ID | Özellik | P | Çaba | Bizde şu an | Fikir |
 |---|---|---|---|---|---|
-| E1 | **DICOMweb STOW-RS / DIMSE C-STORE ile PACS’a gönderme** (SR, KO, anonim DICOM) | P1 | M | Yalnız QIDO/WADO istemcisi | `STOW-RS` upload ucu + rapor/KO/SR gönderim diyaloğu; hata/ack kaydı. |
+| E1 | **DICOMweb STOW-RS / DIMSE C-STORE ile PACS’a gönderme** (SR, KO, anonim DICOM) | P1 | M | **Bu sürümde eklendi:** `/api/pacs/stow` + PACS istemcisinde `stowInstance()` (STOW-RS, onaylı rapor → DICOM SR). | Anahtar nesne (KO) ve anonim seri gönderimi; C-STORE.
 | E2 | **WADO-RS URI + kare/bulk veri (frame-level) getirme** | P1 | S–M | Instance bazlı WADO var | `accept=multipart/related;type=image/jpeg;transfer-syntax=*`, frame parametresi, `bulkdataURI`. |
-| E3 | **HL7 v2 MLLP alıcısı + Modality Worklist (MWL)** | P1 | L | REST istemi + FHIR rapor çıktısı var | MLLP listener + worklist import; MWL SCP hedefi (sipariş→çalışma listesi). |
+| E3 | **HL7 v2 MLLP alıcısı + Modality Worklist (MWL)** | P1 | L | **Bu sürümde eklendi:** MLLP alıcısı (`npm run hl7:mllp`) + HL7 ayrıştırıcı; ORM^O01 siparişini `/api/his/orders`'a çevirip ACK döner. | ADT/değişiklik mesajları ve MWL SCP (C-FIND).
 | E4 | **FHIR girişi: ServiceRequest/ImagingStudy/P Çekici** | P2 | M | Çıktı FHIR DR var; giriş yok | FHIR client (kimlik/OAuth), sipariş→çalışma, ImagingStudy→WADO URL eşlemesi. |
 | E5 | **IHE profilleri (SWF, AI Results, DICOMweb)** | P2 | L | Yok | Önce SWF (scheduled workflow) + AI Results Storage Profile. |
 | E6 | **Gerçek PACS ile uçtan uca test** (Orthanc/dcm4chee) | P1 | S | **Bu sürümde uygulandı:** `tests/pacs.orthanc.e2e.ts` gerçek Orthanc'ta STOW yükle → QIDO bul → WADO geri al → temizlik; CI `pacs-e2e` işi ve `docker compose --profile pacs`. | Kalan: dcm4chee ile de çalıştırma; CI'da C-FIND/C-MOVE ve anonimleştirilmiş DICOM gönderimi. |
@@ -127,9 +128,9 @@ Notlar:
 | F1 | **Kimlik:** kullanıcı adı/parola + MFA + oturum zaman aşımı (SSO sırasıyla) | P0 | L | ACCESS_TOKEN tek kapıydı; parola/oturum/MFA yoktu | **Bu sürümde minimum uygulandı:** `AUTH_MODE=hesap` ile scrypt parola, imzalı oturum çerezi (8 saat), TOTP/MFA (`otplib`), `REQUIRE_TOTP_FOR_ROLES`. Kalan: SSO/OIDC/LDAP/SAML entegrasyonu. |
 | F2 | **RBAC detayı:** radyolog/teknisyen/arator/yönetici + hekim profilleri | P0 | M | Tek operatör profili; `authorize()` rolleri yok sayıyordu | **Bu sürümde uygulandı:** `yonetici/radyolog/teknisyen` rol denetimi tüm API uçlarında aktif, Yönetim → Kullanıcılar (ekle/rol/pasif/parola sıfırla). Kalan: arator rolü ve hekim profil çoklu üyelikleri. |
 | F3 | **Kullanıcı başına tercihler** (layout, preset, kısayol) sunucuda | P2 | S–M | **Bu sürümde eklendi:** `/tercihler` sayfası + `/api/profile/preferences`; açılış düzeni uygulanır. | Kalanlar arşiv/KMS ve SLSA attestation; log seviyesi ortam değişkenine bağlanacak.
-| F4 | **Turnaround/istatistik panosu** (TAT, bulgu/adet, onay süresi) | P2 | M | Çalışma listesi var, metrik yok | Denetim + rapor verisinden agregasyon; Yönetim sekmesi. |
+| F4 | **Turnaround/istatistik panosu** (TAT, bulgu/adet, onay süresi) | P2 | M | **Bu sürümde eklendi:** `/api/reports/stats` + Yönetim > İş akışı (TAT medyan/p90, durum/modalite dağılımı, eski taslak). | Haftalık trend grafikleri ve hedef eşik uyarıları.
 | F5 | **Toplu/arka plan içe aktarma kuyruğu** | P2 | M | Tek seri akışı | Kuyruk tablosu + ilerleme; başarısız yeniden deneme. |
-| F6 | **Paylaşım:** süreli bağlantı + watermark + denetim | P2 | M | Yok | imzalı URL, maske/watermark, erişim logu. |
+| F6 | **Paylaşım:** süreli bağlantı + watermark + denetim | P2 | M | **Bu sürümde eklendi:** `/paylas/{token}` filigranlı salt okunur sayfa + `share_links` tablosu; 1–30 gün süreli, kapatılabilir, erişim sayaclı ve denetimli (rapor metni + anahtar kesit). | Ham görüntü/DICOM paylaşımı için imzalı URL ve nesne depolama adaptörü.
 | F7 | **Hasta CD’si / ISO** (DICOM CD, otomatik görüntüleyici) | P3 | M | ZIP + kurulum var | ISO üretimi + DICOMDIR + autostart viewer. |
 
 ---

@@ -10,6 +10,9 @@ export const dynamic = "force-dynamic";
  * POST /api/deep-scan  — gövde: gzip(int16 LE HU hacmi); başlıklar: X-Dims, X-Spacing
  * GET  /api/deep-scan  — worker sağlık durumu
  *
+ * POST /api/deep-scan?protocol=cxr — tek karelik grafi (gzip float32 LE, Z=1,Y,X);
+ *   worker Medical_X DenseNet121 (Apache-2.0) ile 14 sınıflık olasılık + ısı haritası döner.
+ *
  * Hasta verisi yalnızca bu makinedeki worker'a gider; harici/ücretli servis yoktur.
  */
 const WORKER = process.env.AI_WORKER_URL ?? "http://127.0.0.1:8787";
@@ -30,9 +33,15 @@ export async function POST(req: NextRequest) {
   if ("error" in a) return a.error;
 
   const protocol = new URL(req.url).searchParams.get("protocol") ?? "ct-chest";
-  if (protocol !== "ct-chest" && protocol !== "ct-head") return err("Geçersiz protocol (ct-chest|ct-head)");
+  if (protocol !== "ct-chest" && protocol !== "ct-head" && protocol !== "cxr") {
+    return err("Geçersiz protocol (ct-chest|ct-head|cxr)");
+  }
   // Beyin modeli CPU'da dakikalar sürebilir; protokole göre zaman aşımı.
-  const upstreamTimeout = protocol === "ct-head" ? 1_500_000 : 300_000;
+  const upstreamTimeout = protocol === "ct-head" ? 1_500_000 : protocol === "cxr" ? 120_000 : 300_000;
+  // CXR tek karedir: Z=1 zorunludur (worker da doğrular).
+  if (protocol === "cxr" && !req.headers.get("x-dims")?.startsWith("1,")) {
+    return err("CXR protokolü için X-Dims '1,Y,X' biçiminde olmalı");
+  }
 
   const dims = req.headers.get("x-dims") ?? "";
   const spacing = req.headers.get("x-spacing") ?? "";
@@ -55,12 +64,17 @@ export async function POST(req: NextRequest) {
     return err("Yerel AI worker'a ulaşılamadı (127.0.0.1:8787). Yerel çıkarım için ai-worker başlatılmalı.", 502);
   }
 
-  const data = (await upstream.json().catch(() => null)) as { error?: string; boxes?: unknown[] } | null;
+  const data = (await upstream.json().catch(() => null)) as
+    | { error?: string; boxes?: unknown[]; scores?: unknown[] }
+    | null;
   if (!upstream.ok || !data) return err((data as { error?: string } | null)?.error ?? `Yerel AI worker hatası (${upstream.status})`, 502);
 
   try {
     await audit(a.user, "ai.deep_scan", "study", (req.headers.get("x-study-uid") ?? "").slice(0, 64), {
       boxes: Array.isArray(data.boxes) ? data.boxes.length : 0,
+      classes: Array.isArray(data.scores)
+        ? data.scores.filter((c: unknown) => typeof c === "object" && c !== null && (c as { positive?: boolean }).positive === true).length
+        : 0,
       dims,
       protocol,
     });

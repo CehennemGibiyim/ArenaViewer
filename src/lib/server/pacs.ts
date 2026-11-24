@@ -207,6 +207,81 @@ export async function qidoInstances(cfg: PacsConfig, studyUid: string): Promise<
   return arr.map((o) => ({ seriesUid: val(o, "0020000E"), sopUid: val(o, "00080018") })).filter((i) => i.seriesUid && i.sopUid);
 }
 
+// ───────────── STOW-RS (gönderme) ─────────────
+
+export interface StowResult {
+  ok: boolean;
+  /** PACS'in belirttiği reddedilen SOP Instance UID'leri */
+  failed: string[];
+  /** Başarıyla kaydedilen nesne sayısı */
+  stored: number;
+  message: string;
+}
+
+function boundary() {
+  return `ATIK-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/**
+ * DICOM nesnesini PACS'e STOW-RS ile gönderir (`POST {wado|qido}/studies`).
+ * Gövde multipart/related; type="application/dicom". Yanıt application/dicom+json
+ * ise Referenced/FailedSOPSequence ayrıştırılır.
+ */
+export async function stowInstance(cfg: PacsConfig, bytes: Uint8Array, timeoutMs = 60000): Promise<StowResult> {
+  const root = cfg.wadoRoot || cfg.qidoRoot;
+  if (!root) throw new Error("PACS adresi yapılandırılmamış.");
+  const urlStr = `${trimRoot(root)}/studies`;
+  const bnd = boundary();
+  const head = Buffer.from(`--${bnd}\r\nContent-Type: application/dicom\r\nContent-Length: ${bytes.length}\r\n\r\n`, "ascii");
+  const tail = Buffer.from(`\r\n--${bnd}--\r\n`, "ascii");
+  const body = Buffer.concat([head, Buffer.from(bytes), tail]);
+  const headers = buildHeaders(cfg, "application/dicom+json; charset=utf-8");
+  headers["Content-Type"] = `multipart/related; type="application/dicom"; boundary=${bnd}`;
+  headers["Content-Length"] = String(body.length);
+
+  const res = await new Promise<RawResponse>((resolve, reject) => {
+    let u: URL;
+    try { u = new URL(urlStr); } catch { reject(new Error(`Geçersiz adres: ${urlStr}`)); return; }
+    const mod = u.protocol === "https:" ? https : http;
+    const req = mod.request(u, {
+      method: "POST",
+      headers,
+      rejectUnauthorized: !cfg.allowSelfSigned,
+      timeout: timeoutMs,
+    }, (r) => {
+      const chunks: Buffer[] = [];
+      r.on("data", (c: Buffer) => chunks.push(c));
+      r.on("end", () => resolve({ status: r.statusCode ?? 0, headers: r.headers, body: Buffer.concat(chunks) }));
+      r.on("error", (e) => reject(netError(e)));
+    });
+    req.on("timeout", () => req.destroy(new Error("timeout")));
+    req.on("error", (e) => reject(netError(e)));
+    req.end(body);
+  });
+
+  if (!res.status || res.status >= 400) throw new Error(friendlyStatus(res.status));
+  const text = res.body.toString("utf8").trim();
+  let failed: string[] = [];
+  let stored = 0;
+  if (text.startsWith("[") || text.startsWith("{")) {
+    try {
+      const arr = JSON.parse(text) as DJson[];
+      for (const o of arr) {
+        const ref = o["00081199"]?.Value?.[0] as { "00081155"?: { Value?: unknown[] } } | undefined;
+        const fai = o["00081198"]?.Value?.[0] as { "00081155"?: { Value?: unknown[] } } | undefined;
+        if (ref?.["00081155"]?.Value) stored += ref["00081155"].Value.length;
+        if (fai?.["00081155"]?.Value) failed = failed.concat(fai["00081155"].Value.map((v) => String(v)));
+      }
+    } catch { /* yanıt gövdesi boş/JSON değil: 2xx zaten başarı */ }
+  }
+  return {
+    ok: true,
+    failed,
+    stored: stored || 1,
+    message: failed.length > 0 ? `PACS ${failed.length} nesneyi reddetti.` : "PACS nesneyi kabul etti.",
+  };
+}
+
 // ───────────── WADO-RS ─────────────
 
 /** multipart/related gövdesinden ilk parçayı (DICOM nesnesi) çıkarır. */

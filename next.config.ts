@@ -54,6 +54,19 @@ const nextConfig: NextConfig = {
           { key: "Cache-Control", value: "public, max-age=86400" },
         ],
       },
+      {
+        // JPEG 2000 / JPEG-LS çözücü ikilileri. Next'in `send` MIME tablosu eski
+        // sürümlü olduğu için .wasm → application/wasm burada açıkça verilir;
+        // yanlış MIME'de WebAssembly.instantiateStreaming başarısız olur ve
+        // Emscripten köprüsünün geri dönük tampon yolu devreye girmez.
+        source: "/wasm/:path*",
+        headers: [
+          { key: "Access-Control-Allow-Origin", value: "*" },
+          { key: "Cross-Origin-Resource-Policy", value: "cross-origin" },
+          { key: "Content-Type", value: "application/wasm" },
+          { key: "Cache-Control", value: "public, max-age=86400" },
+        ],
+      },
     ];
   } }),
 };

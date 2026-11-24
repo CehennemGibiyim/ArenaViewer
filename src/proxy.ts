@@ -34,7 +34,10 @@ function isPublic(pathname: string): boolean {
   }
   return (
     pathname.startsWith("/_next/") ||
+    // Statik çözücü kaynakları (JS + WASM) kimlik kapısının dışındadır: herkese açık
+    // kütüphanelerdir, hasta verisi taşımazlar ve önizleme iframe'inden de yüklenir.
     pathname.startsWith("/codecs/") ||
+    pathname.startsWith("/wasm/") ||
     pathname.startsWith("/icons/") ||
     pathname.startsWith("/downloads/")
   );

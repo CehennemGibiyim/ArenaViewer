@@ -71,9 +71,12 @@ interface CharlsModule {
 }
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+// JS köprüleri public/codecs, WASM ikiliği public/wasm altındadır: MIME türleri
+// ayrı ayarlanabilsin (wasm → application/wasm) diye dizinler ayrılmıştır.
+// Lisans/bildirim: public/codecs/LICENSE.{openjpeg,charls}.txt
 const WASM_ASSETS: Record<WasmName, { js: string; wasm: string; global: string }> = {
-  openjpeg: { js: `${BASE}/codecs/openjpegwasm_decode.js`, wasm: `${BASE}/codecs/openjpegwasm_decode.wasm`, global: "OpenJPEGWASM" },
-  charls: { js: `${BASE}/codecs/charlswasm_decode.js`, wasm: `${BASE}/codecs/charlswasm_decode.wasm`, global: "CharLSWASM" },
+  openjpeg: { js: `${BASE}/codecs/openjpegwasm_decode.js`, wasm: `${BASE}/wasm/openjpegwasm_decode.wasm`, global: "OpenJPEGWASM" },
+  charls: { js: `${BASE}/codecs/charlswasm_decode.js`, wasm: `${BASE}/wasm/charlswasm_decode.wasm`, global: "CharLSWASM" },
 };
 
 function injectScript(src: string): Promise<void> {
