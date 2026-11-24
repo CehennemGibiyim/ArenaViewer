@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * Yerel derin AI worker durumu — canlı.
@@ -37,27 +37,35 @@ export default function AiWorkerStatus() {
   const [data, setData] = useState<WorkerHealth | null>(null);
   const [state, setState] = useState<"loading" | "ok" | "down">("loading");
   const [stamp, setStamp] = useState<string>("");
-
-  const load = useCallback(async () => {
-    setState((s) => (s === "ok" ? s : "loading"));
-    try {
-      const r = await fetch("/api/deep-scan", { cache: "no-store" });
-      const j = (await r.json()) as WorkerHealth;
-      setData(j);
-      setState(j.worker === "up" ? "ok" : "down");
-    } catch {
-      setData(null);
-      setState("down");
-    } finally {
-      setStamp(new Date().toLocaleTimeString("tr-TR"));
-    }
-  }, []);
+  /** "Yenile" düğmesi effect içindeki tick'i çağırır (ilk yüklemeden bağımsız). */
+  const reloadRef = useRef<() => void>(() => {});
 
   useEffect(() => {
-    void load();
-    const t = window.setInterval(() => void load(), 15000);
-    return () => window.clearInterval(t);
-  }, [load]);
+    // Not: effect gövdesinde senkron setState çağrısı yapmak
+    // react-hooks/set-state-in-effect kuralını tetikler (ve gereksiz yeniden
+    // render üretir). Bu yüzden durum güncellemeleri yalnızca fetch yanıtından
+    // sonra, async akışın içinde yapılır; ilk sorgu da zamanlayıcı içinde başlar.
+    const tick = async () => {
+      try {
+        const r = await fetch("/api/deep-scan", { cache: "no-store" });
+        const j = (await r.json()) as WorkerHealth;
+        setData(j);
+        setState(j.worker === "up" ? "ok" : "down");
+      } catch {
+        setData(null);
+        setState("down");
+      } finally {
+        setStamp(new Date().toLocaleTimeString("tr-TR"));
+      }
+    };
+    reloadRef.current = tick;
+    const first = window.setTimeout(() => void tick(), 0);
+    const t = window.setInterval(() => void tick(), 15000);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(t);
+    };
+  }, []);
 
   const up = state === "ok";
 
@@ -79,7 +87,7 @@ export default function AiWorkerStatus() {
           {state === "loading" ? "sorgulanıyor…" : up ? "127.0.0.1:8787 · çalışıyor" : "kapalı"}
         </span>
         <button
-          onClick={() => void load()}
+          onClick={() => reloadRef.current()}
           className="cursor-pointer rounded border border-[#2d3b4e] px-2 py-0.5 text-[11px] text-slate-300 hover:bg-[#161e2b]"
         >
           ↻ Yenile

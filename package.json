@@ -6,7 +6,15 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "npm run test:image-review && npm run test:pacs && npm run test:recist",
+    "test:image-review": "tsx tests/image-review.test.ts",
+    "test:pacs": "tsx tests/pacs.test.ts",
+    "test:recist": "node --experimental-strip-types tests/recist.test.mjs",
+    "test:menu": "node tests/menu-interactions.cjs",
+    "test:folder": "node tests/folder-import.cjs",
+    "test:review": "node tests/image-review-browser.cjs",
+    "test:report-flow": "node tests/report-flow.cjs"
   },
   "dependencies": {
     "dicom-parser": "^1.8.21",
@@ -29,8 +37,10 @@
     "drizzle-kit": "0.31.10",
     "eslint": "9.39.4",
     "eslint-config-next": "16.4.2",
+    "playwright": "^1.65.1",
     "postcss": "8.5.23",
     "tailwindcss": "4.1.17",
+    "tsx": "^4.23.15",
     "typescript": "5.9.3"
   }
 }

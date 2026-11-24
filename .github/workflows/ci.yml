@@ -107,16 +107,16 @@ jobs:
           echo "sunucu 120 sn içinde hazır olmadı"; tail -50 server.log; exit 1
 
       - name: Menü etkileşim testleri (16 kontrol)
-        run: node tests/menu-interactions.cjs
+        run: npm run test:menu
 
       - name: Klasör içe aktarma testleri (3 kontrol)
-        run: node tests/folder-import.cjs
+        run: npm run test:folder
 
       - name: Görüntü inceleme testleri (5 kontrol)
-        run: node tests/image-review-browser.cjs
+        run: npm run test:review
 
       - name: Rapor onay + derin AI akışı (CI'da onay tamamlanır)
-        run: node tests/report-flow.cjs
+        run: npm run test:report-flow
 
       - name: Sunucu günlüğü (hata durumunda)
         if: failure()
