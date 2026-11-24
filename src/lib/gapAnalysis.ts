@@ -508,10 +508,10 @@ const BASE_ITEMS: GapItem[] = [
   // Detaylı analiz ve 90 günlük plan için docs/PIYASA_EKSILERI_2026.md dosyasına bakın.
   {
     id: "a-cxr", category: "ai", title: "Akciğer grafisi/filitrio AI + ısı haritası (pnömotoraks, effüzyon, konsolidasyon, TB)",
-    status: "yok", priority: "P1", effort: "M",
+    status: "kismi", priority: "P1", effort: "M",
     market: ["Lunit", "Aidoc", "Gleamer"],
-    ours: "Görüntü inceleme yalnızca piksel ölçümü; tanısal sınıflandırma ve Grad-CAM ısı haritası yok.",
-    action: "torchxrayvision/ONNX modelini ai-worker'a ekle; sınıf + bbox + heatmap'i mevcut Finding/onay akışına bağla.",
+    ours: "**Bu sürümde eklendi (teknik çekirdek):** CTR hesabı + **CXR teknik kalite modülü** (`src/lib/cxr.ts`): projeksiyon tanımı (PA/AP/yandan), inspirasyon (ön kosta sayısı), rotasyon (medial klavya farkı) ve penetrasyon ölçütleri tek satır olarak rapora yazılabilir; skor panelinde MG/CR için düzenlenir. Tanısal sınıflandırma ve Grad-CAM ısı haritası için model ağırlığı hâlâ yok.",
+    action: "CXR sınıflandırma modeli (ONNX) + ısı haritası; model ağırlığının nasıl temin edileceği kararı.",
   },
   {
     id: "a-stroke", category: "ai", title: "İnme paketi: ASPECTS skoru + CTP perfüzyon (CBF/CBV/MTT/Tmax)",
