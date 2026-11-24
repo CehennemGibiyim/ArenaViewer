@@ -655,10 +655,10 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "e-hl7-mwl", category: "workflow", title: "HL7 v2 MLLP alıcısı + Modality Worklist (MWL)",
-    status: "yok", priority: "P1", effort: "L",
+    status: "kismi", priority: "P1", effort: "L",
     market: ["Aidoc", "PowerScribe", "MedDream"],
-    ours: "REST istemi + FHIR rapor çıktısı var; MLLP/MWL yok.",
-    action: "MLLP listener + worklist import; MWL hedefi (sipariş→çalışma listesi).",
+    ours: "**Bu sürümde eklendi:** `scripts/hl7-mllp-server.ts` + `src/lib/hl7.ts` — MLLP/TCP dinleyici ORM^O01/ORU^R01 mesajını ayrıştırıp `/api/his/orders`'a çevirir ve ACK verir (`npm run hl7:mllp`). MWL SCP (C-FIND) ve DIMSE tarafı yok.",
+    action: "MLLP üzerinden ADT/dis mesajları; MWL SCP hedefi.",
   },
   {
     id: "e-fhir-in", category: "workflow", title: "FHIR girişi: ServiceRequest/ImagingStudy çekici",

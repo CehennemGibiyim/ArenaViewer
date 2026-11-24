@@ -140,6 +140,20 @@ python ai-worker/server.py          # worker'ı başlatır (CPU'da da çalışı
   kural tabanlı motor devam eder ve uyarı satırı gösterilir.
 - Not: Büyük HU hacimleri için `next.config.ts` içinde gövde sınırı 700 MB'a ayarlıdır.
 
+### HBYS/RIS sipariş köprüsü (HL7 v2 MLLP)
+
+Kurum içi HBYS, teknik olarak `ORM^O01` gibi sipariş mesajlarını TCP/MLLP ile gönderir.
+Bu mesajları ArenaViewer'ın `/api/his/orders` ucuna çeviren ayrı bir dinleyici script'i vardır:
+
+```bash
+HIS_API_KEY=<ayarlardaki anahtar> HL7_PORT=2575 npm run hl7:mllp
+```
+
+- Dinleme: `HL7_HOST`/`HL7_PORT` (varsayılan `127.0.0.1:2575`); kurum ağına açarken `HL7_HOST=0.0.0.0`.
+- Hedef: `HIS_BASE_URL` (varsayılan `http://127.0.0.1:3000`) → `/api/his/orders`, `x-api-key` başlığı ile.
+- Yanıt: PACS/HBYS'e `MSA|AA` (kabul), `AR` (eksik alan) veya `AE` (ulaşılamadı) ACK'i döner.
+- Ayrıştırma: `src/lib/hl7.ts` (saf fonksiyonlar, `npm run test:hl7`). MWL/C-FIND ve DIMSE tarafı bu script'te **yoktur**; siparişe dayalı çalışma listesi uygulamada oluşur.
+
 ## Ortam değişkenleri
 
 | Değişken | Zorunlu | Açıklama |
@@ -166,6 +180,7 @@ Anahtar üretme: `node -e "console.log(require('crypto').randomBytes(32).toStrin
 | `npm run typecheck` | TypeScript kontrolü |
 | `npm run build` / `npm start` | Üretim derlemesi / sunucusu |
 | `npx drizzle-kit push` | Şemayı yerel DB'ye uygula |
+| `npm run hl7:mllp` | HL7 v2 (MLLP) sipariş alıcısını başlatır (`HIS_API_KEY` gerekir) |
 | `npx drizzle-kit push --config=drizzle.config.ts` | Şemayı `DATABASE_URL`'deki DB'ye uygula (Docker/üretim) |
 
 ## Testler

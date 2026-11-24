@@ -113,7 +113,7 @@ Notlar:
 |---|---|---|---|---|---|
 | E1 | **DICOMweb STOW-RS / DIMSE C-STORE ile PACS’a gönderme** (SR, KO, anonim DICOM) | P1 | M | **Bu sürümde eklendi:** `/api/pacs/stow` + PACS istemcisinde `stowInstance()` (STOW-RS, onaylı rapor → DICOM SR). | Anahtar nesne (KO) ve anonim seri gönderimi; C-STORE.
 | E2 | **WADO-RS URI + kare/bulk veri (frame-level) getirme** | P1 | S–M | Instance bazlı WADO var | `accept=multipart/related;type=image/jpeg;transfer-syntax=*`, frame parametresi, `bulkdataURI`. |
-| E3 | **HL7 v2 MLLP alıcısı + Modality Worklist (MWL)** | P1 | L | REST istemi + FHIR rapor çıktısı var | MLLP listener + worklist import; MWL SCP hedefi (sipariş→çalışma listesi). |
+| E3 | **HL7 v2 MLLP alıcısı + Modality Worklist (MWL)** | P1 | L | **Bu sürümde eklendi:** MLLP alıcısı (`npm run hl7:mllp`) + HL7 ayrıştırıcı; ORM^O01 siparişini `/api/his/orders`'a çevirip ACK döner. | ADT/değişiklik mesajları ve MWL SCP (C-FIND).
 | E4 | **FHIR girişi: ServiceRequest/ImagingStudy/P Çekici** | P2 | M | Çıktı FHIR DR var; giriş yok | FHIR client (kimlik/OAuth), sipariş→çalışma, ImagingStudy→WADO URL eşlemesi. |
 | E5 | **IHE profilleri (SWF, AI Results, DICOMweb)** | P2 | L | Yok | Önce SWF (scheduled workflow) + AI Results Storage Profile. |
 | E6 | **Gerçek PACS ile uçtan uca test** (Orthanc/dcm4chee) | P1 | S | **Bu sürümde uygulandı:** `tests/pacs.orthanc.e2e.ts` gerçek Orthanc'ta STOW yükle → QIDO bul → WADO geri al → temizlik; CI `pacs-e2e` işi ve `docker compose --profile pacs`. | Kalan: dcm4chee ile de çalıştırma; CI'da C-FIND/C-MOVE ve anonimleştirilmiş DICOM gönderimi. |
