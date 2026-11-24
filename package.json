@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "npm run test:image-review && npm run test:pacs && npm run test:recist && npm run test:close-loop && npm run test:auth && npm run test:templates && npm run test:structured-report && npm run test:quant && npm run test:tracking && npm run test:model-ops && npm run test:metrics && npm run test:audit-export && npm run test:macros && npm run test:prefs && npm run test:workflow-stats && npm run test:stow && npm run test:peer-review && npm run test:hl7 && npm run test:share && npm run test:cxr && npm run test:cxr-model",
+    "test": "npm run test:image-review && npm run test:pacs && npm run test:recist && npm run test:close-loop && npm run test:auth && npm run test:templates && npm run test:structured-report && npm run test:quant && npm run test:tracking && npm run test:model-ops && npm run test:metrics && npm run test:audit-export && npm run test:macros && npm run test:prefs && npm run test:workflow-stats && npm run test:stow && npm run test:peer-review && npm run test:hl7 && npm run test:share && npm run test:cxr && npm run test:cxr-model && npm run test:codecs",
     "test:image-review": "tsx tests/image-review.test.ts",
     "test:pacs": "tsx tests/pacs.test.ts",
     "test:recist": "node --experimental-strip-types tests/recist.test.mjs",
@@ -35,7 +35,8 @@
     "hl7:mllp": "tsx scripts/hl7-mllp-server.ts",
     "test:share": "tsx tests/share.test.ts",
     "test:cxr": "tsx tests/cxr.test.ts",
-    "test:cxr-model": "tsx tests/cxr-model.test.ts"
+    "test:cxr-model": "tsx tests/cxr-model.test.ts",
+    "test:codecs": "tsx tests/codecs.test.ts"
   },
   "dependencies": {
     "dicom-parser": "^1.8.21",

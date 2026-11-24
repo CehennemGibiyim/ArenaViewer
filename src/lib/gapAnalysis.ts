@@ -73,10 +73,10 @@ const BASE_ITEMS: GapItem[] = [
   // ───────── FORMAT ─────────
   {
     id: "f-codec", category: "format", title: "Sıkıştırılmış DICOM (JPEG, JPEG-LS, JPEG 2000, RLE)",
-    status: "yok", priority: "P0", effort: "M",
+    status: "var", priority: "P0", effort: "M",
     market: ["RadiAnt", "OHIF", "Weasis", "Horos", "3D Slicer"],
-    ours: "Algılanıyor ve kullanıcıya açık uyarı veriliyor; ancak piksel verisi çözülemiyor. Gerçek hastane CD/PACS çıktılarının önemli bir kısmı sıkıştırılmış olabilir.",
-    action: "WASM codec'leri (OpenJPEG, CharLS, libjpeg-turbo) ekle; Cornerstone dicom-image-loader veya eşdeğeri.",
+    ours: "**Var:** `src/lib/codecs.ts` + WASM ikilileri (`public/wasm/`): RLE, JPEG Baseline/Extended (8/12-bit), JPEG Lossless, **JPEG 2000** (OpenJPEG) ve **JPEG-LS** (CharLS) çözülür; 16-bit ve renkli biçimler desteklenir. Fixture testleriyle doğrulanmış: JPEG-LS lossless çözümü ham RAW ile birebir eşleşiyor (`tests/codecs.test.ts`). Eksik kalan: MPEG/MJPEG video ve eksiksiz HTJ2K doğrulaması.",
+    action: "HTJ2K (1.2.840.10008.1.2.4.201–203) için OpenJPEG WASM üzerinden gerçek DICOM fixture'ı doğrulamak; gerekirse MPEG çözücüsü.",
   },
   {
     id: "f-uncompressed", category: "format", title: "Sıkıştırılmamış DICOM (Implicit/Explicit Little Endian)",
