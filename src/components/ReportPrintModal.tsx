@@ -1,6 +1,7 @@
 "use client";
 
 import { buildReportSr, type EvidenceRef } from "@/lib/dicomSr";
+import { processDictation } from "@/lib/dictate";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fmtConf } from "@/lib/format";
 import StructuredScorePanel from "@/components/StructuredScorePanel";
@@ -72,19 +73,18 @@ interface SpeechRec {
 }
 type SpeechCtor = new () => SpeechRec;
 
-function postProcess(t: string): string {
-  return t
-    .replace(/\s*\byeni satır\b\s*/gi, "\n")
-    .replace(/\s*\biki nokta üst üste\b/gi, ":")
-    .replace(/\s*\bvirgül\b/gi, ",")
-    .replace(/\s*\bnokta\b/gi, ".");
-}
-
-function MicButton({ onText }: { onText: (t: string) => void }) {
+/**
+ * Dikte komutları ve tıbbi sözlük `src/lib/dictate.ts` içinde uygulanır:
+ * sayı sözcükleri, noktalama ("virgül", "iki nokta üst üste"), ölçü birimleri
+ * ("milimetre" → mm) ve tipik ASR bozuklukları ("akciger" → akciğer).
+ */
+function MicButton({ onText, onClear }: { onText: (t: string) => void; onClear?: () => void }) {
   const [on, setOn] = useState(false);
+  const [hint, setHint] = useState("");
   const rec = useRef<SpeechRec | null>(null);
+  const stop = () => { rec.current?.stop(); };
   const toggle = () => {
-    if (on) { rec.current?.stop(); return; }
+    if (on) { stop(); return; }
     const w = window as unknown as { SpeechRecognition?: SpeechCtor; webkitSpeechRecognition?: SpeechCtor };
     const C = w.SpeechRecognition ?? w.webkitSpeechRecognition;
     if (!C) { alert("Bu tarayıcı konuşma tanımayı desteklemiyor (Chrome/Edge önerilir)."); return; }
@@ -93,29 +93,42 @@ function MicButton({ onText }: { onText: (t: string) => void }) {
     r.onresult = (e) => {
       let s = "";
       for (let i = e.resultIndex; i < e.results.length; i++) if (e.results[i].isFinal) s += e.results[i][0].transcript;
-      if (s) onText(postProcess(s.trim()) + " ");
+      if (!s.trim()) return;
+      const d = processDictation(s);
+      if (d.commands.includes("temizle")) {
+        onClear?.();
+        setHint(" alan temizlendi");
+      } else {
+        onText(d.text + " ");
+        setHint(d.commands.length > 0 ? ` komut: ${d.commands.join(", ")}` : "");
+      }
     };
-    r.onend = () => setOn(false);
-    r.onerror = () => setOn(false);
+    r.onend = () => { setOn(false); setHint(""); };
+    r.onerror = () => { setOn(false); setHint(" dinleme hatası — tekrar deneyin"); };
     rec.current = r;
     r.start();
     setOn(true);
   };
   return (
-    <button type="button" onClick={toggle} title="Sesle dikte (Türkçe). Komutlar: nokta, virgül, yeni satır" className={`ml-2 rounded px-1.5 text-[10px] font-bold ${on ? "animate-pulse bg-rose-500 text-white" : "bg-slate-200 text-slate-700 hover:bg-slate-300"}`}>
-      {on ? "● dinliyor" : "🎤 dikte"}
-    </button>
+    <span className="inline-flex items-center">
+      <button type="button" onClick={toggle} title="Sesle dikte (Türkçe). Komutlar: nokta, virgül, iki nokta, yeni satır, yeni paragraf, temizle; sayılar ve tıbbi terimler otomatik düzeltilir." className={`ml-2 rounded px-1.5 text-[10px] font-bold ${on ? "animate-pulse bg-rose-500 text-white" : "bg-slate-200 text-slate-700 hover:bg-slate-300"}`}>
+        {on ? "● dinliyor" : "🎤 dikte"}
+      </button>
+      {hint && <span className="ml-1 text-[9px] italic text-slate-500">{hint}</span>}
+    </span>
   );
 }
 
 /** Rapor metin alanı. Modül seviyesinde tanımlıdır; render sırasında bileşen oluşturulmaz. */
-function ReportField({ name, rows, value, editing, onChange, onMic, onGotoSlice, onClose }: {
+function ReportField({ name, rows, value, editing, onChange, onMic, onClear, onGotoSlice, onClose }: {
   name: string;
   rows: number;
   value: string;
   editing: boolean;
   onChange: (v: string) => void;
   onMic: (t: string) => void;
+  /** "temizle" sesli komutu bu alanı boşaltır. */
+  onClear?: () => void;
   onGotoSlice?: (sliceNumber: number) => void;
   onClose: () => void;
 }) {
@@ -128,7 +141,7 @@ function ReportField({ name, rows, value, editing, onChange, onMic, onGotoSlice,
     });
   return (
     <div>
-      <div className="flex items-center font-bold uppercase text-slate-900">{name}{editing && <MicButton onText={onMic} />}</div>
+      <div className="flex items-center font-bold uppercase text-slate-900">{name}{editing && <MicButton onText={onMic} onClear={onClear} />}</div>
       {editing ? <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={rows} className="mt-1 w-full rounded border border-slate-300 p-2 text-xs" /> : <p className="mt-0.5 whitespace-pre-wrap">{linkify(value)}</p>}
     </div>
   );
@@ -544,10 +557,10 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                   <div className="mt-3 grid grid-cols-1 items-start gap-5 md:grid-cols-12">
                     <div className="flex flex-col gap-3 text-[11.5px] leading-relaxed text-slate-800 md:col-span-8">
                       {report.clinicalInfo && <div><div className="font-bold uppercase text-slate-900">Klinik bilgi</div><p className="mt-0.5 whitespace-pre-wrap">{report.clinicalInfo}</p></div>}
-                      <ReportField name="Teknik" rows={3} value={report.technique} editing={editing} onChange={(v) => set("technique", v)} onMic={append("technique")} onGotoSlice={onGotoSlice} onClose={onClose} />
-                      <ReportField name="Kesit bazlı bulgular" rows={8} value={report.findingsText} editing={editing} onChange={(v) => set("findingsText", v)} onMic={append("findingsText")} onGotoSlice={onGotoSlice} onClose={onClose} />
-                      <ReportField name="Sonuç/İzlenim" rows={3} value={report.impression} editing={editing} onChange={(v) => set("impression", v)} onMic={append("impression")} onGotoSlice={onGotoSlice} onClose={onClose} />
-                      <ReportField name="Öneri" rows={2} value={report.recommendation} editing={editing} onChange={(v) => set("recommendation", v)} onMic={append("recommendation")} onGotoSlice={onGotoSlice} onClose={onClose} />
+                      <ReportField name="Teknik" rows={3} value={report.technique} editing={editing} onChange={(v) => set("technique", v)} onMic={append("technique")} onClear={() => set("technique", "")} onGotoSlice={onGotoSlice} onClose={onClose} />
+                      <ReportField name="Kesit bazlı bulgular" rows={8} value={report.findingsText} editing={editing} onChange={(v) => set("findingsText", v)} onMic={append("findingsText")} onClear={() => set("findingsText", "")} onGotoSlice={onGotoSlice} onClose={onClose} />
+                      <ReportField name="Sonuç/İzlenim" rows={3} value={report.impression} editing={editing} onChange={(v) => set("impression", v)} onMic={append("impression")} onClear={() => set("impression", "")} onGotoSlice={onGotoSlice} onClose={onClose} />
+                      <ReportField name="Öneri" rows={2} value={report.recommendation} editing={editing} onChange={(v) => set("recommendation", v)} onMic={append("recommendation")} onClear={() => set("recommendation", "")} onGotoSlice={onGotoSlice} onClose={onClose} />
                       {report.measurementsText && <div><div className="font-bold uppercase text-slate-900">Ölçümler</div><p className="mt-0.5 whitespace-pre-wrap font-mono text-[10.5px]">{report.measurementsText}</p></div>}
                       <p className="mt-1 text-[10px] italic text-slate-500">{report.engine === "image-review" ? "Bu protokol hastalık sınıflandırması yapmaz; kare başına piksel ölçümleri yazdırma raporuna dahil edilmemiştir. Görüntüler radyolog tarafından değerlendirilmelidir." : "Bu çıktı yapay zeka/kural tabanlı veya DEMO desteklidir; hekim doğrulaması gerekir."}</p>
                     </div>

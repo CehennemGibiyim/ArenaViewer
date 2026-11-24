@@ -361,10 +361,10 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "r-dictate", category: "report", title: "Sesle dikte (Türkçe) ve sesli komutlar",
-    status: "yok", priority: "P1", effort: "M",
+    status: "kismi", priority: "P1", effort: "M",
     market: ["PowerScribe", "Rad AI", "RadPal"],
-    ours: "Yok.",
-    action: "Web Speech API ile başlangıç; tıbbi sözlük için sunucu tarafı konuşma tanıma.",
+    ours: "Rapor alanlarında mikrofon (Web Speech API, tr-TR). src/lib/dictate.ts: sayı sözcükleri (yirmi beş → 25), noktalama komutları (virgül, iki nokta, yeni satır/paragraf, temizle), ölçü birimleri (milimetre → mm) ve tıbbi sözlük düzeltmeleri (akciger → akciğer); aynı katman /api/reports/normalize ile sunucuda da çalışır. Tanınmayan terimler ve yoğun ters çevrimler dışında tam değildir; cihaz/tarayıcı motoru harici bağımlılıktır.",
+    action: "Sunucu tarafı tam konuşma tanıma motoru (vb. faster-whisper) ve kurum sözlüğü; Türkçe tıbbi modül.",
   },
   {
     id: "r-genai", category: "report", title: "Üretken yapay zeka ile izlenim/rapor taslağı ve hekim üslubuna uyum",
