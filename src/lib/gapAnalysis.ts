@@ -296,10 +296,10 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "a-quant", category: "ai", title: "Nicel biyobelirteçler (hacim, kalsiyum skoru, kemik yoğunluğu)",
-    status: "yok", priority: "P2", effort: "L",
-    market: ["3D Slicer", "Aidoc"],
-    ours: "Yok.",
-    action: "Hacim ve yoğunluk modülleri; insidental bulgu listesi.",
+    status: "var", priority: "P2", effort: "M",
+    market: ["Aidoc", "3D Slicer"],
+    ours: "Agatston (damar bazlı HU ağırlıkları, S0–S4), oportünist kemik HU kategorisi, PA kardiyotorasik oran ve nodül hacmi; hekim ölçü değerlerini panelden girer.",
+    action: "Ölçümlerin anotasyondan otomatik aktarımı ve zaman serisi grafiği.",
   },
   {
     id: "a-feedback", category: "ai", title: "Hekim geri bildirim döngüsü ve AI performans panosu",
@@ -515,10 +515,10 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "a-stroke", category: "ai", title: "İnme paketi: ASPECTS skoru + CTP perfüzyon (CBF/CBV/MTT/Tmax)",
-    status: "yok", priority: "P1", effort: "L",
+    status: "kismi", priority: "P1", effort: "L",
     market: ["Viz.ai", "Aidoc"],
-    ours: "ICH kanama modeli var; ASPECTS ve perfüzyon haritaları yok.",
-    action: "Kural tabanlı ASPECTS bölge skoru + CTP zaman-yoğunluk eğrileri; pre/post seri eşleme.",
+    ours: "**Bu sürümde kısmen uygulandı:** `src/lib/stroke.ts` — ASPECTS 10 bölge skoru (rapor panelinde işaretleme) ve basitleştirilmiş CTP özeti (TTP/gecikme, CBF/CBV oranları, core/penumbra adayı). Dekonvolüsyon/AIF seçimi yoktur.",
+    action: "Model tabanlı AIF seçimi + dekonvolüsyon; injeksiyon öncesi/sonrası seri eşleme.",
   },
   {
     id: "a-msk", category: "ai", title: "MSK/X-ışını kırık ve landmarke AI",
@@ -531,8 +531,8 @@ const BASE_ITEMS: GapItem[] = [
     id: "a-mg", category: "ai", title: "Mamografi: BI-RADS yoğunluk + DBT (tomosentez) okuma akışı",
     status: "kismi", priority: "P2", effort: "L",
     market: ["Lunit", "iCAD", "Therapixel"],
-    ours: "MG modalite desteği var; CC/MLO düzeni, DBT slab navigasyonu ve yoğunluk sınıflaması özel olarak yok.",
-    action: "CC/MLO layout + DBT slab + BI-RADS a/b/c/d yoğunluk önerisi.",
+    ours: "CC/MLO 2×2 düzeni + slab navigasyonu var; BI-RADS 0–6 ve ACR meme yoğunluğu (a–d) rapor panelinde hesaplanır; otomatik yoğunluk algılama/DBT sınıflandırma modeli yok.",
+    action: "Otomatik yoğunluk segmentasyonu + BI-RADS/Radlex makro sözlüğü.",
   },
   {
     id: "a-calcium", category: "ai", title: "Agatston kalsiyum skoru + kemik yoğunluğu ölçümü",
@@ -543,24 +543,24 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "a-lungquant", category: "ai", title: "Akciğer kvantifikasyonu: lob/emphisema (LAA-950)/volüm",
-    status: "yok", priority: "P2", effort: "L",
+    status: "kismi", priority: "P2", effort: "L",
     market: ["3D Slicer", "Aidoc"],
-    ours: "Nodül hacmi hesaplanıyor; lob/emphisema/volüm yok.",
-    action: "Kural veya SAM tabanlı lob segmentasyonu + −950 HU oranı ve volümetrik dağılım.",
+    ours: "**Bu sürümde eklendi:** `src/lib/lungQuant.ts` histogramdan LAA-950 (−950 HU altı oran), ortalama HU, PD15 ve hacim mL; sınıf: normal–hafif/orta/ağır.",
+    action: "Lob segmentasyonu (kural/SAM), yağ-doku sınırı ve kesit dağılım grafiği.",
   },
   {
     id: "a-nm", category: "ai", title: "Nükleer tıp: DSA çıkarma, TIC eğrileri, MTV/SUVpeak",
     status: "kismi", priority: "P3", effort: "L",
     market: ["RadiAnt", "Hermes"],
-    ours: "PET füzyonu ve SUVbw var; DSA/TIC/metabolik tümör volümü yok.",
-    action: "Pre/post subtraksiyon, zaman-yoğunluk eğrisi, eşik SUV alanından MTV.",
+    ours: "**Bu sürümde eklendi:** `src/lib/nuclear.ts` — pre/post subtraksiyon özeti, TIC modeli (wash-out/plato/progressif) ve SUV haritasından MTV/SUVpeak.",
+    action: "Gerçek rekonstrüksiyon/dönüşüm kalibrasyonu ve 3B metabolik hacim görselleştirmesi.",
   },
   {
     id: "a-modelops", category: "ai", title: "Model operasyonları: kayıt defteri, A/B, kalibrasyon ve drift izleme",
-    status: "yok", priority: "P2", effort: "L",
+    status: "kismi", priority: "P2", effort: "L",
     market: ["Tüm üreticiler"],
-    ours: "PPV panosu var; model hash/sürüm kaydı, kalibrasyon eğrisi ve drift yok.",
-    action: "Model kartına sürüm/hash; feedback verisinden eşik/PPV izleme; model değişiminde denetim kaydı.",
+    ours: "**Bu sürümde eklendi:** `src/lib/modelOps.ts` güven kalibrasyonu (binler + ECE), z tabanlı drift kontrolü, model parmak izi; `/api/ai/performance` kalibrasyon/ECE üretir.",
+    action: "Model kayıt defteri tablosu, A/B dağıtımı ve denetimde model değişiklik kaydı.",
   },
   {
     id: "c-sr-tid1500", category: "measure", title: "Yapılandırılmış ölçümler: DICOM SR TID 1500 + RadLex/RSNA CDE",
@@ -579,9 +579,9 @@ const BASE_ITEMS: GapItem[] = [
   {
     id: "c-recist-full", category: "measure", title: "RECIST tamamlayıcıları: lenf nodu, non-hedef lezyon, otomatik lezyon eşleştirme",
     status: "kismi", priority: "P1", effort: "M",
-    market: ["Lunit", "Aidoc"],
-    ours: "Hedef lezyon + CR/PR/SD/PD var; lenf nodu/non-hedef değerlendirmesi ve çalışmalar arası eşleştirme yok.",
-    action: "Anatomi+konum imzalı lezyon eşleştirme; lenf nodu kısa eksen tablosu.",
+    market: ["3D Slicer", "RadiAnt"],
+    ours: "**Bu sürümde eklendi:** `src/lib/lesionTracking.ts` — çalışmalar arası anatomi+konom eşleştirme (sayı içeren ifadelerde birebir eşleşme), lenf nodu kısa eksen tablosu (<10 normal / 10–<15 takip / ≥15 patolojik) ve non-hedef lezyon durumu.",
+    action: "Hedef lezyon seçimi/limitleme arayüzü ve karşılaştırma raporu.",
   },
   {
     id: "c-measure-history", category: "measure", title: "Ölçüm geçmişi ve trend grafikleri (çap/HU/SUV zaman serisi)",
@@ -705,9 +705,9 @@ const BASE_ITEMS: GapItem[] = [
   {
     id: "g-webhard", category: "trust", title: "Web hardening: CSP, X-Frame-Options, CSRF, rate limiting",
     status: "kismi", priority: "P1", effort: "S",
-    market: ["Tüm kurumsal ürünler"],
-    ours: "CORS ve cache başlıkları var; CSP/rate-limit/CSRF yok.",
-    action: "next.config header'ları + IP/kullanıcı bazlı hız sınırı.",
+    market: ["Kurumsal standart"],
+    ours: "**Bu sürümde kısmen uygulandı:** `next.config.ts` ile nosniff, Referrer-Policy, COOP/CORP, Permissions-Policy ve CSP (frame-ancestors 'self'); sayfa/API no-store. Rate limiting ve CSRF token yok.",
+    action: "IP/kullanıcı bazlı hız sınırı ve state-değiştiren uçlar için CSRF koruması.",
   },
   {
     id: "g-audit-export", category: "trust", title: "Denetim dışa aktarımı (Syslog/CEF/JSON) + uzun vadeli arşiv",
