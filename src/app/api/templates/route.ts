@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { asc, count, eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { reportTemplates } from "@/db/schema";
 import { audit } from "@/lib/server/audit";
@@ -12,8 +12,12 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   const a = await authorize(req);
   if ("error" in a) return a.error;
-  const n = (await db.select({ n: count() }).from(reportTemplates))[0].n;
-  if (n === 0) await db.insert(reportTemplates).values(SEED);
+  // Tohum şablonlar idempotent biçimde tamamlanır: yeni sürümlerde listeye eklenen
+  // şablonlar (ör. MR/US/MG seti) eski kurumlara da geçer; elle eklenenler korunur.
+  const existing = await db.select({ name: reportTemplates.name }).from(reportTemplates);
+  const names = new Set(existing.map((x) => x.name));
+  const missing = SEED.filter((s) => !names.has(s.name));
+  if (missing.length > 0) await db.insert(reportTemplates).values(missing);
   const rows = await db.select().from(reportTemplates).orderBy(asc(reportTemplates.id));
   return NextResponse.json(rows.map(({ createdBy: _c, createdAt: _t, ...r }) => r));
 }

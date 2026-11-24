@@ -22,6 +22,29 @@
 
 ---
 
+## 0.1 Modalite bazında donanım durumu (tarama)
+
+Görüntüleme altyapısı (MPR/MIP/füzyon/ölçüm/pencere) tüm modalitelerde ortaktır;
+modaliteye özel **AI bulgu motoru** ve **rapor şablonu** kapsamı aşağıdadır:
+
+| Modalite | Görüntüleme | AI bulgu/analiz | Rapor şablonu | Asma protokolü |
+|---|---|---|---|---|
+| CT | Tam (pencereler, MPR, kalibrasyon) | ICH kanama + toraks nodül (kural tabanlı, yerel MONAI modeli worker'a bağlanabilir) | 4 | BT Beyin / Toraks / Abdomen-Pelvis |
+| MR | Tam (sekans listesi, karşılaştırma, ölçüm) | **Yalnız görüntü incelemesi** (tanı üretmez) — MR'ya özel model yok | 13 | MR Çoklu Sekans (T1/T2/FLAIR/DWI düzeni) |
+| CR / DX | Tam (PA/lateral düzeni) | Görüntü ölçümü; sınıflandırma yok | 2 | Direkt Grafi |
+| US | Tam (cine + renkli Doppler) | Tanı motoru yok | 2 | Yok |
+| MG | Tam (RCC/LCC/RMLO/LMLO 2×2) | BI-RADS yoğunluk akışı yok | 2 | Mamografi |
+| PET / NM | Füzyon + SUVbw | TIC/DSA/MTV yok | 1 | PET-CT füzyon |
+
+Notlar:
+- **MR raporu yazılabiliyor**: rapor penceresi her seride açılır, teknik metin MR'e
+  uyarlanır, 24 hazır şablonun 13'ü MR (beyin, boyun, dorsal omurga, diz, kar,
+  abdomen, pelvis, MRA, DWI/kontrast şablonları). Eksik olan, MR'ya özel
+  tanı/ölçüm motorudur (örn. difüzyon restriksiyonu otomatik skoru).
+- Pencere ön ayarları artık tüm modalitelerde listelenir (daha önce yalnız CT'deydi).
+
+---
+
 ## A. Klinik yapay zekâ ürün fikirleri
 
 | ID | Özellik | P | Çaba | Piyasa örneği | Bizde şu an | Fikir / nasıl yapılır |

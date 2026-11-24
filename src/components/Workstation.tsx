@@ -341,7 +341,8 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     const newRefIds: (string | null)[] = [null, null, null, null, null];
     const newRefWins: ({ wl: number; ww: number } | undefined)[] = [undefined, undefined, undefined, undefined, undefined];
     for (const cell of rule.cells) {
-      const preset = CT_PRESETS.find((p) => p.name.toLowerCase() === cell.windowPreset?.toLowerCase());
+      const wanted = cell.windowPreset?.toLowerCase();
+      const preset = [...CT_PRESETS, ...presets].find((p) => p.name.toLowerCase() === wanted);
       const window = cell.customWL ?? (preset ? { wl: preset.wl, ww: preset.ww } : undefined);
       if (cell.cellIndex === 0) {
         if (window) { setWl(window.wl); setWw(window.ww); }
@@ -354,7 +355,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     setRefIds(newRefIds);
     setRefWins(newRefWins);
     toast(`Düzen uygulandı: ${rule.name} (${rule.layout.replace("x", "×")})`, 4000);
-  }, [toast]);
+  }, [toast, presets]);
 
   const applyAutoLayout = useCallback((s: SeriesData, available: SeriesData[]) => {
     const matchedRule = findMatchingHangingProtocol(s, available);
@@ -1244,7 +1245,9 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     toast(persistent ? "Pencere ön ayarı kaydedildi." : "Pencere ön ayarı bu sekmede kaydedildi; tarayıcı kalıcı depolamaya izin vermiyor.");
   };
 
-  const allPresets = series?.modality === "CT" ? [...CT_PRESETS, ...presets] : presets;
+  // Pencere ön ayarları tüm modalitelerde listelenir: aynı isimler MR/US grafide de
+  // yardımcı olur; özel AR/Onc olayları kullanıcı kendi ayarını kaydedebilir.
+  const allPresets = series ? [...CT_PRESETS, ...presets] : CT_PRESETS;
   const overlay: OverlayData | null = masks ? { masks, opacity: overlayOpacity } : null;
   const cells = CELLS[layout];
   const refLabel = ["Panel 2", "Panel 3", "Panel 4", "Panel 5", "Panel 6"];
