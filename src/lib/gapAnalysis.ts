@@ -683,10 +683,10 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "f-tat", category: "workflow", title: "Turnaround/istatistik panosu (TAT, onay süresi, bulgu/adet)",
-    status: "yok", priority: "P2", effort: "M",
+    status: "kismi", priority: "P2", effort: "M",
     market: ["Aidoc", "Viz.ai"],
-    ours: "Çalışma listesi var; metrik yok.",
-    action: "Denetim + rapor verisinden agregasyon; Yönetim sekmesi.",
+    ours: "**Bu sürümde eklendi:** `/api/reports/stats` + Yönetim > İş akışı sekmesi: toplam/onaylanan rapor, durum ve modalite dağılımı, ortalama/medyan/p90 TAT, eski taslak uyarısı ve hekim başına kırılım (`src/lib/workflowStats.ts`). Haftalık trend grafiği yok.",
+    action: "Hafta/modalite bazlı trend grafikleri ve hedef TAT uyarı eşikleri.",
   },
   {
     id: "f-batch", category: "workflow", title: "Toplu/arka plan içe aktarma kuyruğu",
