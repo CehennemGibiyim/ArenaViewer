@@ -92,6 +92,10 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
   // PACS formu (ayarlar ayrı state'te tutulur ki test/Kaydet sırasında elle düzenler kaybolmasın)
   const [pacs, setPacs] = useState<PacsForm | null>(null);
   const [pacsHint, setPacsHint] = useState("");
+  // Anahtar halkası (g-kms): kimlikler + rotasyon durumu; `newKey` yalnız bir kez gösterilir.
+  const [keyring, setKeyring] = useState<{ current: string; keys: { kid: string; since: string; current: boolean }[]; rotation: { summary: string; pending: number } } | null>(null);
+  const [newKey, setNewKey] = useState<{ key: string; kid: string; dataEncryptionKeys: string } | null>(null);
+  const [rotateBusy, setRotateBusy] = useState(false);
   const [mwlEndpoints, setMwlEndpoints] = useState<{ mwlRoot: string; dimseUrl: string }>({ mwlRoot: "", dimseUrl: "" });
   const [pacsTest, setPacsTest] = useState<PacsTestOut | null>(null);
   const [pacsTesting, setPacsTesting] = useState(false);
@@ -119,6 +123,11 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
     const r = await api<{ users: UserRow[] }>("/api/users");
     if (r.ok) setUserList(r.data.users);
   }, []);
+  const loadKeyring = useCallback(async () => {
+    const r = await api<{ current: string; keys: { kid: string; since: string; current: boolean }[]; rotation: { summary: string; pending: number } }>("/api/admin/keyring");
+    if (r.ok) setKeyring(r.data);
+  }, []);
+
   const loadMfa = useCallback(async () => {
     const r = await api<{ enabled: boolean; secret?: string; qr?: string }>("/api/profile/totp");
     if (r.ok) setMfa({ enabled: r.data.enabled });
@@ -132,8 +141,9 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
       if (tab === "ai") { const r = await api<{ rows: PerfRow[]; note: string }>("/api/ai/performance"); if (r.ok) setPerf(r.data); }
       if (tab === "stats") await loadStats();
       if (["security", "integration", "compliance"].includes(tab)) await loadSettings();
+      if (tab === "security") await loadKeyring();
     })();
-  }, [tab, loadProfile, loadAudit, loadSiem, loadStats, loadSettings, loadUsers, loadMfa]);
+  }, [tab, loadProfile, loadAudit, loadSiem, loadStats, loadSettings, loadUsers, loadMfa, loadKeyring]);
 
   const saveSettings = async (patch: Record<string, unknown>) => {
     const r = await api<{ error?: string }>("/api/settings", json("PUT", patch));
@@ -522,6 +532,54 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
               {status.keySource !== "env" && <p className="mt-2 rounded border border-amber-400/30 bg-amber-400/5 p-2 text-[11px] text-amber-200">Üretimde anahtarı veritabanı/diskten ayrı bir KMS veya gizli yönetim servisinde tutup <code>DATA_ENCRYPTION_KEY</code> (base64, 32 bayt) olarak verin. Anahtar kaybolursa veri geri alınamaz.</p>}
               <div className="mt-3 text-xs text-slate-300">Düz metin kalan kayıt: <b className={status.plaintext.studies + status.plaintext.reports ? "text-rose-300" : "text-emerald-300"}>{status.plaintext.studies} çalışma · {status.plaintext.reports} rapor</b></div>
               <button disabled={status.plaintext.studies + status.plaintext.reports === 0} className={`${btn} mt-3 bg-cyan-500 text-slate-950 disabled:opacity-40`} onClick={async () => { const r = await api<{ studies: number; reports: number; error?: string }>("/api/admin/encrypt-legacy", { method: "POST" }); flash(r.ok ? `Şifrelendi: ${r.data.studies} çalışma, ${r.data.reports} rapor` : r.data.error ?? "Hata"); void loadSettings(); }}>Mevcut kayıtları şifrele</button>
+            </div>
+            <div className={card}>
+              <h2 className="text-sm font-bold text-slate-100">Anahtar rotasyonu (KMS)</h2>
+              <p className="mt-2 text-xs leading-relaxed text-slate-300">
+                Kayıtlar anahtar kimliği taşır (<code>enc:v2:&lt;kimlik&gt;:…</code>); böylece eski anahtarla şifrelenmiş veri,
+                yeni anahtar eklenerek <b>kayıpsız</b> yeniden şifrelenebilir. Sıra: ① yeni anahtar üret → ② <code>.env</code>
+                içindeki <code>DATA_ENCRYPTION_KEYS</code> değerine ekle → ③ servisi yeniden başlat → ④ &quot;Rotasyonu çalıştır&quot;
+                → ⑤ doğrulandıktan sonra eski anahtarı listeden çıkar.
+              </p>
+              <div className="mt-3 space-y-1 text-[11px] text-slate-400">
+                {(keyring?.keys ?? []).map((k) => (
+                  <div key={k.kid} className="flex items-center gap-2">
+                    <code className={k.current ? "text-emerald-300" : "text-amber-300"}>{k.kid}</code>
+                    <span>{k.current ? "aktif (yazar)" : "yalnız okuma"}</span>
+                  </div>
+                ))}
+                {!keyring && <span>Anahtar halkası okunamadı (Yönetim → Güvenlik sekmesini yenileyin).</span>}
+              </div>
+              {keyring?.rotation && (
+                <p className="mt-2 text-[11px] text-slate-300">Rotasyon durumu: <b>{keyring.rotation.summary}</b></p>
+              )}
+              {newKey && (
+                <div className="mt-2 rounded border border-cyan-400/30 bg-cyan-400/5 p-2 text-[10.5px] text-cyan-100">
+                  <div className="font-bold">Yeni anahtar (yalnız bir kez gösterilir — güvenli kasaya yazın):</div>
+                  <code className="mt-1 block break-all text-[10px] text-cyan-200">{newKey.key}</code>
+                  <div className="mt-1 text-slate-300">DATA_ENCRYPTION_KEYS =</div>
+                  <code className="block break-all text-[10px] text-slate-200">{newKey.dataEncryptionKeys}</code>
+                </div>
+              )}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button className={`${btn} bg-slate-700 text-slate-100`} onClick={async () => {
+                  const r = await api<{ key: string; kid: string; dataEncryptionKeys: string; error?: string }>("/api/admin/keyring", json("POST", { action: "generate" }));
+                  if (r.ok) { setNewKey(r.data); flash(`Yeni anahtar üretildi (${r.data.kid})`); } else flash(r.data.error ?? "Anahtar üretilemedi");
+                }}>Yeni anahtar üret</button>
+                <button className={`${btn} bg-cyan-500 text-slate-950 disabled:opacity-40`} disabled={rotateBusy || (keyring?.rotation?.pending ?? 0) === 0} onClick={async () => {
+                  setRotateBusy(true);
+                  const r = await api<{ written: number; remaining: number; percent: number; note: string; error?: string }>("/api/admin/keyring", json("POST", { action: "rotate" }));
+                  setRotateBusy(false);
+                  flash(r.ok ? `${r.data.written} kayıt yeniden şifrelendi (%${r.data.percent}, kalan ${r.data.remaining})` : r.data.error ?? "Rotasyon başarısız");
+                  void loadKeyring();
+                }}>{rotateBusy ? "Rotasyon…" : "Rotasyonu çalıştır"}</button>
+                <button className={`${btn} bg-slate-700 text-slate-100 disabled:opacity-40`} disabled={!newKey} onClick={async () => {
+                  if (!newKey) return;
+                  const r = await api<{ dataEncryptionKeys: string; note: string; error?: string }>("/api/admin/keyring", json("POST", { action: "drop-old", currentKey: newKey.key }));
+                  flash(r.ok ? "Eski anahtarlar çıkarıldı — yeni değeri .env'e yazın" : r.data.error ?? "Atma başarısız");
+                  if (r.ok) setNewKey({ ...newKey, dataEncryptionKeys: r.data.dataEncryptionKeys });
+                }}>Eski anahtarları çıkar</button>
+              </div>
             </div>
             <div className={card}>
               <h2 className="text-sm font-bold text-slate-100">Saklama politikası</h2>

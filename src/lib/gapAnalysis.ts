@@ -734,8 +734,8 @@ const BASE_ITEMS: GapItem[] = [
     id: "g-kms", category: "trust", title: "KMS/anahtar rotasyonu (otomatik rotation, eski anahtarla çöz/yeniyle şifrele)",
     status: "kismi", priority: "P1", effort: "M",
     market: ["Aidoc", "Viz.ai"],
-    ours: "Anahtar env/.data dosyası; rotate akışı yok.",
-    action: "KMS arayüzü + rotasyon; admin 'yeniden şifle' zaten var, otomasyon gerekir.",
+    ours: "**Bu sürümde eklendi:** anahtar halkası (`DATA_ENCRYPTION_KEYS`, en sağdaki yazar) ve anahtar kimlikli şifreli biçim (`enc:v2:<kid>:…`); v1 kayıtlar halkadaki anahtarlarla okunur. `src/lib/keyRotation.ts` rotasyon planı/ilerlemesi (güncel / yeniden şifrelenecek / açık / ÇÖZÜLEMEDİ); çözülemeyen kayıt varsa rotasyon DURDURULUR (anahtar kaybı sinyali) ve eski anahtarlar ancak tüm kayıtlar doğrulandıktan sonra atılabilir. `/api/admin/keyring` (generate/status/rotate/drop-old, tümü `security.key_*` denetimi) + Yönetim → Güvenlik → Anahtar rotasyonu paneli. Test: `npm run test:kms`.",
+    action: "Halkayı harici KMS/Vault'tan okuma (imzalı anahtar sarmalama) ve zamanlanmış otomatik rotasyon.",
   },
   {
     id: "g-metrics", category: "trust", title: "Gözlem: Prometheus metrik, yapılandırılabilir log, readiness/liveness ayrımı",

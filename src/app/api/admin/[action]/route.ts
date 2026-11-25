@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { auditLogs, reports, storedFiles, studies, users } from "@/db/schema";
 import { audit } from "@/lib/server/audit";
 import { authorize } from "@/lib/server/auth";
-import { encryptText, isEncrypted, keySource } from "@/lib/server/crypto";
+import { encryptText, isEncrypted, isCurrentKey, keySource } from "@/lib/server/crypto";
 import { getSetting } from "@/lib/server/settings";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +19,14 @@ async function plaintextCounts() {
   };
 }
 
+/** Eski (aktif olmayan) anahtarla şifrelenmiş kayıt sayısı. */
+async function staleKeyCount() {
+  const st = await db.select({ n: studies.patientName, p: studies.patientId }).from(studies);
+  const rp = await db.select({ k: reports.keyImageDataUrl, c: reports.clinicalInfo }).from(reports);
+  const stale = (v: string) => isEncrypted(v) && !isCurrentKey(v);
+  return st.filter((s) => stale(s.n) || stale(s.p)).length + rp.filter((r) => stale(r.k) || stale(r.c)).length;
+}
+
 export async function GET(req: NextRequest, { params }: Ctx) {
   const a = await authorize(req, ["yonetici"]);
   if ("error" in a) return a.error;
@@ -28,6 +36,8 @@ export async function GET(req: NextRequest, { params }: Ctx) {
     keySource: keySource(),
     plaintext: await plaintextCounts(),
     totals: { users: await c(users), studies: await c(studies), reports: await c(reports), files: await c(storedFiles), audit: await c(auditLogs) },
+    // Anahtar rotasyonu ilerlemesi: eski anahtarla kalan kayıt sayısı (g-kms).
+    staleKey: await staleKeyCount(),
     retentionDraftDays: Number(await getSetting("retentionDraftDays", "0")),
   });
 }

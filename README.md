@@ -305,6 +305,24 @@ gh attestation verify <dosya> --repo CehennemGibiyim/ArenaViewer   # imzalı kö
 Doğrulayıcı, SBOM'u `--sbom`, kanıtı `--provenance` ile başka yoldan da okur;
 `SHA256SUMS` üretmek için `node scripts/supplychain.mjs manifest --dir dist`.
 
+## Anahtar rotasyonu (KMS)
+
+Şifreli alanlar anahtar kimliğini taşır (`enc:v2:<kid>:…`); bu sayede rotasyon
+**veri kaybı olmadan** yapılır. Anahtarlar `DATA_ENCRYPTION_KEYS` içinde virgülle
+ayrılır, **en sağdaki yazar**, soldakiler yalnız okuma içindir:
+
+```bash
+# 1) Yeni anahtar üret (Yönetim → Güvenlik → Anahtar rotasyonu → "Yeni anahtar üret")
+DATA_ENCRYPTION_KEYS=<eski>,<yeni>   # 2) .env'e yaz, servisi yeniden başlat
+# 3) "Rotasyonu çalıştır"  (kalan kayıt varsa düğmeye tekrar basılır)
+# 4) "Eski anahtarları çıkar" → DATA_ENCRYPTION_KEYS=<yeni> → yeniden başlat
+```
+
+- Çözülemeyen tek bir kayıt bile varsa rotasyon **409 ile durur** (anahtar kaybı
+  işaretidir; önce yedekten/anahtar kasasından doğrulayın).
+- v1 (kimliksiz) kayıtlar halkadaki anahtarlarla okunur ve ilk rotasyonda v2'ye taşınır.
+- Rotasyon ilerlemesi `GET /api/admin/status` içindeki `staleKey` alanında görünür.
+
 ## Depolama, yedek ve DR
 
 Görüntü dosyaları `StorageAdapter` üzerinden yazılır: yerel disk (`.data/`),
@@ -328,6 +346,7 @@ ayarı. S3 istemcisi AWS SigV4 kullanır (AWS/MinIO/R2/Wasabi uyumlu).
 |---|---|---|
 | `DATABASE_URL` | Evet | PostgreSQL bağlantı dizesi |
 | `DATA_ENCRYPTION_KEY` | Üretimde | Base64, 32 bayt AES-256 anahtarı (boşsa `.data/enc.key` üretilir) |
+| `DATA_ENCRYPTION_KEYS` | Hayır | Virgülle ayrılmış anahtar halkası; **en sağdaki yazar**, soldakiler yalnız çözme (rotasyon) |
 | `PACS_AUTH_HEADER` | Hayır | DICOMweb kimlik başlığı — yalnızca geriye dönük; kimlik/ayarlar Yönetim → Entegrasyon'dan girilir ve sunucuda şifrelenir |
 | `HIS_API_KEY` | Hayır | HBYS istem alımı API anahtarı |
 | `ACCESS_TOKEN` | Hayır | Tek erişim anahtarı (kapı); tanımlıysa `/giris` kapısı ve 401 koruması açılır |
@@ -394,6 +413,7 @@ npm run test:mwl                    # Modality Worklist (DICOMweb + DIMSE köpr�
 npm run test:webhard                # hız sınırı + CSRF + CSP
 npm run test:supplychain            # SBOM + SHA256SUMS + SLSA köken doğrulaması
 npm run test:backupdr               # depolama adaptörü + yedek/geri yükleme
+npm run test:kms                    # anahtar halkası + rotasyon
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)
