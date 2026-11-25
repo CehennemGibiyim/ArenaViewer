@@ -3,11 +3,13 @@
 import { useRef, useState } from "react";
 import type { KeyImage, SeriesData } from "@/lib/types";
 import { exportPngZip, exportVideoWebm } from "@/lib/exportMedia";
-import { buildKeyObjectSelection } from "@/lib/dicomSr";
+import { buildKeyObjectSelection, buildPresentationState } from "@/lib/dicomSr";
 
 interface Props {
   series: SeriesData | null;
   wl: number; ww: number; invert: boolean; slice: number;
+  rotation?: 0 | 90 | 180 | 270;
+  flipH?: boolean; flipV?: boolean;
   keyImages: KeyImage[];
   toast: (m: string, ms?: number) => void;
 }
@@ -20,7 +22,7 @@ function download(blob: Blob, name: string) {
 }
 
 /** Dışa aktarma: cine video (WebM), kesit PNG ZIP, anahtar kesit DICOM KO. */
-export default function ExportMenu({ series, wl, ww, invert, slice, keyImages, toast }: Props) {
+export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0, flipH = false, flipV = false, keyImages, toast }: Props) {
   const [open, setOpen] = useState(false);
   const [dlg, setDlg] = useState<"video" | "zip" | null>(null);
   const [from, setFrom] = useState(1);
@@ -63,6 +65,19 @@ export default function ExportMenu({ series, wl, ww, invert, slice, keyImages, t
     toast(`DICOM Key Object (${items.length} anahtar kesit) indirildi.`, 5000);
   };
 
+  const exportPr = () => {
+    setOpen(false);
+    if (!series || !imageOk) { toast("Önce bir görüntü serisi açın."); return; }
+    if (!series.sopUids || !series.sopClassUid || !series.seriesUid) { toast("Bu seride SOP Instance UID bilgisi yok (örnek vaka veya UID'siz görüntü); PR yalnızca gerçek DICOM serileri için üretilir.", 7000); return; }
+    const bytes = buildPresentationState({
+      patientName: series.patientName, patientId: series.patientId, patientSex: series.patientSex, studyUid: series.studyUid, studyDate: series.studyDate, institution: series.institution,
+      seriesUid: series.seriesUid, sopClassUid: series.sopClassUid, sopUids: series.sopUids,
+      wl, ww, invert, rotation, flipH, flipV,
+    });
+    download(new Blob([bytes.slice().buffer as ArrayBuffer], { type: "application/dicom" }), `PR-${series.modality}-sunum-durumu.dcm`);
+    toast("DICOM sunum durumu (GSPS/PR) indirildi — rapor belgesi değildir.", 5000);
+  };
+
   const item = "block w-full cursor-pointer px-3 py-1.5 text-left hover:bg-[#1a2330]";
   return (
     <div className="relative shrink-0">
@@ -72,6 +87,7 @@ export default function ExportMenu({ series, wl, ww, invert, slice, keyImages, t
           <button className={item} onClick={() => openDlg("video")}>🎞 Cine video (WebM)…</button>
           <button className={item} onClick={() => openDlg("zip")}>🖼 Kesitler → PNG (ZIP)…</button>
           <button className={item} onClick={exportKo}>★ Anahtar kesitler → DICOM KO</button>
+          <button className={item} onClick={exportPr} title="Pencere, döndürme ve çevirme ayarlarını GSPS belgesi olarak kaydeder">🖼 Görünüm → DICOM PR (sunum durumu)</button>
           <div className="px-3 py-1 text-[10px] leading-relaxed text-slate-500">Video/PNG görüntü verisini olduğu gibi aktarır; kimlik bilgisi içermez ama anonimleştirme/DICOM etiketi taşımaz.</div>
         </div>
       )}
