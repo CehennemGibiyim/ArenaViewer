@@ -8,6 +8,9 @@ import { buildFusionLayer, type FusionParams } from "@/lib/fusion";
 import { jumpToPatient, refLinesFor, registerPanel, unregisterPanel, usePanelRegistry } from "@/lib/panelRegistry";
 import { planeOf, toPatient } from "@/lib/planes";
 import { buildWindowLUT, windowToRGBA } from "@/lib/window";
+import { WINDOW_WORKER_MIN_PIXELS } from "@/lib/windowFrame";
+import { renderWindowWorker, windowWorkerSupported } from "@/lib/windowWorker";
+import { createWindowGpuRenderer, type WindowGpuRenderer } from "@/lib/webglWindow";
 import { HEAT_ALPHA_MAX, heatPixel, heatVisible } from "@/lib/heat";
 import { fmtConfShort } from "@/lib/format";
 
@@ -35,6 +38,16 @@ export interface OverlayData {
   /** bulgu id → ısı haritası; yalnızca ilgili karede çizilir. */
   heats?: Map<string, HeatData>;
   heatOpacity?: number;
+  /**
+   * Hekim segmentasyon maskesi (kesit → binary). Bulguya bağlı değildir ve
+   * `revealedIds` beklemez: maske düzenleyiciden çıkan katman doğrudan çizilir.
+   */
+  manual?: Map<number, Uint8Array>;
+  manualOpacity?: number;
+  /** Maske her düzenlendiğinde artırılır; tuval önbelleğini geçersiz kılar. */
+  manualVersion?: number;
+  /** Hekim maskesi rengi [r,g,b] (0–255); verilmezse macenta. */
+  manualColor?: [number, number, number];
 }
 
 /** Isı haritası renklaması (mavi → camgöbeği → yeşil → sarı → kırmızı), alfa eşikli. */
@@ -130,7 +143,12 @@ export default function Viewport(props: ViewportProps) {
   const BASE_CACHE_MAX = 6;
   const PREFETCH_PIXELS_MAX = 2_000_000; // taban tabanlı ön-işleme bellek kapısı (~2 MP ≈ 8 MB)
   const baseCache = useRef(new Map<string, { key: string; canvas: HTMLCanvasElement }>());
+  /** GPU pencereleyici: undefined = denenmedi, null = kullanılamıyor. */
+  const gpuRef = useRef<WindowGpuRenderer | null | undefined>(undefined);
+  /** Worker'da çevrilmekte olan taban katman anahtarları (yinelenen istek olmasın). */
+  const asyncPendingRef = useRef(new Set<string>());
   const ovRef = useRef<{ key: string; canvas: HTMLCanvasElement | null }>({ key: "", canvas: null });
+  const manualRef = useRef<{ key: string; canvas: HTMLCanvasElement | null }>({ key: "", canvas: null });
   const dragRef = useRef<{ button: number; sx: number; sy: number; wl: number; ww: number; zoom: number; pan: { x: number; y: number } } | null>(null);
   const [draft, setDraft] = useState<Draft>(null);
   const [size, setSize] = useState({ w: 800, h: 600 });
@@ -209,6 +227,7 @@ export default function Viewport(props: ViewportProps) {
   // yalnızca toplam taban katmanı ~8 MB altı (≈2 MP) serilerde çalışır.
   useEffect(() => {
     if (!series || series.isColor) return;
+    if (gpuRef.current) return; // GPU yolu varsa komşu kesitler CPU'da işlenmez
     if (series.width * series.height > PREFETCH_PIXELS_MAX) return;
     const rWl = Math.round(wl), rWw = Math.round(ww);
     const keys = [slice + 1, slice + 2, slice - 1, slice - 2]
@@ -255,10 +274,43 @@ export default function Viewport(props: ViewportProps) {
     const isColor = series.isColor && series.rgbaSlices && series.rgbaSlices[sliceIdx];
     const key = `${series.id}|${slice}|${Math.round(wl)}|${Math.round(ww)}|${invert}|${isColor ? "color" : "mono"}`;
 
-    let cachedBase = baseCache.current.get(key);
-    if (!cachedBase) {
-      const c = buildBaseCanvas(series, sliceIdx, wl, ww, invert);
-      if (c) { cachedBase = { key, canvas: c }; baseCache.current.set(key, cachedBase); trimBaseCache(baseCache.current, BASE_CACHE_MAX); }
+    // Taban katmanı üç yoldan biriyle hazırlanır (v-perf):
+    //   1) GPU gölgelendiricisi (16 bit işaretli kesitler, tam sayı pencere),
+    //   2) büyük kesitlerde Web Worker (ana iş parçacığı boş kalır, kademeli çizim),
+    //   3) ana iş parçacığı LUT yolu.
+    let baseSource: CanvasImageSource | null = null;
+    const slPixels = series.slices[sliceIdx];
+    if (!isColor && slPixels instanceof Int16Array) {
+      if (gpuRef.current === undefined) gpuRef.current = createWindowGpuRenderer();
+      const gpu = gpuRef.current;
+      if (gpu && gpu.draw(slPixels, W, H, wl, ww, invert)) baseSource = gpu.canvas;
+      else if (gpu) gpuRef.current = null;
+    }
+    if (!baseSource) {
+      const cachedBase = baseCache.current.get(key);
+      if (cachedBase) baseSource = cachedBase.canvas;
+      else if (!isColor && slPixels && slPixels.length >= WINDOW_WORKER_MIN_PIXELS && windowWorkerSupported()) {
+        if (!asyncPendingRef.current.has(key)) {
+          asyncPendingRef.current.add(key);
+          void renderWindowWorker(slPixels, wl, ww, invert).then((rgba) => {
+            asyncPendingRef.current.delete(key);
+            const c = document.createElement("canvas");
+            c.width = W; c.height = H;
+            const cctx = c.getContext("2d");
+            if (!cctx) return;
+            const img = cctx.createImageData(W, H);
+            new Uint32Array(img.data.buffer).set(rgba);
+            cctx.putImageData(img, 0, 0);
+            baseCache.current.set(key, { key, canvas: c });
+            trimBaseCache(baseCache.current, BASE_CACHE_MAX);
+            setTick((t) => t + 1);
+          });
+        }
+        // İlk karede taban katmanı henüz yok: örtüler çizilir, görüntü bir tık sonra gelir.
+      } else {
+        const c = buildBaseCanvas(series, sliceIdx, wl, ww, invert);
+        if (c) { baseCache.current.set(key, { key, canvas: c }); trimBaseCache(baseCache.current, BASE_CACHE_MAX); baseSource = c; }
+      }
     }
 
     // 2. AI Maske Örtüsü
@@ -284,6 +336,30 @@ export default function Viewport(props: ViewportProps) {
           ovRef.current = { key: okey, canvas: c };
         }
         ovCanvas = ovRef.current.canvas;
+      }
+    }
+
+    // 2a. Hekim segmentasyon maskesi: bulguya bağlı değil, kendi rengiyle çizilir.
+    let manualCanvas: HTMLCanvasElement | null = null;
+    const manualOpacity = overlay?.manualOpacity ?? 0;
+    if (overlay?.manual && manualOpacity > 0) {
+      const mk = overlay.manual.get(slice);
+      if (mk) {
+        const mkey = `${series.id}|${slice}|${overlay.manualVersion ?? 0}|${overlay.manualColor?.join(",") ?? "255,0,255"}|${overlay.manualOpacity}`;
+        if (manualRef.current.key !== mkey) {
+          const c = manualRef.current.canvas ?? document.createElement("canvas");
+          c.width = W; c.height = H;
+          const mctx = c.getContext("2d")!;
+          const img = mctx.createImageData(W, H);
+          const u32 = new Uint32Array(img.data.buffer);
+          const [r, g, b] = overlay.manualColor ?? [255, 0, 255];
+          const a = Math.round(Math.max(0, Math.min(1, manualOpacity)) * 255);
+          const col = (a << 24) | (b << 16) | (g << 8) | r;
+          for (let i = 0; i < mk.length && i < u32.length; i++) if (mk[i]) u32[i] = col;
+          mctx.putImageData(img, 0, 0);
+          manualRef.current = { key: mkey, canvas: c };
+        }
+        manualCanvas = manualRef.current.canvas;
       }
     }
 
@@ -346,7 +422,7 @@ export default function Viewport(props: ViewportProps) {
     }
 
     const { scale, ox, oy, dispW, dispH } = getTransform();
-    const drawLayer = (cv: HTMLCanvasElement | null) => {
+    const drawLayer = (cv: CanvasImageSource | null) => {
       if (!cv) return;
       ctx.save();
       ctx.imageSmoothingEnabled = scale < 3;
@@ -359,9 +435,10 @@ export default function Viewport(props: ViewportProps) {
       ctx.restore();
     };
 
-    drawLayer(baseCache.current.get(key)?.canvas ?? null);
+    drawLayer(baseSource);
     if (fusCanvas) drawLayer(fusCanvas);
     if (ovCanvas) drawLayer(ovCanvas);
+    if (manualCanvas) drawLayer(manualCanvas);
     if (heatCanvas) drawLayer(heatCanvas);
 
     const toC = (p: Pt) => {

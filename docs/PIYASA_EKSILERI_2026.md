@@ -43,6 +43,110 @@ entegrasyon testi bu durumları ve oturum çerezini denetler. Bu değişiklik he
 kilitleme, oturum iptali veya kurumsal kimlik entegrasyonunu sağlamaz; P0 madde
 kısmi kalır ve demo modu gerçek kullanıcı kimliği doğrulamaz.
 
+## 0.0c Ölçüm geçmişi, RADPEER ve model kayıt defteri
+
+**Ölçüm geçmişi (c-measure-history → var).** `measurement_history` tablosu hasta,
+çalışma, seri, etiket, tür, değer, birim ve kesit taşır; `/api/measurements` GET/POST
+uçları hasta bazlı okuma ve aynı hasta+çalışma+seri için değiştirme yapar (birim
+beyaz listesi, pozitif/sonlu değer, denetim kaydı). Araç çubuğundaki **📈 Trend**
+paneli etiket bazında zaman serisi, mini grafik, yüzde değişim ve ikilenme süresi
+gösterir; bu çalışmanın uzunluk/alan/elipsoid hacim/HU/SUV ölçümlerini kaydeder.
+Saf hesap `src/lib/measureHistory.ts`; `tests/measure-history.test.ts` mm/mm²/mL
+dönüşümünü, tarih sıralamasını, %değişimi, ikilenmeyi ve %5 stabil eşiğini sınar.
+
+**RADPEER (d-peer → var).** `src/lib/radpeer.ts` puan eşlemesi (1/2a/2b/3), oran ×
+toplam hedef örneklem, güne bağlı deterministik seçim, kendi raporunu ve zaten
+değerlendirdiğini dışlama, uyuşmazlık istatistikleri ve %95 Wilson aralığı içerir.
+`/api/peer-review/sample` ve `/api/peer-review/stats` uçlarını araç çubuğundaki
+**⚖ Peer** paneli gösterir. Hedefe ulaşılamazsa uydurma seçim yapılmaz. Test:
+`tests/radpeer.test.ts` (2000 konuluk kohortta sapma <5 puan).
+
+**Model kayıt defteri (a-modelops, kısmi).** `model_registry` tablosu model
+anahtarı, sürüm, aşama (aday/gölge/aktif/emekli), trafik %, artifact özeti ve
+notları tutar; `/api/models` (yalnız yönetici) aşama/trafik kurallarını doğrular ve
+her değişikliği önce/sonra ile denetim kaydına yazar. `/yonetim → Model kayıt
+defteri` sekmesinden sürüm kaydedilir, gölgeye alınır veya emekliye ayrılır. A/B
+planı ve konu karmasına bağlı atama `src/lib/modelRegistry.ts` içindedir
+(`tests/model-registry.test.ts`). Kısmi kalma nedeni: atama gerçek çıkarım isteğine
+bağlı değil ve sürüm bazlı canlı metrik toplanmıyor.
+
+**Doğrulama sınırı:** bu ortamda PostgreSQL yok; ölçüm geçmişi, RADPEER ve model
+kayıt defteri uçlarının uçtan uca (DB'li) testi çalıştırılamadı. Saf mantık ve
+istemci eşlemeleri test edildi; DB'li CI adımları `test:review`/`test:folder` gibi
+mevcut entegrasyon testleriyle birlikte koşar.
+
+## 0.0b Performans hattı: GPU pencereleme + Web Worker (v-perf)
+
+`v-perf` kısmi kalıyor ama iki büyük kalem kapandı. **GPU:** `src/lib/webglWindow.ts`
+işaretli 16 bit kesiti `R16I` dokusuna yükler, WL/WW'yi parçacık gölgelendiricisinde
+uygular; pencere alt sınırı tam sayı değilse veya çıktı CPU referansından
+(`windowSampleGray`) ±1'den fazla saparsa GPU yolu kendini kapatır ve CPU yolu
+kullanılır — yanlış gri tonu gösterme riski yoktur. **Worker:** `src/workers/window.worker.ts`
+≥1 MP kesitleri ana iş parçacığı dışında çevirir; piksel kopyası transfer edilir
+(seri verisi sahipsiz kalmaz), RGBA tamponu geri transfer edilir. Worker yoksa,
+CSP engellerse, hata verirse veya 2,5 s'de yanıt gelmezse aynı hesaplama ana iş
+parçacığında yapılır. GPU yolu etkinken komşu kesitlerin CPU ön-işlemesi atlanır.
+
+Doğrulama: `tests/perf-window.test.ts` gölgelendirici formülünü LUT ile
+karşılaştırır (`windowGrayFromIndex`, `windowSampleGray`), worker sözleşmesini
+(kaynak denetimi) ve tarayıcısız ortamda CPU yedeğinin birebir aynı sonucu
+verdiğini sınar. Ölçüm: `npm run bench:window`.
+
+Kalan: float32/işaretsiz seriler için GPU, gerçek ilerlemeli decode
+(çok çözünürlüklü piramit) ve Int16 bellek düzeni.
+
+## 0.0a Bu turda kapatılan madde: etkileşimli segmentasyon (m-seg)
+
+`m-seg` **kısmi**den **var**a geçti. Kütüphane zaten vardı; eksik olan tuval üstü
+düzenleme arayüzüydü. Eklenenler: araç çubuğunda **🧩 Segment** düğmesi,
+`src/components/SegmentationEditor.tsx` (fırça, silgi, HU eşik dolgusu, tohumdan
+bölge büyütme, kesit kopyalama, kesit/tüm maske temizleme, 12 adımlı geri al, renk
+ve opaklık), `Viewport` içinde AI aday örtüsünden bağımsız `OverlayData.manual`
+katmanı, alt bilgi çubuğunda mL hacim ve aynı maskeden DICOM SEG/RTSTRUCT indirme.
+
+Doğrulama: `tests/seg.test.ts` tuval→piksel eşlemesini (`screenToImage`, kırpma
+dahil), hızlı fırça darbesinde boşluk kalmamasını (`paintStroke`), geri alma
+kopyasının bağımsızlığını (`cloneMask`) ve SEG/RTSTRUCT gidiş-dönüşünü sınar.
+`tests/seg-editor-browser.cjs` (`npm run test:seg-ui`) gerçek tarayıcıda fırça,
+eşik, geri al, kesit kopyalama ve mL hacmin ana görünümleyiciye aktarımını
+denetler; Playwright tarayıcı ikilisi kurulu olmayan ortamda çalışmaz.
+
+Kalan iş (neden hâlâ tam puan değil): AI/SAM aday maskesini düzenlemeye açma
+(tohumlama) ve kesit kesit hacim trendi yoktur; RTSTRUCT konturları satır
+taramasıyla üretildiği için konkav segmentlerde dış zarfa yaklaşır. Maske hekim
+düzenlemesidir, rapora otomatik yazılmaz ve AI aday örtüsü düzenlenebilir maske
+değildir.
+
+Bu turun sonunda kıyaslama verisi **101 madde — 43 var / 58 kısmi / 0 yok**
+durumundadır (turun başında 101 / 40 / 61). `/kiyaslama` sayfası bu sayıları
+`gapAnalysis.ts` verisinden üretir; yayındaki sayfalar ancak yeni sürüm
+yayımlandığında güncellenir.
+
+## 0.0 Bu turda açılan yeni hat: radyasyon dozu (RDSR)
+
+Piyasa listesinde ayrı bir madde olmayan, ama doz yönetimi ürünlerinin (DoseWatch
+vb.) çekirdeğini oluşturan **RDSR okuma** işine başlandı. `src/lib/dose.ts` DICOM
+X-Ray Radiation Dose SR (SOP Class `1.2.840.10008.5.1.4.1.1.88.67`) içeriğini
+ayrıştırır: ışınlama olaylarından CTDIvol/DLP, olay yoksa accumulated toplamlar;
+eksik değer **tahmin edilmez**, uyarı olarak yazılır. Panel (`☢ Doz`) dosyayı
+tarayıcıda okur (sunucuya göndermez), DLP × bölge katsayısıyla yaklaşık etkin doz
+gösterir ve **örnek** DRL değerleriyle oran karşılaştırması yapar (değerler
+kullanıcı tarafından düzenlenebilir, doğrulanmamıştır). Sentetik RDSR gerçek DICOM
+baytlarıyla yazılıp dicom-parser + SR ayrıştırıcısından geri okunur (`npm run test:dose`).
+
+Kalan iş (kısmi kalma nedeni): hasta/modalite bazında sunucuda doz birikimi ve
+trend, uyarı eşikleri, PACS'ten otomatik RDSR çekme ve ulusal/kurumsal DRL
+tablosunun onaylı sürümü. Etkin doz ve DRL karşılaştırması klinik kanıt değildir.
+
+## 0.0b Erişilebilirlik ve kısayollar
+
+Klavye kısayolları artık sunucudaki kullanıcı tercihine bağlıdır ve çakışmalar
+`src/lib/shortcuts.ts` içinde çözülür; `?` erişilebilir yardım tablosunu açar.
+“İçeriğe geç” bağlantısı, görünür odak halkaları, `aria-live` bildirim, yüksek
+kontrast teması ve hareket azaltma eklendi. Kalan: ekran okuyucuyla uçtan uca
+bağımsız denetim, ölçek/yazı tipi seçenekleri ve WCAG 2.2 AA doğrulaması
+(kurum/bağımsız denetim) — bu nedenle `i-a11y` kısmi kalır.
+
 ## 0. Nasıl okunur
 
 | Öncelik | Anlamı |

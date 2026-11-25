@@ -184,6 +184,52 @@ export const peerReviews = pgTable("peer_reviews", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+/**
+ * Model kayıt defteri (a-modelops): model sürümleri, aşamaları ve A/B trafik
+ * payları. Her değişiklik denetim kaydına yazılır; performans iddiası taşımaz.
+ */
+export const modelRegistry = pgTable(
+  "model_registry",
+  {
+    id: serial("id").primaryKey(),
+    modelKey: text("model_key").notNull(),
+    version: text("version").notNull(),
+    stage: text("stage").notNull().default("aday"), // aday | gölge | aktif | emekli
+    trafficPct: integer("traffic_pct").notNull().default(0),
+    artifactHash: text("artifact_hash").notNull().default(""),
+    notes: text("notes").notNull().default(""),
+    createdBy: text("created_by").notNull().default(""),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("model_registry_uq").on(t.modelKey, t.version)],
+);
+
+/**
+ * Ölçüm geçmişi (c-measure-history): hasta ve çalışma bazında yapılandırılmış
+ * sayısal ölçümler (mm / mm² / mL / HU / SUV). Trend yalnız bu satırlardan
+ * hesaplanır; eksik ölçüm tahmin edilmez. `label` = ölçüm türü + kullanıcı etiketi.
+ */
+export const measurementHistory = pgTable(
+  "measurement_history",
+  {
+    id: serial("id").primaryKey(),
+    patientId: text("patient_id").notNull(),
+    studyUid: text("study_uid").notNull().default(""),
+    studyDate: text("study_date").notNull().default(""),
+    seriesKey: text("series_key").notNull().default(""),
+    modality: text("modality").notNull().default(""),
+    label: text("label").notNull(),
+    kind: text("kind").notNull().default(""),
+    value: real("value").notNull(),
+    unit: text("unit").notNull(),
+    slice: integer("slice").notNull().default(0),
+    recordedBy: integer("recorded_by"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("measurement_history_patient_idx").on(t.patientId, t.label)],
+);
+
 /** Seri bazlı ölçüm/anotasyon ve anahtar kesitler. keyImages şifreli JSON. */
 export const studyState = pgTable(
   "study_state",

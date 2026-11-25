@@ -6,6 +6,9 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { buildWindowLUT, GRAY_PALETTE, windowToRGBA, windowToRGBALegacy } from "../src/lib/window";
+import { gpuWindowCompatible, renderWindowFrame, WINDOW_WORKER_MIN_PIXELS, windowGrayFromIndex, windowSampleGray } from "../src/lib/windowFrame";
+import { WINDOW_SHADER_SOURCE } from "../src/lib/webglWindow";
+import { renderWindowWorker } from "../src/lib/windowWorker";
 
 let failed = 0;
 const ok = (cond: boolean, msg: string) => {
@@ -57,5 +60,37 @@ ok(vp.includes("PREFETCH_PIXELS_MAX") && vp.includes("slice + 1"), "komşu kesit
 const bench = readFileSync(path.join(root, "scripts/window-bench.ts"), "utf8");
 ok(bench.includes("windowToRGBA") && bench.includes("legacy"), "karşılaştırmalı bench betiği mevcut");
 
-if (failed) { console.error(`${failed} pencereleme testi başarısız`); process.exit(1); }
-console.log("Tüm pencereleme (v-perf) testleri geçti.");
+// ── paylaşılan çerçeve: worker ve GPU aynı aritmetiği kullanmalı ──
+const frame = renderWindowFrame(intSrc, wl, ww, false);
+ok(frame.every((v, i) => v === ra[i]), "renderWindowFrame ana iş parçacığı LUT yoluyla birebir aynı");
+let sampleDiff = 0;
+for (let i = 0; i < 512; i++) {
+  const got = frame[i * 7] & 0xff;
+  const want = windowSampleGray(intSrc[i * 7], wl, ww, false);
+  sampleDiff = Math.max(sampleDiff, Math.abs(got - want));
+}
+ok(sampleDiff === 0, "windowSampleGray (GPU referansı) LUT çıktısıyla aynı");
+for (const t of [-5, 0, 1, 199, 200, 400, 401]) {
+  ok(windowGrayFromIndex(t, 400, false) === (t <= 0 ? 0 : t >= 400 ? 255 : Math.min(255, Math.trunc(t * (255 / 400)))), `indeks ${t} → gri eşlemesi doğru`);
+}
+ok(windowSampleGray(1000, 40.5, 400, true) === 255 - windowSampleGray(1000, 40.5, 400, false), "ters çevirme simetrik");
+ok(gpuWindowCompatible(40, 400) && !gpuWindowCompatible(40.5, 400), "GPU yalnız tam sayı pencere alt sınırında kullanılır");
+ok(WINDOW_WORKER_MIN_PIXELS === 1_000_000, "worker eşiği ~1 MP");
+ok(WINDOW_SHADER_SOURCE.frag.includes("texelFetch") && WINDOW_SHADER_SOURCE.frag.includes("uSpan") && WINDOW_SHADER_SOURCE.frag.includes("uInvert"), "gölgelendirici pencereleme formülünü taşıyor");
+
+// ── worker sözleşmesi ──
+const workerSrc = readFileSync(path.join(root, "src/workers/window.worker.ts"), "utf8");
+ok(workerSrc.includes("renderWindowFrame") && workerSrc.includes("postMessage") && workerSrc.includes("[u32.buffer]"), "worker aynı çerçeveyi hesaplar ve RGBA'yı transfer eder");
+const clientSrc = readFileSync(path.join(root, "src/lib/windowWorker.ts"), "utf8");
+ok(clientSrc.includes("new Worker(new URL") && clientSrc.includes("renderWindowFrame"), "worker istemcisi worker yoksa/hata verirse CPU'ya düşer");
+const glSrc = readFileSync(path.join(root, "src/lib/webglWindow.ts"), "utf8");
+ok(glSrc.includes("readPixels") && glSrc.includes("windowSampleGray"), "GPU çıktısı CPU referansıyla öz-test edilir");
+ok(vp.includes("createWindowGpuRenderer") && vp.includes("renderWindowWorker"), "Viewport GPU ve worker yollarını bağlar");
+
+// ── worker istemcisi: tarayıcı yoksa (Node) CPU'ya düşer, söz reddetmez ──
+// (Üst düzey await kullanılmaz: depo testleri CJS olarak çalıştırılır.)
+renderWindowWorker(intSrc, wl, ww, false).then((fallback) => {
+  ok(fallback.length === intSrc.length && fallback.every((v, i) => v === ra[i]), "worker yoksa CPU yedeği aynı sonucu verir");
+  if (failed) { console.error(`${failed} pencereleme testi başarısız`); process.exit(1); }
+  console.log("Tüm pencereleme (v-perf) testleri geçti.");
+});

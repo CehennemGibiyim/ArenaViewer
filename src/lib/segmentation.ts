@@ -55,6 +55,70 @@ export function paint(m: SegMask, slice: number, cx: number, cy: number, r: numb
 }
 
 /**
+ * Ekran (istemci) koordinatını görüntü pikseline çevirir.
+ *
+ * Tuval CSS ile ölçeklendiği için `clientX/Y` doğrudan piksel değildir; kutu
+ * oranıyla çarpılır ve görüntü sınırlarına kırpılır. Saf fonksiyon: tarayıcı
+ * olmadan test edilebilir (m-seg tuval eşlemesi).
+ */
+export function screenToImage(
+  client: { x: number; y: number },
+  rect: { left: number; top: number; width: number; height: number },
+  width: number,
+  height: number,
+): { x: number; y: number } {
+  if (rect.width <= 0 || rect.height <= 0) return { x: 0, y: 0 };
+  const x = ((client.x - rect.left) * width) / rect.width;
+  const y = ((client.y - rect.top) * height) / rect.height;
+  return {
+    x: Math.min(width - 1, Math.max(0, x)),
+    y: Math.min(height - 1, Math.max(0, y)),
+  };
+}
+
+/**
+ * Fırça darbesini iki nokta arasında kesintisiz uygular.
+ *
+ * Neden: hızlı fare hareketinde `pointermove` olayları arası mesafe fırça
+ * yarıçapından büyük olur ve tek tek `paint` çağrıları kesikli iz bırakır.
+ * Noktalar arası yarıçap/2 adımlarla ilerlenir; dönüş, çizilen adım sayısıdır.
+ */
+export function paintStroke(
+  m: SegMask, slice: number,
+  from: { x: number; y: number }, to: { x: number; y: number },
+  r: number, erase = false,
+): number {
+  if (r <= 0) return 0;
+  const dx = to.x - from.x, dy = to.y - from.y;
+  const dist = Math.hypot(dx, dy);
+  const step = Math.max(0.5, r / 2);
+  const n = Math.max(1, Math.ceil(dist / step));
+  for (let i = 1; i <= n; i++) {
+    paint(m, slice, from.x + (dx * i) / n, from.y + (dy * i) / n, r, erase);
+  }
+  return n;
+}
+
+/** Kesitteki maske piksel sayısı (yoksa 0). */
+export function slicePixelCount(m: SegMask, slice: number): number {
+  const s = m.slices.get(slice);
+  if (!s) return 0;
+  let n = 0;
+  for (let i = 0; i < s.length; i++) if (s[i]) n++;
+  return n;
+}
+
+/**
+ * Maske anlık görüntüsü (geri al için). Derin kopya: sonraki fırça darbeleri
+ * geçmişi bozmaz. JSON biçimi `maskToJson` ile aynıdır (bellek içi kullanım).
+ */
+export function cloneMask(m: SegMask): SegMask {
+  const out = emptyMask(m.width, m.height);
+  for (const [i, s] of m.slices) out.slices.set(i, Uint8Array.from(s));
+  return out;
+}
+
+/**
  * Eşik tabanlı dolgu: verilen HU aralığındaki pikselleri maske içine alır
  * (yalnızca `region` içindeki pikseller; bölge verilmezse tüm görüntü).
  * `grow` bölgesi tohum noktasından bağlantılı bileşen (flood fill) olarak büyür.

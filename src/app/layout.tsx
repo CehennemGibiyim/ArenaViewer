@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import AppearanceBoot from "@/components/AppearanceBoot";
 import ClientRecovery from "@/components/ClientRecovery";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import UpdateNotice from "@/components/UpdateNotice";
@@ -28,7 +29,14 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="tr">
-      <body className="bg-[#070a0f] text-slate-200 antialiased"><ClientRecovery />{children}<UpdateNotice /><ServiceWorkerRegister /></body>
+      <body className="bg-[#070a0f] text-slate-200 antialiased">
+        <AppearanceBoot />
+        <a href="#main-content" className="skip-link">İçeriğe geç</a>
+        <ClientRecovery />
+        {children}
+        <UpdateNotice />
+        <ServiceWorkerRegister />
+      </body>
     </html>
   );
 }

@@ -32,11 +32,16 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   ≥15 mm; organ başına ≤2, toplam ≤5), non-hedef bileşkesi ve **genel yanıt
   tablosu** (yeni lezyon → PD; hedef CR + non-hedef CR → CR). Nodül takibi
   panelinden işaretlenir; CSV'ye genel değerlendirme eklenir.
-- **Segmentasyon + SEG/RTSTRUCT:** Fırça/silgi, eşik dolgusu ve tohumdan bölge
-  büyütme ile maske düzenleme; hacim (mL) hesabı. DICOM **SEG** (1 bit/piksel,
-  segment başına renk/etiket/algoritma) ve **RTSTRUCT** (CLOSED_PLANAR konturlar)
-  dışa aktarımı; ekran işaretlerinden otomatik maske üretimi. AI aday örtüsü
-  düzenlenebilir maske değildir; SEG/RTSTRUCT hekim düzenlemesine açıktır.
+- **Segmentasyon + SEG/RTSTRUCT (etkileşimli):** Araç çubuğundaki **🧩 Segment**
+  düğmesi tuval üstünde düzenleyiciyi açar: fırça/silgi (sürüklemede kesintisiz iz),
+  HU eşik dolgusu, tohumdan bağlantılı bölge büyütme, kesit kopyalama, kesit/tüm maske
+  temizleme, 12 adımlı geri al, renk ve opaklık. Maske ana görüntüleyicide AI aday
+  örtüsünden **bağımsız** ayrı katman olarak çizilir, alt bilgi çubuğunda mL hacim
+  görünür (piksel alanı × kesit kalınlığı; aralık varsa o kullanılır). Aynı maskeden
+  DICOM **SEG** (1 bit/piksel) ve **RTSTRUCT** (CLOSED_PLANAR konturlar) indirilir.
+  **Sınır:** AI/SAM aday maskesini düzenlemeye açma (tohumlama) ve hacim trendi yoktur;
+  RTSTRUCT konturları satır taramasıdır, konkav segmentlerde dış zarfa yaklaşır; AI
+  aday örtüsü düzenlenebilir maske değildir.
 - **Yapılandırılmış ölçüm SR (TID 1500):** Ekran ölçümleri (uzunluk, elipsoid,
   ROI, çokgen) DICOM **Comprehensive SR** olarak yazılır: 125007 Measurement
   Group içinde izleme kimliği, kodlu bulgu/bölge, NUM değer + UCUM birimi ve
@@ -88,10 +93,18 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   gider; ayrıca DICOM **Key Object Selection** (KO) ve **Grayscale Softcopy
   Presentation State** (GSPS/PR: pencere, döndürme, çevirme, referanslar) olarak
   dışa aktarılabilir (araç çubuğundaki "Dışa aktar"). PR rapor belgesi değildir.
-- **Performans:** Pencere/seviye (WL/WW) dönüşümü tek geçişli tablo + renk
-  paletiyle yapılır (`src/lib/window.ts`); ölçülmüş kazanç 512×512'de ≈2×,
-  4096×4096'da ≈2.2× (`npm run bench:window`). Kaydırmada komşu kesitler boş
-  zamanda ön-işlenir (sınırlı önbellek; büyük grafiklerde bellek kapısı uygulanır).
+- **Performans (v-perf):** Pencere/seviye (WL/WW) dönüşümü tek geçişli tablo +
+  renk paletiyle yapılır (`src/lib/window.ts`); ölçülmüş kazanç 512×512'de ≈2×,
+  4096×4096'da ≈2.2× (`npm run bench:window`). İşaretli 16 bit kesitlerde **WebGL2
+  GPU pencereleme** vardır (`src/lib/webglWindow.ts`): dönüşüm gölgelendiricide
+  yapılır, çıktı her yeni doku boyutunda `readPixels` ile CPU referansına karşı
+  öz-test edilir ve uyuşmazlıkta CPU yoluna düşer. ≥1 MP kesitler **Web Worker**'da
+  çevrilir (`src/workers/window.worker.ts`; kopyalanmış piksel girer, RGBA sıfır
+  kopyayla döner); worker yoksa/hata verirse/süre aşımında aynı sonuç ana iş
+  parçacığında hesaplanır. Kaydırmada komşu kesitler boş zamanda ön-işlenir
+  (sınırlı önbellek; GPU yolu açıkken CPU ön-işleme atlanır, büyük grafiklerde
+  bellek kapısı uygulanır). **Sınır:** float32/işaretsiz seriler CPU yolunda kalır;
+  gerçek ilerlemeli decode (çok çözünürlüklü piramit) yoktur.
 - **3B imleç:** İmleç aracı (araç çubuğu) ile tıklanan noktada aynı çalışmanın
   (Frame of Reference) diğer panellerinin kesidi o hasta koordinatına atlar;
   paralel olmayan serilerde de nokta bazlı en yakın kesit seçilir.
@@ -134,11 +147,44 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   **Çıkarım tamamen bu makinede çalışır; hasta verisi dışarı çıkmaz, ücretli servis
   kullanılmaz. Klinik doğrulanmamıştır; her bulgu radyoloji uzmanı onayı gerektirir.**
 - **Raporlama:** taslak → onay akışı, bulgu bazlı hekim doğrulaması, sürümleme,
-  addendum, A4 yazdırma, FHIR R4 DiagnosticReport dışa aktarma, ikinci okuma (peer review) kaydı
+  addendum, A4 yazdırma, FHIR R4 DiagnosticReport dışa aktarma, ikinci okuma (peer review) kaydı.
+- **Ölçüm geçmişi ve trend:** araç çubuğu → **📈 Trend**. Bu çalışmanın uzunluk,
+  alan, elipsoid hacim ve ortalama HU/SUV ölçümleri `measurement_history` tablosuna
+  yapılandırılmış satır olarak yazılır (`/api/measurements`); panel seçili hastanın
+  geçmişini etiket bazında zaman serisi + mini grafik + yüzde değişim + ikilenme
+  süresi olarak gösterir. Aynı hasta+çalışma+seri yeniden kaydedilirse satırlar
+  değiştirilir (kopya üretmez). **Sınır:** aynı etiketli ölçümler aynı lezyon kabul
+  edilir; eksik ölçüm tahmin edilmez, %5 altı oynama stabil sayılır.
+- **RADPEER (peer review gözetimi):** araç çubuğu → **⚖ Peer**. Onaylı raporlardan
+  güne bağlı deterministik örneklem (`/api/peer-review/sample`, varsayılan %5; kendi
+  raporunuz ve değerlendirdikleriniz hariç) ve uyuşmazlık istatistikleri
+  (`/api/peer-review/stats`): RADPEER 1/2a/2b/3 dağılımı, fark türleri, hekim bazında
+  uyum ve %95 Wilson aralığı. Değerlendirilmemiş raporlar uyumlu sayılmaz.
+- **Model kayıt defteri:** `/yonetim → Model kayıt defteri`. `model_registry`
+  tablosunda model anahtarı + sürüm + aşama (aday/gölge/aktif/emekli) + trafik %
+  tutulur; her değişiklik önce/sonra ile denetim kaydına yazılır. A/B planı konu
+  kimliğinin karmasına bağlıdır (aynı hasta aynı sürümde kalır). **Sınır:** atama
+  şu an plan düzeyindedir; gerçek çıkarım isteğine bağlanmamıştır.
 - **Süreli paylaşım:** onaylı rapor için süre seçilebilir (1–30 gün), kapatılabilir,
   filigranlı salt okunur bağlantı (`/paylas/<token>`); her erişim denetimde işlenir. Ham görüntü paylaşılmaz.
 - **İş akışı:** çalışma listesi, PACS (DICOMweb QIDO/WADO — hazır sistem ayarları, şifreli kimlik, bağlantı testi), HBYS istem alımı,
   kritik bulgu bildirimleri, şifreli sunucu depolaması, hash zincirli denetim kaydı
+- **Radyasyon dozu (RDSR):** üst çubuk → **☢ Doz**. DICOM X-Ray Radiation Dose SR
+  (SOP Class `…88.67`) belgeleri **tarayıcıda** okunur; ışınlama olaylarından
+  CTDIvol ve DLP çıkarılır, olay yoksa belgedeki toplam (accumulated) değerler
+  kullanılır. Eksik değer tahmin edilmez, uyarı olarak yazılır. DLP × bölge
+  katsayısıyla **yaklaşık** etkin doz hesaplanır; DRL karşılaştırması
+  kullanıcı tarafından düzenlenebilen **örnek** değerlerle yapılır. Özet panoya ve
+  `.txt` olarak dışa aktarılabilir. Dosya sunucuya gönderilmez. Dozimetri ölçümü
+  veya klinik karar aracı değildir; kurumsal DRL ve doz yönetimi süreci gerekir
+  (`src/lib/dose.ts`, `src/components/DosePanel.tsx`, `npm run test:dose`).
+- **Erişilebilirlik ve kısayollar:** “İçeriğe geç” bağlantısı, görünür odak
+  halkaları, `aria-live` bildirimler, diyaloglarda `role="dialog"`/`aria-modal`,
+  yüksek kontrast teması, hareket azaltma (tercih veya `prefers-reduced-motion`)
+  ve `forced-colors` desteği. İstasyon kısayolları (kesit, döndürme, çevirme,
+  ters, anahtar kesit, sıfırlama, tam ekran, rapor, doz) **Tercihler → Klavye**
+  ekranından özelleştirilir; çakışma çözülür ve `?` tuşu erişilebilir yardım
+  tablosunu açar (`src/lib/shortcuts.ts`, `npm run test:shortcuts`).
 
 ## Hızlı başlangıç (Docker Compose — önerilen)
 
@@ -402,6 +448,10 @@ npm run test:esign                   # imza kaydı + NES sınır etiketi
 npm run test:xref                    # 3B imleç: en yakın kesit + panel güncellemeleri
 npm run test:perf                   # pencere/seviye doğruluğu + önbellek ön-işleme
 npm run bench:window                # WL/WW dönüşümü kıyaslaması (eski vs LUT)
+npm run test:perf                   # LUT ↔ GPU referansı, worker sözleşmesi, CPU yedeği
+npm run test:measure-history        # ölçüm → geçmiş satırı, trend, %değişim, ikilenme
+npm run test:radpeer                # RADPEER örneklem + uyuşmazlık istatistiği
+npm run test:model-registry         # model kayıt defteri + deterministik A/B
 npm run test:pr                     # GSPS/PR dışa aktarma + parse doğrulama
 npm run test:notify                 # masaüstü bildirimi + izin akışı
 npm run test:prior                  # önceki tetkik ölçüm karşılaştırması
@@ -412,7 +462,8 @@ npm run test:pacssend               # KO/PR → PACS gönderim planı ve uç sö
 npm run test:siem                   # SIEM kuyruğu, yeniden deneme, HMAC imza
 npm run test:ctp                    # CTP cSVD dekonvolüsyonu + otomatik AIF
 npm run test:sr1500                 # TID 1500 yapılandırılmış ölçüm SR (+köprü)
-npm run test:seg                    # segmentasyon maskesi + DICOM SEG/RTSTRUCT
+npm run test:seg                    # segmentasyon maskesi + tuval eşlemesi + DICOM SEG/RTSTRUCT
+npm run test:seg-ui                 # (tarayıcı) fırça/eşik/geri al + mL hacim aktarımı
 npm run test:recistfull             # RECIST hedef seçimi + non-hedef + genel yanıt
 npm run test:closeloop              # kapanış döngüsü süre/eskalasyon kuralları
 npm run test:followup               # takip görev kovaları + iade eşleme
@@ -424,6 +475,8 @@ npm run test:supplychain            # SBOM + SHA256SUMS + SLSA köken doğrulama
 npm run test:backupdr               # depolama adaptörü + yedek/geri yükleme
 npm run test:kms                    # anahtar halkası + rotasyon
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
+npm run test:dose                   # RDSR (radyasyon dozu) okuma/özet/DRL + gerçek DICOM baytları
+npm run test:shortcuts              # klavye kısayolu ayrıştırma, eşleştirme ve çakışma çözümü
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)
 npm run build && npm start &

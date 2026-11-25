@@ -104,3 +104,68 @@ body {
   background: var(--bg);
   color: var(--text);
 }
+
+/* ── Erişilebilirlik (i-a11y) ─────────────────────────────────────────────
+   - .skip-link: klavyeyle gelen kullanıcı üst çubukları atlayıp içeriğe geçer.
+   - Odak halkası: her etkileşimli öğede görünür; tanı amaçlı değil, gezinme içindir.
+   - Hareket azaltma: tercih (data-motion="reduce") veya işletim sistemi ayarı.
+   - Yüksek kontrast temasında kenarlıklar ve bağlantılar güçlendirilir. */
+.skip-link {
+  position: fixed;
+  left: 8px;
+  top: -64px;
+  z-index: 300;
+  border-radius: 6px;
+  border: 1px solid var(--accent-cyan);
+  background: var(--panel);
+  color: var(--text);
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  transition: top 120ms ease;
+}
+.skip-link:focus {
+  top: 8px;
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
+}
+
+/* Yüksek kontrast: metin/kenarlık ayrımını artır; gölge ve saydamlıkları azalt. */
+[data-theme="high-contrast"] :where(button, select, input, a, summary, [role="button"]) {
+  border-color: #ffffff !important;
+}
+[data-theme="high-contrast"] :where(button, select, input, a, summary) {
+  color: #ffffff !important;
+}
+[data-theme="high-contrast"] :where(.text-slate-400, .text-slate-500) {
+  color: #e5e5e5 !important;
+}
+
+[data-motion="reduce"] *,
+[data-motion="reduce"] *::before,
+[data-motion="reduce"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Windows yüksek karşıtlık modu (forced-colors) için sistem renklerine bırak. */
+@media (forced-colors: active) {
+  :focus-visible { outline: 2px solid CanvasText; }
+  .skip-link { border-color: CanvasText; }
+}

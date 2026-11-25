@@ -5,7 +5,7 @@
  */
 import { parseDicom } from "dicom-parser";
 import { buildRtStruct, buildSegDocument, contourPoints, maskContour, packBinaryFrames, unpackBinaryFrame, SOP_RTSTRUCT, SOP_SEG } from "../src/lib/dicomSeg";
-import { copySlice, emptyMask, getPixel, growRegion, makeSegmentDef, maskFromJson, maskToJson, paint, prune, thresholdFill, volume } from "../src/lib/segmentation";
+import { cloneMask, copySlice, emptyMask, getPixel, growRegion, makeSegmentDef, maskFromJson, maskToJson, paint, paintStroke, prune, screenToImage, slicePixelCount, thresholdFill, volume } from "../src/lib/segmentation";
 
 let failed = 0;
 const ok = (cond: boolean, msg: string) => {
@@ -116,6 +116,36 @@ const rtText = new TextDecoder("utf-8").decode(u8(rtBytes));
 ok(rtText.includes("CLOSED_PLANAR"), "kontur geometri türü CLOSED_PLANAR");
 ok(rtText.includes("Nodül") && rtText.includes("ORGAN"), "ROI adı ve türü yazıldı");
 ok(!!drt.string("x30060010") || rtText.includes("1.2.840.10008.5.1.4.1.1.481.5"), "RTSTRUCT başlığı yazıldı");
+
+// ── tuval eşlemesi (CSS ölçekli tuval → görüntü pikseli) ──
+const rect = { left: 100, top: 50, width: 256, height: 128 };
+const mid = screenToImage({ x: 228, y: 114 }, rect, 512, 256);
+ok(Math.round(mid.x) === 256 && Math.round(mid.y) === 128, "tuval ortası görüntü ortasına eşleniyor (yarı yarıya ölçek)");
+const clampLow = screenToImage({ x: -40, y: -40 }, rect, 512, 256);
+ok(clampLow.x === 0 && clampLow.y === 0, "tuval dışı sol/üst sınıra kırpılıyor");
+const clampHigh = screenToImage({ x: 9999, y: 9999 }, rect, 512, 256);
+ok(clampHigh.x === 511 && clampHigh.y === 255, "tuval dışı sağ/alt sınıra kırpılıyor");
+ok(screenToImage({ x: 0, y: 0 }, { left: 0, top: 0, width: 0, height: 0 }, 10, 10).x === 0, "sıfır boyutlu tuval güvenli");
+
+// ── editör: fırça darbesi, geri alma kopyası, kesit sayımı ──
+const stroke = emptyMask(80, 40);
+paintStroke(stroke, 0, { x: 5, y: 20 }, { x: 75, y: 20 }, 3);
+let gaps = 0;
+for (let x = 5; x <= 75; x++) if (!getPixel(stroke, 0, x, 20)) gaps++;
+ok(gaps === 0, "hızlı fırça darbesinde kesit yolu boyunca boşluk yok");
+ok(slicePixelCount(stroke, 0) > 300, "fırça darbesi beklenen piksel hacmini üretiyor");
+ok(slicePixelCount(stroke, 1) === 0, "başka kesit etkilenmiyor");
+
+const strokeCopy = cloneMask(stroke);
+paint(stroke, 0, 40, 20, 10);
+ok(slicePixelCount(strokeCopy, 0) < slicePixelCount(stroke, 0), "cloneMask geri alma kopyası sonraki darbeden etkilenmiyor");
+
+const eraseStroke = emptyMask(40, 40);
+paintStroke(eraseStroke, 0, { x: 20, y: 20 }, { x: 20, y: 20 }, 8);
+const beforeErase = slicePixelCount(eraseStroke, 0);
+paintStroke(eraseStroke, 0, { x: 14, y: 20 }, { x: 26, y: 20 }, 2, true);
+ok(slicePixelCount(eraseStroke, 0) < beforeErase, "silgi darbesi pikselleri kaldırıyor");
+
 
 if (failed) { console.error(`${failed} segmentasyon testi başarısız`); process.exit(1); }
 console.log("Tüm c-seg-rtstruct (segmentasyon + SEG/RTSTRUCT) testleri geçti.");

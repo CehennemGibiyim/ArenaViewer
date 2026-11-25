@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { UserInfo } from "@/lib/types";
 import { AUTH_LABELS, PACS_PRESETS, type PacsAuthType, type PacsConfig } from "@/lib/pacsPresets";
 
-type Tab = "profile" | "users" | "audit" | "ai" | "stats" | "security" | "integration" | "compliance";
+type Tab = "profile" | "users" | "audit" | "ai" | "models" | "stats" | "security" | "integration" | "compliance";
 interface AuditRow { id: number; ts: string; username: string; action: string; entityType: string; entityId: string; details: string; hash: string }
 interface UserRow { id: number; username: string; fullName: string; title: string; regNo: string; role: string; active: boolean; twoFactorEnabled: boolean; lastLoginAt: string | null }
 interface PerfRow { engine: string; category: string; shown: number; approved: number; rejected: number; edited: number; pending: number; manualAdded: number; ppv: number | null }
@@ -52,6 +52,7 @@ async function api<T>(url: string, init?: RequestInit): Promise<{ ok: boolean; d
 const json = (method: string, body: unknown): RequestInit => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 import { formatHours } from "@/lib/workflowStats";
 import { apiFetch } from "@/lib/csrfClient";
+import ModelRegistryPanel from "./ModelRegistryPanel";
 
 const card = "rounded-xl border border-[#1e2735] bg-[#0b1018] p-4";
 const input = "rounded-lg border border-[#1e2735] bg-[#0e141d] px-2.5 py-1.5 text-xs text-slate-100 focus:border-cyan-400/50 focus:outline-none";
@@ -700,6 +701,8 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
             </div>
           </div>
         )}
+
+        {tab === "models" && <div className="mt-4">{<ModelRegistryPanel />}</div>}
 
         {tab === "compliance" && settings && (
           <div className="mt-4 space-y-2">
