@@ -9,6 +9,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { buildSeries, historyCsv, seriesSummary, sparkPoints, type MeasurementRecord } from "@/lib/measureHistory";
+import { useEscapeKey } from "@/lib/useEscapeKey";
 
 interface Props {
   patientId: string;
@@ -21,6 +22,7 @@ export default function MeasureHistoryPanel({ patientId, refreshKey = 0, onClose
   const [records, setRecords] = useState<MeasurementRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
+  useEscapeKey(onClose);
 
   useEffect(() => {
     let live = true;
@@ -61,7 +63,7 @@ export default function MeasureHistoryPanel({ patientId, refreshKey = 0, onClose
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" data-testid="measure-history-panel">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" data-testid="measure-history-panel" role="dialog" aria-modal="true" aria-label="Sunucu ölçüm geçmişi">
       <div className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-[#2d3b4e] bg-[#0b0f16] text-xs text-slate-200 shadow-2xl">
         <div className="flex items-center justify-between border-b border-[#1a2230] px-4 py-2">
           <b className="text-sm text-slate-100">Ölçüm geçmişi · sunucu</b>

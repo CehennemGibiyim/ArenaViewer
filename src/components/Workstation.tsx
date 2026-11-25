@@ -20,6 +20,7 @@ import ECGViewer from "./ECGViewer";
 import HangingProtocolEditorModal from "./HangingProtocolEditorModal";
 import SegEditor from "./SegEditor";
 import LungQuantPanel from "./LungQuantPanel";
+import { HIGH_CONTRAST_CLASS, HIGH_CONTRAST_STORAGE_KEY, SKIP_LINK_LABEL } from "@/lib/a11y";
 import { canMirror, metaOf, MIRROR_CHANNEL, MIRROR_PATH, type MirrorMessage, type MirrorState } from "@/lib/mirror";
 import ViewerErrorBoundary from "./ViewerErrorBoundary";
 import FileSelectControl from "./FileSelectControl";
@@ -189,6 +190,8 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [tool, setTool] = useState<ToolName>("wl");
   /** MSK ölçüm yardımcısı: seçili protokol, toplanan nokta sayısı ve sonuçlar. */
+  // Yüksek kontrast teması (i-a11y) — cihazda saklanır
+  const [highContrast, setHighContrast] = useState(false);
   // Akciğer kantitasyonu (a-lungquant)
   const [lungQuantOpen, setLungQuantOpen] = useState(false);
   const [mskProtocolId, setMskProtocolId] = useState<string | null>(null);
@@ -300,6 +303,24 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   }, [annotations, series, pxMm, analysis]);
   const resolved = series ? resolveProtocol(series, protocol) : "none";
   const reportStatus: "taslak" | "onaylandi" = activeReport && series && activeReport.studyUid === series.studyUid ? activeReport.status : "taslak";
+
+  useEffect(() => {
+    // Tercihi cihazdan oku ve <html>'e uygula. Durum yalnız mikro görevde
+    // güncellenir (React Compiler: efekt gövdesinde eşzamanlı setState yok).
+    let on = false;
+    try { on = localStorage.getItem(HIGH_CONTRAST_STORAGE_KEY) === "1"; } catch { /* depolama kapalı */ }
+    document.documentElement.classList.toggle(HIGH_CONTRAST_CLASS, on);
+    if (on) queueMicrotask(() => setHighContrast(true));
+  }, []);
+
+  const toggleHighContrast = useCallback(() => {
+    setHighContrast((prev) => {
+      const next = !prev;
+      document.documentElement.classList.toggle(HIGH_CONTRAST_CLASS, next);
+      try { localStorage.setItem(HIGH_CONTRAST_STORAGE_KEY, next ? "1" : "0"); } catch { /* yoksay */ }
+      return next;
+    });
+  }, []);
 
   const toast = useCallback((m: string, ms = 5000) => {
     setToastMsg(m);
@@ -1512,6 +1533,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
       {toastMsg && <div data-testid="action-feedback" role="status" aria-live="polite" className="pointer-events-none fixed bottom-9 left-1/2 z-[80] w-max max-w-[min(640px,92vw)] -translate-x-1/2 rounded-lg border border-cyan-400/40 bg-[#0b1018]/95 px-4 py-2 text-center text-xs font-semibold leading-relaxed text-cyan-100 shadow-xl">{toastMsg}</div>}
 
       {/* ── Üst Çubuk 1 ── */}
+      <a href="#viewer-main" className="skip-link">{SKIP_LINK_LABEL}</a>
       <header aria-label="Ana işlemler" className="relative z-20 flex shrink-0 flex-wrap items-center gap-1.5 border-b border-[#1a2230] bg-[#0b0f16] px-2 py-1.5 print:hidden">
         <div className="mr-1 flex shrink-0 items-center gap-2">
           {/* Yerel AI tarama animasyonu (GIF); next/image ek ağ katmanı sağlamaz.
@@ -1615,6 +1637,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
           <Btn on={lungQuantOpen} title="Akciğer kantitasyonu: LAA-950, ortalama HU, PD15, hacim ve kesit dağılımı (kural tabanlı)" onClick={() => setLungQuantOpen((v) => !v)}>🫁 Akciğer</Btn>
         )}
         <div className="mx-1 h-5 w-px shrink-0 bg-[#1e2735]" />
+        <Btn on={highContrast} tone="amber" title="Yüksek kontrast teması (ikincil metinleri AA eşiğine çıkarır)" onClick={toggleHighContrast}>◐ Kontrast</Btn>
         <Btn on={invert} tone="amber" onClick={() => setInvert((v) => !v)}>Ters</Btn>
         <Btn onClick={() => setRotation((r) => ((r + 90) % 360) as Rot)} title="R">⟳ Döndür</Btn>
         <Btn on={flipH} onClick={() => setFlipH((v) => !v)} title="H">⇆</Btn>
@@ -1676,7 +1699,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         </aside>}
 
         {/* Orta: Ana Görüntüleme & Çoklu Izgara / Özel Nesneler */}
-        <main aria-label="Görüntüleme alanı" className="relative min-w-0 flex-1">
+        <main id="viewer-main" tabIndex={-1} aria-label="Görüntüleme alanı" className="relative min-w-0 flex-1 outline-none">
           <ViewerErrorBoundary resetKey={series?.id ?? "empty"}>
           {series?.specialType === "sr" && series.srData ? (
             <SRViewer sr={series.srData} onJumpToSlice={(s) => setSlice(s - 1)} />

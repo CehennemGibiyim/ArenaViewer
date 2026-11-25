@@ -755,8 +755,8 @@ const BASE_ITEMS: GapItem[] = [
     id: "i-a11y", category: "trust", title: "Erişilebilirlik: WCAG, klavye taraması, ekran okuyucu etiketleri, yüksek kontrast",
     status: "kismi", priority: "P2", effort: "M",
     market: ["OHIF", "Weasis"],
-    ours: "Temel aria etiketleri var; eksik.",
-    action: "Klavye ile tüm akışlar; focus görünürlüğü; kontrast temaları.",
+    ours: "**Klavye/odak:** global `:focus-visible` halkası (fare odağında çizilmez), «İçeriğe geç» bağlantısı (`#viewer-main` ana bölgeye atlar), panellerde `role=\"dialog\"` + `aria-modal` + `aria-label` ve yeni panellerde **Escape ile kapatma** (`useEscapeKey`); `aria-live` bildirim bölgesi mevcut. **Kontrast:** `src/lib/a11y.ts` WCAG 2.1 kontrast matematiği (bağıl parlaklık, oran, AA/AAA eşikleri) ve arayüz paleti denetimi — `npm run test:a11y` (28 test). Etiket rengi `slate-500` zemin üzerinde 4,03:1 olduğu için **yüksek kontrast teması** (`.hc`: ikincil metinler ≥4,5:1) ve araç çubuğunda «◐ Kontrast» düğmesi eklendi (tercih cihazda saklanır, tüm sayfalarda uygulanır). **Hareket:** `prefers-reduced-motion` ile animasyon/geçişler kapatılır. KALAN: odak tuzağı (focus trap) ve diyalog içi Tab döngüsü, ekran okuyucu ile uçtan uca test, tüm ikonların metin alternatifi.",
+    action: "Odak tuzağı + Tab döngüsü, NVDA/VoiceOver ile uçtan uca doğrulama, ikonların aria-label denetimi.",
   },
   {
     id: "i-i18n", category: "trust", title: "Arayüz çevirisi (TR/EN ve diğer diller)",

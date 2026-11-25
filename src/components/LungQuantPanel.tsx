@@ -10,6 +10,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import type { SeriesData } from "@/lib/types";
+import { useEscapeKey } from "@/lib/useEscapeKey";
 import {
   lungQuant, lungQuantText, profileSummary, sampleLungHistogram,
   type LungProfile, type LungQuantResult,
@@ -34,6 +35,7 @@ export default function LungQuantPanel({ series, onClose, onAddToFindings }: Pro
   const [profile, setProfile] = useState<LungProfile | null>(null);
   const [result, setResult] = useState<LungQuantResult | null>(null);
   const [err, setErr] = useState("");
+  useEscapeKey(onClose);
 
   const spacing = useMemo(() => {
     const px = series.pixelSpacingX && series.pixelSpacingX > 0 ? series.pixelSpacingX : series.pixelSpacing > 0 ? series.pixelSpacing : 1;
@@ -80,7 +82,7 @@ export default function LungQuantPanel({ series, onClose, onAddToFindings }: Pro
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" data-testid="lung-quant-panel">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" data-testid="lung-quant-panel" role="dialog" aria-modal="true" aria-label="Akciğer kantitasyonu">
       <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-[#2d3b4e] bg-[#0b0f16] text-xs text-slate-200 shadow-2xl">
         <div className="flex items-center justify-between border-b border-[#1a2230] px-4 py-2">
           <div>

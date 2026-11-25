@@ -55,6 +55,7 @@ for (const marker of ["Nodül takibi", "Çalışmalar arası eşleştirme", "en 
   assert.ok(nod.includes(marker), `nodül takibinde "${marker}" bulunmalı`);
 }
 assert.ok(nod.includes('data-testid="cross-study-panel"'), "eşleştirme paneli işaretli render edilir");
+assert.ok(nod.includes('role="dialog"') && nod.includes('aria-modal="true"'), "nodül takibi diyalog semantiği taşır (i-a11y)");
 console.log("PASS nodül takibi: çalışmalar arası eşleştirme paneli boş durumda render edilir.");
 
 // c-measure-history: sunucu ölçüm geçmişi paneli SSR'da çökmeden render edilir.
@@ -63,6 +64,7 @@ for (const marker of ["Ölçüm geçmişi · sunucu", "Hasta: T1", "Yükleniyor�
   assert.ok(hist.includes(marker), `ölçüm geçmişinde "${marker}" bulunmalı`);
 }
 assert.ok(hist.includes('data-testid="measure-history-panel"'), "geçmiş paneli işaretli render edilir");
+assert.ok(hist.includes('role="dialog"') && hist.includes('aria-modal="true"'), "ölçüm geçmişi diyalog semantiği taşır (i-a11y)");
 console.log("PASS ölçüm geçmişi: sunucu paneli yükleme durumunda render edilir.");
 
 // a-lungquant: akciğer kantitasyonu paneli SSR'da çökmeden render edilir.
@@ -72,6 +74,7 @@ for (const marker of ["Akciğer kantitasyonu · LAA-950", "Hesaplanıyor…", "T
   assert.ok(lung.includes(marker), `akciğer panelinde "${marker}" bulunmalı`);
 }
 assert.ok(lung.includes('data-testid="lung-quant-panel"'), "akciğer paneli işaretli render edilir");
+assert.ok(lung.includes('role="dialog"') && lung.includes('aria-modal="true"'), "akciğer paneli diyalog semantiği taşır (i-a11y)");
 console.log("PASS akciğer kantitasyonu: panel hesaplama öncesi durumda render edilir.");
 
 console.log("Tüm arayüz duman testleri geçti.");

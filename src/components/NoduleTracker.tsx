@@ -156,7 +156,7 @@ export default function NoduleTracker({ patientId, patientName, studyDate, measu
   const inp = "rounded border border-[#1e2735] bg-[#0e141d] px-1.5 py-0.5 text-slate-100";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-label="Nodül takibi ve RECIST">
       <div className="flex max-h-full w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-[#2d3b4e] bg-[#0b0f16] text-xs text-slate-200 shadow-2xl">
         <div className="flex items-center justify-between border-b border-[#1a2230] px-4 py-2">
           <div><span className="text-sm font-bold text-cyan-300">Nodül takibi</span> <span className="text-slate-400">· {patientName} · {patientId}</span></div>

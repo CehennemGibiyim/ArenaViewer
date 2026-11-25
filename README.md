@@ -43,6 +43,10 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
 - **Akciğer kantitasyonu:** Araç çubuğu → 🫁 Akciğer (CT): LAA-950 (emfizem
   oranı), ortalama HU, PD15, tahmini hacim ve **kesit dağılım profili**. Gövde
   dışı hava dışlanır; lob/fissür ayrımı yoktur, DSBG ile birlikte değerlendirilir.
+- **Erişilebilirlik:** görünür klavye odağı, «İçeriğe geç» bağlantısı, diyaloglarda
+  `role="dialog"`/`aria-modal` + Escape, `aria-live` geri bildirim, **yüksek
+  kontrast** teması (◐ Kontrast; tercih cihazda saklanır) ve `prefers-reduced-motion`
+  desteği. WCAG kontrast matematiği testlidir (`npm run test:a11y`).
 - **Model kayıt defteri:** Yönetim → AI: model sürümleri (aday/aktif/emekli),
   trafik payı, parmak izi; `/api/ai/registry` deterministik **A/B ataması**
   (tohum → kova) ve aşama değişikliğinde denetim kaydı.
@@ -470,6 +474,7 @@ npm run test:tracking               # lezyon eşleştirme + nodül takibi köpr�
 npm run test:measure-history        # sunucu ölçüm geçmişi serileri + trend + CSV
 npm run test:lungquant              # LAA-950, PD15, kesit profili, örnekleme
 npm run test:model-registry         # model kayıt defteri + A/B ataması
+npm run test:a11y                   # WCAG kontrastı + tema sabitleri
 npm run test:closeloop              # kapanış döngüsü süre/eskalasyon kuralları
 npm run test:followup               # takip görev kovaları + iade eşleme
 npm run test:stowanon               # anonim seri → PACS (plan + sunucu doğrulaması)
