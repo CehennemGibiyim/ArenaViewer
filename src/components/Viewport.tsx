@@ -10,6 +10,7 @@ import { photometricLabel } from "@/lib/photometric";
 import { jumpToPatient, refLinesFor, registerPanel, unregisterPanel, usePanelRegistry } from "@/lib/panelRegistry";
 import { planeOf, toPatient } from "@/lib/planes";
 import { buildWindowLUT, windowToRGBA } from "@/lib/window";
+import { windowSliceAsync } from "@/lib/windowWorker";
 import { GpuWindower, needsGpu } from "@/lib/gpuWindow";
 import { applyGesture, gestureStep, pinchOf, type Pinch } from "@/lib/gestures";
 import { HEAT_ALPHA_MAX, heatPixel, heatVisible } from "@/lib/heat";
@@ -134,6 +135,34 @@ function buildBaseCanvas(
   const u32 = new Uint32Array(img.data.buffer);
   if (isColor) u32.set(series.rgbaSlices![idx]);
   else { const wlut = buildWindowLUT(wl, ww, invert); windowToRGBA(sl, wlut.lut, wlut.lo, u32); }
+  octx.putImageData(img, 0, 0);
+  return c;
+}
+
+/**
+ * Ön-işleme (v-perf): pencerelemeyi **Web Worker**'da yapar; worker yoksa/başarısızsa
+ * eşzamanlı `buildBaseCanvas` yoluna düşer (davranış aynı, yalnız ana iş parçacığı yükü).
+ * Renkli seriler ve GPU yolu doğrudan eşzamanlı yardımcıya gider.
+ */
+async function buildBaseCanvasAsync(
+  series: SeriesData,
+  idx: number,
+  wl: number,
+  ww: number,
+  invert: boolean
+): Promise<HTMLCanvasElement | null> {
+  const sl = series.slices[idx];
+  const isColor = !!series.isColor && !!series.rgbaSlices && !!series.rgbaSlices[idx];
+  if (!sl || isColor) return buildBaseCanvas(series, idx, wl, ww, invert);
+  const out = await windowSliceAsync(sl, wl, ww, invert);
+  if (!out) return buildBaseCanvas(series, idx, wl, ww, invert);
+  const c = document.createElement("canvas");
+  c.width = series.width;
+  c.height = series.height;
+  const octx = c.getContext("2d");
+  if (!octx) return buildBaseCanvas(series, idx, wl, ww, invert);
+  const img = octx.createImageData(series.width, series.height);
+  new Uint32Array(img.data.buffer).set(out);
   octx.putImageData(img, 0, 0);
   return c;
 }
@@ -311,18 +340,20 @@ export default function Viewport(props: ViewportProps) {
     const todo = keys.filter((k) => !baseCache.current.has(k));
     if (!todo.length) return;
     let alive = true;
-    const step = () => {
+    const step = async () => {
       if (!alive) return;
       const k = todo.pop();
       if (!k) return;
       if (!baseCache.current.has(k)) {
         const idx = Number(k.split("|")[1]);
-        const c = buildBaseCanvas(series, idx, rWl, rWw, invert);
+        // Pencereleme worker'da; worker yoksa eşzamanlı yola düşer.
+        const c = await buildBaseCanvasAsync(series, idx, rWl, rWw, invert);
+        if (!alive) return;
         if (c) { baseCache.current.set(k, { key: k, canvas: c }); trimBaseCache(baseCache.current, BASE_CACHE_MAX); }
       }
-      setTimeout(step, 0);
+      setTimeout(() => { void step(); }, 0);
     };
-    const t = setTimeout(step, 0);
+    const t = setTimeout(() => { void step(); }, 0);
     return () => { alive = false; clearTimeout(t); };
   }, [series, slice, wl, ww, invert]);
 
