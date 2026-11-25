@@ -650,8 +650,8 @@ const BASE_ITEMS: GapItem[] = [
     id: "e-wado-frame", category: "workflow", title: "WADO-RS URI + kare/bulk (frame-level) getirme",
     status: "kismi", priority: "P1", effort: "S",
     market: ["OHIF", "Weasis"],
-    ours: "Instance bazlı WADO var; frame parametresi ve bulkdataURI yok.",
-    action: "multipart jpeg + frame parametresi; büyük çalışmalarda kademeli getirme.",
+    ours: "Instance bazlı WADO + **yeni:** kare düzeyinde getirme — `wadoFrames()` (`.../instances/{sop}/frames/1,2,3`), çok parçalı yanıtın TÜM parçalarını çıkaran `parseAllMultipart()`, `/api/pacs/frames?studyUid=…&seriesUid=…&sopUid=…&frames=1,2,3` (tek kare `raw=1` ile doğrudan ikili; her getirme denetime yazılır). İstemcide LRU kare önbelleği (`FrameCache`, 240 kare), grup istekleri ve ±2 ön getirme penceresi (`wadoClient.ts`). KALAN: bulkdataURI ile piksel verisinin metadata içinden çekilmesi (DICOMweb standardı; OHIF uyumu için).",
+    action: "bulkdataURI ile metadata-içi piksel erişimi; sıkıştırılmış aktarımda istemci codec köprüsü.",
   },
   {
     id: "e-hl7-mwl", category: "workflow", title: "HL7 v2 MLLP alıcısı + Modality Worklist (MWL)",

@@ -318,6 +318,61 @@ export async function wadoInstance(cfg: PacsConfig, studyUid: string, seriesUid:
   return new Uint8Array(res.body);
 }
 
+/**
+ * Kare (frame-level) getirme: `GET .../instances/{sop}/frames/{1,2,3}`.
+ * Kabuk bileşeni görüntüye ihtiyaç duyduğunda yalnız kareyi indirir; büyük
+ * çalışmalarda tüm instance indirmekten çok daha az bant genişliği kullanır.
+ * Yanıt tek parçalı (odağu çıplak) veya multipart/related olabilir; ikisi de
+ * desteklenir. `accept` ile sıkıştırılmış aktarım (jpeg/l JPEG-LS/JPEG2000)
+ * istenebilir — PACS desteklemiyorsa 406 döner.
+ */
+export async function wadoFrames(
+  cfg: PacsConfig,
+  ref: { studyUid: string; seriesUid: string; sopUid: string },
+  frames: number[],
+  accept = 'multipart/related; type="application/octet-stream"; transfer-syntax=*',
+  timeoutMs = 60000,
+): Promise<Uint8Array[]> {
+  const root = cfg.wadoRoot || cfg.qidoRoot;
+  if (!root) throw new Error("PACS adresi yapılandırılmamış.");
+  const list = [...new Set(frames.filter((f) => Number.isInteger(f) && f > 0))].slice(0, 500);
+  if (!list.length) throw new Error("Geçersiz kare numarası.");
+  const url = `${root}/studies/${ref.studyUid}/series/${ref.seriesUid}/instances/${ref.sopUid}/frames/${list.join(",")}`;
+  const res = await requestBuffer(url, cfg, accept, timeoutMs);
+  if (res.status >= 400 || !res.status) throw new Error(friendlyStatus(res.status));
+  const ct = res.headers["content-type"] ?? "";
+  if (/json/i.test(ct) && !/octet-stream/i.test(ct)) throw new Error("PACS kare yerine JSON döndürdü — kare URI'sini kontrol edin.");
+  if (/multipart\/related/i.test(ct)) {
+    const parts = parseAllMultipart(new Uint8Array(res.body), ct);
+    if (!parts.length) throw new Error("PACS multipart kare yanıtı ayrıştırılamadı.");
+    return parts;
+  }
+  return [new Uint8Array(res.body)];
+}
+
+/** multipart/related gövdesindeki TÜM parçaları sırayla çıkarır. */
+export function parseAllMultipart(buf: Uint8Array, contentType: string): Uint8Array[] {
+  const m = /boundary="?([^";]+)"?/i.exec(contentType);
+  if (!m) return [];
+  const b = Buffer.from(buf);
+  const delim = Buffer.from(`--${m[1]}`);
+  const out: Uint8Array[] = [];
+  let pos = b.indexOf(delim);
+  while (pos >= 0) {
+    const headerEnd = b.indexOf("\r\n\r\n", pos);
+    if (headerEnd < 0) break;
+    const bodyStart = headerEnd + 4;
+    let next = b.indexOf(delim, bodyStart);
+    let end = next < 0 ? b.length : next;
+    // Parça sonundaki CRLF ayırıcıya dahil değildir
+    if (end >= 2 && b[end - 2] === 0x0d && b[end - 1] === 0x0a) end -= 2;
+    if (end > bodyStart) out.push(new Uint8Array(b.subarray(bodyStart, end)));
+    if (next < 0) break;
+    pos = next;
+  }
+  return out;
+}
+
 // ───────────── Bağlantı testi ─────────────
 
 export interface PacsTestStep {

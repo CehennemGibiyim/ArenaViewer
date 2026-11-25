@@ -52,6 +52,10 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   HMAC-SHA256 imzalı POST ile gönderilir; hata olursa üstel geri çekilmeyle
   yeniden denenir, vazgeçilen olaylar silinmez. Yönetim → Denetim kaydı'ndan
   kuyruk durumu izlenir ve elle boşaltılır.
+- **Kare düzeyinde getirme (WADO-RS frames):** `.../instances/{sop}/frames/1,2,3`
+  ile yalnız görünen kareler indirilir; istemcide LRU önbellek (240 kare) ve ±2
+  ön getirme penceresi vardır. Büyük çalışmalarda tüm instance indirmek yerine
+  kademeli getirme sağlar.
 - **Anonim seri gönderimi:** Seriyi PACS'e **kimliksiz** göndermek için anonim
   DICOM baytları tarayıcıda sıfırdan üretilir (özel etiket / orijinal UID / ad
   taşınmaz); sunucu örnek sayısı, toplam boyut ve DICM imzasını yeniden denetler.
@@ -328,6 +332,7 @@ npm run test:recistfull             # RECIST hedef seçimi + non-hedef + genel y
 npm run test:closeloop              # kapanış döngüsü süre/eskalasyon kuralları
 npm run test:followup               # takip görev kovaları + iade eşleme
 npm run test:stowanon               # anonim seri → PACS (plan + sunucu doğrulaması)
+npm run test:wadoframe              # kare düzeyinde getirme + istemci önbelleği
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)
