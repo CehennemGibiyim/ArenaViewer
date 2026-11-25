@@ -8,12 +8,15 @@ import { loadPacsConfig } from "@/lib/server/pacsConfig";
 import { isUid, qidoInstances, stowInstance } from "@/lib/server/pacs";
 import { mapReport } from "@/lib/server/studyRepo";
 import { buildKeyObjectSelection, buildPresentationState, buildReportSr } from "@/lib/dicomSr";
+import { summarizeAnonResult, validateAnonStowBody } from "@/lib/stowPayload";
 import { decryptText } from "@/lib/server/crypto";
 
 export const dynamic = "force-dynamic";
 
 interface StowBody {
-  kind?: "sr" | "ko" | "pr";
+  kind?: "sr" | "ko" | "pr" | "anon";
+  /** Anonim gönderim: istemcide sıfırdan üretilmiş DICOM baytları (base64). */
+  instances?: { name?: string; data?: string }[];
   reportId?: number;
   studyUid?: string;
   seriesKey?: string;
@@ -32,6 +35,7 @@ export async function POST(req: NextRequest) {
   const a = await authorize(req, ["radyolog", "yonetici"]);
   if ("error" in a) return a.error;
   const body = ((await req.json().catch(() => ({}))) ?? {}) as StowBody;
+  if (body.kind === "anon") return stowAnon(body, a.user);
   if (body.kind === "ko" || body.kind === "pr") return stowFromSeries(body, a.user);
   const id = Number(body.reportId);
   if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ error: "Geçersiz rapor kimliği" }, { status: 400 });
@@ -128,4 +132,39 @@ async function stowFromSeries(b: StowBody, user: Parameters<typeof audit>[0]) {
     await audit(user, "pacs.send_key_failed", "study", studyUid, { series: seriesKey, kind: b.kind });
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 502 });
   }
+}
+
+/**
+ * Anonim seri gönderimi (e-stow): istemci baytları bellekte sıfırdan üretir
+ * (özel etiket/UID/kimlik taşımaz); sunucu yalnız STOW-RS'e iletir.
+ * Boyut/örnek sayısı sunucuda yeniden doğrulanır; her gönderim denetime yazılır.
+ */
+async function stowAnon(b: StowBody, user: Parameters<typeof audit>[0]) {
+  const v = validateAnonStowBody(b);
+  if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 });
+  const studyUid = (b.studyUid ?? "").trim();
+  if (!isUid(studyUid)) return NextResponse.json({ error: "Geçersiz StudyInstanceUID" }, { status: 400 });
+
+  const cfg = await loadPacsConfig();
+  if (!cfg) return NextResponse.json({ error: "PACS yapılandırılmamış (Yönetim → Entegrasyon → PACS)" }, { status: 503 });
+
+  const results: { stored: number; failed: string[]; message?: string }[] = [];
+  for (const it of v.instances) {
+    const bytes = new Uint8Array(Buffer.from(it.data, "base64"));
+    // İlk 128 bayt önek + "DICM" imzası: bozuk/yanlış içerik PACS'e gitmesin.
+    const sig = Buffer.from(bytes.slice(128, 132)).toString("latin1");
+    if (sig !== "DICM") {
+      results.push({ stored: 0, failed: [it.name], message: `${it.name}: DICOM imzası yok` });
+      continue;
+    }
+    try {
+      const out = await stowInstance(cfg, bytes);
+      results.push(out);
+    } catch (e) {
+      results.push({ stored: 0, failed: [it.name], message: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  const sum = summarizeAnonResult(results);
+  await audit(user, sum.ok ? "pacs.send_anon" : "pacs.send_anon_partial", "study", studyUid, { count: v.instances.length, stored: sum.stored, failed: sum.failed, pacs: cfg.name || cfg.kind });
+  return NextResponse.json({ ...sum, kind: "anon", pacs: cfg.name || cfg.kind }, { status: sum.ok ? 200 : 207 });
 }

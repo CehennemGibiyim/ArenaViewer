@@ -5,6 +5,8 @@ import type { Annotation, KeyImage, SeriesData } from "@/lib/types";
 import { exportPngZip, exportVideoWebm } from "@/lib/exportMedia";
 import { buildKeyObjectSelection, buildPresentationState } from "@/lib/dicomSr";
 import { planKeyObject } from "@/lib/pacsSend";
+import { planAnonStow } from "@/lib/stowPayload";
+import { buildAnonymizedDicom } from "@/lib/dicomWrite";
 import { annotationsToMeasurements, exportCoverage, siteCode } from "@/lib/measurementExport";
 import { buildMeasurementReportSr } from "@/lib/sr1500";
 import { buildRtStruct, buildSegDocument } from "@/lib/dicomSeg";
@@ -88,6 +90,31 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
     });
     download(new Blob([bytes.slice().buffer as ArrayBuffer], { type: "application/dicom" }), `PR-${series.modality}-sunum-durumu.dcm`);
     toast("DICOM sunum durumu (GSPS/PR) indirildi — rapor belgesi değildir.", 5000);
+  };
+
+  /**
+   * Anonim seriyi PACS'e gönderir (e-stow). Baytlar TARAYICIDA sıfırdan üretilir
+   * (kimlik/özel etiket taşımaz); sunucu yalnız STOW-RS'i çağırır.
+   */
+  const sendAnonToPacs = async () => {
+    setOpen(false);
+    if (!series) { toast("Önce bir görüntü serisi açın."); return; }
+    if (!series.sopUids?.length) { toast("Bu seride SOP Instance UID bilgisi yok; anonim gönderim yalnız gerçek DICOM serilerinde yapılır.", 7000); return; }
+    try {
+      // Baytlar tarayıcıda sıfırdan üretilir: orijinal etiket/UID/kimlik taşınmaz.
+      const anon = buildAnonymizedDicom({ ...series, patientName: "", patientId: "" } as typeof series);
+      const plan = planAnonStow(anon.map((a) => ({ name: a.name, bytes: a.bytes })), series.sopUids);
+      if (!plan.ok) { toast(plan.reason ?? "Gönderim hazırlanamadı", 7000); return; }
+      setSending("pr");
+      const r = await fetch("/api/pacs/stow", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "anon", studyUid: series.studyUid, instances: plan.instances }),
+      });
+      const d = (await r.json().catch(() => ({}))) as { stored?: number; failed?: number; text?: string; error?: string; pacs?: string };
+      if (!r.ok && r.status !== 207) throw new Error(d.error ?? "Gönderilemedi");
+      toast(`${d.text ?? `${d.stored ?? 0} örnek gönderildi`} (${d.pacs ?? "PACS"}).`, 8000);
+    } catch (e) { toast(`Anonim gönderim başarısız: ${e instanceof Error ? e.message : "hata"}`, 8000); }
+    finally { setSending(null); }
   };
 
   /** Ölçümler → DICOM Comprehensive SR (TID 1500): sayısal ölçüm ağacı. */
@@ -206,6 +233,7 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
           <button className={item} onClick={exportPr} title="Pencere, döndürme ve çevirme ayarlarını GSPS belgesi olarak kaydeder">🖼 Görünüm → DICOM PR (sunum durumu)</button>
           <div className="my-1 border-t border-[#1e2735]" />
           <button className={item} disabled={sending !== null} onClick={() => void sendToPacs("ko")}>☁ Anahtar kesitler → PACS&apos;e gönder (KO)</button>
+          <button className={item} disabled={sending !== null} onClick={() => void sendAnonToPacs()} title="Seriyi bellekten anonim DICOM olarak üretip PACS'e gönderir (kimlik taşımaz)">☁ Anonim seri → PACS&apos;e gönder</button>
           <button className={item} onClick={() => exportSeg("seg")} title="İşaretli alanlardan DICOM Segmentasyon (SEG, 1 bit/piksel) üretir">🧩 Segmentasyon → DICOM SEG</button>
           <button className={item} onClick={() => exportSeg("rtstruct")} title="İşaretli alanlardan RTSTRUCT (ROI konturları) üretir">🧩 Segmentasyon → RTSTRUCT</button>
           <button className={item} onClick={exportSr1500} title="Ölçümleri TID 1500 yapılandırılmış rapor (Comprehensive SR) olarak indirir">📐 Ölçümler → DICOM SR (TID 1500)</button>
