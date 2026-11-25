@@ -110,6 +110,27 @@ export default function WorklistModal({ open, onClose, user, onOpenStudy, onOpen
     else setMwl(d.items ?? []);
     setMwlBusy(false);
   }, [mwlDate, mwlModality, mwlOpen]);
+  /**
+   * ADT^A08/A40 iletimi (e-hl7-mwl): demografi güncellemesi veya mükerrer kayıt
+   * birleştirme. Ham HL7 metni yapıştırılır; sunucu plan üretip uygular ve
+   * yapılmayan adımları gerekçesiyle döndürür (sessiz başarı yok).
+   */
+  const pushAdt = async () => {
+    const raw = window.prompt("ADT mesajını yapıştırın (MSH ile başlayan HL7 v2 metni — A08/A40):", "");
+    if (!raw?.trim()) return;
+    setMwlErr("");
+    setMwlNote("ADT uygulanıyor…");
+    const r = await apiFetch("/api/his/mwl", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "adt", hl7: raw.trim() }),
+    });
+    const d = (await r.json().catch(() => ({}))) as { error?: string; action?: string; changed?: number; studies?: number; reason?: string; warnings?: string[] };
+    const warn = d.warnings?.length ? ` · Uyarı: ${d.warnings[0]}` : "";
+    if (!r.ok) { setMwlNote(""); setMwlErr(`ADT uygulanamadı: ${d.error ?? "hata"}`); return; }
+    setMwlNote(`${d.action === "birlestir" ? `Birleştirildi (${d.studies ?? 0} çalışma)` : `ADT işlendi (${d.changed ?? 0} çalışma)`} — ${d.reason ?? "tamam"}.${warn}`);
+    void loadMwl();
+  };
+
 
   // Kullanıcı sekme/düğme ile istediğinde yüklenir (efekt içinde zincirleme durum
   // güncellemesi yapmamak için) — yerel sekme için aynı desen `load()` ile kullanılıyor.
@@ -206,6 +227,7 @@ export default function WorklistModal({ open, onClose, user, onOpenStudy, onOpen
               </select>
               <label className="flex items-center gap-1 text-slate-400"><input type="checkbox" checked={mwlOpen} onChange={(e) => setMwlOpen(e.target.checked)} /> yalnız açık işler</label>
               <button onClick={() => void loadMwl()} className="cursor-pointer rounded bg-cyan-500 px-3 py-1.5 font-bold text-slate-950 hover:bg-cyan-400">{mwlBusy ? "Sorgulanıyor…" : "Sorgula"}</button>
+              <button onClick={() => void pushAdt()} title="HBYS'den gelen ADT^A08 (demografi güncellemesi) veya ADT^A40 (hasta birleştirme) mesajını uygular" className="cursor-pointer rounded border border-[#2d3b4e] px-2 py-1.5 font-semibold text-slate-300 hover:bg-[#1a2330]">👤 ADT ilet</button>
               <span className="text-slate-500">Tarih boşsa PACS bugünü döndürür. Kaynak: Yönetim → Entegrasyon → MWL kökü / DIMSE köprüsü.</span>
             </div>
             {mwlErr && <div className="border-b border-[#1a2230] px-4 py-2 text-xs font-semibold text-rose-300">{mwlErr}</div>}

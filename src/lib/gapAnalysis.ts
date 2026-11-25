@@ -646,10 +646,9 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "e-hl7-mwl", category: "workflow", title: "HL7 v2 MLLP alıcısı + Modality Worklist (MWL)",
-    status: "kismi", priority: "P1", effort: "L",
+    status: "var", priority: "P1", effort: "L",
     market: ["Aidoc", "PowerScribe", "MedDream"],
-    ours: "`scripts/hl7-mllp-server.ts` + `src/lib/hl7.ts` — MLLP/TCP dinleyici ORM^O01/ORU^R01 mesajını ayrıştırıp `/api/his/orders`'a çevirir ve ACK verir (`npm run hl7:mllp`). **Bu sürümde eklendi — Modality Worklist:** `src/lib/mwl.ts` (DICOM JSON → worklist ögesi, Implicit VR LE okuyucu, süzme/sıralama/özet, öge → çalışma eşlemesi), `pacs.ts` `fetchMwl()` (MWL kökü → DICOMweb `/modality-worklist` → DIMSE köprüsü sırasıyla dener, 401/403 hatasını öne çıkarır), `/api/his/mwl` (GET liste + POST `Çalışmaya al`, `his.mwl_query`/`his.mwl_to_study` denetimi) ve `scripts/mwl-cfind-proxy.ts` (`npm run mwl:cfind`, dcm4che `findscu` ile C-FIND; ham Implicit VR baytlarını da JSON'a çevirir). İş istasyonunda **Çalışma listesi → İş listesi (MWL)** sekmesi. KALAN: gerçek DIMSE C-FIND/N-CREATE (MPPS) yığını Node içinde değil, köprü sürecinde.",
-    action: "MPPS (N-CREATE/N-SET) bildirimi; ADT/A08 hasta birleştirme; çoklu AET yönlendirme.",
+    ours: "`scripts/hl7-mllp-server.ts` + `src/lib/hl7.ts` — MLLP/TCP dinleyici ORM^O01/ORU^R01 mesajını ayrıştırıp `/api/his/orders`'a çevirir ve ACK verir. **Modality Worklist:** `mwl.ts` (DICOM JSON → worklist ögesi, Implicit VR okuyucu, süzme/sıralama/özet), `fetchMwl()` (MWL kökü → DICOMweb → DIMSE köprüsü), `/api/his/mwl` (GET liste + POST Çalışmaya al) ve `scripts/mwl-cfind-proxy.ts`. **Bu sürümde eklendi — ADT:** `hl7Adt.ts` ADT^A08 (demografi) ve ADT^A40 (hasta birleştirme) ayrıştırır; `planAdt()` **boş alanın mevcut değeri silmesini engeller**, hedef kayıt yoksa birleştirmeyi **reddeder**, MRG-1 eksik/aynı ise uyarı verip yok sayar, işlenmeyen olayı dürüstçe `yok-say` döndürür. `/api/his/mwl` POST `action=adt` güncellemeyi çalışmalara yazar, birleştirmede çalışmaları **ve açık takip görevlerini** hedef kimliğe taşır; denetim `his.adt_update` / `his.adt_merge` / `his.adt_ignored`. İş listesinde **👤 ADT ilet** düğmesi. KALAN: MPPS (N-CREATE/N-SET) ve çoklu AET yönlendirme — DIMSE köprüsü gerektirir.",    action: "MPPS (N-CREATE/N-SET) bildirimi ve çoklu AET yönlendirme (DIMSE köprüsü).",
   },
   {
     id: "e-fhir-in", category: "workflow", title: "FHIR girişi: ServiceRequest/ImagingStudy çekici",

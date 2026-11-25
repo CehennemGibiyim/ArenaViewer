@@ -5,6 +5,11 @@ import { fetchMwl } from "@/lib/server/pacs";
 import { loadMwlEndpoints, loadPacsConfig } from "@/lib/server/pacsConfig";
 import { upsertStudy } from "@/lib/server/studyRepo";
 import { filterMwl, mwlFromDicomJson, mwlSummary, mwlToOrder, sortMwl, type MwlItem } from "@/lib/mwl";
+import { parseAdt, planAdt } from "@/lib/hl7Adt";
+import { db } from "@/db";
+import { notifications, studies } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { encryptText, decryptText } from "@/lib/server/crypto";
 
 export const dynamic = "force-dynamic";
 
@@ -63,7 +68,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const a = await authorize(req, ["radyolog", "yonetici", "teknisyen"]);
   if ("error" in a) return a.error;
-  const b = (await req.json().catch(() => null)) as Partial<MwlItem> | null;
+  // ADT iletimi (e-hl7-mwl): `{ action: "adt", hl7: "MSH|..." }`
+  const rawBody = (await req.json().catch(() => null)) as (Partial<MwlItem> & { action?: string; hl7?: string }) | null;
+  if (rawBody?.action === "adt") return applyAdt(rawBody.hl7 ?? "", a.user);
+  const b = rawBody;
   if (!b?.patientId) return NextResponse.json({ error: "patientId gerekli" }, { status: 400 });
   const order = mwlToOrder({
     accession: b.accession ?? "",
@@ -112,4 +120,59 @@ export async function POST(req: NextRequest) {
 function todayDa(d = new Date()): string {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}`;
+}
+
+/**
+ * ADT^A08/A40 uygulaması: hasta demografisi güncellenir veya mükerrer kayıt
+ * hedef kimliğe birleştirilir (çalışmalar + açık takip görevleri).
+ *
+ * Dürüstlük kuralları: hedef kayıt yoksa birleştirme **yapılmaz**; değişmeyen
+ * alan yazılmaz; her işlem `his.adt_update` / `his.adt_merge` olarak denetlenir.
+ * Hasta kimliği denetim gövdesine olduğu gibi yazılmaz (yalnız eşleşen çalışma
+ * sayısı ve alan adları).
+ */
+async function applyAdt(hl7: string, user: Parameters<typeof audit>[0]) {
+  const msg = parseAdt(hl7);
+  const parsed = msg ? null : "ADT mesajı ayrıştırılamadı (PID-3 veya MSH eksik).";
+  if (!msg) return NextResponse.json({ error: parsed }, { status: 400 });
+
+  if (msg.event === "A40") {
+    if (!msg.mergedPatientId) return NextResponse.json({ error: "A40 için MRG-1 (birleşen kimlik) gerekli", warnings: msg.warnings }, { status: 400 });
+    const rows = await db.select().from(studies);
+    const target = rows.find((r) => decryptText(r.patientId) === msg.patient.patientId);
+    const plan = planAdt(msg, target ? { patientName: decryptText(target.patientName) } : null);
+    if (!plan.ok) return NextResponse.json({ error: plan.reason, warnings: plan.warnings }, { status: 409 });
+
+    const from = rows.filter((r) => decryptText(r.patientId) === plan.fromPatientId);
+    for (const r of from) {
+      await db.update(studies).set({ patientId: target!.patientId, updatedAt: new Date() }).where(eq(studies.id, r.id));
+    }
+    // Açık takip görevleri de hedef kimliğe taşınır (mesaj metni kimlik taşır).
+    const fu = await db.select().from(notifications).where(eq(notifications.kind, "followup"));
+    let moved = 0;
+    for (const n of fu) {
+      if (!n.message.includes(plan.fromPatientId!)) continue;
+      await db.update(notifications).set({ message: n.message.split(plan.fromPatientId!).join(plan.patientId!) }).where(eq(notifications.id, n.id));
+      moved += n.status === "acik" ? 1 : 0;
+    }
+    await audit(user, "his.adt_merge", "patient", target!.id, { studies: from.length, openFollowups: moved, warnings: plan.warnings.length });
+    return NextResponse.json({ ok: true, action: plan.action, studies: from.length, openFollowups: moved, reason: plan.reason, warnings: plan.warnings });
+  }
+
+  const plan = planAdt(msg, null);
+  if (!plan.ok || plan.action !== "guncelle") {
+    await audit(user, "his.adt_ignored", "patient", 0, { event: msg.event, reason: plan.reason.slice(0, 120) });
+    return NextResponse.json({ ok: true, action: plan.action, changed: 0, reason: plan.reason, warnings: plan.warnings });
+  }
+  const rows = await db.select().from(studies);
+  const hits = rows.filter((r) => decryptText(r.patientId) === plan.patientId);
+  for (const r of hits) {
+    await db.update(studies).set({
+      ...(plan.changes.patientName ? { patientName: encryptText(plan.changes.patientName) } : {}),
+      ...(plan.changes.sex ? { patientSex: plan.changes.sex } : {}),
+      updatedAt: new Date(),
+    }).where(eq(studies.id, r.id));
+  }
+  await audit(user, "his.adt_update", "patient", hits[0]?.id ?? 0, { studies: hits.length, fields: Object.keys(plan.changes).join(",") });
+  return NextResponse.json({ ok: true, action: plan.action, changed: hits.length, fields: Object.keys(plan.changes), reason: plan.reason, warnings: plan.warnings });
 }

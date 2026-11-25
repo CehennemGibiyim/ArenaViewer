@@ -359,6 +359,17 @@ Rapor alanlarındaki 🎤 düğmesi Web Speech API (tr-TR) kullanır; metin `dic
   `kontrast artır`, `ters çevir`, `pencere daralt`, `geri al`, `kaydet`, `temizle`. Bir parça
   **tamamen** komutsa komut sayılır; "kırık ileri deplase" gibi cümleler metin olarak yazılır.
 
+## ADT: demografi güncellemesi ve hasta birleştirme (e-hl7-mwl)
+
+`src/lib/hl7Adt.ts`; `POST /api/his/mwl {action:"adt", hl7}`.
+
+- **ADT^A08:** PID-5/7/8 okunur; **boş alan mevcut değeri silmez**, değişmeyen alan
+  yazılmaz (`yok-say`), okunamayan tarih/kod uyarıyla atlanır.
+- **ADT^A40:** MRG-1 birleşen kimliktir. Hedef kayıt yoksa birleştirme **reddedilir**;
+  MRG-1 eksik veya PID-3 ile aynıysa uyarı verilip yok sayılır. Birleştirmede çalışmalar
+  ve açık takip görevleri hedef kimliğe taşınır (`his.adt_merge` denetimi).
+- İş listesinde **👤 ADT ilet** düğmesi; ACK AA/AE plana göre üretilir.
+
 ## BulkDataURI ile kare erişimi (e-wado-frame)
 
 `src/lib/bulkData.ts`, `pacs.ts` `fetchBulk`/`wadoMetadata`, `/api/pacs/bulkdata`, `/api/pacs/frameplan`.
@@ -705,6 +716,7 @@ npm run test:closeloopev            # kapanış kanıt paketi + dış iletişim 
 npm run test:followupreturn         # HL7 ORU / FHIR iade alımı + kapatma kararı (d-followup)
 npm run test:cstore                 # DIMSE C-STORE köprüsü istemcisi (e-stow)
 npm run test:bulkdata               # BulkDataURI kare erişimi + codec kararı (e-wado-frame)
+npm run test:adt                    # ADT^A08/A40 ayrıştırma + birleştirme planı (e-hl7-mwl)
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)
