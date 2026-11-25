@@ -1,4 +1,4 @@
-import { expandSegmentedPalette16 } from "./segmentedPalette";
+import { expandSegmentedPalette16, expandSegmentedPalette8 } from "./segmentedPalette";
 import type { DicomDataSet, DicomElement } from "dicom-parser";
 import type {
   DicomECGWaveform,
@@ -315,19 +315,23 @@ export function parsePaletteColorLUT(ds: DicomDataSet): PaletteColorLUT | null {
     return { count, first, bits: read16(el.dataOffset + 4) };
   });
   const desc = descriptors[0];
-  if (!desc || (desc.bits === 8 && desc.count === 1) || ![8, 16].includes(desc.bits) || descriptors.some(d => !d || d.count !== desc.count || d.first !== desc.first || d.bits !== desc.bits)) return null;
+  if (!desc || ![8, 16].includes(desc.bits) || descriptors.some(d => !d || d.count !== desc.count || d.first !== desc.first || d.bits !== desc.bits)) return null;
 
   const channels = dataTags.map((tag, index) => {
     const el = ds.elements[tag];
     const segmented = ds.elements[`x0028122${index + 1}`];
     if (segmented) {
-      // 8-bit segmented streams use a different representation and are not yet supported.
-      if (el || desc.bits !== 16 || segmented.length % 2 || segmented.dataOffset + segmented.length > ds.byteArray.length) return null;
+      if (el || segmented.length % 2 || segmented.dataOffset + segmented.length > ds.byteArray.length) return null;
+      if (desc.bits === 8) {
+        const bytes = Array.from(ds.byteArray.subarray(segmented.dataOffset, segmented.dataOffset + segmented.length));
+        return expandSegmentedPalette8(bytes, desc.count, ds.string("x00020010")?.trim() === "1.2.840.10008.1.2.2");
+      }
       const words: number[] = [];
       for (let i = 0; i < segmented.length; i += 2) words.push(read16(segmented.dataOffset + i));
       return expandSegmentedPalette16(words, desc.count);
     }
     if (!el || el.dataOffset + el.length > ds.byteArray.length) return null;
+    if (desc.bits === 8 && desc.count === 1) return null; // packed vs word storage is ambiguous
     const packedLength = desc.count + (desc.count % 2);
     const words = el.length === desc.count * 2;
     if (desc.bits === 16 && !words) return null;

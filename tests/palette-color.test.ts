@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { loadMedicalFiles } from "../src/lib/dicom";
 import { parseDicom } from "dicom-parser";
-import { expandSegmentedPalette16 } from "../src/lib/segmentedPalette";
+import { expandSegmentedPalette16, expandSegmentedPalette8 } from "../src/lib/segmentedPalette";
 import { parsePaletteColorLUT } from "../src/lib/dicomSpecial";
 
 type Options = { be?: boolean; bits?: 8 | 16; words?: boolean; signed?: boolean; mismatch?: boolean; segmented?: boolean; truncated?: boolean };
@@ -26,7 +26,7 @@ function fixture(o: Options = {}): File {
   const colors = [[0, 128, 255], [255, 64, 0], [10, 20, 30]];
   const channel = (i: number) => {
     const values = colors[i];
-    const data = o.segmented && bits === 16 ? Buffer.concat([word(0), word(1), word(values[0] * 257), word(1), word(2), word(values[2] * 257)]) : bits === 16 ? Buffer.concat(values.map(v => word(v * 257))) : o.words ? Buffer.concat(values.map(v => word(v))) : Buffer.concat([word(values[0] | values[1] << 8), word(values[2])]);
+    const data = o.segmented && bits === 8 ? Buffer.from([0, 1, values[0], 1, 2, values[2]]) : o.segmented && bits === 16 ? Buffer.concat([word(0), word(1), word(values[0] * 257), word(1), word(2), word(values[2] * 257)]) : bits === 16 ? Buffer.concat(values.map(v => word(v * 257))) : o.words ? Buffer.concat(values.map(v => word(v))) : Buffer.concat([word(values[0] | values[1] << 8), word(values[2])]);
     return el(0x28, (o.segmented ? 0x1221 : 0x1201) + i, "OW", o.truncated && i === 0 ? data.subarray(0, 2) : data);
   };
   const pixels = [first - 1, first, first + 1, first + 2, first + 3];
@@ -51,12 +51,21 @@ async function run() {
     const rows = await loadMedicalFiles([f]);
     assert.deepEqual(Array.from(rows[0].rgbaSlices![0]), [0xff0aff00, 0xff0aff00, 0xff148080, 0xff1e00ff, 0xff1e00ff]);
   }
+  for (const be of [false, true]) {
+    const rows = await loadMedicalFiles([fixture({ segmented: true, bits: 8, signed: true, be })]);
+    assert.deepEqual(Array.from(rows[0].rgbaSlices![0]), [0xff0aff00, 0xff0aff00, 0xff148080, 0xff1e00ff, 0xff1e00ff]);
+    const pointer = be ? [0, 3, 0, 0] : [3, 0, 0, 0];
+    assert.deepEqual(Array.from(expandSegmentedPalette8([0, 1, 9, 0, 1, 10, 2, 1, ...pointer], 3, be)!), [9, 10, 10]);
+    assert.deepEqual(Array.from(expandSegmentedPalette8([0, 1, 9, 0], 1, be)!), [9]);
+    assert.equal(expandSegmentedPalette8([0, 1, 9, 1], 1, be), null);
+    assert.equal(expandSegmentedPalette8([0, 1, 9, 2, 1, 2, 0, 0, 0], 2, be), null);
+  }
   assert.deepEqual(Array.from(expandSegmentedPalette16([0, 2, 0, 10, 1, 2, 20, 2, 1, 0, 0], 6)!), [0, 10, 15, 20, 0, 10]);
   assert.deepEqual(Array.from(expandSegmentedPalette16([0, 1, 0, 1, 2, 5], 3)!), [0, 2, 5]);
   for (const bad of [[1, 1, 3], [0, 1], [0, 1, 1, 2, 1, 1, 0], [0, 1, 1, 2, 1, 6, 0], [0, 1, 1, 3, 1], [0, 1, 1, 2, 1, 0, 0]]) {
     assert.equal(expandSegmentedPalette16(bad, 1), null);
   }
-  for (const opts of [{ mismatch: true }, { segmented: true, bits: 8 as const }, { truncated: true }]) {
+  for (const opts of [{ mismatch: true }, { truncated: true }, { segmented: true, bits: 8 as const, truncated: true }]) {
     const warnings: string[] = []; const rows = await loadMedicalFiles([fixture(opts)], undefined, w => warnings.push(w));
     assert.equal(rows.length, 0); assert.ok(warnings.some(w => w.includes("PALETTE COLOR") && w.includes("Atlandı")));
   }
