@@ -1093,7 +1093,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     } else {
       for (const f of result.findings) if (f.category !== "Sistem" && f.category !== "ROI") pushFeed(`⚑ [Kesit ${f.keySliceNumber}/${N}] ${f.label} — ${f.densityOrSignal}, ${f.sizeMmStr}`, "finding");
       pushFeed(`✓ ${N} kesit işlendi · ${result.findings.filter((f) => f.category !== "Sistem" && f.category !== "ROI").length} aday odak · triyaj: ${result.triage.level}`, "done");
-      if (result.triage.score > 0.8) pushFeed("⚠ Kritik aday odak: bildirim oluşturuldu (zil simgesi).", "warn");
+      if (result.triage.score > 0.8) pushFeed("⚠ Yüksek öncelikli aday: hekim incelemesi gerekir. Bildirim teslimi bu uyarıdan doğrulanamaz.", "warn");
       // Masaüstü bildirimi (a-notify): izin önce sorulur; izin yoksa sessizce geçilir.
       const crit = result.findings.find((f) => f.severity === "kritik" || f.severity === "yuksek");
       if (crit) void notifyCriticalFinding({ label: crit.label, location: crit.anatomicalLocation, detail: crit.densityOrSignal, studyUid: s.studyUid });
