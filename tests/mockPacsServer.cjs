@@ -11,6 +11,7 @@
  *  - OPTIONS /dicom-web          → 204 (yetenek sorgusu)
  *  - GET .../instances           → 2 örnek instance
  *  - GET .../instances/{sop}     → multipart/related (DICM imzalı gövde)
+ *  - GET .../instances/{sop}/frames/1,2 → multipart/related, her kare ayrı parça
  *  - Diğer yollar                 → 404
  */
 const http = require("node:http");
@@ -92,6 +93,24 @@ const server = http.createServer((req, res) => {
       Buffer.from(`\r\n--${boundary}--\r\n`, "latin1"),
     ]);
     res.writeHead(200, { "Content-Type": `multipart/related; type="application/dicom"; boundary=${boundary}` });
+    res.end(payload);
+    return;
+  }
+
+  // Kare düzeyinde getirme (WADO-RS frames): her istenen kare ayrı multipart parçası
+  m = /^\/dicom-web\/studies\/([^/]+)\/series\/([^/]+)\/instances\/([^/]+)\/frames\/([\d,]+)$/.exec(path);
+  if (m) {
+    const frames = m[4].split(",").map((x) => Number(x));
+    const boundary = "atikframeboundary";
+    const parts = frames.map((f) => Buffer.from(`FRAME-${f}-PAYLOAD`, "latin1"));
+    const payload = Buffer.concat(
+      parts.flatMap((p) => [
+        Buffer.from(`--${boundary}\r\nContent-Type: application/octet-stream\r\n\r\n`, "latin1"),
+        p,
+        Buffer.from("\r\n", "latin1"),
+      ]).concat([Buffer.from(`--${boundary}--\r\n`, "latin1")]),
+    );
+    res.writeHead(200, { "Content-Type": `multipart/related; type="application/octet-stream"; boundary=${boundary}` });
     res.end(payload);
     return;
   }

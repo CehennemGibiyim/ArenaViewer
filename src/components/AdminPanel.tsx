@@ -21,6 +21,8 @@ type Settings = {
   criticalWebhookUrl: string;
   pacsBaseUrl: string;
   pacs: PacsForm;
+  /** MWL ek uçları: ayrı DICOMweb MWL kökü ve/veya DIMSE C-FIND köprüsü. */
+  pacsMwl?: { mwlRoot: string; dimseUrl: string };
   compliance: string;
   env: { llm: boolean; his: boolean; pacsAuth: boolean; keySource: string };
 };
@@ -44,11 +46,12 @@ const COMPLIANCE = [
 ];
 
 async function api<T>(url: string, init?: RequestInit): Promise<{ ok: boolean; data: T }> {
-  const r = await fetch(url, init);
+  const r = await apiFetch(url, init);
   return { ok: r.ok, data: (await r.json().catch(() => ({}))) as T };
 }
 const json = (method: string, body: unknown): RequestInit => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 import { formatHours } from "@/lib/workflowStats";
+import { apiFetch } from "@/lib/csrfClient";
 
 const card = "rounded-xl border border-[#1e2735] bg-[#0b1018] p-4";
 const input = "rounded-lg border border-[#1e2735] bg-[#0e141d] px-2.5 py-1.5 text-xs text-slate-100 focus:border-cyan-400/50 focus:outline-none";
@@ -69,7 +72,10 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
   const [audit, setAudit] = useState<AuditRow[]>([]);
   const [aq, setAq] = useState("");
   const [chain, setChain] = useState<{ ok: boolean; count: number; brokenAtId?: number; reason?: string } | null>(null);
+  const [siem, setSiem] = useState<{ pending: number; failed: number; sent: number; abandoned: number; configured: boolean; maxAttempts: number } | null>(null);
+  const [siemMsg, setSiemMsg] = useState("");
   const loadAudit = useCallback(async () => { const r = await api<AuditRow[]>(`/api/audit?limit=300&q=${encodeURIComponent(aq)}`); if (r.ok) setAudit(r.data); }, [aq]);
+  const loadSiem = useCallback(async () => { const r = await api<{ pending: number; failed: number; sent: number; abandoned: number; configured: boolean; maxAttempts: number }>("/api/audit/export?siem=stats"); if (r.ok) setSiem(r.data); }, []);
   // AI
   const [perf, setPerf] = useState<{ rows: PerfRow[]; note: string } | null>(null);
   // iş akışı istatistikleri (F4)
@@ -86,6 +92,11 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
   // PACS formu (ayarlar ayrı state'te tutulur ki test/Kaydet sırasında elle düzenler kaybolmasın)
   const [pacs, setPacs] = useState<PacsForm | null>(null);
   const [pacsHint, setPacsHint] = useState("");
+  // Anahtar halkası (g-kms): kimlikler + rotasyon durumu; `newKey` yalnız bir kez gösterilir.
+  const [keyring, setKeyring] = useState<{ current: string; keys: { kid: string; since: string; current: boolean }[]; rotation: { summary: string; pending: number } } | null>(null);
+  const [newKey, setNewKey] = useState<{ key: string; kid: string; dataEncryptionKeys: string } | null>(null);
+  const [rotateBusy, setRotateBusy] = useState(false);
+  const [mwlEndpoints, setMwlEndpoints] = useState<{ mwlRoot: string; dimseUrl: string }>({ mwlRoot: "", dimseUrl: "" });
   const [pacsTest, setPacsTest] = useState<PacsTestOut | null>(null);
   const [pacsTesting, setPacsTesting] = useState(false);
   // kullanıcı hesapları (F1) ve MFA kurulumu (F2)
@@ -102,6 +113,7 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
     if (s.ok) {
       setSettings(s.data);
       setPacs(s.data.pacs);
+      setMwlEndpoints(s.data.pacsMwl ?? { mwlRoot: "", dimseUrl: "" });
       try { setComp(JSON.parse(s.data.compliance || "{}")); } catch { setComp({}); }
     }
     if (st.ok) setStatus(st.data);
@@ -111,6 +123,11 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
     const r = await api<{ users: UserRow[] }>("/api/users");
     if (r.ok) setUserList(r.data.users);
   }, []);
+  const loadKeyring = useCallback(async () => {
+    const r = await api<{ current: string; keys: { kid: string; since: string; current: boolean }[]; rotation: { summary: string; pending: number } }>("/api/admin/keyring");
+    if (r.ok) setKeyring(r.data);
+  }, []);
+
   const loadMfa = useCallback(async () => {
     const r = await api<{ enabled: boolean; secret?: string; qr?: string }>("/api/profile/totp");
     if (r.ok) setMfa({ enabled: r.data.enabled });
@@ -120,12 +137,13 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
     void (async () => {
       if (tab === "profile") { await loadProfile(); await loadMfa(); }
       if (tab === "users") await loadUsers();
-      if (tab === "audit") await loadAudit();
+      if (tab === "audit") { await loadAudit(); await loadSiem(); }
       if (tab === "ai") { const r = await api<{ rows: PerfRow[]; note: string }>("/api/ai/performance"); if (r.ok) setPerf(r.data); }
       if (tab === "stats") await loadStats();
       if (["security", "integration", "compliance"].includes(tab)) await loadSettings();
+      if (tab === "security") await loadKeyring();
     })();
-  }, [tab, loadProfile, loadAudit, loadStats, loadSettings, loadUsers, loadMfa]);
+  }, [tab, loadProfile, loadAudit, loadSiem, loadStats, loadSettings, loadUsers, loadMfa, loadKeyring]);
 
   const saveSettings = async (patch: Record<string, unknown>) => {
     const r = await api<{ error?: string }>("/api/settings", json("PUT", patch));
@@ -148,7 +166,7 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
 
   const savePacs = async (): Promise<boolean> => {
     if (!pacs) return false;
-    const r = await api<{ error?: string }>("/api/settings", json("PUT", { pacs: pacsPayload(pacs) }));
+    const r = await api<{ error?: string }>("/api/settings", json("PUT", { pacs: pacsPayload(pacs), pacsMwl: mwlEndpoints }));
     if (!r.ok) { flash(r.data.error ?? "PACS kaydedilemedi"); return false; }
     flash("PACS kaydedildi");
     return true;
@@ -242,7 +260,7 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
         <h1 className="font-mono text-sm font-black tracking-[0.15em] text-slate-100">ATIK<span className="text-cyan-400">VIEWER</span> · YÖNETİM</h1>
         <span className="ml-auto flex items-center gap-3">
           <span className="text-xs text-slate-400" title={`Rol: ${user.role}`}>{user.title} {user.fullName} · <span className="font-mono text-[10px] text-slate-500">{user.role}</span></span>
-          <button className={`${btn} border border-rose-400/40 text-rose-300 hover:bg-rose-400/10`} onClick={() => void fetch("/api/auth/logout", { method: "POST" }).finally(() => { window.location.reload(); })}>⎋ Çıkış</button>
+          <button className={`${btn} border border-rose-400/40 text-rose-300 hover:bg-rose-400/10`} onClick={() => void apiFetch("/api/auth/logout", { method: "POST" }).finally(() => { window.location.reload(); })}>⎋ Çıkış</button>
         </span>
       </header>
       <main className="mx-auto max-w-6xl px-5 py-6">
@@ -390,8 +408,16 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
               <button className={`${btn} bg-cyan-500 text-slate-950`} onClick={() => void loadAudit()}>Ara</button>
               <button className={`${btn} border border-emerald-400/40 text-emerald-300 hover:bg-emerald-400/10`} onClick={async () => { const r = await api<{ ok: boolean; count: number; brokenAtId?: number; reason?: string }>("/api/audit?verify=1"); setChain(r.data); }}>🔗 Hash zincirini doğrula</button>
               <button className={`${btn} border border-slate-400/40 text-slate-200 hover:bg-slate-400/10`} title="Ekrandaki filtreli listeyi CSV olarak indir" onClick={exportAuditCsv}>⬇ CSV</button>
+              <button className={`${btn} border border-violet-400/40 text-violet-200 hover:bg-violet-400/10`} title="SIEM kuyruğunu şimdi boşalt (AUDIT_SIEM_URL gerekir)" onClick={async () => { const r = await api<{ configured: boolean; tried: number; sent: number; failed: number; error?: string }>("/api/audit/export", json("POST", {})); setSiemMsg(r.ok ? (r.data.configured ? `SIEM: ${r.data.sent}/${r.data.tried} gönderildi${r.data.failed ? `, ${r.data.failed} başarısız` : ""}${r.data.error ? ` (${r.data.error})` : ""}` : "AUDIT_SIEM_URL tanımlı değil — olaylar kuyrukta birikiyor.") : "Kuyruk boşaltılamadı (yönetici yetkisi gerekir)"); void loadSiem(); }}>📡 SIEM kuyruğu</button>
               <button className={`${btn} border border-slate-400/40 text-slate-200 hover:bg-slate-400/10`} title="Yazdırma penceresinden 'PDF olarak kaydet' seçin" onClick={() => { document.body.classList.add("print-audit"); window.addEventListener("afterprint", () => document.body.classList.remove("print-audit"), { once: true }); window.print(); }}>🖨 PDF</button>
             </div>
+            {siem && (
+              <p className="text-[11px] text-slate-400">
+                SIEM teslimatı: {siem.configured ? <b className="text-emerald-300">etkin (AUDIT_SIEM_URL)</b> : <b className="text-amber-300">yapılandırılmadı — olaylar kuyrukta</b>} ·
+                kuyruk <b className="text-slate-200">{siem.pending}</b> · yeniden denenecek <b className="text-amber-300">{siem.failed}</b> · gönderildi <b className="text-emerald-300">{siem.sent}</b> · vazgeçilen <b className="text-rose-300">{siem.abandoned}</b> (en fazla {siem.maxAttempts} deneme)
+              </p>
+            )}
+            {siemMsg && <p className="text-[11px] text-cyan-300">{siemMsg}</p>}
             {chain && <div className={`rounded-lg border px-3 py-2 text-xs font-semibold ${chain.ok ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-rose-500/50 bg-rose-500/10 text-rose-300"}`}>{chain.ok ? `✓ Zincir bütün: ${chain.count} kayıt, değişiklik/silme yok.` : `✗ Zincir bozuk (kayıt #${chain.brokenAtId}): ${chain.reason}`}</div>}
             <div className={`${card} audit-print max-h-[60vh] overflow-auto p-0`}>
               <table className="w-full text-[11px]">
@@ -508,6 +534,54 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
               <button disabled={status.plaintext.studies + status.plaintext.reports === 0} className={`${btn} mt-3 bg-cyan-500 text-slate-950 disabled:opacity-40`} onClick={async () => { const r = await api<{ studies: number; reports: number; error?: string }>("/api/admin/encrypt-legacy", { method: "POST" }); flash(r.ok ? `Şifrelendi: ${r.data.studies} çalışma, ${r.data.reports} rapor` : r.data.error ?? "Hata"); void loadSettings(); }}>Mevcut kayıtları şifrele</button>
             </div>
             <div className={card}>
+              <h2 className="text-sm font-bold text-slate-100">Anahtar rotasyonu (KMS)</h2>
+              <p className="mt-2 text-xs leading-relaxed text-slate-300">
+                Kayıtlar anahtar kimliği taşır (<code>enc:v2:&lt;kimlik&gt;:…</code>); böylece eski anahtarla şifrelenmiş veri,
+                yeni anahtar eklenerek <b>kayıpsız</b> yeniden şifrelenebilir. Sıra: ① yeni anahtar üret → ② <code>.env</code>
+                içindeki <code>DATA_ENCRYPTION_KEYS</code> değerine ekle → ③ servisi yeniden başlat → ④ &quot;Rotasyonu çalıştır&quot;
+                → ⑤ doğrulandıktan sonra eski anahtarı listeden çıkar.
+              </p>
+              <div className="mt-3 space-y-1 text-[11px] text-slate-400">
+                {(keyring?.keys ?? []).map((k) => (
+                  <div key={k.kid} className="flex items-center gap-2">
+                    <code className={k.current ? "text-emerald-300" : "text-amber-300"}>{k.kid}</code>
+                    <span>{k.current ? "aktif (yazar)" : "yalnız okuma"}</span>
+                  </div>
+                ))}
+                {!keyring && <span>Anahtar halkası okunamadı (Yönetim → Güvenlik sekmesini yenileyin).</span>}
+              </div>
+              {keyring?.rotation && (
+                <p className="mt-2 text-[11px] text-slate-300">Rotasyon durumu: <b>{keyring.rotation.summary}</b></p>
+              )}
+              {newKey && (
+                <div className="mt-2 rounded border border-cyan-400/30 bg-cyan-400/5 p-2 text-[10.5px] text-cyan-100">
+                  <div className="font-bold">Yeni anahtar (yalnız bir kez gösterilir — güvenli kasaya yazın):</div>
+                  <code className="mt-1 block break-all text-[10px] text-cyan-200">{newKey.key}</code>
+                  <div className="mt-1 text-slate-300">DATA_ENCRYPTION_KEYS =</div>
+                  <code className="block break-all text-[10px] text-slate-200">{newKey.dataEncryptionKeys}</code>
+                </div>
+              )}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button className={`${btn} bg-slate-700 text-slate-100`} onClick={async () => {
+                  const r = await api<{ key: string; kid: string; dataEncryptionKeys: string; error?: string }>("/api/admin/keyring", json("POST", { action: "generate" }));
+                  if (r.ok) { setNewKey(r.data); flash(`Yeni anahtar üretildi (${r.data.kid})`); } else flash(r.data.error ?? "Anahtar üretilemedi");
+                }}>Yeni anahtar üret</button>
+                <button className={`${btn} bg-cyan-500 text-slate-950 disabled:opacity-40`} disabled={rotateBusy || (keyring?.rotation?.pending ?? 0) === 0} onClick={async () => {
+                  setRotateBusy(true);
+                  const r = await api<{ written: number; remaining: number; percent: number; note: string; error?: string }>("/api/admin/keyring", json("POST", { action: "rotate" }));
+                  setRotateBusy(false);
+                  flash(r.ok ? `${r.data.written} kayıt yeniden şifrelendi (%${r.data.percent}, kalan ${r.data.remaining})` : r.data.error ?? "Rotasyon başarısız");
+                  void loadKeyring();
+                }}>{rotateBusy ? "Rotasyon…" : "Rotasyonu çalıştır"}</button>
+                <button className={`${btn} bg-slate-700 text-slate-100 disabled:opacity-40`} disabled={!newKey} onClick={async () => {
+                  if (!newKey) return;
+                  const r = await api<{ dataEncryptionKeys: string; note: string; error?: string }>("/api/admin/keyring", json("POST", { action: "drop-old", currentKey: newKey.key }));
+                  flash(r.ok ? "Eski anahtarlar çıkarıldı — yeni değeri .env'e yazın" : r.data.error ?? "Atma başarısız");
+                  if (r.ok) setNewKey({ ...newKey, dataEncryptionKeys: r.data.dataEncryptionKeys });
+                }}>Eski anahtarları çıkar</button>
+              </div>
+            </div>
+            <div className={card}>
               <h2 className="text-sm font-bold text-slate-100">Saklama politikası</h2>
               <p className="mt-2 text-xs text-slate-300">Onaylanmamış taslak raporlar bu süreden sonra silinir (0 = otomatik silme kapalı). Onaylı raporlar silinmez.</p>
               <div className="mt-3 flex items-center gap-2">
@@ -579,6 +653,9 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
                       <input type="number" min={1} max={1000} className={input} style={{ width: 72 }} value={pacs.limit} onChange={(e) => setPacs({ ...pacs, limit: Number(e.target.value) || 50 })} />
                     </span>
                   </label>
+                  <input className={input} placeholder="MWL kökü (farklıysa) — ör. https://pacs/dcm4chee-arc/aets/AET/rs" value={mwlEndpoints.mwlRoot} onChange={(e) => setMwlEndpoints({ ...mwlEndpoints, mwlRoot: e.target.value })} />
+                  <input className={input} placeholder="DIMSE C-FIND köprüsü — ör. http://127.0.0.1:2580/cfind" value={mwlEndpoints.dimseUrl} onChange={(e) => setMwlEndpoints({ ...mwlEndpoints, dimseUrl: e.target.value })} />
+                  <p className="text-[10.5px] text-slate-500">İş listesi (MWL) bu sırayla denenir: MWL kökü → DICOMweb → DIMSE köprüsü. Köprü süreci: <code className="text-slate-400">npm run mwl:cfind</code>. Köprü ayarını kaydetmek için aşağıdaki Kaydet düğmesi tüm alanları yazar.</p>
                   <textarea className={`${input} h-16 w-full resize-none`} placeholder="Kurum notları (AE başlığı, port, conformance statement vb.)" value={pacs.notes} onChange={(e) => setPacs({ ...pacs, notes: e.target.value })} />
                   {pacsHint && <p className="text-[11px] text-cyan-300/90">💡 {pacsHint}</p>}
                   <div className="flex flex-wrap items-center gap-2">

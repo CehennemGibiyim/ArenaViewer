@@ -140,6 +140,42 @@ export interface KeyObjectInput extends PatientStudy {
   items: { sopUid: string; note?: string }[];
 }
 
+export const SOP_PRESENTATION_STATE = "1.2.840.10008.5.1.4.1.1.11.1";
+
+export interface PresentationStateInput extends PatientStudy {
+  seriesUid: string; sopClassUid: string; sopUids: string[];
+  wl: number; ww: number;
+  rotation?: 0 | 90 | 180 | 270;
+  flipH?: boolean; flipV?: boolean; invert?: boolean;
+}
+
+/**
+ * Görünüm durumu → DICOM Grayscale Softcopy Presentation State (GSPS, PR).
+ * Kaydetme içeriği: referans seri/kesitler, pencere (VOI LUT), döndürme ve yatay
+ * çevirme. Not: PR bir rapor/imza belgesi DEĞİLDİR; yalnızca sunum ayarlarını taşır.
+ */
+export function buildPresentationState(p: PresentationStateInput): Uint8Array {
+  const sop = newUid();
+  const num = (v: number) => String(Math.round(v * 100) / 100);
+  const els: E[] = [
+    ...common(p, SOP_PRESENTATION_STATE, sop, "PR", "Sunum Durumu", 902, 1),
+    SQ(0x0008, 0x1115, [item(
+      S(0x0020, 0x000e, "UI", p.seriesUid),
+      SQ(0x0008, 0x1140, p.sopUids.map((u) => item(S(0x0008, 0x1150, "UI", p.sopClassUid), S(0x0008, 0x1155, "UI", u)))),
+    )]),
+    // Softcopy VOI LUT: kaydedilen pencere/seviye
+    SQ(0x0028, 0x3010, [item(
+      S(0x0028, 0x1050, "DS", num(p.wl)),
+      S(0x0028, 0x1051, "DS", num(Math.max(1, p.ww))),
+    )]),
+    S(0x0070, 0x0041, "CS", String(p.rotation ?? 0)),
+    S(0x0070, 0x0042, "CS", p.flipH ? "Y" : "N"),
+    S(0x0070, 0x0080, "CS", "ATIK-PR"),
+    UT(0x0070, 0x0081, `WL=${num(p.wl)} WW=${num(Math.max(1, p.ww))} dondurme=${String(p.rotation ?? 0)} yatayCevir=${p.flipH ? "Y" : "N"} dikeyCevir=${p.flipV ? "Y" : "N"} ters=${p.invert ? "Y" : "N"}`),
+  ];
+  return wrap(SOP_PRESENTATION_STATE, sop, build(els));
+}
+
 /** Anahtar kesitler → DICOM Key Object Selection Document (TID 2010). */
 export function buildKeyObjectSelection(k: KeyObjectInput): Uint8Array {
   const sop = newUid();

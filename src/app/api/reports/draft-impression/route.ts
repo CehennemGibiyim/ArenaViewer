@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { audit } from "@/lib/server/audit";
 import { authorize } from "@/lib/server/auth";
+import { buildStyleInstruction } from "@/lib/styleProfile";
 
 export const dynamic = "force-dynamic";
 
 interface DraftBody {
   modality: string;
   bodyPart: string;
+  /** Hekimin geçmiş (kimliksiz) rapor metninden alınmış üslup örneği. */
+  styleSample?: string;
   findings: { label: string; detail: string; slice: number; category: string; severity: string; status: string }[];
 }
 
@@ -27,6 +30,8 @@ export async function POST(req: NextRequest) {
   let text = rule;
   let source: "llm" | "kural" = "kural";
 
+  const styleSample = (b.styleSample ?? "").trim().slice(0, 1200);
+  const styleInstruction = styleSample ? buildStyleInstruction(styleSample) : null;
   if (url && key) {
     try {
       const res = await fetch(url, {
@@ -39,6 +44,7 @@ export async function POST(req: NextRequest) {
           messages: [
             { role: "system", content: "Sen bir radyoloji raporlama yardımcısısın. Yalnızca verilen, hekimce doğrulanmış bulgulara dayanarak Türkçe, kısa (en fazla 90 kelime) bir 'SONUÇ/İZLENİM' taslağı yaz. Bulgularda olmayan hiçbir bilgi, tanı veya ölçü ekleme. Emin olunmayan konuda 'klinik korelasyon önerilir' de." },
             { role: "user", content: `Modalite: ${b.modality}\nBölge: ${b.bodyPart}\nDoğrulanmış bulgular:\n${verified.map((f) => `- [Kesit ${f.slice}] ${f.label}: ${f.detail}`).join("\n")}` },
+            ...(styleInstruction ? [{ role: "system" as const, content: styleInstruction }] : []),
           ],
         }),
       });

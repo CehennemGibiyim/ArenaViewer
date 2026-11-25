@@ -1,0 +1,56 @@
+name: Release doğrulama (indirilen sürüm)
+
+# g-supplychain: yayınlanmış bir sürümü indirip BAĞIMSIZ olarak doğrular.
+# Kurumda benzer adımlar `node scripts/supplychain.mjs verify --dir <klasör>` ile
+# elle çalıştırılabilir; bu iş akışı kendi yayınladığımız varlıkların bütünlüğünü
+# her etikette otomatik denetler (sessiz bozulma/karışma tespiti).
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Doğrulanacak sürüm etiketi (örn. v0.1.0)"
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Varlıkları indir
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ github.event.release.tag_name || inputs.tag }}"
+          mkdir -p dist
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir dist --clobber
+          ls -l dist
+
+      - name: Sağlama toplamları + SBOM doğrula
+        run: |
+          SBOM=$(ls dist/*sbom*.json | head -1)
+          node scripts/supplychain.mjs verify --dir dist --sbom "$SBOM"
+
+      - name: SLSA köken kanıtını doğrula
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          files=(dist/*.tar.gz dist/*.zip dist/*.deb)
+          if [ ${#files[@]} -eq 0 ]; then echo "Doğrulanacak arşiv yok (uyarı)"; exit 0; fi
+          for f in "${files[@]}"; do
+            echo "→ $f"
+            gh attestation verify "$f" --repo "$GITHUB_REPOSITORY"
+          done

@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { apiFetch } from "@/lib/csrfClient";
 
 export interface LoginMode {
   accessEnabled: boolean;
@@ -36,7 +37,7 @@ export default function LoginForm({ mode }: { mode: LoginMode }) {
     setBusy(true);
     setError("");
     try {
-      const r = await fetch("/api/auth/login", {
+      const r = await apiFetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

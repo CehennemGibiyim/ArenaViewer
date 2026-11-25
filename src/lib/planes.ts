@@ -66,6 +66,25 @@ export function sliceKeys(s: SeriesData): number[] | null {
   return s.ipp.map((o) => dot([o[0], o[1], o[2]], p.n));
 }
 
+/**
+ * Bir seride hasta koordinatındaki P noktasına en yakın kesitin indeksi.
+ * (kesit anahtarları = ipp·normal izdüşümleri; ikili arama.) Geometri yoksa null.
+ */
+export function sliceIndexAtPoint(s: SeriesData, P: V3): number | null {
+  const keys = sliceKeys(s);
+  const p0 = planeOf(s, 0);
+  if (!keys || !p0 || !s.ipp || keys.length !== s.ipp.length || keys.length === 0) return null;
+  const k = dot(P, p0.n);
+  const asc = keys[keys.length - 1] >= keys[0];
+  let lo = 0, hi = keys.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if ((keys[mid] <= k) === asc) lo = mid; else hi = mid;
+  }
+  const idx = Math.abs(keys[lo] - k) <= Math.abs(keys[hi] - k) ? lo : hi;
+  return Math.max(0, Math.min(s.slices.length - 1, idx));
+}
+
 /** İki seri aynı hasta koordinat sistemini paylaşıyor mu (füzyon/referans için)? */
 export function sameFrame(a: SeriesData, b: SeriesData): boolean {
   return !!a.frameOfRef && a.frameOfRef === b.frameOfRef;

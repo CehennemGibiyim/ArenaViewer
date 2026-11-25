@@ -3,6 +3,9 @@
 import { buildReportSr, type EvidenceRef } from "@/lib/dicomSr";
 import { processDictation } from "@/lib/dictate";
 import { appropriatenessFor, isValidIcd10, suggestIcd10 } from "@/lib/icd10";
+import { SIGNATURE_METHODS, signatureNote, type SignatureMethod, type SignatureRecord } from "@/lib/esign";
+import { reportPlaceholders } from "@/lib/templateMacro";
+import { pickStyleSample } from "@/lib/styleProfile";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fmtConf } from "@/lib/format";
 import StructuredScorePanel from "@/components/StructuredScorePanel";
@@ -10,8 +13,9 @@ import { PEER_RESULTS, RESULT_LABELS, type PeerResult } from "@/lib/peerReview";
 import { SHARE_TTL_HOURS, shareState } from "@/lib/share";
 import { MACRO_GROUPS, macroById, macrosByGroup, type MacroGroup } from "@/lib/macros";
 import type {
-  Finding, FindingApprovalStatus, KeyImage, ModelCard, ReportAddendum, ReportVersion, TemplateRow, UserInfo,
+  Finding, FindingApprovalStatus, KeyImage, ModelCard, ReportAddendum, ReportVersion, SavedReport, TemplateRow, UserInfo,
 } from "@/lib/types";
+import { apiFetch } from "@/lib/csrfClient";
 
 export interface ReportData {
   id?: number;
@@ -64,6 +68,8 @@ interface Props {
   srEvidence?: EvidenceRef | null;
   /** AUTH_MODE=hesap'ta onay sahibi oturumla doğrulanmış sayılır; demo modunda false. */
   sessionIdentity?: boolean;
+  /** Hekimin geçmiş raporları — üslup örneği seçimi için (taslak izlenimde kullanılır). */
+  priorReports?: SavedReport[];
 }
 
 // ───────── Web Speech API (Türkçe dikte) ─────────
@@ -150,7 +156,7 @@ function ReportField({ name, rows, value, editing, onChange, onMic, onClear, onG
 
 const STATUS_TR: Record<FindingApprovalStatus, string> = { onaylandi: "✓ Radyolog onayladı", reddedildi: "✗ Reddedildi", duzenlendi: "✎ Düzenlendi", bekliyor: "Onay bekliyor" };
 
-export default function ReportPrintModal({ open, onClose, report: initial, user, onSave, onGotoSlice, srEvidence = null, sessionIdentity = false }: Props) {
+export default function ReportPrintModal({ open, onClose, report: initial, user, onSave, onGotoSlice, srEvidence = null, sessionIdentity = false, priorReports = [] }: Props) {
   const [report, setReport] = useState<ReportData>(initial);
   const [editing, setEditing] = useState(false);
   const [dialog, setDialog] = useState(false);
@@ -160,6 +166,13 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
   /** Eklenen ICD-10 kodları (rapora yazılan öneriler; kodlama hekime aittir). */
   const [icdCodes, setIcdCodes] = useState<string[]>([]);
+  // Elektronik imza kaydı (kayıt/denetim; NES sağlayıcısı yoksa nesne nitelikli değildir)
+  const [sigOpen, setSigOpen] = useState(false);
+  const [sigMethod, setSigMethod] = useState<SignatureMethod>("hesap-parola-mfa");
+  const [sigAck, setSigAck] = useState(false);
+  const [sigBusy, setSigBusy] = useState(false);
+  const [sigMsg, setSigMsg] = useState("");
+  const [sigRecords, setSigRecords] = useState<SignatureRecord[]>([]);
   const [tplQuery, setTplQuery] = useState("");
   const [versions, setVersions] = useState<ReportVersion[]>([]);
   const [addenda, setAddenda] = useState<ReportAddendum[]>([]);
@@ -186,32 +199,61 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
     setError("");
     setEditing(false);
     setIcdCodes([]);
+    setSigOpen(false);
+    setSigRecords([]);
   }
 
   // ICD-10 önerileri: rapor metnine göre yaklaşık eşleme (hekim onayı şart).
   const icdText = `${report.findingsText ?? ""} ${report.impression ?? ""}`;
+  // Şablon yer tutucuları ([BOYUT] vb.): onay öncesi görünür olmalı.
+  const leftPlaceholders = reportPlaceholders(report);
   const icdSuggest = useMemo(() => suggestIcd10(icdText, 5), [icdText]);
   const icdAppropriate = useMemo(
     () => (report.clinicalInfo ? appropriatenessFor(report.modality, report.bodyPart, report.clinicalInfo) : null),
     [report.clinicalInfo, report.modality, report.bodyPart],
   );
 
+  const loadSignatures = useCallback(async (id: number) => {
+    try {
+      const r = await apiFetch(`/api/reports/${id}/signature`);
+      if (!r.ok) return;
+      const d = (await r.json()) as { records?: SignatureRecord[] };
+      setSigRecords(Array.isArray(d.records) ? d.records : []);
+    } catch { /* kayıt listesi yüklenemezse sessiz geç */ }
+  }, []);
+
+  const signReport = useCallback(async () => {
+    if (!report.id) return;
+    setSigBusy(true);
+    setSigMsg("");
+    try {
+      const r = await apiFetch(`/api/reports/${report.id}/signature`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ method: sigMethod }),
+      });
+      const d = (await r.json().catch(() => ({}))) as { error?: string };
+      if (!r.ok) setSigMsg(d.error ?? "İmza kaydı oluşturulamadı.");
+      else { setSigAck(false); await loadSignatures(report.id); setSigMsg("İmza kaydı denetim zincirine işlendi."); }
+    } catch { setSigMsg("Ağ hatası — imza kaydı oluşturulamadı."); }
+    finally { setSigBusy(false); }
+  }, [report.id, sigMethod, loadSignatures]);
+
   const loadDetail = useCallback(async (id: number) => {
-    const r = await fetch(`/api/reports/${id}`);
+    const r = await apiFetch(`/api/reports/${id}`);
     if (!r.ok) return;
     const d = (await r.json()) as { versions: ReportVersion[]; addenda: ReportAddendum[] };
     setVersions(d.versions);
     setAddenda(d.addenda);
-    fetch("/api/shares").then((sr) => (sr.ok ? sr.json() : null)).then((sd: { shares?: typeof shares } | null) => {
+    apiFetch("/api/shares").then((sr) => (sr.ok ? sr.json() : null)).then((sd: { shares?: typeof shares } | null) => {
       if (sd?.shares) setShares(sd.shares.filter((x) => x.reportId === id));
     }).catch(() => {});
-    fetch(`/api/reports/${id}/peer-reviews`).then((pr) => (pr.ok ? pr.json() : null)).then((pd: { reviews?: typeof peerList } | null) => {
+    apiFetch(`/api/reports/${id}/peer-reviews`).then((pr) => (pr.ok ? pr.json() : null)).then((pd: { reviews?: typeof peerList } | null) => {
       if (pd?.reviews) setPeerList(pd.reviews);
     }).catch(() => {});
   }, []);
   useEffect(() => {
     if (!open) return;
-    fetch("/api/templates").then((r) => (r.ok ? r.json() : [])).then((t: TemplateRow[]) => setTemplates(t)).catch(() => {});
+    apiFetch("/api/templates").then((r) => (r.ok ? r.json() : [])).then((t: TemplateRow[]) => setTemplates(t)).catch(() => {});
   }, [open]);
   useEffect(() => {
     void (async () => {
@@ -259,14 +301,21 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
   const saveTemplate = async () => {
     const name = window.prompt("Şablon adı", `${report.modality} ${report.bodyPart} — özel`);
     if (!name) return;
-    const r = await fetch("/api/templates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, modality: report.modality, bodyPart: report.bodyPart, technique: report.technique, findings: report.findingsText, impression: report.impression, recommendation: report.recommendation }) });
-    if (r.ok) fetch("/api/templates").then((x) => x.json()).then((t: TemplateRow[]) => setTemplates(t));
+    const r = await apiFetch("/api/templates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, modality: report.modality, bodyPart: report.bodyPart, technique: report.technique, findings: report.findingsText, impression: report.impression, recommendation: report.recommendation }) });
+    if (r.ok) apiFetch("/api/templates").then((x) => x.json()).then((t: TemplateRow[]) => setTemplates(t));
   };
   const draftImpression = async () => {
     setBusy(true); setError("");
-    const r = await fetch("/api/reports/draft-impression", {
+    const r = await apiFetch("/api/reports/draft-impression", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ modality: report.modality, bodyPart: report.bodyPart, findings: report.findings.map((f) => ({ label: f.label, detail: f.detail, slice: f.keySliceNumber, category: f.category, severity: f.severity, status: report.findingsApproval[f.id] ?? "bekliyor" })) }),
+      body: JSON.stringify({
+        modality: report.modality, bodyPart: report.bodyPart,
+        styleSample: pickStyleSample(
+          priorReports.map((r) => ({ impression: r.impression, bodyPart: report.bodyPart, modality: report.modality, status: r.status })),
+          { bodyPart: report.bodyPart, modality: report.modality },
+        ),
+        findings: report.findings.map((f) => ({ label: f.label, detail: f.detail, slice: f.keySliceNumber, category: f.category, severity: f.severity, status: report.findingsApproval[f.id] ?? "bekliyor" })),
+      }),
     });
     setBusy(false);
     const d = (await r.json()) as { text?: string; source?: string; error?: string };
@@ -278,7 +327,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
     if (!report.id) { setError("Önce raporu taslak olarak kaydedin; görevler yalnız kayıtlı rapora bağlanır."); return; }
     const days = t.intervalDays ?? 0;
     const due = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
-    const r = await fetch("/api/notifications", {
+    const r = await apiFetch("/api/notifications", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -312,7 +361,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
     if (!report.id) return;
     setBusy(true); setPeerMsg(""); setError("");
     try {
-      const r = await fetch(`/api/reports/${report.id}/peer-reviews`, {
+      const r = await apiFetch(`/api/reports/${report.id}/peer-reviews`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ result: peerResult, discrepancyType: peerType, note: peerNote }),
       });
@@ -330,7 +379,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
     if (!report.id) return;
     setBusy(true); setShareMsg(""); setError("");
     try {
-      const r = await fetch("/api/shares", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "report", reportId: report.id, ttlHours: shareTtl }) });
+      const r = await apiFetch("/api/shares", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "report", reportId: report.id, ttlHours: shareTtl }) });
       const d = (await r.json().catch(() => ({}))) as { ok?: boolean; url?: string; error?: string };
       if (!r.ok || !d.url) throw new Error(d.error ?? "Bağlantı oluşturulamadı");
       try { await navigator.clipboard.writeText(`${window.location.origin}${d.url}`); setShareMsg("Bağlantı kopyalandı."); }
@@ -344,7 +393,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
   const revokeShare = async (token: string) => {
     setBusy(true); setShareMsg(""); setError("");
     try {
-      const r = await fetch(`/api/shares/${token}`, { method: "DELETE" });
+      const r = await apiFetch(`/api/shares/${token}`, { method: "DELETE" });
       if (!r.ok) throw new Error(((await r.json().catch(() => ({}))) as { error?: string }).error ?? "Kapatılamadı");
       setShareMsg("Bağlantı kapatıldı.");
       if (report.id) await loadDetail(report.id);
@@ -372,7 +421,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
   /** FHIR dosyasını fetch ile alıp indirir (sunucuda da, statik demoda da çalışır). */
   const downloadFhir = async (id: number) => {
     try {
-      const r = await fetch(`/api/reports/${id}/fhir`);
+      const r = await apiFetch(`/api/reports/${id}/fhir`);
       if (!r.ok) throw new Error(((await r.json()) as { error?: string }).error ?? "FHIR dışa aktarılamadı");
       const blob = new Blob([await r.text()], { type: "application/fhir+json" });
       const a = document.createElement("a");
@@ -387,7 +436,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
   const sendToPacs = async (id: number) => {
     setBusy(true); setError("");
     try {
-      const r = await fetch("/api/pacs/stow", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reportId: id }) });
+      const r = await apiFetch("/api/pacs/stow", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reportId: id }) });
       const d = (await r.json().catch(() => ({}))) as { ok?: boolean; message?: string; stored?: number; pacs?: string; error?: string };
       if (!r.ok) throw new Error(d.error ?? "PACS'e gönderilemedi");
       setNotice(`PACS'e gönderildi: ${d.stored ?? 1} nesne kaydedildi (${d.pacs ?? "PACS"}).`);
@@ -428,7 +477,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
   const addAddendum = async () => {
     if (!report.id || addText.trim().length < 3) return;
     setBusy(true);
-    const r = await fetch(`/api/reports/${report.id}/addenda`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: addText }) });
+    const r = await apiFetch(`/api/reports/${report.id}/addenda`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: addText }) });
     setBusy(false);
     if (r.ok) { setAddText(""); void loadDetail(report.id); } else setError(((await r.json()) as { error?: string }).error ?? "Addendum eklenemedi");
   };
@@ -462,6 +511,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
               </>
             )}
             <button type="button" onClick={downloadSr} disabled={!approved} title={approved ? "Radyoloji raporu → DICOM Basic Text SR" : "Sadece radyoloji uzmanı onayı sonrası alınabilir"} className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${approved ? "cursor-pointer border-[#2d3b4e] bg-[#141b24] text-slate-200 hover:bg-[#1a2330]" : "cursor-not-allowed border-[#2d3b4e] bg-[#141b24]/50 text-slate-500 opacity-60"}`}>DICOM SR ⬇</button>
+            {report.id && <button type="button" onClick={() => { setSigOpen((v) => !v); setSigMsg(""); if (!sigOpen) void loadSignatures(report.id!); }} title="Elektronik imza kaydı (NES değildir; içerik SHA-256 ile mühürlenir)" className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${sigOpen ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-200" : "cursor-pointer border-[#2d3b4e] bg-[#141b24] text-slate-200 hover:bg-[#1a2330]"}`}>✍ İmza kaydı</button>}
             {report.id && <button type="button" onClick={() => void downloadFhir(report.id!)} disabled={!approved} title={approved ? "FHIR DiagnosticReport indir" : "Sadece radyoloji uzmanı onayı sonrası alınabilir"} className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${approved ? "cursor-pointer border-[#2d3b4e] bg-[#141b24] text-slate-200 hover:bg-[#1a2330]" : "cursor-not-allowed border-[#2d3b4e] bg-[#141b24]/50 text-slate-500 opacity-60"}`}>FHIR ⬇</button>}
             {report.id && <button type="button" onClick={() => void sendToPacs(report.id!)} disabled={!approved || busy} title={approved ? "Raporu DICOM SR olarak yapılandırılmış PACS'e gönder (STOW-RS)" : "Sadece radyoloji uzmanı onayı sonrası gönderilebilir"} className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${approved ? "cursor-pointer border-violet-400/50 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20" : "cursor-not-allowed border-[#2d3b4e] bg-[#141b24]/50 text-slate-500 opacity-60"}`}>PACS’e gönder ⇧</button>}
             <button onClick={approved ? printReport : undefined} disabled={!approved} title={approved ? "Yazdır / PDF olarak kaydet" : "Sadece radyoloji uzmanı onayı sonrası alınabilir"} className={`rounded-lg px-3.5 py-1.5 text-xs font-bold ${approved ? "cursor-pointer bg-cyan-500 text-slate-950 hover:bg-cyan-400" : "cursor-not-allowed bg-slate-600 text-slate-400 opacity-60"}`}>🖨 Yazdır / PDF</button>
@@ -473,6 +523,43 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
           <div className="shrink-0 space-y-1 border-b border-[#1e2735] bg-[#0b0f16] px-4 py-2 text-[11px] print:hidden">
             {error && <div className="font-semibold text-rose-300">⚠ {error}</div>}
             {!approved && pending > 0 && <div className="text-amber-300">{pending} bulgu henüz gözden geçirilmedi — tablodaki durum düğmesine tıklayarak Onayla/Reddet/Düzenlendi olarak işaretleyin. Onay için hepsi işaretlenmeli.</div>}
+          </div>
+        )}
+
+        {sigOpen && report.id && (
+          <div className="shrink-0 space-y-2 border-b border-[#1e2735] bg-[#0b0f16] px-4 py-3 text-[11px] print:hidden">
+            <div className="flex items-center justify-between">
+              <span className="font-bold uppercase tracking-wider text-slate-300">Elektronik imza kaydı</span>
+              <button onClick={() => setSigOpen(false)} className="cursor-pointer text-slate-500 hover:text-slate-200">✕</button>
+            </div>
+            <p className="text-slate-500">
+              Kayıt; içeriğin SHA-256 hash değeri, imza sahibi, zaman ve yöntemi denetim zincirine yazar.
+              Nitelikli elektronik imza (NES) için akreditasyonlu bir sağlayıcı entegrasyonu gerekir.
+            </p>
+            {!approved && <p className="font-semibold text-amber-300">Rapor henüz onaylanmadı: onaylanmamış içeriğe imza kaydı düşürülemez.</p>}
+            <label className="block">
+              <span className="mb-1 block font-bold text-slate-400">Yöntem</span>
+              <select value={sigMethod} onChange={(e) => setSigMethod(e.target.value as SignatureMethod)} className="w-full rounded-lg border border-[#232e40] bg-[#0e141d] px-2 py-1.5 text-xs text-slate-200">
+                {SIGNATURE_METHODS.map((m) => <option key={m.id} value={m.id} disabled={m.qualified}>{m.label}{m.qualified ? " (entegre edilmedi)" : ""}</option>)}
+              </select>
+            </label>
+            <label className="flex items-start gap-2 text-slate-400">
+              <input type="checkbox" checked={sigAck} onChange={(e) => setSigAck(e.target.checked)} className="mt-0.5" />
+              <span>Kaydın <b>nesne nitelikli elektronik imza olmadığını</b>, yalnızca içerik değişikliğini saptayan bir kayıt olduğunu anladım.</span>
+            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <button onClick={() => void signReport()} disabled={sigBusy || !approved || !sigAck} className="cursor-pointer rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40">{sigBusy ? "Kaydediliyor…" : "✍ Kaydı oluştur"}</button>
+              {sigMsg && <span className="text-slate-300">{sigMsg}</span>}
+            </div>
+            {sigRecords.length > 0 && (
+              <ul className="space-y-1 border-t border-[#1e2735] pt-2">
+                {sigRecords.slice(-5).map((r, i) => (
+                  <li key={`${r.signedAt}-${i}`} className="rounded border border-[#1a2230] bg-[#0e141d] px-2 py-1 font-mono text-[10px] text-slate-400">
+                    {signatureNote(r)}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
 
@@ -778,6 +865,11 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
             <p className="mt-2 text-xs leading-relaxed text-slate-400">
               Onaylandıktan sonra rapor <b>kilitlenir</b>; değişiklik yalnızca addendum ile yapılır.
             </p>
+            {leftPlaceholders.length > 0 && (
+              <p className="mt-3 rounded-md border border-amber-400/40 bg-amber-400/10 p-2.5 text-[11px] leading-relaxed text-amber-200">
+                ⚠ Raporunda doldurulmamış şablon alanları var: {leftPlaceholders.map((x) => `[${x}]`).join(", ")}. Onaydan önce eksiksiz olması önerilir.
+              </p>
+            )}
             <div className="mt-3 rounded-md border border-[#232e40] bg-[#141b24] p-2.5 text-xs text-slate-200">
               <div className="font-bold">{user.title} {user.fullName}</div>
               <div className="text-slate-400">Sicil/diploma: {user.regNo || <span className="text-amber-300">tanımlı değil</span>}</div>

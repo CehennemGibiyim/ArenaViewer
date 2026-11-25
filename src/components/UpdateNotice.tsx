@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { APP_VERSION, GITHUB_REPO, RELEASES_PAGE } from "@/lib/version";
+import { apiFetch } from "@/lib/csrfClient";
 
 const DISMISS_KEY = "atikviewer.guncelleme.gizlenen";
 
@@ -43,7 +44,7 @@ export default function UpdateNotice() {
 
     (async () => {
       try {
-        const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
+        const res = await apiFetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
           headers: { Accept: "application/vnd.github+json" },
           cache: "no-store",
           signal: controller.signal,
