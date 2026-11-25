@@ -20,6 +20,10 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   oblik (eğimli) MPR ve WebGL 3B hacim. Kesit konumu kaydı (IPP) varsa koronal/sagital
   gerçek hasta geometrisinden, ölçek kayması olmadan örneklenir (`src/lib/mpr.ts` +
   `VolumeView`). Kaynak seri salt okunur tutulur.
+- **Takip görevleri:** Onaylı raporun önerisi göreve dönüşür; sonuç tarihine göre
+  **geciken / bugün / yaklaşan (14 gün) / ileri / tarihsiz** kovaları, öncelik
+  sıralaması, görev tarihçesi CSV'si ve HBYS/RIS **iade eşleme** (rapor kimliği →
+  çalışma UID → tek aday; belirsizse eşleşmez) + sonuçla kapatma.
 - **Kritik sonuç kapanışı:** Önem derecesine göre süre politikası (kritik 15 dk
   alınma / 30 dk eskalasyon), süresi dolan bildirim için **ikinci hekim / sorumlu
   uzman / kurum nöbeti** eskalasyonu ve 15 dk'lık hatırlatma; her adım denetim
@@ -318,6 +322,7 @@ npm run test:sr1500                 # TID 1500 yapılandırılmış ölçüm SR 
 npm run test:seg                    # segmentasyon maskesi + DICOM SEG/RTSTRUCT
 npm run test:recistfull             # RECIST hedef seçimi + non-hedef + genel yanıt
 npm run test:closeloop              # kapanış döngüsü süre/eskalasyon kuralları
+npm run test:followup               # takip görev kovaları + iade eşleme
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)

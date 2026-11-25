@@ -601,8 +601,8 @@ const BASE_ITEMS: GapItem[] = [
     id: "d-followup", category: "report", title: "Takip önerilerini çalışma listesine taşıma",
     status: "kismi", priority: "P1", effort: "S",
     market: ["Aidoc", "Rad AI"],
-    ours: "Onaylı rapordaki öneri otomatik göreve dönüşüyor; modalite/bölge/süre/durum takibi var. Yaklaşan tarih bildirimi ve HBYS iadesi yok.",
-    action: "Görev tarihçesi, sonuç kaydı (HBYS/RIS'ten iade) ve yaklaşan son tarih bildirimi.",
+    ours: "Onaylı rapordaki öneri otomatik göreve dönüşüyor; modalite/bölge/süre/durum takibi var. **Yeni (`followupQueue.ts`):** sonuç tarihine göre kova/öncelik (geciken → bugün → yaklaşan 14 gün → ileri → tarihsiz; eşit tarihte kritik önce), yaklaşan/geciken için uyarı metni, görev tarihçesi CSV'si ve HBYS/RIS iadesi eşleme (rapor kimliği → çalışma UID → tek aday; belirsizse eşleşme YAPILMAZ) + sonuç metniyle kapatma (denetim: notify.followup_outcome). `/api/notifications?followup=summary|csv`; 🔔 panelinde kalan gün etiketi, 'İade bağla' ve görev başına 'Sonuç' düğmesi. KALAN: iadenin HBYS/RIS'ten otomatik çekilmesi (HL7 ORU/FHIR DiagnosticReport — kurum entegrasyonu).",
+    action: "HBYS/RIS'ten otomatik sonuç çekme (HL7 ORU / FHIR DiagnosticReport).",
   },
   {
     id: "d-peer", category: "report", title: "Peer review / ikinci okuma / uyuşmazlık kaydı (RADPEER)",

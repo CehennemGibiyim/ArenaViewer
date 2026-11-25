@@ -6,6 +6,7 @@ import { audit } from "@/lib/server/audit";
 import { authorize } from "@/lib/server/auth";
 import { closeLoopUpdate, setFollowupStatus, sweepCloseLoop } from "@/lib/server/closeLoop";
 import { ESCALATION_ROLES, loopStatus } from "@/lib/closeLoopRules";
+import { followupCsv, matchReturnedResult, summarizeFollowups, type FollowupTask } from "@/lib/followupQueue";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,23 @@ export async function GET(req: NextRequest) {
   const a = await authorize(req);
   if ("error" in a) return a.error;
   const sp = req.nextUrl.searchParams;
+  if (sp.get("followup") === "summary" || sp.get("followup") === "csv") {
+    const rowsF = (await db.select().from(notifications).where(eq(notifications.kind, "followup")).orderBy(desc(notifications.id)).limit(500));
+    const tasks: FollowupTask[] = rowsF.map((r) => ({
+      id: r.id, kind: r.kind ?? "followup", status: (r.status ?? "acik") as FollowupTask["status"],
+      dueDate: r.dueDate ?? "", severity: r.severity, message: r.message,
+      modality: r.modality, bodyRegion: r.bodyRegion, studyUid: r.studyUid, reportId: r.reportId,
+    }));
+    const sum = summarizeFollowups(tasks);
+    if (sp.get("followup") === "csv") {
+      return new NextResponse(followupCsv(tasks), { headers: { "Content-Type": "text/csv; charset=utf-8", "Cache-Control": "no-store" } });
+    }
+    return NextResponse.json({
+      open: sum.open, overdue: sum.overdue, dueToday: sum.dueToday, upcoming: sum.upcoming,
+      alerting: sum.alerting.map((t) => ({ id: t.id, message: t.message.slice(0, 160), dueDate: t.dueDate, severity: t.severity })),
+      ordered: sum.ordered.slice(0, 100).map((t) => ({ id: t.id, message: t.message.slice(0, 160), dueDate: t.dueDate, severity: t.severity, modality: t.modality, bodyRegion: t.bodyRegion, status: t.status })),
+    });
+  }
   if (sp.get("escalation") === "1") {
     const rowsAll = await db.select().from(notifications).orderBy(desc(notifications.id)).limit(500);
     const st = rowsAll
@@ -89,6 +107,30 @@ export async function PATCH(req: NextRequest) {
     const res = await sweepCloseLoop({ target: { role, contact }, actor: a.user });
     await audit(a.user, "notify.sweep", "notification", 0, { escalated: res.escalated, overdue: res.overdue });
     return NextResponse.json(res);
+  }
+
+  // HBYS/RIS iadesi: sonucu açık göreve bağla ve kapat (eşleşme otomatik ya da elle).
+  if (b.action === "outcome") {
+    const ob = b as { id?: number; outcome?: string; reportId?: number; studyUid?: string; modality?: string; bodyRegion?: string; auto?: boolean };
+    const rowsO = await db.select().from(notifications).where(eq(notifications.kind, "followup")).orderBy(desc(notifications.id)).limit(500);
+    const tasks: FollowupTask[] = rowsO.map((r) => ({
+      id: r.id, status: (r.status ?? "acik") as FollowupTask["status"], dueDate: r.dueDate ?? "", severity: r.severity,
+      message: r.message, modality: r.modality, bodyRegion: r.bodyRegion, studyUid: r.studyUid, reportId: r.reportId,
+    }));
+    const match = ob.auto
+      ? matchReturnedResult({ reportId: ob.reportId ?? null, studyUid: ob.studyUid, modality: ob.modality, bodyRegion: ob.bodyRegion, text: ob.outcome ?? "" }, tasks)
+      : { task: tasks.find((t) => t.id === ob.id) ?? null, reason: "Elle seçildi" };
+    if (!match.task) return NextResponse.json({ error: match.reason }, { status: 409 });
+    const text = (ob.outcome ?? "").trim();
+    if (text.length < 1) return NextResponse.json({ error: "Sonuç metni gerekli" }, { status: 400 });
+    const stamp = new Date();
+    await db.update(notifications).set({
+      status: "tamamlandi", completedAt: stamp,
+      // Sonuç metni görev kaydına eklenir (ayrı sütun yok; tarihçe mesajda tutulur).
+      message: `${match.task.message}\n---\nSonuç (${stamp.toISOString().slice(0, 16).replace("T", " ")}): ${text}`.slice(0, 8000),
+    }).where(eq(notifications.id, match.task.id));
+    await audit(a.user, "notify.followup_outcome", "notification", match.task.id, { match: match.reason, chars: text.length });
+    return NextResponse.json({ ok: true, id: match.task.id, match: match.reason });
   }
 
   if (b.action === "relay" || b.action === "escalate") {
