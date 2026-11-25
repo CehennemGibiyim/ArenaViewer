@@ -580,8 +580,8 @@ const BASE_ITEMS: GapItem[] = [
     id: "c-recist-full", category: "measure", title: "RECIST tamamlayıcıları: lenf nodu, non-hedef lezyon, otomatik lezyon eşleştirme",
     status: "kismi", priority: "P1", effort: "M",
     market: ["3D Slicer", "RadiAnt"],
-    ours: "**Bu sürümde eklendi:** `src/lib/lesionTracking.ts` — çalışmalar arası anatomi+konom eşleştirme (sayı içeren ifadelerde birebir eşleşme), lenf nodu kısa eksen tablosu (<10 normal / 10–<15 takip / ≥15 patolojik) ve non-hedef lezyon durumu.",
-    action: "Hedef lezyon seçimi/limitleme arayüzü ve karşılaştırma raporu.",
+    ours: "**Eklendi:** `lesionTracking.ts` (anatomi+konum eşleştirme, lenf nodu kısa eksen tablosu, non-hedef durumu) ve **yeni** `recistFull.ts`: hedef seçim denetimi (hedef ≥10 mm, lenf nodu kısa eksen ≥15 mm, organ başına ≤2, toplam ≤5), non-hedef bileşkesi (CR / non-CR-non-PD / PD) ve RECIST 1.1 genel yanıt tablosu (yeni lezyon → PD; hedef CR + non-hedef CR → CR). Nodül takibi panelinde hedef işaretleme, non-hedef seçimi ve GENEL YANIT kutusu; CSV'ye genel değerlendirme eklenir. Seçim SİLİNMEZ, ihlaller uyarı olarak gösterilir. KALAN: ölçümlerin görüntüden otomatik çıkarılması ve 3B lezyon eşleştirme.",
+    action: "Otomatik lezyon ölçümü (segmentasyondan) ve 3B kayıt (registration) ile eşleştirme.",
   },
   {
     id: "c-measure-history", category: "measure", title: "Ölçüm geçmişi ve trend grafikleri (çap/HU/SUV zaman serisi)",
