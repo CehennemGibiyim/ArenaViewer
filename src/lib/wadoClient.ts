@@ -115,3 +115,45 @@ export function prefetchWindow(current: number, total: number, radius = 2): numb
   }
   return out;
 }
+
+/**
+ * BulkDataURI yolundan kare çekme (e-wado-frame). PACS kareleri metadata
+ * içindeki bulk adreslerinden sunuyorsa `fetchFrames` boş döner; bu yardımcı
+ * `/api/pacs/frameplan` ile planı alır, `/api/pacs/bulkdata` ile indirir.
+ *
+ * Sunucu codec uyarısı dönerse (JPEG 2000 / RLE) veri **yine de** önbelleğe
+ * yazılır ve çağırana "çözülemez" bilgisi verilir — sessizce başarı denmez.
+ */
+export async function fetchFramesViaBulk(
+  req: FrameRequest,
+  cache: FrameCache,
+  opts: { signal?: AbortSignal; baseUrl?: string } = {},
+): Promise<{ loaded: number[]; failed: number[]; planNote: string; decodable: boolean }> {
+  const base = opts.baseUrl ?? "";
+  const planRes = await fetch(`${base}/api/pacs/frameplan?studyUid=${encodeURIComponent(req.studyUid)}&seriesUid=${encodeURIComponent(req.seriesUid)}&sopUid=${encodeURIComponent(req.sopUid)}&frames=${req.frames.join(",")}`, { signal: opts.signal });
+  const plan = (await planRes.json().catch(() => null)) as { urls?: { url?: string; frame?: number }[]; note?: string; hint?: { browserDecodable?: boolean } } | null;
+  if (!planRes.ok || !plan?.urls?.length) {
+    return { loaded: [], failed: [...req.frames], planNote: plan?.note ?? "Bulk plan alınamadı", decodable: false };
+  }
+  const loaded: number[] = [];
+  const failed: number[] = [];
+  for (const u of plan.urls) {
+    if (!u.url) continue;
+    const frame = u.frame ?? (loaded.length + failed.length) + 1;
+    let res: Response;
+    try {
+      res = await fetch(`${base}/api/pacs/bulkdata?studyUid=${encodeURIComponent(req.studyUid)}&uri=${encodeURIComponent(u.url)}`, { signal: opts.signal });
+    } catch {
+      failed.push(frame);
+      continue;
+    }
+    if (!res.ok) { failed.push(frame); continue; }
+    const body = (await res.json().catch(() => null)) as { frames?: { data?: string }[] } | null;
+    const data = body?.frames?.[0]?.data;
+    if (!data) { failed.push(frame); continue; }
+    const bin = typeof atob === "function" ? atob(data) : Buffer.from(data, "base64").toString("binary");
+    cache.set(req, frame, Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+    loaded.push(frame);
+  }
+  return { loaded, failed, planNote: plan.note ?? "", decodable: plan.hint?.browserDecodable === true };
+}

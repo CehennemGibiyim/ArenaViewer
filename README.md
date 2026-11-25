@@ -359,6 +359,18 @@ Rapor alanlarındaki 🎤 düğmesi Web Speech API (tr-TR) kullanır; metin `dic
   `kontrast artır`, `ters çevir`, `pencere daralt`, `geri al`, `kaydet`, `temizle`. Bir parça
   **tamamen** komutsa komut sayılır; "kırık ileri deplase" gibi cümleler metin olarak yazılır.
 
+## BulkDataURI ile kare erişimi (e-wado-frame)
+
+`src/lib/bulkData.ts`, `pacs.ts` `fetchBulk`/`wadoMetadata`, `/api/pacs/bulkdata`, `/api/pacs/frameplan`.
+
+- Metadata'daki `BulkDataURI` referansları toplanır (7FE00010/7FE00008/7FE00009), `#frame N`
+  ve `frames/N` ayrıştırılır; gömülü belge (60003000) piksel sayılmaz.
+- **SSRF koruması:** bulk adresi PACS köküyle aynı origin olmak zorunda; başka host reddedilir
+  (gerekçe kullanıcıya döner). Sorgu parametreleri korunur.
+- **Codec kararı:** `transferSyntaxHint` sıkıştırmayı ve tarayıcının çözüp çözemeyeceğini söyler;
+  JPEG 2000/RLE için "codec köprüsü gerekir" uyarısı verilir, bilinmeyen sözdiziminde piksel
+  çözümü denenmez. Kare boyutu `expectedFrameBytes` ile (1-bit paketli) hesaplanır.
+
 ## PACS'a geri gönderme — DIMSE C-STORE (e-stow)
 
 STOW-RS (`/api/pacs/stow`) yanında, DICOMweb kapalı kurumlar için C-STORE köprüsü.
@@ -692,6 +704,7 @@ npm run test:lesion3d               # 3B lezyon eşleştirme + rijit hizalama (c
 npm run test:closeloopev            # kapanış kanıt paketi + dış iletişim defteri (d-close-loop)
 npm run test:followupreturn         # HL7 ORU / FHIR iade alımı + kapatma kararı (d-followup)
 npm run test:cstore                 # DIMSE C-STORE köprüsü istemcisi (e-stow)
+npm run test:bulkdata               # BulkDataURI kare erişimi + codec kararı (e-wado-frame)
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)

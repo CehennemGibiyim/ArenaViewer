@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { audit } from "@/lib/server/audit";
 import { authorize } from "@/lib/server/auth";
-import { isUid, qidoInstances, qidoStudies, testConnection, wadoFrames, wadoInstance } from "@/lib/server/pacs";
+import { fetchBulk, firstTransferSyntax, isUid, qidoInstances, qidoStudies, testConnection, wadoFrames, wadoInstance, wadoMetadata } from "@/lib/server/pacs";
+import { planFrameFetch } from "@/lib/bulkData";
 import { loadPacsConfig } from "@/lib/server/pacsConfig";
 
 export const dynamic = "force-dynamic";
@@ -54,6 +55,31 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ acti
         requested: frames,
         frames: parts.map((p) => ({ bytes: p.length, data: Buffer.from(p).toString("base64") })),
       });
+    }
+    if (action === "bulkdata") {
+      // BulkDataURI yoluyla kare çekme (e-wado-frame): metadata'da verilen adres
+      // PACS köküne sabitlenir (SSRF koruması) ve her getirme denetime yazılır.
+      const bulk = sp.get("uri") ?? "";
+      if (!bulk) return NextResponse.json({ error: "uri parametresi gerekli (metadata BulkDataURI)" }, { status: 400 });
+      const parts = await fetchBulk(cfg, bulk, sp.get("accept") ?? undefined);
+      await audit(a.user, "pacs.retrieve_bulk", "pacs", studyUid, { parts: parts.length, bytes: parts.reduce((n, p) => n + p.length, 0) });
+      if (parts.length === 1 && sp.get("raw") === "1") {
+        return new NextResponse(new Uint8Array(parts[0]), { headers: { "Content-Type": "application/octet-stream", "Cache-Control": "no-store" } });
+      }
+      return NextResponse.json({ count: parts.length, frames: parts.map((p) => ({ bytes: p.length, data: Buffer.from(p).toString("base64") })) });
+    }
+    if (action === "frameplan") {
+      // İstemciye "hangi bulk adreslerinden kaç kare çekilecek" planı ve codec
+      // uyarısı: PACS metadata'sı sunucuda çözülür, tarayıcı politika bilmez.
+      const seriesUid = sp.get("seriesUid") ?? "";
+      const sopUid = sp.get("sopUid") ?? "";
+      if (!isUid(seriesUid) || !isUid(sopUid)) return NextResponse.json({ error: "Geçersiz UID" }, { status: 400 });
+      const meta = await wadoMetadata(cfg, { studyUid, seriesUid, sopUid });
+      const frames = (sp.get("frames") ?? "").split(",").map((x) => Number(x.trim())).filter((n) => Number.isInteger(n) && n > 0);
+      const tsUid = firstTransferSyntax(meta);
+      const plan = planFrameFetch(meta, cfg.wadoRoot || cfg.qidoRoot || "", { frames, transferSyntaxUid: tsUid });
+      await audit(a.user, "pacs.frameplan", "pacs", studyUid, { bulk: plan.urls.length, skipped: plan.skipped.length, compressed: plan.hint.compressed, decodable: plan.hint.browserDecodable });
+      return NextResponse.json(plan);
     }
     if (action === "instance") {
       const seriesUid = sp.get("seriesUid") ?? "";

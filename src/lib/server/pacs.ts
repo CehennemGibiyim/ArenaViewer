@@ -2,6 +2,7 @@ import http from "node:http";
 import https from "node:https";
 import { decryptText, isEncrypted } from "./crypto";
 import { DEFAULT_PACS, isHttpUrl, trimRoot, type PacsConfig } from "@/lib/pacsPresets";
+import { resolveBulkUrl } from "@/lib/bulkData";
 
 /**
  * DICOMweb (QIDO-RS / WADO-RS) istemcisi — sunucu tarafı.
@@ -280,6 +281,70 @@ export async function stowInstance(cfg: PacsConfig, bytes: Uint8Array, timeoutMs
     stored: stored || 1,
     message: failed.length > 0 ? `PACS ${failed.length} nesneyi reddetti.` : "PACS nesneyi kabul etti.",
   };
+}
+
+/**
+ * Metadata'daki **BulkDataURI** adresinden ham bayt çeker (e-wado-frame).
+ * Adres `resolveBulkUrl` ile PACS köküne sabitlenir (SSRF koruması); yanıt
+ * multipart/related ise tüm parçalar birleşik döner.
+ */
+export async function fetchBulk(
+  cfg: PacsConfig,
+  url: string,
+  accept = "multipart/related; type=\"application/octet-stream\"; transfer-syntax=*",
+  timeoutMs = 60000,
+): Promise<Uint8Array[]> {
+  const root = cfg.wadoRoot || cfg.qidoRoot;
+  if (!root) throw new Error("PACS adresi yapılandırılmamış.");
+  const resolved = resolveBulkUrl(root, url);
+  if (!resolved.ok) throw new Error(resolved.error);
+  const res = await requestBuffer(resolved.url, cfg, accept, timeoutMs);
+  if (res.status >= 400 || !res.status) throw new Error(friendlyStatus(res.status));
+  const ct = res.headers["content-type"] ?? "";
+  if (/multipart\/related/i.test(ct)) {
+    const parts = parseAllMultipart(new Uint8Array(res.body), ct);
+    if (!parts.length) throw new Error("PACS bulk yanıtı ayrıştırılamadı.");
+    return parts;
+  }
+  if (/json/i.test(ct)) throw new Error("PACS bulk adresine JSON döndü — metadata adresini kontrol edin.");
+  return [new Uint8Array(res.body)];
+}
+
+/**
+ * Instance metadata'sı (DICOM JSON). Bulk reference planı ve aktarım sözdizimi
+ * bu yanıttan çıkarılır (e-wado-frame).
+ */
+export async function wadoMetadata(
+  cfg: PacsConfig,
+  ref: { studyUid: string; seriesUid: string; sopUid: string },
+  timeoutMs = 30000,
+): Promise<unknown> {
+  const root = cfg.wadoRoot || cfg.qidoRoot;
+  if (!root) throw new Error("PACS adresi yapılandırılmamış.");
+  const url = `${root}/studies/${ref.studyUid}/series/${ref.seriesUid}/instances/${ref.sopUid}/metadata`;
+  const res = await requestBuffer(url, cfg, "application/dicom+json", timeoutMs);
+  if (res.status >= 400 || !res.status) throw new Error(friendlyStatus(res.status));
+  const text = res.body.toString("utf8").trim();
+  const parsed = JSON.parse(text) as unknown;
+  return Array.isArray(parsed) && parsed.length === 1 ? parsed[0] : parsed;
+}
+
+/** Metadata'dan aktarım sözdizimi UID'si (0002,0010). */
+export function firstTransferSyntax(metadata: unknown): string | undefined {
+  const o = metadata as Record<string, { Value?: unknown[] } | undefined> | undefined;
+  const v = o?.["00020010"]?.Value?.[0];
+  return typeof v === "string" ? v : undefined;
+}
+
+/** Metadata'dan piksel/satır/sütun bilgisi (kare boyutu denetimi için). */
+export function frameGeometry(metadata: unknown): { cols: number; rows: number; samples: number; bits: number } {
+  const o = metadata as Record<string, { Value?: unknown[] } | undefined> | undefined;
+  const n = (tag: string, d = 0) => {
+    const v = o?.[tag]?.Value?.[0];
+    const x = Number(v);
+    return Number.isFinite(x) && x > 0 ? x : d;
+  };
+  return { cols: n("00280011"), rows: n("00280010"), samples: n("00280002", 1), bits: n("00280100", 16) };
 }
 
 // ───────────── WADO-RS ─────────────
