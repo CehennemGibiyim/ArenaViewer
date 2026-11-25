@@ -5,6 +5,7 @@ import { processDictation } from "@/lib/dictate";
 import { appropriatenessFor, isValidIcd10, suggestIcd10 } from "@/lib/icd10";
 import { SIGNATURE_METHODS, signatureNote, type SignatureMethod, type SignatureRecord } from "@/lib/esign";
 import { reportPlaceholders } from "@/lib/templateMacro";
+import { pickStyleSample } from "@/lib/styleProfile";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fmtConf } from "@/lib/format";
 import StructuredScorePanel from "@/components/StructuredScorePanel";
@@ -12,7 +13,7 @@ import { PEER_RESULTS, RESULT_LABELS, type PeerResult } from "@/lib/peerReview";
 import { SHARE_TTL_HOURS, shareState } from "@/lib/share";
 import { MACRO_GROUPS, macroById, macrosByGroup, type MacroGroup } from "@/lib/macros";
 import type {
-  Finding, FindingApprovalStatus, KeyImage, ModelCard, ReportAddendum, ReportVersion, TemplateRow, UserInfo,
+  Finding, FindingApprovalStatus, KeyImage, ModelCard, ReportAddendum, ReportVersion, SavedReport, TemplateRow, UserInfo,
 } from "@/lib/types";
 
 export interface ReportData {
@@ -66,6 +67,8 @@ interface Props {
   srEvidence?: EvidenceRef | null;
   /** AUTH_MODE=hesap'ta onay sahibi oturumla doğrulanmış sayılır; demo modunda false. */
   sessionIdentity?: boolean;
+  /** Hekimin geçmiş raporları — üslup örneği seçimi için (taslak izlenimde kullanılır). */
+  priorReports?: SavedReport[];
 }
 
 // ───────── Web Speech API (Türkçe dikte) ─────────
@@ -152,7 +155,7 @@ function ReportField({ name, rows, value, editing, onChange, onMic, onClear, onG
 
 const STATUS_TR: Record<FindingApprovalStatus, string> = { onaylandi: "✓ Radyolog onayladı", reddedildi: "✗ Reddedildi", duzenlendi: "✎ Düzenlendi", bekliyor: "Onay bekliyor" };
 
-export default function ReportPrintModal({ open, onClose, report: initial, user, onSave, onGotoSlice, srEvidence = null, sessionIdentity = false }: Props) {
+export default function ReportPrintModal({ open, onClose, report: initial, user, onSave, onGotoSlice, srEvidence = null, sessionIdentity = false, priorReports = [] }: Props) {
   const [report, setReport] = useState<ReportData>(initial);
   const [editing, setEditing] = useState(false);
   const [dialog, setDialog] = useState(false);
@@ -304,7 +307,14 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
     setBusy(true); setError("");
     const r = await fetch("/api/reports/draft-impression", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ modality: report.modality, bodyPart: report.bodyPart, findings: report.findings.map((f) => ({ label: f.label, detail: f.detail, slice: f.keySliceNumber, category: f.category, severity: f.severity, status: report.findingsApproval[f.id] ?? "bekliyor" })) }),
+      body: JSON.stringify({
+        modality: report.modality, bodyPart: report.bodyPart,
+        styleSample: pickStyleSample(
+          priorReports.map((r) => ({ impression: r.impression, bodyPart: report.bodyPart, modality: report.modality, status: r.status })),
+          { bodyPart: report.bodyPart, modality: report.modality },
+        ),
+        findings: report.findings.map((f) => ({ label: f.label, detail: f.detail, slice: f.keySliceNumber, category: f.category, severity: f.severity, status: report.findingsApproval[f.id] ?? "bekliyor" })),
+      }),
     });
     setBusy(false);
     const d = (await r.json()) as { text?: string; source?: string; error?: string };
