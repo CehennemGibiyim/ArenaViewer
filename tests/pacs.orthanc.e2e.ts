@@ -12,6 +12,7 @@
  * yönü de gerçek bir PACS üzerinde doğrulanır.
  */
 import { randomInt } from "node:crypto";
+import * as dicomParser from "dicom-parser";
 import { parseMultipartRelated } from "../src/lib/server/pacs";
 
 const BASE = (process.env.ORTHANC_URL ?? "").replace(/\/$/, "");
@@ -30,19 +31,21 @@ const uid = (root: string) => `${root}.${randomInt(0, 1_000_000)}.${Date.now()}`
 
 function element(group: number, elem: number, vr: string, value: Uint8Array): Uint8Array {
   const long = ["OB", "OW", "OF", "SQ", "UC", "UR", "UT", "UN"].includes(vr);
-  const head = 8 + (long ? 4 : 2);
-  const out = new Uint8Array(head + value.length);
+  const paddedLength = value.length + (value.length % 2);
+  const head = long ? 12 : 8;
+  const out = new Uint8Array(head + paddedLength);
   const dv = new DataView(out.buffer);
   dv.setUint16(0, group, true);
   dv.setUint16(2, elem, true);
   out.set(vr.split("").map((c) => c.charCodeAt(0)), 4);
-  if (long) { dv.setUint32(8, value.length, true); } else { dv.setUint16(8, value.length, true); }
+  if (long) { dv.setUint32(8, paddedLength, true); } else { dv.setUint16(6, paddedLength, true); }
   out.set(value, head);
+  if (paddedLength !== value.length && vr !== "UI" && vr !== "OB" && vr !== "OW") out[out.length - 1] = 0x20;
   return out;
 }
 
 const strVal = (s: string) => new TextEncoder().encode(s);
-const uiVal = (s: string) => new TextEncoder().encode(s + "\0");
+const uiVal = (s: string) => new TextEncoder().encode(s);
 
 function minimalDicom(meta: { patientId: string; patientName: string; studyUid: string; seriesUid: string; sopUid: string }): Uint8Array {
   const sopClass = "1.2.840.10008.5.1.4.1.1.7"; // Secondary Capture Image Storage
@@ -129,6 +132,8 @@ async function main() {
   const dcm = minimalDicom({ patientId, patientName: "E2E^PACIENT", studyUid, seriesUid, sopUid });
 
   ok(dcm.slice(128, 132).every((b, i) => b === "DICM".charCodeAt(i)), "minimal DICOM: DICM imzası var");
+  const parsed = dicomParser.parseDicom(dcm);
+  ok(parsed.string("x0020000d") === studyUid && parsed.string("x0020000e") === seriesUid && parsed.string("x00080018") === sopUid, "minimal DICOM: UID alanları okunabilir");
 
   // 1) STOW-RS: tek part'lı multipart gövde
   const boundary = `arena-${Date.now()}`;
@@ -139,6 +144,7 @@ async function main() {
     headers: { "Content-Type": `multipart/related; type="application/dicom"; boundary=${boundary}` },
     body: Buffer.concat([head, Buffer.from(dcm), tail]),
   });
+  if (!stowResp.ok) console.error(`STOW yanıtı: ${(await stowResp.text()).slice(0, 1000)}`);
   ok(stowResp.ok, `STOW-RS: örnek çalışma yüklendi (${stowResp.status})`);
 
   // 2) QIDO-RS: çalışmayı hasta kimliğiyle bul
