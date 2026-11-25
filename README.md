@@ -359,6 +359,25 @@ Rapor alanlarındaki 🎤 düğmesi Web Speech API (tr-TR) kullanır; metin `dic
   `kontrast artır`, `ters çevir`, `pencere daralt`, `geri al`, `kaydet`, `temizle`. Bir parça
   **tamamen** komutsa komut sayılır; "kırık ileri deplase" gibi cümleler metin olarak yazılır.
 
+## Denetim kanıtı (imzalı paket)
+
+Hash zincirli denetim kaydı zaten değiştirilemez; üstüne **dış denetçiye verilebilir kanıt**
+eklenir: `/api/audit/export?format=package` → `{ manifest, events, signature }`.
+
+| Parça | İçerik |
+|---|---|
+| `events` | olaylar (`prevHash` + `hash` ile) |
+| `manifest` | sayı, ilk/son kimlik ve hash, zaman aralığı, süreklilik çapası, sıra bağımlı `digest` |
+| `signature` | manifest + olay hash'lerinin **HMAC-SHA256** imzası (`AUDIT_EXPORT_SECRET`) |
+
+Doğrulama: `POST /api/audit/export {"verify": <paket>}` — zincir sürekliliği, satır hash'leri,
+manifest tutarlılığı ve imza (sabit zamanlı). Satır değiştirme, aradan satır silme, manifest
+oynama ve başka paketin imzasını kopyalama reddedilir. **İmzasız paket kanıt sayılmaz.**
+
+Üretim kapısı: `GET /api/audit/export?gate=authmode` — üretimde `AUTH_MODE=hesap` değilse
+uyarır/reddeder; bilinçli istisna `AUTH_MODE_REQUIRED=0` (risk metniyle raporlanır).
+Yönetim → Güvenlik sekmesinden paket indirilir ve dosya ile doğrulanır.
+
 ## DIMSE köprüsü (C-FIND / C-MOVE)
 
 DICOMweb'in yanında, DIMSE (TCP 104/11112) konuşan PACS'ler için HTTP köprüsü katmanı
@@ -540,6 +559,7 @@ npm run test:dictation              # dikte sözlüğü + sesli komutlar (r-dict
 npm run test:notifych               # çok kanallı bildirim teslimatı (a-notify)
 npm run test:templaterank           # şablon sıralama + RadReport kodu (r-template)
 npm run test:dimse                  # DIMSE köprüsü C-FIND/C-MOVE (w-pacs)
+npm run test:auditchain             # imzalı denetim paketi + üretim kapısı (w-audit)
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)

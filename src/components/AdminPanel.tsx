@@ -97,6 +97,33 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
   const [pacs, setPacs] = useState<PacsForm | null>(null);
   const [pacsHint, setPacsHint] = useState("");
   // Anahtar halkası (g-kms): kimlikler + rotasyon durumu; `newKey` yalnız bir kez gösterilir.
+  /** Denetim paketi doğrulama ve üretim modu kapısı (w-audit). */
+  const [auditVerify, setAuditVerify] = useState<{ ok: boolean; report: string } | null>(null);
+  const [auditGate, setAuditGate] = useState<{ ok: boolean; mode: string; warning: string | null; signed?: boolean } | null>(null);
+  const loadAuthGate = async () => {
+    const r = await api<{ ok: boolean; mode: string; warning: string | null; signed?: boolean }>("/api/audit/export?gate=authmode");
+    if (r.ok) setAuditGate(r.data);
+  };
+  const downloadAuditPackage = async () => {
+    const r = await apiFetch("/api/audit/export?format=package&limit=5000");
+    if (!r.ok) { flash("Paket indirilemedi"); return; }
+    const blob = await r.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `denetim-paketi-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    flash("İmzalı denetim paketi indirildi");
+  };
+  const verifyAuditPackage = async (file: File) => {
+    try {
+      const pkg = JSON.parse(await file.text()) as unknown;
+      const r = await api<{ ok: boolean; report: string; error?: string }>("/api/audit/export", json("POST", { verify: pkg }));
+      setAuditVerify(r.ok ? r.data : { ok: false, report: r.data.error ?? "Doğrulama isteği başarısız" });
+    } catch {
+      setAuditVerify({ ok: false, report: "Dosya geçerli JSON değil." });
+    }
+  };
   /** DIMSE köprüsü durumu ve C-FIND sonuçları (w-pacs). */
   const [dimse, setDimse] = useState<{ configured?: boolean; ok: boolean; message: string; aeTitle?: string; ownAe?: string } | null>(null);
   const [dimseRows, setDimseRows] = useState<{ studyUid: string; patientName: string; patientId: string; studyDate: string; modality: string; description: string }[]>([]);
@@ -701,6 +728,26 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
                 <button className={`${btn} bg-cyan-500 text-slate-950`} onClick={() => void saveSettings({ retentionDraftDays: Number((document.getElementById("ret") as HTMLInputElement).value) })}>Kaydet</button>
                 <button className={`${btn} border border-rose-400/40 text-rose-300 hover:bg-rose-400/10`} onClick={async () => { if (!window.confirm("Süresi dolan taslaklar kalıcı olarak silinecek. Devam?")) return; const r = await api<{ deleted: number; error?: string }>("/api/admin/purge-drafts", { method: "POST" }); flash(r.ok ? `${r.data.deleted} taslak silindi` : r.data.error ?? "Hata"); }}>Süresi dolanları sil</button>
               </div>
+              <h2 className="mt-5 text-sm font-bold text-slate-100">Denetim kanıtı (imzalı paket)</h2>
+              <p className="mt-2 text-xs leading-relaxed text-slate-300">
+                Dış denetçiye/SIEM&apos;e verilecek paket: olaylar + manifest (ilk/son hash, digest, süreklilik çapası) +
+                <b> HMAC-SHA256 imza</b> (<code>AUDIT_EXPORT_SECRET</code>). İmzasız paket denetim kanıtı sayılmaz.
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <button className={`${btn} bg-cyan-500 text-slate-950`} onClick={() => void downloadAuditPackage()}>⇩ İmzalı paket indir</button>
+                <label className={`${btn} cursor-pointer bg-slate-700 text-slate-100`}>
+                  Paket doğrula
+                  <input type="file" accept="application/json,.json" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void verifyAuditPackage(f); e.target.value = ""; }} />
+                </label>
+                <button className="cursor-pointer text-[10px] text-cyan-400" onClick={() => void loadAuthGate()}>üretim modu kapısı</button>
+              </div>
+              {auditGate && (
+                <p className={`mt-2 rounded border p-2 text-[10.5px] ${auditGate.ok ? "border-emerald-400/30 bg-emerald-400/5 text-emerald-200" : "border-rose-400/40 bg-rose-400/10 text-rose-200"}`}>
+                  AUTH_MODE: <b>{auditGate.mode}</b>{auditGate.warning ? ` — ${auditGate.warning}` : " — denetim atfı için uygun."}
+                  {auditGate.signed ? " · paket imzası etkin." : " · AUDIT_EXPORT_SECRET tanımlı değil, paket imzalanmaz."}
+                </p>
+              )}
+              {auditVerify && <p className={`mt-2 rounded border p-2 text-[10.5px] ${auditVerify.ok ? "border-emerald-400/30 bg-emerald-400/5 text-emerald-200" : "border-rose-400/40 bg-rose-400/10 text-rose-200"}`}>{auditVerify.report}</p>}
               <h2 className="mt-5 text-sm font-bold text-slate-100">Kayıt sayıları</h2>
               <div className="mt-2 grid grid-cols-3 gap-2 text-center text-xs">{Object.entries(status.totals).map(([k, v]) => <div key={k} className="rounded border border-[#1e2735] bg-[#0e141d] p-2"><div className="text-lg font-black text-cyan-300">{v}</div><div className="text-slate-500">{k}</div></div>)}</div>
               <Link href="/gizlilik" className="mt-4 inline-block text-xs text-cyan-400 hover:underline">KVKK aydınlatma metni şablonu →</Link>
