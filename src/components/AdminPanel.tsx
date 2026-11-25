@@ -69,7 +69,10 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
   const [audit, setAudit] = useState<AuditRow[]>([]);
   const [aq, setAq] = useState("");
   const [chain, setChain] = useState<{ ok: boolean; count: number; brokenAtId?: number; reason?: string } | null>(null);
+  const [siem, setSiem] = useState<{ pending: number; failed: number; sent: number; abandoned: number; configured: boolean; maxAttempts: number } | null>(null);
+  const [siemMsg, setSiemMsg] = useState("");
   const loadAudit = useCallback(async () => { const r = await api<AuditRow[]>(`/api/audit?limit=300&q=${encodeURIComponent(aq)}`); if (r.ok) setAudit(r.data); }, [aq]);
+  const loadSiem = useCallback(async () => { const r = await api<{ pending: number; failed: number; sent: number; abandoned: number; configured: boolean; maxAttempts: number }>("/api/audit/export?siem=stats"); if (r.ok) setSiem(r.data); }, []);
   // AI
   const [perf, setPerf] = useState<{ rows: PerfRow[]; note: string } | null>(null);
   // iş akışı istatistikleri (F4)
@@ -120,12 +123,12 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
     void (async () => {
       if (tab === "profile") { await loadProfile(); await loadMfa(); }
       if (tab === "users") await loadUsers();
-      if (tab === "audit") await loadAudit();
+      if (tab === "audit") { await loadAudit(); await loadSiem(); }
       if (tab === "ai") { const r = await api<{ rows: PerfRow[]; note: string }>("/api/ai/performance"); if (r.ok) setPerf(r.data); }
       if (tab === "stats") await loadStats();
       if (["security", "integration", "compliance"].includes(tab)) await loadSettings();
     })();
-  }, [tab, loadProfile, loadAudit, loadStats, loadSettings, loadUsers, loadMfa]);
+  }, [tab, loadProfile, loadAudit, loadSiem, loadStats, loadSettings, loadUsers, loadMfa]);
 
   const saveSettings = async (patch: Record<string, unknown>) => {
     const r = await api<{ error?: string }>("/api/settings", json("PUT", patch));
@@ -390,8 +393,16 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
               <button className={`${btn} bg-cyan-500 text-slate-950`} onClick={() => void loadAudit()}>Ara</button>
               <button className={`${btn} border border-emerald-400/40 text-emerald-300 hover:bg-emerald-400/10`} onClick={async () => { const r = await api<{ ok: boolean; count: number; brokenAtId?: number; reason?: string }>("/api/audit?verify=1"); setChain(r.data); }}>🔗 Hash zincirini doğrula</button>
               <button className={`${btn} border border-slate-400/40 text-slate-200 hover:bg-slate-400/10`} title="Ekrandaki filtreli listeyi CSV olarak indir" onClick={exportAuditCsv}>⬇ CSV</button>
+              <button className={`${btn} border border-violet-400/40 text-violet-200 hover:bg-violet-400/10`} title="SIEM kuyruğunu şimdi boşalt (AUDIT_SIEM_URL gerekir)" onClick={async () => { const r = await api<{ configured: boolean; tried: number; sent: number; failed: number; error?: string }>("/api/audit/export", json("POST", {})); setSiemMsg(r.ok ? (r.data.configured ? `SIEM: ${r.data.sent}/${r.data.tried} gönderildi${r.data.failed ? `, ${r.data.failed} başarısız` : ""}${r.data.error ? ` (${r.data.error})` : ""}` : "AUDIT_SIEM_URL tanımlı değil — olaylar kuyrukta birikiyor.") : "Kuyruk boşaltılamadı (yönetici yetkisi gerekir)"); void loadSiem(); }}>📡 SIEM kuyruğu</button>
               <button className={`${btn} border border-slate-400/40 text-slate-200 hover:bg-slate-400/10`} title="Yazdırma penceresinden 'PDF olarak kaydet' seçin" onClick={() => { document.body.classList.add("print-audit"); window.addEventListener("afterprint", () => document.body.classList.remove("print-audit"), { once: true }); window.print(); }}>🖨 PDF</button>
             </div>
+            {siem && (
+              <p className="text-[11px] text-slate-400">
+                SIEM teslimatı: {siem.configured ? <b className="text-emerald-300">etkin (AUDIT_SIEM_URL)</b> : <b className="text-amber-300">yapılandırılmadı — olaylar kuyrukta</b>} ·
+                kuyruk <b className="text-slate-200">{siem.pending}</b> · yeniden denenecek <b className="text-amber-300">{siem.failed}</b> · gönderildi <b className="text-emerald-300">{siem.sent}</b> · vazgeçilen <b className="text-rose-300">{siem.abandoned}</b> (en fazla {siem.maxAttempts} deneme)
+              </p>
+            )}
+            {siemMsg && <p className="text-[11px] text-cyan-300">{siemMsg}</p>}
             {chain && <div className={`rounded-lg border px-3 py-2 text-xs font-semibold ${chain.ok ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-rose-500/50 bg-rose-500/10 text-rose-300"}`}>{chain.ok ? `✓ Zincir bütün: ${chain.count} kayıt, değişiklik/silme yok.` : `✗ Zincir bozuk (kayıt #${chain.brokenAtId}): ${chain.reason}`}</div>}
             <div className={`${card} audit-print max-h-[60vh] overflow-auto p-0`}>
               <table className="w-full text-[11px]">

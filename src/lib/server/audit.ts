@@ -5,6 +5,7 @@ import { cefLine } from "@/lib/server/cef";
 export { cefLine };
 import { asc, desc, sql } from "drizzle-orm";
 import { db } from "@/db";
+import { enqueueDelivery } from "@/lib/server/auditDeliveryRepo";
 import { auditLogs } from "@/db/schema";
 
 /**
@@ -53,7 +54,7 @@ export async function audit(
     const detailsStr = JSON.stringify(details);
     const username = actor?.username ?? "sistem";
     const hash = computeHash(prevHash, ts, actor?.id ?? null, username, action, entityType, String(entityId), detailsStr);
-    await tx.insert(auditLogs).values({
+    const inserted = await tx.insert(auditLogs).values({
       ts,
       userId: actor?.id ?? null,
       username,
@@ -63,7 +64,17 @@ export async function audit(
       details: detailsStr,
       prevHash,
       hash,
-    });
+    }).returning({ id: auditLogs.id });
+    // SIEM teslimat kuyruğu: denetim satırıyla AYNI işlemde yazılır; böylece
+    // kuyruk ile kayıt arasında kaçak oluşmaz. Kuyruk yazılamazsa denetim
+    // kaydı yine de tutulur (asıl kaynak audit_logs; dışa aktarma yedeği var).
+    if (inserted[0]?.id) {
+      try {
+        await enqueueDelivery(tx, inserted[0].id, cefLine({ ts, username, action, entityType, entityId: String(entityId), details: detailsStr }));
+      } catch (e) {
+        console.error("denetim kuyruğa yazılamadı:", e instanceof Error ? e.message : e);
+      }
+    }
   });
 }
 

@@ -20,6 +20,11 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   oblik (eğimli) MPR ve WebGL 3B hacim. Kesit konumu kaydı (IPP) varsa koronal/sagital
   gerçek hasta geometrisinden, ölçek kayması olmadan örneklenir (`src/lib/mpr.ts` +
   `VolumeView`). Kaynak seri salt okunur tutulur.
+- **Denetim → SIEM:** Her denetim olayı aynı işlemde `audit_delivery` kuyruğuna
+  CEF olarak yazılır. `AUDIT_SIEM_URL` (+ isteğe bağlı `AUDIT_SIEM_SECRET`) tanımlıysa
+  HMAC-SHA256 imzalı POST ile gönderilir; hata olursa üstel geri çekilmeyle
+  yeniden denenir, vazgeçilen olaylar silinmez. Yönetim → Denetim kaydı'ndan
+  kuyruk durumu izlenir ve elle boşaltılır.
 - **PACS gönderimi (STOW-RS):** Onaylanmış rapor DICOM SR olarak, anahtar
   kesitler KO ve pencere/döndürme ayarı GSPS (PR) olarak PACS'e gönderilebilir.
   KO/PR gönderiminde kesit UID'leri önce QIDO-RS ile PACS'te doğrulanır;
@@ -284,6 +289,7 @@ npm run test:uncert                 # belirsizlik bandı + CXR bulgu notu
 npm run test:template               # şablon yer tutucuları + onay öncesi uyarı
 npm run test:style                  # üslup örneği seçimi + LLM prompt entegrasyonu
 npm run test:pacssend               # KO/PR → PACS gönderim planı ve uç sözleşmesi
+npm run test:siem                   # SIEM kuyruğu, yeniden deneme, HMAC imza
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)
