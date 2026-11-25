@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { analyzeSlicePositions } from "../src/lib/seriesGeometryQuality";
+import { volumeGeometry } from "../src/lib/mpr";
 import { loadMedicalFiles } from "../src/lib/dicom";
 
 assert.deepEqual(analyzeSlicePositions([4, 0, 2, 1]), { comparable: true, spacing: 1, samePlane: 0, irregular: 1 });
@@ -57,7 +58,10 @@ async function run() {
   assert.equal(differing[0].slicePositions, undefined);
   assert.ok(varied.some(w => w.includes("tutarsız")));
   const multi: string[] = [];
-  await loadMedicalFiles([file(0, 1, "1\\0\\0\\0\\1\\0", 2)], undefined, w => multi.push(w));
+  const multiSeries = await loadMedicalFiles([file(0, 1, "1\\0\\0\\0\\1\\0", 3)], undefined, w => multi.push(w));
+  assert.equal(multiSeries[0].unverifiedMultiFrameGeometry, true);
+  assert.equal(volumeGeometry(multiSeries[0]), null);
+  assert.ok(multi.some(w => w.includes("MPR ve 3B hacim")));
   assert.ok(!multi.some(w => w.includes("geometriden doğrulanamadı")), "çok kareli ciné geometrisi yanlış uyarılmamalı");
   const normal: string[] = [];
   await loadMedicalFiles([file(0, 1), file(1, 2), file(2, 3), file(3, 4)], undefined, w => normal.push(w));

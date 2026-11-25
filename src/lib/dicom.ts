@@ -690,6 +690,8 @@ export async function loadMedicalFiles(
 
     const thickness = first.floatString("x00180050") ?? 0;
     const positions = keyed ? list.map((s) => s.posKey as number) : undefined;
+    const unverifiedMultiFrameGeometry = list.some(s => s.multiFrame) && ["CT", "MR"].includes(modality.toUpperCase());
+    if (unverifiedMultiFrameGeometry) onWarning?.(`"${seriesDesc}": çok kareli BT/MR kare geometrisi doğrulanmadı; MPR ve 3B hacim bu seri için kapalıdır. Kareler 2B olarak incelenebilir.`);
     const quality = analyzeSlicePositions(positions);
     const spacing = quality.spacing ?? (thickness || 1);
     if (quality.samePlane > 0) onWarning?.(`"${seriesDesc}": ${quality.samePlane} komşu kesit çifti aynı veya çok yakın düzlemde (≤0,01 mm). Tekrar ya da farklı faz olabilir; geometriyi kontrol edin.`);
@@ -756,6 +758,7 @@ export async function loadMedicalFiles(
       sliceThickness: thickness,
       sliceSpacing: spacing,
       slicePositions: positions,
+      unverifiedMultiFrameGeometry,
       ipp: list.every((s) => s.ipp) ? list.map((s) => s.ipp!) : undefined,
       sopUids: list.every((s) => s.sopUid) ? list.map((s) => s.sopUid!) : undefined,
       sopClassUid: first.string("x00080016")?.trim(),

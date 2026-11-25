@@ -55,6 +55,7 @@ export interface VolumeGeom {
 
 /** Kaynak seriden hacim geometrisi; MPR uygunsa nesneyi, değilse null döner. */
 export function volumeGeometry(s: SeriesData): VolumeGeom | null {
+  if (s.unverifiedMultiFrameGeometry) return null;
   const w = s.width;
   const h = s.height;
   const nSlices = s.slices.length;

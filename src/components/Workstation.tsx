@@ -437,6 +437,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     if (!series || !isImageSeries) { toast("MPR için önce çok kesitli bir BT veya MR görüntü serisi seçin."); return; }
     if (!["CT", "MR"].includes(series.modality) || series.isColor) { toast("MPR yalnızca gri tonlamalı, hacim oluşturan BT/MR serileri için kullanılabilir."); return; }
     if (series.slices.length < 3) { toast("MPR için aynı seride en az 3 kesit gerekir."); return; }
+    if (series.unverifiedMultiFrameGeometry) { toast("Çok kareli BT/MR geometrisi doğrulanmadığı için MPR ve 3B hacim kullanılamaz."); return; }
     setCine(false);
     setMprInitialTab(initialTab);
     setMpr(true);

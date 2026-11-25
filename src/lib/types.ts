@@ -315,6 +315,8 @@ export interface SeriesData {
   sliceThickness: number;
   sliceSpacing?: number;
   slicePositions?: number[];
+  /** Çok kareli DICOM geometrisi henüz doğrulanmadığından hacim oluşturma engellenir. */
+  unverifiedMultiFrameGeometry?: boolean;
   /** Kesit başına ImagePositionPatient [x,y,z] (mm), kesit sırasıyla. */
   ipp?: number[][];
   /** Kesit başına SOP Instance UID ve ortak SOP Class UID (KO/SR başvuruları için). */
