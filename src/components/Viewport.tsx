@@ -6,6 +6,7 @@ import type { Annotation, Finding, SeriesData, ToolName } from "@/lib/types";
 import { annotationSummary, dist, ellipseTest, pointInPolygon, perpendicular, regionStats, type Pt } from "@/lib/geometry";
 import { buildFusionLayer, type FusionParams } from "@/lib/fusion";
 import { isIdentityRigid, rigidKey } from "@/lib/fusionRigid";
+import { photometricLabel } from "@/lib/photometric";
 import { jumpToPatient, refLinesFor, registerPanel, unregisterPanel, usePanelRegistry } from "@/lib/panelRegistry";
 import { planeOf, toPatient } from "@/lib/planes";
 import { buildWindowLUT, windowToRGBA } from "@/lib/window";
@@ -648,6 +649,17 @@ export default function Viewport(props: ViewportProps) {
         ctx.fillText(rl.label.slice(0, 28), Math.max(4, Math.min(size.w - 120, a.x + 6)), Math.max(12, Math.min(size.h - 6, a.y - 4)));
         ctx.restore();
       }
+    }
+    // 6c. Fotometri rozeti: renkli/tahribatsız serilerde hangi yorumla çözüldüğü
+    if (series.photometric) {
+      const pl = photometricLabel(series.photometric, series.isColor ? 3 : 1);
+      const multi = series.isColor && series.slices.length > 1 ? ` · ${series.slices.length} kare` : "";
+      ctx.save();
+      ctx.font = "600 10px ui-monospace, monospace";
+      ctx.fillStyle = "#7f8ea3";
+      ctx.textAlign = "right";
+      ctx.fillText(`${pl}${multi}`, size.w - 8, size.h - 8);
+      ctx.restore();
     }
     if (fusNote) {
       ctx.save(); ctx.font = "700 10.5px ui-monospace, monospace"; ctx.fillStyle = fusCanvas ? "#fbbf24" : "#f87171";

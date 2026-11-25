@@ -43,6 +43,12 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
 - **Akciğer kantitasyonu:** Araç çubuğu → 🫁 Akciğer (CT): LAA-950 (emfizem
   oranı), ortalama HU, PD15, tahmini hacim ve **kesit dağılım profili**. Gövde
   dışı hava dışlanır; lob/fissür ayrımı yoktur, DSBG ile birlikte değerlendirilir.
+- **Fotometrik yorum (`f-pixel`):** `src/lib/photometric.ts` — MONOCHROME1 ters
+  çevirme (tek sabit, tip korunur), RGB 8/16-bit, **Planar Configuration 1**,
+  YBR_FULL, **native 4:2:2 / 4:2:0** açma, **PALETTE COLOR** (ikili US tanımlayıcı,
+  8/16-bit LUT, `firstMapped`), çok kareli renkli seriler; çıktı 32-bit RGBA
+  (`rgbaSlices`) ve görüntüleyicide fotometri rozeti. 40 birim + 24 uçtan uca
+  DICOM testi (`test:photometric`, `test:photometric-e2e`).
 - **Kıyaslama tablosu ve kaynak politikası (`/kiyaslama`):** tablodaki durumlar
   `src/lib/gapAnalysis.ts` + `gapProgress` üzerinden **kodla senkron** hesaplanır
   (sayfada sabit yüzde yok). Her satırın dayanağı `src/lib/gapSources.ts` kayıt
@@ -507,6 +513,8 @@ npm run test:nuclear                # MTV/SUV örnekleme + TIC sınıflandırmas
 npm run test:patient-letter         # hasta mektubu: TR/EN/DE, okuma düzeyi, taslak kilidi
 npm run test:fusion-rigid           # füzyon katı hizalaması: NCC kestirimi, dönme/ölçek, katman kaydırma
 npm run test:gap-sources            # kıyaslama tablosu: her satırın kaynağı + dosya yollarının varlığı
+npm run test:photometric            # fotometri: MONO1/2, RGB/planar, YBR 4:2:2, palet LUT
+npm run test:photometric-e2e        # sentetik DICOM ile renkli/paletli/çok kareli içe aktarma
 npm run verify:sources              # (ağ gerekir) kaynak adreslerini yeniden doğrula
 npm run test:closeloop              # kapanış döngüsü süre/eskalasyon kuralları
 npm run test:followup               # takip görev kovaları + iade eşleme

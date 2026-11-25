@@ -90,8 +90,8 @@ const BASE_ITEMS: GapItem[] = [
     id: "f-pixel", category: "format", title: "Fotometrik yorum: MONOCHROME1/2, RGB, multi-frame",
     status: "kismi", priority: "P2", effort: "S",
     market: ["RadiAnt", "OHIF", "Weasis"],
-    ours: "MONOCHROME1 artık ters çevriliyor, planar RGB ve multi-frame destekleniyor. Renkli görüntüler gri tona çevriliyor (renk kaybı); PALETTE COLOR yok.",
-    action: "Renkli (US/3D) görüntüler için RGBA render yolu; palet tablosu desteği.",
+    ours: "`src/lib/photometric.ts` (saf, testli) + `dicom.ts` çözücüsü. **Gri:** MONOCHROME2 doğrudan; MONOCHROME1 **tüm kesitlerde tek sabitle** (max+min) ters çevrilir — tip korunur (Uint16 → Uint16, Float32 → Float32). **Renk:** RGB (8 ve 16 bit, `bitsStored` ile 8 bite ölçekleme), **Planar Configuration 1** (8/16 bit) düzlemleri birleştirilir, YBR_FULL ve **native YBR_FULL_422 / YBR_PARTIAL_420** seyreltilmiş veri açılır (4 bayt → 2 piksel, 6 bayt → 4 piksel), dar aralıklı (partial) YBR için BT.601 dönüşümü. **PALETTE COLOR:** tanımlayıcı artık **ikili (US/SS)** okunur (eski metin yolu da korunur), 8-bit girdiler OW kabının alt baytından alınır, 8/16-bit LUT + `firstMapped` ofseti desteklenir. Çıktı her zaman **32-bit RGBA** (`rgbaSlices`); görüntüleyici tuvali bu tamponu doğrudan yazar, sağ altta fotometri rozeti (**RGB/YBR/palet/MONOCHROME2**) görünür. **Çok kare:** native çok kareli renkli (US Doppler/sine) ve kapsüllenmiş kareler ayrı ayrı çözülür; her kare için RGBA üretilir. 40 birim + **24 uçtan uca DICOM** testi (sentetik dosya üretimi; hasta verisi yok). KALAN: segmentli (segmented) palet LUT ve YBR_RCT/ICT (JPEG 2000 geri dönüşümsüz) özel yol tanımları — bu biçimlerde codec RGB verdiği için pratikte sorun çıkmıyor.",
+    action: "Segmentli palet LUT ve nadir YBR türevleri için ayrı test seti; renkli serilerde pencere/renk haritası denetimi.",
   },
   {
     id: "f-series", category: "format", title: "Seri gruplama + anatomik kesit sıralama",
