@@ -13,7 +13,10 @@ import {
   packCxrImage,
   type CxrResult,
 } from "../src/lib/cxrModel";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import type { SeriesData } from "../src/lib/types";
+import { HEAT_ALPHA_MAX, HEAT_THRESHOLD, heatColor, heatPixel, heatVisible } from "../src/lib/heat";
 
 let failed = 0;
 const ok = (cond: boolean, msg: string) => {
@@ -84,6 +87,22 @@ const decoded = decodeCxrHeat({ index: 0, name: "Nodule", w: 5, h: 1, b64: heatB
 ok(decoded.w === 5 && decoded.h === 1 && decoded.data.length === 5, "ısı boyutu ve uzunluğu");
 ok([...decoded.data].join(",") === "0,64,128,192,255", "ısı pikselleri bozulmadan çözülür");
 
+// ---- ısı haritası örtüsü kuralları (a-heat) ----
+ok(HEAT_THRESHOLD > 0 && HEAT_THRESHOLD < 255, "görünürlük eşiği ayarlanabilir ve anlamlı");
+ok(!heatVisible(0) && !heatVisible(HEAT_THRESHOLD - 1), "eşik altı gizlenir");
+ok(heatVisible(HEAT_THRESHOLD) && heatVisible(255), "eşik ve üstü görünür");
+const cold = heatColor(0), hot = heatColor(255);
+ok(cold[2] === 255 && cold[0] === 0, "en soğuk nokta mavi");
+ok(hot[0] === 255 && hot[2] === 0, "en sıcak nokta kırmızı");
+const mid = heatColor(128);
+ok(mid[1] === 255 || mid[0] > 100, "orta bant yeşil/sarı aralığında");
+const p0 = heatPixel(255, 0);
+ok((p0 >>> 24) === 0, "sıfır alfada alfa kanalı boş");
+const p1 = heatPixel(255, 255);
+ok((p1 >>> 24) === 255, "tam alfada alfa kanalı dolu");
+ok(heatPixel(255, 255) === heatPixel(255, 255), "paketleme deterministik");
+ok(HEAT_ALPHA_MAX <= 0.95, "saydamlık asla tam opaklığa ulaşmaz");
+
 // ---- şiddet bandı ----
 ok(cxrSeverity(0.8) === "yuksek", "%80+ yüksek");
 ok(cxrSeverity(0.6) === "orta", "%60 orta");
@@ -145,6 +164,15 @@ ok(scanned.scores[3].positive === true, "0,66 ≥ 0,54 eşik → pozitif");
 ok(scanned.scores.filter((c) => c.positive).length === 1, "yalnızca skor eşiği geçen sınıf pozitif");
 ok(scanned.scores[6].positive === false, "sunucudaki hatalı pozitif bayrağı reddedildi (tek kaynak istemci)");
 globalThis.fetch = originalFetch;
+
+// ---- örtü çizim entegrasyonu (Viewport) ----
+{
+  const root = path.resolve(__dirname, "..");
+  const vp = readFileSync(path.join(root, "src/components/Viewport.tsx"), "utf8");
+  ok(vp.includes("heats") && vp.includes("heatOpacity"), "Viewport ısı katmanını saydamlıkla çiziyor");
+  ok(vp.includes("heatVisible") && vp.includes("heatPixel"), "Isı örtüsü paylaşılan kuralları kullanıyor");
+  ok(vp.includes("v/255") || vp.includes("heatPixel(v"), "alfa aktivasyonla ölçekleniyor");
+}
 
 if (failed) { console.error(`${failed} CXR model testi başarısız`); process.exit(1); }
 console.log("Tüm CXR model testleri geçti.");

@@ -8,6 +8,7 @@ import { buildFusionLayer, type FusionParams } from "@/lib/fusion";
 import { jumpToPatient, refLinesFor, registerPanel, unregisterPanel, usePanelRegistry } from "@/lib/panelRegistry";
 import { planeOf, toPatient } from "@/lib/planes";
 import { buildWindowLUT, windowToRGBA } from "@/lib/window";
+import { HEAT_ALPHA_MAX, heatPixel, heatVisible } from "@/lib/heat";
 import { fmtConfShort } from "@/lib/format";
 
 const SEV_COLOR: Record<string, string> = { kritik: "#ff3b5c", yuksek: "#ff9f1c", orta: "#ffd60a", dusuk: "#4cc9f0", normal: "#2ee6a8" };
@@ -37,14 +38,6 @@ export interface OverlayData {
 }
 
 /** Isı haritası renklaması (mavi → camgöbeği → yeşil → sarı → kırmızı), alfa eşikli. */
-function heatColor(v: number): [number, number, number] {
-  const t = Math.max(0, Math.min(255, v)) / 255;
-  if (t < 0.25) return [0, Math.round((t / 0.25) * 255), 255];
-  if (t < 0.5) return [0, 255, Math.round((1 - (t - 0.25) / 0.25) * 255)];
-  if (t < 0.75) return [Math.round(((t - 0.5) / 0.25) * 255), 255, 0];
-  return [255, Math.round((1 - (t - 0.75) / 0.25) * 255), 0];
-}
-
 type Rot = 0 | 90 | 180 | 270;
 type Draft = { mode: "drag"; tool: ToolName; a: Pt; b: Pt } | { mode: "multi"; tool: ToolName; pts: Pt[]; cursor: Pt } | null;
 const DRAG_TOOLS: ToolName[] = ["length", "rect", "ellipse", "ellipsoid", "arrow", "calib"];
@@ -297,7 +290,7 @@ export default function Viewport(props: ViewportProps) {
     // 2b. CXR ısı haritası katmanı (Grad-CAM): modelin baktığı alanlar
     let heatCanvas: HTMLCanvasElement | null = null;
     if (overlay?.heats && (overlay.heatOpacity ?? 0) > 0) {
-      const alpha = Math.round(Math.max(0, Math.min(0.95, overlay.heatOpacity ?? 0)) * 255);
+      const alpha = Math.round(Math.max(0, Math.min(HEAT_ALPHA_MAX, overlay.heatOpacity ?? 0)) * 255);
       const vis = findings.filter(
         (f) => revealedIds.has(f.id) && f.sliceIndex === slice && overlay.heats!.get(f.id),
       );
@@ -317,9 +310,8 @@ export default function Viewport(props: ViewportProps) {
             const u32 = new Uint32Array(img.data.buffer);
             for (let i = 0; i < hd.data.length; i++) {
               const v = hd.data[i];
-              if (v < 26) { u32[i] = 0; continue; } // düşük aktivasyon gizlenir
-              const [r, g, b] = heatColor(v);
-              u32[i] = ((alpha * (v / 255)) << 24) | (b << 16) | (g << 8) | r;
+              if (!heatVisible(v)) { u32[i] = 0; continue; } // düşük aktivasyon gizlenir
+              u32[i] = heatPixel(v, alpha);
             }
             cctx.putImageData(img, 0, 0);
             cached = { key, canvas: c };
