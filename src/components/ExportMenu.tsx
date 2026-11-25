@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import type { KeyImage, SeriesData } from "@/lib/types";
 import { exportPngZip, exportVideoWebm } from "@/lib/exportMedia";
 import { buildKeyObjectSelection, buildPresentationState } from "@/lib/dicomSr";
+import { planKeyObject } from "@/lib/pacsSend";
 
 interface Props {
   series: SeriesData | null;
@@ -30,6 +31,7 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
   const [fps, setFps] = useState(12);
   const [side, setSide] = useState(512);
   const [prog, setProg] = useState<{ done: number; total: number } | null>(null);
+  const [sending, setSending] = useState<"ko" | "pr" | null>(null);
   const abort = useRef<AbortController | null>(null);
   const n = series?.slices.length ?? 0;
   const imageOk = !!series && (!series.specialType || series.specialType === "image") && n > 0;
@@ -78,6 +80,30 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
     toast("DICOM sunum durumu (GSPS/PR) indirildi — rapor belgesi değildir.", 5000);
   };
 
+  /** KO/PR nesnesini PACS'e STOW-RS ile gönderir (rapor SR'ı rapor penceresinden gider). */
+  const sendToPacs = async (kind: "ko" | "pr") => {
+    setOpen(false);
+    if (!series) { toast("Önce bir görüntü serisi açın."); return; }
+    const plan = planKeyObject(keyImages, series);
+    if (!plan.ok) { toast(plan.reason ?? "Gönderilemedi", 7000); return; }
+    setProg(null);
+    setSending(kind);
+    try {
+      const r = await fetch("/api/pacs/stow", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind, studyUid: series.studyUid, seriesKey: `${series.seriesUid ?? series.description}|${series.slices.length}`,
+          seriesUid: series.seriesUid, sopClassUid: series.sopClassUid, sopUids: series.sopUids,
+        }),
+      });
+      const d = (await r.json().catch(() => ({}))) as { stored?: number; pacs?: string; error?: string; message?: string };
+      if (!r.ok) throw new Error(d.error ?? "PACS'e gönderilemedi");
+      toast(`${kind === "ko" ? "Anahtar kesit (KO)" : "Sunum durumu (PR)"} PACS'e gönderildi — ${d.stored ?? 1} nesne (${d.pacs ?? "PACS"}).`, 6000);
+      if (plan.skipped.length) toast(`${plan.skipped.length} kesit UID eşlemesi olmadığı için atlandı.`, 6000);
+    } catch (e) { toast(`PACS'e gönderilemedi: ${e instanceof Error ? e.message : "hata"}`, 8000); }
+    finally { setSending(null); }
+  };
+
   const item = "block w-full cursor-pointer px-3 py-1.5 text-left hover:bg-[#1a2330]";
   return (
     <div className="relative shrink-0">
@@ -88,6 +114,9 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
           <button className={item} onClick={() => openDlg("zip")}>🖼 Kesitler → PNG (ZIP)…</button>
           <button className={item} onClick={exportKo}>★ Anahtar kesitler → DICOM KO</button>
           <button className={item} onClick={exportPr} title="Pencere, döndürme ve çevirme ayarlarını GSPS belgesi olarak kaydeder">🖼 Görünüm → DICOM PR (sunum durumu)</button>
+          <div className="my-1 border-t border-[#1e2735]" />
+          <button className={item} disabled={sending !== null} onClick={() => void sendToPacs("ko")}>☁ Anahtar kesitler → PACS&apos;e gönder (KO)</button>
+          <button className={item} disabled={sending !== null} onClick={() => void sendToPacs("pr")} title="Pencere/döndürme ayarını GSPS olarak PACS'e yazar">☁ Görünüm (PR) → PACS&apos;e gönder</button>
           <div className="px-3 py-1 text-[10px] leading-relaxed text-slate-500">Video/PNG görüntü verisini olduğu gibi aktarır; kimlik bilgisi içermez ama anonimleştirme/DICOM etiketi taşımaz.</div>
         </div>
       )}

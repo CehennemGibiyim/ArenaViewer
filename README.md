@@ -20,6 +20,10 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   oblik (eğimli) MPR ve WebGL 3B hacim. Kesit konumu kaydı (IPP) varsa koronal/sagital
   gerçek hasta geometrisinden, ölçek kayması olmadan örneklenir (`src/lib/mpr.ts` +
   `VolumeView`). Kaynak seri salt okunur tutulur.
+- **PACS gönderimi (STOW-RS):** Onaylanmış rapor DICOM SR olarak, anahtar
+  kesitler KO ve pencere/döndürme ayarı GSPS (PR) olarak PACS'e gönderilebilir.
+  KO/PR gönderiminde kesit UID'leri önce QIDO-RS ile PACS'te doğrulanır;
+  her gönderim denetim kaydına yazılır (`/api/pacs/stow`, `pacsSend.ts`).
 - **Üretken taslak + üslup:** Rapor için izlenim taslağı üretilir (LLM varsa
   OpenAI uyumlu uç, yoksa kural tabanlı; yalnızca onaylanmış bulgular, kimlik
   gönderilmez). Hekimin geçmiş onaylı raporlarından kimliksiz üslup örneği
@@ -279,6 +283,7 @@ npm run test:prior                  # önceki tetkik ölçüm karşılaştırmas
 npm run test:uncert                 # belirsizlik bandı + CXR bulgu notu
 npm run test:template               # şablon yer tutucuları + onay öncesi uyarı
 npm run test:style                  # üslup örneği seçimi + LLM prompt entegrasyonu
+npm run test:pacssend               # KO/PR → PACS gönderim planı ve uç sözleşmesi
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)
