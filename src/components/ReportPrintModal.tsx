@@ -750,6 +750,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
             <StructuredScorePanel
               modality={report.modality}
               bodyPart={report.bodyPart}
+              studyUid={report.studyUid}
               onApply={(t) => setReport((r) => ({ ...r, impression: `${r.impression}${r.impression && !r.impression.endsWith("\n") ? "\n" : ""}${t}` }))}
               onCreateTask={createScoreTask}
             />

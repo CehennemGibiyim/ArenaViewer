@@ -9,8 +9,10 @@
  * Klinik karar aracı değildir; her satır “hekim onayına tabidir” notu taşır.
  */
 import { useMemo, useState } from "react";
+import { apiFetch } from "@/lib/csrfClient";
 import { ASPECTS_LABELS, ASPECTS_REGIONS, aspectsScore } from "@/lib/stroke";
 import { ctpSvdSummary, ctpSvdText, parseCtpCurves } from "@/lib/ctp";
+import { missedTargets, strokeIntervals, strokeTriage, timelineText, type StrokeTimeline } from "@/lib/strokePipeline";
 import { cxrProjection, cxrQuality, cxrQualityLine, type CxrProjection } from "@/lib/cxr";
 import {
   acrDensity, agatston, biRads, boneDensity, cxrCardiothoracicRatio, lungRads, piRadsV2,
@@ -23,6 +25,8 @@ import {
 interface Props {
   modality: string;
   bodyPart: string;
+  /** İnme zaman çizelgesi/kod çağrısı için çalışma kimliği (a-stroke). */
+  studyUid?: string;
   /** Skor satırını rapora ekler (izlenim/öneri alanı). */
   onApply: (text: string) => void;
   /** Takip görevi oluşturur; mesaj ve süre hazır gelir. */
@@ -33,7 +37,7 @@ const lbl = "block text-[10px] font-bold uppercase tracking-wide text-slate-400"
 const sel = "mt-0.5 w-full rounded border border-[#232e40] bg-[#141b24] px-2 py-1 text-xs text-slate-200";
 const num = "mt-0.5 w-full rounded border border-[#232e40] bg-[#141b24] px-2 py-1 text-xs text-slate-200";
 
-export default function StructuredScorePanel({ modality, bodyPart, onApply, onCreateTask }: Props) {
+export default function StructuredScorePanel({ modality, bodyPart, studyUid, onApply, onCreateTask }: Props) {
   const candidates = useMemo(() => {
     const m = (modality ?? "").toUpperCase();
     const b = (bodyPart ?? "").toLocaleUpperCase("tr-TR");
@@ -67,6 +71,11 @@ export default function StructuredScorePanel({ modality, bodyPart, onApply, onCr
   const [dens, setDens] = useState<"a" | "b" | "c" | "d">("b");
   // ASPECTS: anormal işaretli bölgeler
   const [aspectsSet, setAspectsSet] = useState<string[]>([]);
+  // İnme hattı (a-stroke): zaman damgaları + semptom başlangıcı + BVO
+  const [stOnset, setStOnset] = useState("");
+  const [stTl, setStTl] = useState<Record<string, string>>({ arrival: "", imaging: "", interpretation: "", thrombolysis: "", thrombectomy: "" });
+  const [stLvo, setStLvo] = useState<"" | "var" | "yok">("");
+  const [stMsg, setStMsg] = useState("");
   // CTP eğrileri (yapıştırılan; cSVD dekonvolüsyonu)
   const [ctpText, setCtpText] = useState("");
   const [ctpMsg, setCtpMsg] = useState("");
@@ -84,6 +93,48 @@ export default function StructuredScorePanel({ modality, bodyPart, onApply, onCr
   const [cxrRibs, setCxrRibs] = useState("");
   const [cxrRot, setCxrRot] = useState("");
   const [cxrPen, setCxrPen] = useState<boolean | null>(null);
+
+  /**
+   * İnme hattı: zaman çizelgesi süreleri + triyaj başlığı. Kod inme çağrısı
+   * mükerrer korumalı sunucu ucunu kullanır; panel yalnızca sonucu gösterir.
+   */
+  const runStroke = async (mode: "timeline" | "code") => {
+    const timeline: StrokeTimeline = {
+      arrival: stTl.arrival || null,
+      imaging: stTl.imaging || null,
+      interpretation: stTl.interpretation || null,
+      thrombolysis: stTl.thrombolysis || null,
+      thrombectomy: stTl.thrombectomy || null,
+    };
+    if (mode === "timeline") {
+      const res = strokeIntervals(timeline);
+      const missed = missedTargets(res.intervals);
+      setStMsg(timelineText(res) + (missed.length ? `
+⚠ Hedef aşıldı: ${missed.map((m) => m.label).join(", ")}` : ""));
+      if (res.intervals.some((i) => i.minutes !== null)) onApply(timelineText(res));
+      return;
+    }
+    if (!studyUid) { setStMsg("Kod inme çağrısı için çalışma kimliği gerekli."); return; }
+    const curves = parseCtpCurves(ctpText);
+    // CSRF çift gönderim jetonu: tüm yazma istekleri apiFetch'ten geçer (g-webhard).
+    const res = await apiFetch("/api/stroke", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "code",
+        studyUid,
+        onset: stOnset || null,
+        aspectsAbnormal: aspectsSet,
+        ctpText: curves.length >= 2 ? ctpText : "",
+        lvo: stLvo === "" ? null : stLvo === "var",
+      }),
+    });
+    const data = (await res.json().catch(() => ({}))) as { message?: string; reason?: string; error?: string; triage?: { headline: string; caveats: string[] }; notificationId?: number };
+    if (!res.ok) { setStMsg(data.error ?? "Kod inme çağrısı başarısız."); return; }
+    const lines = [data.message ?? data.triage?.headline ?? "", data.notificationId ? `Bildirim #${data.notificationId}` : "", data.reason ?? "", ...(data.triage?.caveats ?? []).map((c) => `• ${c}`)];
+    setStMsg(lines.filter(Boolean).join("\n"));
+    if (data.notificationId) onApply(data.message ?? data.triage?.headline ?? "");
+  };
 
   const result: ScoreResult = useMemo(() => {
     if (system === "lungRads") {
@@ -311,6 +362,35 @@ export default function StructuredScorePanel({ modality, bodyPart, onApply, onCr
               <span className="text-[10px] text-slate-500">Rölatif CBF/CBV/MTT/Tmax; dekonvolüsyon. Klinik karar aracı değildir.</span>
             </div>
             {ctpMsg && <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap rounded bg-[#0e141d] p-2 text-[10px] text-slate-300">{ctpMsg}</pre>}
+          </div>
+        )}
+
+        {system === "aspects" && (
+          <div className="col-span-2 sm:col-span-3 md:col-span-4 rounded border border-[#23303f] bg-[#0b1018] p-2">
+            <span className={lbl}>İnme hattı — zaman çizelgesi ve kod çağrısı</span>
+            <div className="mt-1 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+              <label className="text-[10px] text-slate-400">Semptom başlangıcı
+                <input type="datetime-local" value={stOnset} onChange={(e) => setStOnset(e.target.value)} className={num} />
+              </label>
+              {([["arrival", "Kapı"], ["imaging", "Görüntü"], ["interpretation", "Karar"], ["thrombolysis", "İğne"], ["thrombectomy", "Kasık"]] as const).map(([k, label]) => (
+                <label key={k} className="text-[10px] text-slate-400">{label}
+                  <input type="datetime-local" value={stTl[k] ?? ""} onChange={(e) => setStTl({ ...stTl, [k]: e.target.value })} className={num} />
+                </label>
+              ))}
+              <label className="text-[10px] text-slate-400">Büyük damar oklüzyonu (BTA)
+                <select value={stLvo} onChange={(e) => setStLvo(e.target.value as "" | "var" | "yok")} className={sel}>
+                  <option value="">bilinmiyor</option>
+                  <option value="var">var</option>
+                  <option value="yok">yok</option>
+                </select>
+              </label>
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <button type="button" className="cursor-pointer rounded border border-cyan-400/40 px-2 py-0.5 text-[11px] font-bold text-cyan-200 hover:bg-cyan-400/10" onClick={() => void runStroke("timeline")}>⏱ Süreleri hesapla</button>
+              <button type="button" className="cursor-pointer rounded border border-rose-400/50 bg-rose-400/10 px-2 py-0.5 text-[11px] font-bold text-rose-200 hover:bg-rose-400/20" onClick={() => void runStroke("code")}>🚨 KOD İNME çağrısı</button>
+              <span className="text-[10px] text-slate-500">Hedefler: kapı-görüntü ≤25 dk, kapı-iğne ≤60 dk, kapı-kasık ≤90 dk. Klinik karar aracı değildir.</span>
+            </div>
+            {stMsg && <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap rounded bg-[#0e141d] p-2 text-[10px] text-slate-300">{stMsg}</pre>}
           </div>
         )}
 

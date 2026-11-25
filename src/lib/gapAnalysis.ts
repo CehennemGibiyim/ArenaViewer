@@ -514,10 +514,9 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "a-stroke", category: "ai", title: "İnme paketi: ASPECTS skoru + CTP perfüzyon (CBF/CBV/MTT/Tmax)",
-    status: "kismi", priority: "P1", effort: "L",
+    status: "var", priority: "P1", effort: "L",
     market: ["Viz.ai", "Aidoc"],
-    ours: "**Bu sürümde kısmen uygulandı:** `src/lib/stroke.ts` — ASPECTS 10 bölge skoru (rapor panelinde işaretleme) ve basitleştirilmiş CTP özeti. **Eklenen (a-stroke):** `src/lib/ctp.ts` — cSVD (kesilmiş SVD) dekonvolüsyonu ile rölatif CBF/CBV/MTT + Tmax, otomatik AIF seçimi (genlik/zirve zamanı/genişlik skoru), çoklu bölge özeti (core: rCBF<%30, penumbra: Tmax≥6 sn) ve mismatch oranı; panelden yapıştırılan eğrilerle çalışır, sentetik konvolüsyon verisiyle doğrulandı (MTT ~4 sn geri kazanımı). KALAN: mutlak mL/100 g/dk için dansite (ρ) kalibrasyonu, hareket düzeltmesi, otomatik bölge (ROI) segmentasyonu.",
-    action: "Hareket düzeltmesi + otomatik ROI/kontur segmentasyonu; 4D seriden eğri çıkarma; mutlak akım kalibrasyonu.",
+    ours: "**Bu sürümde eklendi:** `src/lib/stroke.ts` (ASPECTS 10 bölge skoru) ve `src/lib/ctp.ts` (cSVD dekonvolüsyonu, otomatik AIF, rölatif CBF/CBV/MTT/Tmax, core/penumbra + mismatch) üzerine **inme hattı**: `strokePipeline.ts` + `/api/stroke`. (1) **Zaman çizelgesi**: kapı → görüntü/iğne/kasık ve görüntü → karar süreleri, hedeflerle (≤25 dk görüntü, ≤60 dk iğne, ≤90 dk kasık) karşılaştırma, hedef aşımlarının raporlanması; ters/bozuk zaman damgasında uydurma süre üretilmez. (2) **Triyaj**: semptom başlangıcından pencere sınıflaması (0–4,5 saat tromboliz, 4,5–24 saat seçilmiş trombektomi, dışı, belirsiz/uyanış inmesi), ASPECTS + CTP core/penumbra + BVO ile tek satır başlık ve uyarılar (düşük ASPECTS, mismatch <1,2, pencere dışı); işaretlenmemiş bölgeler normal SAYILMAZ (ASPECTS bilinmiyor). (3) **Kod inme çağrısı**: aynı çalışma için açık çağrı varsa mükerrer bildirim açılmaz, hasta kimliği taşınmayan gövde, isteğe bağlı kanal teslimatı (a-notify), rol/SLA hedefleri ve tüm adımlarda denetim kaydı. Rapor panelindeki ASPECTS bölümünden çalışır. KALAN: hareket düzeltmesi, otomatik ROI/kontur segmentasyonu, 4D seriden eğri çıkarma, mutlak akım (mL/100 g/dk) kalibrasyonu, BT anjiyoda otomatik BVO tespiti.",    action: "Hareket düzeltmesi + otomatik ROI/kontur segmentasyonu; 4D seriden otomatik eğri çıkarma; mutlak akım kalibrasyonu; BT anjiyoda BVO tespiti.",
   },
   {
     id: "a-msk", category: "ai", title: "MSK/X-ışını kırık ve landmarke AI",

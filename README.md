@@ -359,6 +359,20 @@ Rapor alanlarındaki 🎤 düğmesi Web Speech API (tr-TR) kullanır; metin `dic
   `kontrast artır`, `ters çevir`, `pencere daralt`, `geri al`, `kaydet`, `temizle`. Bir parça
   **tamamen** komutsa komut sayılır; "kırık ileri deplase" gibi cümleler metin olarak yazılır.
 
+## İnme hattı (a-stroke)
+
+Rapor panelindeki **ASPECTS** bölümünde zaman çizelgesi ve kod inme çağrısı vardır
+(`src/lib/strokePipeline.ts`, `/api/stroke`).
+
+| Bölüm | İçerik |
+|---|---|
+| Zaman çizelgesi | kapı → görüntü / iğne / kasık, görüntü → karar; hedefler ≤25 / ≤60 / ≤90 dk; hedef aşımları işaretlenir. Ters veya bozuk zaman damgasında **süre uydurulmaz**, gerekçe yazılır |
+| Triyaj | semptom başlangıcından pencere: 0–4,5 saat tromboliz, 4,5–24 saat seçilmiş trombektomi, dışı, belirsiz (uyanış inmesi); ASPECTS + CTP core/penumbra + BVO ile tek satır başlık ve uyarılar |
+| Kod inme çağrısı | aynı çalışma için açık çağrı varsa **mükerrer bildirim açılmaz**; gövdede hasta kimliği yok; kanal teslimatı (a-notify) isteğe bağlı; her adım denetimde (`stroke.code`, `stroke.code_duplicate`, `stroke.target_missed`) |
+
+ASPECTS bilinçli olarak "boş = 10 puan" saymaz: hekim bölgeleri işaretlemediyse skor
+**bilinmiyor** kabul edilir. Klinik karar aracı değildir.
+
 ## Klinik doğrulama panosu (alt grup / yanlılık)
 
 `/api/ai/validation` (Yönetim → AI performans) hekim etiketlerinden alt grup metrikleri üretir:
@@ -579,6 +593,7 @@ npm run test:templaterank           # şablon sıralama + RadReport kodu (r-temp
 npm run test:dimse                  # DIMSE köprüsü C-FIND/C-MOVE (w-pacs)
 npm run test:auditchain             # imzalı denetim paketi + üretim kapısı (w-audit)
 npm run test:validation             # alt grup doğrulama + kabul eşiği (t-validation)
+npm run test:stroke                 # inme hattı: zaman çizelgesi + kod inme (a-stroke)
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)
