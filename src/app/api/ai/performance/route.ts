@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { asc, desc } from "drizzle-orm";
 import { db } from "@/db";
 import { reports } from "@/db/schema";
 import { authorize } from "@/lib/server/auth";
-import { calibrationBins, expectedCalibrationError, type CalibrationBin } from "@/lib/modelOps";
 import type { Finding, FindingApprovalStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 interface Row {
   engine: string;
+  model: string;
   category: string;
   shown: number;
   approved: number;
@@ -16,58 +17,46 @@ interface Row {
   edited: number;
   pending: number;
   manualAdded: number;
-  ppv: number | null;
+  approvalShare: number | null;
 }
 
-/** Hekim geri bildiriminden AI performansı: kesinlik (PPV) = onaylanan / (onaylanan + reddedilen). */
+/** Rapor kararları araştırma amaçlı iş akışı istatistikleridir; model doğrulaması değildir. */
 export async function GET(req: NextRequest) {
   const a = await authorize(req, ["radyolog", "yonetici"]);
   if ("error" in a) return a.error;
-  const rs = await db.select({ f: reports.findingsJson, ap: reports.findingsApproval, e: reports.engine, st: reports.status }).from(reports);
+  // Aynı çalışma için tekrarlanan raporlar sonucu şişirmesin: son rapor (taslak dahil).
+  const rs = await db.selectDistinctOn([reports.studyId], {
+    f: reports.findingsJson, ap: reports.findingsApproval, e: reports.engine,
+    model: reports.aiModel, status: reports.status,
+  }).from(reports).orderBy(asc(reports.studyId), desc(reports.id));
   const map = new Map<string, Row>();
+  let draftReports = 0;
   for (const r of rs) {
-    const findings = (r.f as Finding[]) ?? [];
-    const ap = (r.ap as Record<string, FindingApprovalStatus>) ?? {};
+    if (r.status !== "onaylandi") draftReports++;
+    const findings = Array.isArray(r.f) ? r.f as Finding[] : [];
+    const ap = r.ap && typeof r.ap === "object" && !Array.isArray(r.ap) ? r.ap as Record<string, FindingApprovalStatus> : {};
     for (const f of findings) {
-      if (f.category === "Sistem" || f.category === "ROI") continue;
-      const key = `${r.e || "?"}|${f.category}`;
-      const row = map.get(key) ?? { engine: r.e || "?", category: f.category, shown: 0, approved: 0, rejected: 0, edited: 0, pending: 0, manualAdded: 0, ppv: null };
+      if (!f || typeof f !== "object" || f.category === "Sistem" || f.category === "ROI") continue;
+      const engine = r.e || "Bilinmiyor", model = r.model || "Belirtilmemiş", category = f.category || "Belirtilmemiş";
+      const key = JSON.stringify([engine, model, category]);
+      const row = map.get(key) ?? { engine, model, category, shown: 0, approved: 0, rejected: 0, edited: 0, pending: 0, manualAdded: 0, approvalShare: null };
       if (f.source === "manual") { row.manualAdded++; map.set(key, row); continue; }
       row.shown++;
-      const s = ap[f.id] ?? "bekliyor";
-      if (s === "onaylandi") row.approved++;
-      else if (s === "reddedildi") row.rejected++;
-      else if (s === "duzenlendi") row.edited++;
+      const status = ap[f.id] ?? "bekliyor";
+      if (status === "onaylandi") row.approved++;
+      else if (status === "reddedildi") row.rejected++;
+      else if (status === "duzenlendi") row.edited++;
       else row.pending++;
       map.set(key, row);
     }
   }
-  // Güven kalibrasyonu: bulgunun güven puanı ile hekim onayı arasındaki ilişki.
-  const calibMap = new Map<string, Array<{ score: number; approved: boolean }>>();
-  for (const r of rs) {
-    const findings = (r.f as Finding[]) ?? [];
-    const ap = (r.ap as Record<string, FindingApprovalStatus>) ?? {};
-    for (const f of findings) {
-      if (f.category === "Sistem" || f.category === "ROI" || f.source === "manual") continue;
-      if (f.confidenceKind === "none" || !Number.isFinite(f.confidence)) continue;
-      const st = ap[f.id];
-      if (st !== "onaylandi" && st !== "reddedildi") continue;
-      const key = `${r.e || "?"}|${f.category}`;
-      const arr = calibMap.get(key) ?? [];
-      arr.push({ score: f.confidence, approved: st === "onaylandi" });
-      calibMap.set(key, arr);
-    }
-  }
-  const calibration = [...calibMap.entries()].map(([key, data]) => {
-    const [engine, category] = key.split("|");
-    const bins: CalibrationBin[] = calibrationBins(data, 5);
-    return { engine: engine ?? "?", category: category ?? "?", n: data.length, bins, ece: expectedCalibrationError(bins) };
-  });
-
-  const rows = [...map.values()].map((r) => ({ ...r, ppv: r.approved + r.rejected > 0 ? r.approved / (r.approved + r.rejected) : null }));
+  const rows = [...map.values()].map(r => ({ ...r, approvalShare: r.approved + r.rejected ? r.approved / (r.approved + r.rejected) : null }));
   return NextResponse.json({
     rows,
-    calibration,
-    note: "Kesinlik (PPV) yalnızca hekim kararlarına dayanır. Duyarlılık için 'AI'nın kaçırdığı bulgu' girişleri (manualAdded) gerekir; bu, kontrollü bir klinik doğrulama çalışmasının yerini tutmaz.",
-  });
+    reportCount: rs.length,
+    draftReports,
+    // Eski API alanı korunur; hekim kararları gerçek etiket olmadığı için ECE hesaplanmaz.
+    calibration: [],
+    note: "Yalnız her çalışmanın son raporu (taslaklar dahil) sayılır. Onay payı, yalnız onay ve ret verilen adaylar arasındaki iş akışı oranıdır; düzenlenen ve bekleyenler paydada yoktur. Klinik PPV, duyarlılık, özgüllük veya kalibrasyon değildir. Hekim eklemeleri doğrulanmış yanlış negatif sayısı değildir. Tekrarlanan analizler, seçilim yanlılığı ve model sürümü eksikliği sonuçları etkileyebilir.",
+  }, { headers: { "Cache-Control": "no-store" } });
 }

@@ -258,3 +258,6 @@ açıktır; bu nedenle `w-pacs` kısmi kalır.
 Çok kareli BT/MR dosyalarında kare bazlı geometri çözülmediğinden seri 2B görüntülenebilir; MPR ve 3B hacim devre dışıdır. Bu önlem gelişmiş geometri desteği yerine geçmez.
 
 Segmentli tabloların yapısı [DICOM C.7.9.2](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.9.2.html) ile kıyaslandı. Bozuk, iç içe indirect, taşan ve uzunluğu eşleşmeyen tablolar reddedilir.
+
+### AI geri bildirim ve bildirim görünürlüğü — kodlama aşaması
+Yönetim ekranında her çalışmanın son raporu (taslak dahil) üzerinden motor, kayıtlı model adı ve kategori bazında karar sayıları ve onay/ret arasındaki onay payı gösterilecek şekilde düzenlendi. Bu oran referans etiketli klinik PPV değildir; hekim eklemeleri de doğrulanmış yanlış negatif sayısı değildir. Hekim kararlarından hesaplanan kalibrasyon/ECE çıktısı kaldırıldı. Analiz akışındaki bildirim teslimini doğrulamayan "bildirim oluşturuldu" ifadesi düzeltildi. Gerçek model sürümü/sabit kimliği, bağımsız etiketler ve klinik doğrulama hâlâ eksiktir. Bu turdaki kodlar kullanıcı isteğiyle henüz çalıştırılarak doğrulanmadı; testler sonraya bırakıldı.
