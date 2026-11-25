@@ -593,10 +593,9 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "d-followup", category: "report", title: "Takip önerilerini çalışma listesine taşıma",
-    status: "kismi", priority: "P1", effort: "S",
+    status: "var", priority: "P1", effort: "S",
     market: ["Aidoc", "Rad AI"],
-    ours: "Onaylı rapordaki öneri otomatik göreve dönüşüyor; modalite/bölge/süre/durum takibi var. **Yeni (`followupQueue.ts`):** sonuç tarihine göre kova/öncelik (geciken → bugün → yaklaşan 14 gün → ileri → tarihsiz; eşit tarihte kritik önce), yaklaşan/geciken için uyarı metni, görev tarihçesi CSV'si ve HBYS/RIS iadesi eşleme (rapor kimliği → çalışma UID → tek aday; belirsizse eşleşme YAPILMAZ) + sonuç metniyle kapatma (denetim: notify.followup_outcome). `/api/notifications?followup=summary|csv`; 🔔 panelinde kalan gün etiketi, 'İade bağla' ve görev başına 'Sonuç' düğmesi. KALAN: iadenin HBYS/RIS'ten otomatik çekilmesi (HL7 ORU/FHIR DiagnosticReport — kurum entegrasyonu).",
-    action: "HBYS/RIS'ten otomatik sonuç çekme (HL7 ORU / FHIR DiagnosticReport).",
+    ours: "Onaylı rapordaki öneri otomatik göreve dönüşüyor; modalite/bölge/süre/durum takibi, sonuç tarihine göre kova/öncelik, uyarı metni, görev tarihçesi CSV'si ve HBYS/RIS iadesi eşleme (rapor kimliği → çalışma UID → tek aday; belirsizse eşleşme yapılmaz) vardı. **Bu sürümde eklendi:** iadenin kendisinin alımı — `followupReturn.ts` HL7 **ORU^R01** (OBX-5 gözlemleri birleştirilir, metin yoksa OBR-4'e düşer, DICOM UID desenle bulunur, tarih OBR-7/22'den) ve FHIR R4 **DiagnosticReport** (conclusion → presentedForm base64 → narrative sırası; urn:oid temizlenir) ayrıştırıcıları; `parseReturnedPayload` biçimi kendisi algılar. `/api/notifications` PATCH `action=outcome` + `rawPayload` ile iade eşleştirilip görev kapatılır; **belirsiz eşleşme otomatik kapatılmaz** (aday sayısı ve gerekçe döner, `notify.followup_return_unmatched` denetlenir). Hasta kimliği denetim gövdesine yazılmaz, metin 4000 karakterle sınırlanır. 🔔 panelindeki İade bağla akışı düz metin / HL7 / FHIR seçeneği sunar. KALAN: kurumda ORU/DiagnosticReport akışının kendiliğinden çekilmesi (abonelik/kuyruk entegrasyonu).",    action: "Kurumda iade akışının abonelik/kuyruk ile kendiliğinden çekilmesi (HL7 ORU / FHIR aboneliği).",
   },
   {
     id: "d-peer", category: "report", title: "Peer review / ikinci okuma / uyuşmazlık kaydı (RADPEER)",

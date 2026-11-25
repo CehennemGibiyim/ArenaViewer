@@ -84,8 +84,31 @@ export default function NotificationsBell() {
   };
   /** HBYS/RIS iadesindeki sonucu açık takip görevine bağlar (otomatik veya elle). */
   const recordOutcome = async (id?: number) => {
-    const text = window.prompt("Sonuç / iade metni (HBYS-RIS raporu, kontrol tetkik özeti…)", "");
+    const mode = window.prompt("İade biçimi:\n1) Düz metin (elle)\n2) HL7 ORU^R01 mesajı\n3) FHIR DiagnosticReport (JSON)\n\nNumara (boş = düz metin):", "1") ?? "1";
+    const rawMode = mode.trim() === "2" || mode.trim() === "3";
+    const text = window.prompt(
+      rawMode
+        ? "Ham iadeyi yapıştırın (HL7: MSH ile başlayan mesaj / FHIR: DiagnosticReport JSON). Hasta kimliği denetim kaydına yazılmaz."
+        : "Sonuç / iade metni (HBYS-RIS raporu, kontrol tetkik özeti…)",
+      "",
+    );
     if (text === null || !text.trim()) return;
+    if (rawMode) {
+      // Ham iade: eşleştirme ve kapatma metni iadenin kendisinden türetilir.
+      const r = await apiFetch("/api/notifications", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "outcome", auto: true, rawPayload: text.trim() }),
+      });
+      const d = (await r.json().catch(() => ({}))) as { error?: string; match?: string; format?: string; warnings?: string[]; candidates?: number };
+      const warn = d.warnings?.length ? ` Uyarı: ${d.warnings[0]}` : "";
+      setSweepMsg(
+        r.ok
+          ? `İade işlendi (${d.format ?? "ham"}): ${d.match ?? "eşleşti"}.${warn}`
+          : `${d.error ?? "İade bağlanamadı"}${d.candidates ? ` (${d.candidates} aday — hekim seçmeli)` : ""}`,
+      );
+      void load();
+      return;
+    }
     const modality = window.prompt("İade modalitesi (boş = otomatik eşleşme)", "") ?? "";
     const body = id
       ? { action: "outcome", id, outcome: text.trim() }

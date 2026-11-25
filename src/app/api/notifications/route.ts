@@ -8,6 +8,7 @@ import { closeLoopUpdate, setFollowupStatus, sweepCloseLoop } from "@/lib/server
 import { ESCALATION_ROLES, loopStatus } from "@/lib/closeLoopRules";
 import { followupCsv, matchReturnedResult, summarizeFollowups, type FollowupTask } from "@/lib/followupQueue";
 import { channelHealth, deliverAndRecord, recentDeliveries } from "@/lib/server/notifyDelivery";
+import { applyReturnedResult, parseReturnedPayload } from "@/lib/followupReturn";
 
 export const dynamic = "force-dynamic";
 
@@ -143,17 +144,42 @@ export async function PATCH(req: NextRequest) {
 
   // HBYS/RIS iadesi: sonucu açık göreve bağla ve kapat (eşleşme otomatik ya da elle).
   if (b.action === "outcome") {
-    const ob = b as { id?: number; outcome?: string; reportId?: number; studyUid?: string; modality?: string; bodyRegion?: string; auto?: boolean };
+    const ob = b as { id?: number; outcome?: string; reportId?: number; studyUid?: string; modality?: string; bodyRegion?: string; auto?: boolean; rawPayload?: string };
     const rowsO = await db.select().from(notifications).where(eq(notifications.kind, "followup")).orderBy(desc(notifications.id)).limit(500);
     const tasks: FollowupTask[] = rowsO.map((r) => ({
       id: r.id, status: (r.status ?? "acik") as FollowupTask["status"], dueDate: r.dueDate ?? "", severity: r.severity,
       message: r.message, modality: r.modality, bodyRegion: r.bodyRegion, studyUid: r.studyUid, reportId: r.reportId,
     }));
+    // Ham iade (HL7 ORU^R01 / FHIR DiagnosticReport) verildiyse önce ayrıştırılır:
+    // eşleştirme ve kapatma metni iadenin kendisinden türetilir (d-followup).
+    let rawPayloadOutcome: { text: string; warnings: string[]; reason: string } | null = null;
+    if (ob.rawPayload) {
+      const parsed = parseReturnedPayload(ob.rawPayload);
+      if (!parsed.ok || !parsed.result) {
+        return NextResponse.json({ error: `İade ayrıştırılamadı: ${parsed.warnings[0] ?? "bilinmeyen biçim"}`, warnings: parsed.warnings }, { status: 400 });
+      }
+      rawPayloadOutcome = { text: parsed.result.text, warnings: parsed.warnings, reason: parsed.format };
+      if (ob.auto) {
+        const applied = applyReturnedResult(ob.rawPayload, tasks);
+        if (!applied.closed || !applied.task) {
+          // Belirsiz eşleşme otomatik kapatılmaz (hekim seçmeli).
+          await audit(a.user, "notify.followup_return_unmatched", "notification", 0, { reason: applied.reason.slice(0, 120), candidates: applied.ambiguousCandidates });
+          return NextResponse.json({ error: applied.message, reason: applied.reason, candidates: applied.ambiguousCandidates, warnings: applied.warnings }, { status: 409 });
+        }
+        const stampR = new Date();
+        await db.update(notifications).set({
+          status: "tamamlandi", completedAt: stampR,
+          message: `${applied.task.message}\n---\nSonuç (${stampR.toISOString().slice(0, 16).replace("T", " ")}): ${applied.task.outcome ?? ""}`.slice(0, 8000),
+        }).where(eq(notifications.id, applied.task.id));
+        await audit(a.user, "notify.followup_outcome", "notification", applied.task.id, { match: applied.reason, format: parsed.format, chars: applied.task.outcome?.length ?? 0, service: "iade" });
+        return NextResponse.json({ ok: true, id: applied.task.id, match: applied.reason, format: parsed.format, warnings: applied.warnings });
+      }
+    }
     const match = ob.auto
-      ? matchReturnedResult({ reportId: ob.reportId ?? null, studyUid: ob.studyUid, modality: ob.modality, bodyRegion: ob.bodyRegion, text: ob.outcome ?? "" }, tasks)
+      ? matchReturnedResult({ reportId: ob.reportId ?? null, studyUid: ob.studyUid, modality: ob.modality, bodyRegion: ob.bodyRegion, text: rawPayloadOutcome?.text ?? ob.outcome ?? "" }, tasks)
       : { task: tasks.find((t) => t.id === ob.id) ?? null, reason: "Elle seçildi" };
     if (!match.task) return NextResponse.json({ error: match.reason }, { status: 409 });
-    const text = (ob.outcome ?? "").trim();
+    const text = (rawPayloadOutcome?.text ?? ob.outcome ?? "").trim();
     if (text.length < 1) return NextResponse.json({ error: "Sonuç metni gerekli" }, { status: 400 });
     const stamp = new Date();
     await db.update(notifications).set({

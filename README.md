@@ -359,6 +359,21 @@ Rapor alanlarındaki 🎤 düğmesi Web Speech API (tr-TR) kullanır; metin `dic
   `kontrast artır`, `ters çevir`, `pencere daralt`, `geri al`, `kaydet`, `temizle`. Bir parça
   **tamamen** komutsa komut sayılır; "kırık ileri deplase" gibi cümleler metin olarak yazılır.
 
+## Takip iadesi alımı — HL7 ORU / FHIR (d-followup)
+
+`src/lib/followupReturn.ts`; `PATCH /api/notifications {action:"outcome", rawPayload}`.
+
+- **HL7 ORU^R01:** OBX-5 değerleri (`gözlem: değer | …`) birleştirilir; OBX yoksa OBR-4
+  açıklamasına düşer. Tarih OBR-7 → OBR-22 → OBX-14 sırasıyla, yalnız **gerçek tarih
+  biçimindeki** alanlardan alınır (UID sayı dizisi zaman sanılmaz). Çalışma UID'si noktalı
+  DICOM deseniyle aranır; bulunamazsa uyarı yazılır, uydurulmaz.
+- **FHIR DiagnosticReport:** `conclusion` → `presentedForm` (base64) → narrative (`div`
+  etiketleri ayıklanır); `urn:oid:` öneki temizlenir; modalite `code.coding.display`den.
+- **Kapatma kararı:** rapor kimliği → çalışma UID → tek aday. **Belirsiz eşleşme otomatik
+  kapatılmaz**; aday sayısı ve gerekçe döner, `notify.followup_return_unmatched` denetlenir.
+  Hasta kimliği denetim gövdesine yazılmaz, metin 4000 karakterle sınırlanır.
+- 🔔 panelinde **İade bağla** → düz metin / HL7 / FHIR seçimi.
+
 ## Kritik sonuç kapanış kanıtı (d-close-loop)
 
 `src/lib/closeLoopEvidence.ts`, `/api/notifications/comm`, `comm_log` tablosu.
@@ -661,6 +676,7 @@ npm run test:sr1500reg              # TID 1500 ölçüm defteri + kod sözlüğ�
 npm run test:segedit                # kontur izleme + segment düzenleme (c-seg-rtstruct)
 npm run test:lesion3d               # 3B lezyon eşleştirme + rijit hizalama (c-recist-full)
 npm run test:closeloopev            # kapanış kanıt paketi + dış iletişim defteri (d-close-loop)
+npm run test:followupreturn         # HL7 ORU / FHIR iade alımı + kapatma kararı (d-followup)
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)
