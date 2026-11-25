@@ -5,6 +5,7 @@ import { snapPoint } from "@/lib/msk";
 import type { Annotation, Finding, SeriesData, ToolName } from "@/lib/types";
 import { annotationSummary, dist, ellipseTest, pointInPolygon, perpendicular, regionStats, type Pt } from "@/lib/geometry";
 import { buildFusionLayer, type FusionParams } from "@/lib/fusion";
+import { isIdentityRigid, rigidKey } from "@/lib/fusionRigid";
 import { jumpToPatient, refLinesFor, registerPanel, unregisterPanel, usePanelRegistry } from "@/lib/panelRegistry";
 import { planeOf, toPatient } from "@/lib/planes";
 import { buildWindowLUT, windowToRGBA } from "@/lib/window";
@@ -429,7 +430,7 @@ export default function Viewport(props: ViewportProps) {
     let fusCanvas: HTMLCanvasElement | null = null;
     let fusNote = "";
     if (fusion && !series.isColor) {
-      const fkey = `${series.id}|${slice}|${fusion.series.id}|${fusion.alpha}|${fusion.cmap}|${fusion.loPct}|${fusion.hiPct}`;
+      const fkey = `${series.id}|${slice}|${fusion.series.id}|${fusion.alpha}|${fusion.cmap}|${fusion.loPct}|${fusion.hiPct}|${rigidKey(fusion.rigid)}`;
       if (fusRef.current.key !== fkey) {
         const layer = buildFusionLayer(series, slice, fusion);
         if (layer) {
@@ -443,7 +444,8 @@ export default function Viewport(props: ViewportProps) {
         } else fusRef.current = { key: fkey, canvas: null };
       }
       fusCanvas = fusRef.current.canvas;
-      fusNote = fusCanvas ? `FÜZYON · ${fusion.series.modality} ${fusion.series.description} · %${Math.round(fusion.alpha * 100)}` : "Füzyon: konum bilgisi (IPP/IOP/FrameOfReference) uyuşmuyor";
+      const rig = isIdentityRigid(fusion.rigid) ? "" : ` · rijit dx ${(fusion.rigid?.dx ?? 0).toFixed(1)} dy ${(fusion.rigid?.dy ?? 0).toFixed(1)} ${(fusion.rigid?.rotDeg ?? 0).toFixed(1)}°`;
+      fusNote = fusCanvas ? `FÜZYON · ${fusion.series.modality} ${fusion.series.description} · %${Math.round(fusion.alpha * 100)}${rig}` : "Füzyon: konum bilgisi (IPP/IOP/FrameOfReference) uyuşmuyor";
     }
 
     const { scale, ox, oy, dispW, dispH } = getTransform();

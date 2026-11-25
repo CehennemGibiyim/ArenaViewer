@@ -182,8 +182,8 @@ const BASE_ITEMS: GapItem[] = [
     id: "v-fusion", category: "viewing", title: "Füzyon (PET-CT, MR/MR) ve TIC eğrileri",
     status: "kismi", priority: "P3", effort: "L",
     market: ["RadiAnt", "Horos", "MedDream", "Weasis"],
-    ours: "**Kısmen:** `src/lib/fusion.ts` + Viewport füzyon katmanı (PET-CT/MR-MR) hasta koordinatlarına yeniden örneklenerek çizilir, opaklık kaydırıcılı. Eksik: TIC eğrileri ve SUV bazlı tetik/gerçek zamanlı perfüzyon haritası yok.",
-    action: "Kayıt (registration) + alfa karışımı; SUV hesabı.",
+    ours: "Füzyon: ikinci seri (ör. PET) hasta koordinatlarına göre ana serinin üzerine bindirilir (yeniden örnekleme, renk haritası, opaklık, eşik); gerçek DICOM ile PET sıcak noktasının BT'deki tümörle hizası doğrulandı. **Yeni — katı hizalama:** `src/lib/fusionRigid.ts` kesit içi öteleme + dönme + izotropik ölçek; kabadan inceye NCC taraması (indirgeme 4→2→1, aday parametreler tam çözünürlükte, yalnız örtüşen piksellerde Pearson), `applyRigid` bilineer ters dönüşüm (görüntü dışı NaN → şeffaf), `composeRigid`/`rigidKey`/`rigidTrusted(MIN 0.35)`. Füzyon panelinde X/Y kaydırma, dönme, ölçek kaydırıcıları + **«Otomatik hizala (NCC)»** (ana kesit ↔ yeniden örneklenmiş füzyon kesiti) + sıfırla; sonuç `FusionParams.rigid` ile katmana ve görüntü notuna yansır (önbellek anahtarı rijit parametreyi içerir). Sentetik öteleme/dönme kestirimi ve katman kaydırma 36 testle doğrulandı. KALAN: **deformable/elastik** kayıt, **TIC (zaman-yoğunluk) eğrileri**, MR/MR otomatik dizi hizalaması, kesitler arası (z) kayma.",
+    action: "Deformable (B-spline/elastik) kayıt ve dinamik serilerden TIC eğrisi çıkarımı (Tip 1/2/3 sınıflama) ekle.",
   },
   {
     id: "v-perf", category: "viewing", title: "Büyük çalışmalarda performans (GPU, kademeli yükleme, Web Worker)",

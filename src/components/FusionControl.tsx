@@ -3,27 +3,53 @@
 import { useState } from "react";
 import type { SeriesData } from "@/lib/types";
 import { CMAPS, type CmapName } from "@/lib/fusion";
-import { sameFrame } from "@/lib/planes";
+import { sameFrame, resampleOnto } from "@/lib/planes";
+import { estimateRigid, isIdentityRigid, normalizeRigid, rigidNote, rigidTrusted, type RigidParams } from "@/lib/fusionRigid";
 
-export interface FusionConfig { seriesId: string; alpha: number; cmap: CmapName; loPct: number; hiPct: number }
+export interface FusionConfig { seriesId: string; alpha: number; cmap: CmapName; loPct: number; hiPct: number; rigid?: RigidParams }
 
 interface Props {
   all: SeriesData[];
   primary: SeriesData | null;
   cfg: FusionConfig | null;
   onChange: (c: FusionConfig | null) => void;
+  /** Ana serinin görüntülenen kesiti (katı hizalama bu kesitte hesaplanır). */
+  slice?: number;
 }
 
 /** Füzyon (ör. PET → BT): ikinci seriyi hasta koordinatlarına göre ana serinin üzerine bindirir. */
-export default function FusionControl({ all, primary, cfg, onChange }: Props) {
+export default function FusionControl({ all, primary, cfg, onChange, slice = 0 }: Props) {
   const [open, setOpen] = useState(false);
+  const [align, setAlign] = useState<{ busy: boolean; note: string }>({ busy: false, note: "" });
   const candidates = all.filter((s) => primary && s.id !== primary.id && (!s.specialType || s.specialType === "image") && !s.isColor && s.slices.length > 0 && !!s.ipp && !!s.orientation && sameFrame(primary, s));
   const active = !!cfg;
   const set = (patch: Partial<FusionConfig>) => cfg && onChange({ ...cfg, ...patch });
   const choose = (id: string) => {
     const s = all.find((x) => x.id === id);
     if (!s) { onChange(null); return; }
+    setAlign({ busy: false, note: "" });
     onChange({ seriesId: id, alpha: 0.5, cmap: s.modality === "PT" || s.modality === "NM" ? "hot" : "rainbow", loPct: s.modality === "PT" ? 15 : 20, hiPct: s.modality === "PT" ? 80 : 100 });
+  };
+  const setRigid = (patch: Partial<RigidParams>) => cfg && onChange({ ...cfg, rigid: normalizeRigid({ ...(cfg.rigid ?? {}), ...patch }) });
+
+  // Otomatik katı hizalama: ana kesit ile yeniden örneklenmiş füzyon kesiti
+  // arasında NCC taraması. Sonuç yalnız öneridir; hekim görsel doğrular.
+  const autoAlign = async () => {
+    if (!cfg || !primary) return;
+    const other = all.find((x) => x.id === cfg.seriesId);
+    if (!other) return;
+    setAlign({ busy: true, note: "Hesaplanıyor…" });
+    await new Promise((r) => setTimeout(r, 16));
+    const idx = Math.min(Math.max(0, slice), primary.slices.length - 1);
+    const ref = primary.slices[idx];
+    const mov = resampleOnto(primary, idx, other);
+    if (!ref || !mov) {
+      setAlign({ busy: false, note: "Hizalama için konum bilgisi (IPP/IOP) eksik." });
+      return;
+    }
+    const est = estimateRigid(ref, mov, primary.width, primary.height, { maxShift: 25, maxRotDeg: 12 });
+    onChange({ ...cfg, rigid: est.rigid });
+    setAlign({ busy: false, note: rigidNote(est, rigidTrusted(est)) });
   };
   return (
     <div className="relative shrink-0">
@@ -63,7 +89,32 @@ export default function FusionControl({ all, primary, cfg, onChange }: Props) {
                       {(Object.keys(CMAPS) as CmapName[]).map((k) => <option key={k} value={k}>{CMAPS[k]}</option>)}
                     </select>
                   </label>
-                  <p className="text-[10px] leading-relaxed text-slate-500">Eşikler, bindirilen serinin maksimumunun (%99,99) yüzdesidir. Kayıt (registrasyon) yapılmaz; yalnızca DICOM koordinatlarına dayanır. Hareket/solunum kaymaları görünebilir.</p>
+                  <div className="space-y-1 rounded border border-[#1e2735] px-2 py-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-slate-300">Katı hizalama</span>
+                      <span className="font-mono text-[10px] text-slate-500">{isIdentityRigid(cfg.rigid) ? "kapalı" : "etkin"}</span>
+                    </div>
+                    <label className="flex items-center justify-between gap-2">Kaydırma X {Math.round(cfg.rigid?.dx ?? 0)} px
+                      <input type="range" min={-50} max={50} step={1} value={Math.round(cfg.rigid?.dx ?? 0)} onChange={(e) => setRigid({ dx: Number(e.target.value) })} className="w-28" aria-label="Füzyon kaydırma X" />
+                    </label>
+                    <label className="flex items-center justify-between gap-2">Kaydırma Y {Math.round(cfg.rigid?.dy ?? 0)} px
+                      <input type="range" min={-50} max={50} step={1} value={Math.round(cfg.rigid?.dy ?? 0)} onChange={(e) => setRigid({ dy: Number(e.target.value) })} className="w-28" aria-label="Füzyon kaydırma Y" />
+                    </label>
+                    <label className="flex items-center justify-between gap-2">Dönme {(cfg.rigid?.rotDeg ?? 0).toFixed(1)}°
+                      <input type="range" min={-30} max={30} step={0.5} value={cfg.rigid?.rotDeg ?? 0} onChange={(e) => setRigid({ rotDeg: Number(e.target.value) })} className="w-28" aria-label="Füzyon dönme" />
+                    </label>
+                    <label className="flex items-center justify-between gap-2">Ölçek {(cfg.rigid?.scale ?? 1).toFixed(3)}
+                      <input type="range" min={0.85} max={1.15} step={0.005} value={cfg.rigid?.scale ?? 1} onChange={(e) => setRigid({ scale: Number(e.target.value) })} className="w-28" aria-label="Füzyon ölçek" />
+                    </label>
+                    <div className="flex items-center gap-1">
+                      <button type="button" onClick={() => void autoAlign()} disabled={align.busy} className="cursor-pointer rounded border border-cyan-400/40 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-semibold text-cyan-200 disabled:opacity-50">
+                        {align.busy ? "Hesaplanıyor…" : "Otomatik hizala (NCC)"}
+                      </button>
+                      <button type="button" onClick={() => { setRigid({ dx: 0, dy: 0, rotDeg: 0, scale: 1 }); setAlign({ busy: false, note: "" }); }} className="cursor-pointer rounded border border-[#2d3b4e] bg-[#111823] px-2 py-0.5 text-[10px] text-slate-300">Sıfırla</button>
+                    </div>
+                    {align.note && <p className="text-[10px] leading-snug text-amber-200/80">{align.note}</p>}
+                  </div>
+                  <p className="text-[10px] leading-relaxed text-slate-500">Eşikler, bindirilen serinin maksimumunun (%99,99) yüzdesidir. Otomatik hizalama yalnız <b>kesit içi katı</b> dönüşüm (öteleme/dönme/ölçek) kestirir; kesitler arası kayma ve elastik kayıt yoktur. Sonuç tanı aracı değildir, görsel doğrulama gerekir.</p>
                 </>
               )}
             </div>

@@ -1669,7 +1669,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         </select>
         <Btn onClick={savePreset}>＋ Ön ayar</Btn>
         <div className="mx-1 h-5 w-px shrink-0 bg-[#1e2735]" />
-        <FusionControl all={all} primary={isImageSeries ? series : null} cfg={fusionCfg} onChange={setFusionCfg} />
+        <FusionControl all={all} primary={isImageSeries ? series : null} cfg={fusionCfg} onChange={setFusionCfg} slice={slice} />
         <Btn on={refLinesOn} tone="violet" onClick={() => { setRefLinesOn((v) => { setRefLines(!v); return !v; }); }} title="Çapraz referans çizgileri: diğer panellerin kesit düzlemlerini bu görüntüde çizgi olarak göster">Ref. çizgi</Btn>
         <Btn tone="amber" onClick={captureKey} title="Anahtar kesit ekle (K)">★ Anahtar kesit{keyImages.length ? ` (${keyImages.length})` : ""}</Btn>
         {pxOverride[series?.id ?? ""] && <span className="shrink-0 rounded border border-emerald-400/30 px-1.5 py-0.5 text-[10px] text-emerald-300">kalibre</span>}

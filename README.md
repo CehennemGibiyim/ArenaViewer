@@ -43,6 +43,10 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
 - **Akciğer kantitasyonu:** Araç çubuğu → 🫁 Akciğer (CT): LAA-950 (emfizem
   oranı), ortalama HU, PD15, tahmini hacim ve **kesit dağılım profili**. Gövde
   dışı hava dışlanır; lob/fissür ayrımı yoktur, DSBG ile birlikte değerlendirilir.
+- **Füzyon katı hizalaması:** PET/BT bindirmesinde kesit içi **öteleme + dönme +
+  ölçek**; «Otomatik hizala (NCC)» kabadan inceye tarama yapar, kaydırıcılarla elle
+  ince ayar yapılır. Deformable kayıt ve TIC eğrileri henüz yoktur; sonuç tanı
+  aracı değildir, görsel doğrulama gerekir.
 - **İkinci okuma (RADPEER):** rapor ekranındaki uyum kaydına ek olarak Yönetim →
   İş akışı'nda **RADPEER panosu**: deterministik **örneklem** (oran ayarlanabilir,
   varsayılan %5), hedef takibi (beklenen/kalan), uyum oranı, puan dağılımı,
