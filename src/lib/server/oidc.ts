@@ -1,4 +1,5 @@
 import { createHash, createHmac, createPublicKey, randomBytes, timingSafeEqual, verify as verifySignature, type JsonWebKeyInput } from "node:crypto";
+import { sanitizeUsername } from "./usernames";
 
 /**
  * KURUMSAL KİMLİK — OpenID Connect (authorization code + PKCE).
@@ -260,24 +261,8 @@ function str(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
 }
 
-/** Kullanıcı adına çevirir: harf/rakam/._- dışını noktaya indirger, 3–40 karakter. */
-export function sanitizeUsername(raw: string): string {
-  const base = (raw ?? "")
-    // Türkçe noktasız "ı" NFKD ile ayrışmadığı için açıkça eşlenir; İ→I sonra küçülür.
-    .replace(/ı/g, "i")
-    .replace(/İ/g, "I")
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    // Not: bilinçli olarak yerel ayardan bağımsız küçültme — Türkçe yerelde "I"→"ı"
-    // olur ve grup adları (ör. RAD-YONETICI) eşleşmezdi.
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, ".")
-    .replace(/\.{2,}/g, ".")
-    .replace(/^[._-]+|[._-]+$/g, "")
-    .slice(0, 40);
-  if (base.length >= 3) return base;
-  return `oidc.${createHash("sha256").update(raw || "bos").digest("hex").slice(0, 8)}`;
-}
+/** Kullanıcı adı normalizasyonu ortak modülden (LDAP ile aynı kural). */
+export { sanitizeUsername } from "./usernames";
 
 /**
  * Kimlik taleplerini hesap alanlarına çevirir.

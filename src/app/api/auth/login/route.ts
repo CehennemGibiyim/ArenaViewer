@@ -3,7 +3,9 @@ import { verify as verifyTotp } from "otplib";
 import { ACCESS_COOKIE, accessEnabled, checkToken } from "@/lib/server/access";
 import { audit } from "@/lib/server/audit";
 import { authRequired } from "@/lib/server/auth";
-import { attemptLogin, lockRemainingMinutes, lockoutPolicy, recordFailedAttempt, recordSuccessfulLogin, totpRequiredFor, toUserInfo } from "@/lib/server/accounts";
+import { attemptLogin, lockRemainingMinutes, lockoutPolicy, recordFailedAttempt, recordSuccessfulLogin, totpRequiredFor, toUserInfo, type AccountRecord } from "@/lib/server/accounts";
+import { ldapAuthenticate } from "@/lib/server/ldapAuth";
+import { ldapConfig } from "@/lib/server/ldap";
 import { issueSessionCookie, SESSION_COOKIE } from "@/lib/server/session";
 import { createSession } from "@/lib/server/sessions";
 import { oidcConfig } from "@/lib/server/oidc";
@@ -56,7 +58,14 @@ export async function POST(req: NextRequest) {
 
   // ── Parola + kilit durumu ────────────────────────────────────────────────
   const attempt = await attemptLogin(username, password);
-  if (!attempt.ok) {
+  let acc: AccountRecord;
+  /** Denetim kaydına yazılacak kimlik doğrulama yöntemi. */
+  let authMethod: "parola" | "ldap" = "parola";
+  let ldapInfo: { created: boolean; linked: boolean; roleUpgraded: boolean } | null = null;
+
+  if (attempt.ok) {
+    acc = attempt.account;
+  } else {
     if (attempt.kind === "locked") {
       const mins = lockRemainingMinutes(attempt.lockedUntil) || 1;
       try {
@@ -74,15 +83,39 @@ export async function POST(req: NextRequest) {
         { status: 423 }
       );
     }
-    if (attempt.kind === "bad") {
-      return NextResponse.json(
-        { error: `Kullanıcı adı veya parola hatalı. Kalan deneme: ${attempt.remaining}`, remainingAttempts: attempt.remaining },
-        { status: 401 }
-      );
+    // Pasif hesap LDAP ile de atlanmaz: yerel hesap kapalıysa giriş yok.
+    if (attempt.kind === "inactive") {
+      return NextResponse.json({ error: "Kullanıcı adı veya parola hatalı" }, { status: 401 });
     }
-    return NextResponse.json({ error: "Kullanıcı adı veya parola hatalı" }, { status: 401 });
+
+    // ── Kurumsal dizin (LDAP/AD) ────────────────────────────────────────────
+    // Yalnız yerel parola doğrulanamadığında denenir; kilitli/pasif hesap için
+    // denenmez (yukarıda dönüldü). Bağlayıcı kapalıysa anında "kapali" döner.
+    const ldap = await ldapAuthenticate(username, password);
+    if (ldap.ok) {
+      acc = ldap.account;
+      authMethod = "ldap";
+      ldapInfo = { created: ldap.created, linked: ldap.linked, roleUpgraded: ldap.roleUpgraded };
+    } else {
+      if (ldap.reason === "sunucu") {
+        // Dizin sunucusu hatası: "parola hatalı" demek yanıltıcı ve teşhisi zorlaştırır.
+        return NextResponse.json(
+          { error: `Kurumsal dizin sunucusuna ulaşılamadı${ldap.detail ? `: ${ldap.detail}` : ""}` },
+          { status: 503 }
+        );
+      }
+      if (ldap.reason === "hesap") {
+        return NextResponse.json({ error: ldap.detail ?? "Bu dizin kimliği için yetkili bir hesap yok" }, { status: 403 });
+      }
+      if (attempt.kind === "bad") {
+        return NextResponse.json(
+          { error: `Kullanıcı adı veya parola hatalı. Kalan deneme: ${attempt.remaining}`, remainingAttempts: attempt.remaining },
+          { status: 401 }
+        );
+      }
+      return NextResponse.json({ error: "Kullanıcı adı veya parola hatalı" }, { status: 401 });
+    }
   }
-  const acc = attempt.account;
 
   // ── İki faktörlü doğrulama ──────────────────────────────────────────────
   if (acc.twoFactorEnabled || totpRequiredFor(acc.role)) {
@@ -160,7 +193,12 @@ export async function POST(req: NextRequest) {
     });
   }
   try {
-    await audit({ id: acc.id, username: acc.username }, "auth.login", "user", acc.id, { mfa: acc.twoFactorEnabled });
+    await audit({ id: acc.id, username: acc.username }, "auth.login", "user", acc.id, {
+      mfa: acc.twoFactorEnabled,
+      session: sid.slice(0, 8),
+      method: authMethod,
+      ...(ldapInfo ? { ldap: ldapInfo } : {}),
+    });
   } catch {
     /* denetim yazılamadı diye girişi engelleme */
   }
@@ -179,5 +217,8 @@ export async function GET() {
       const c = oidcConfig();
       return c ? { enabled: true, label: c.label } : { enabled: false, label: "" };
     })(),
+    // LDAP/AD aynı kullanıcı adı+parola formunu kullanır; istemciye yalnız
+    // dizinin etkin olduğu bilgisi verilir (ipucu metni).
+    ldap: { enabled: ldapConfig() !== null },
   });
 }

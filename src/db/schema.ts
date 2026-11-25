@@ -36,7 +36,9 @@ export const users = pgTable("users", {
   /** Kurumsal kimlik bağlantısı (OIDC): veren kurum ve kimliğin kalıcı kimliği. */
   oidcIssuer: text("oidc_issuer").notNull().default(""),
   oidcSubject: text("oidc_subject").notNull().default(""),
-}, (t) => [index("users_oidc_idx").on(t.oidcIssuer, t.oidcSubject)]);
+  /** LDAP/AD bağlantısı: dizindeki ayırt edici ad (küçük harfe indirgenmiş). */
+  ldapDn: text("ldap_dn").notNull().default(""),
+}, (t) => [index("users_oidc_idx").on(t.oidcIssuer, t.oidcSubject), index("users_ldap_idx").on(t.ldapDn)]);
 
 /**
  * Sunucu tarafı oturum kaydı — "aktif oturum listesi / iptali" için.

@@ -418,6 +418,11 @@ ayarı. S3 istemcisi AWS SigV4 kullanır (AWS/MinIO/R2/Wasabi uyumlu).
 | `OIDC_CLIENT_SECRET` / `OIDC_REDIRECT_URI` | Hayır | Confidential client sırrı ve sabit dönüş adresi (ters vekil arkasında önerilir) |
 | `OIDC_ADMIN_GROUP` / `OIDC_DEFAULT_ROLE` | Hayır | Yönetici yapan grup adı ve yeni SSO hesaplarının rolü (varsayılan `radyolog`) |
 | `OIDC_AUTO_PROVISION` / `OIDC_LINK_BY_EMAIL` / `OIDC_SKIP_TOTP` | Hayır | Otomatik hesap açma, doğrulanmış e-posta ile hesap devralma ve SSO'da uygulama TOTP'sini atlama (`0` ile kapatılır) |
+| `LDAP_URL` + `LDAP_BASE_DN` | Hayır | LDAP/AD bağlayıcısı — `ldap://`/`ldaps://` ve arama kökü. İkisi geçerliyse giriş formu dizin hesabıyla da çalışır. Ayrıntı: [docs/LDAP.md](docs/LDAP.md) |
+| `LDAP_BIND_DN` / `LDAP_BIND_PASSWORD` | Hayır | Kullanıcı araması için servis hesabı (yalnız okuma yeterli). Boşsa şablon modu kullanılır |
+| `LDAP_USER_DN_TEMPLATE` / `LDAP_USER_FILTER` | Hayır | Servis hesabı olmadan DN şablonu (`uid={username},…`) ya da özel arama filtresi (`{username}` kaçırılır) |
+| `LDAP_ADMIN_GROUP` / `LDAP_DEFAULT_ROLE` / `LDAP_AUTO_PROVISION` | Hayır | Yönetici yapan grup (DN ya da CN), yeni hesapların rolü ve ilk girişte otomatik hesap açma |
+| `LDAP_ATTR_NAME` / `LDAP_ATTR_MAIL` / `LDAP_ATTR_GROUPS` / `LDAP_TIMEOUT_MS` | Hayır | Dizin öznitelik eşlemesi (varsayılan `cn`/`mail`/`memberOf`) ve zaman aşımı (1–30 sn) |
 | `AUTH_LOCK_MINUTES` | Hayır | Kilit süresi, dakika (varsayılan 15) |
 | `LLM_API_URL` / `LLM_API_KEY` / `LLM_MODEL` | Hayır | Taslak izlenim LLM'i (yoksa kural tabanlı yedek). Ücretsiz yerel yol: [docs/OLLAMA.md](docs/OLLAMA.md) |
 | `AI_WORKER_URL` | Hayır | Yerel derin AI worker adresi (varsayılan `http://127.0.0.1:8787`) |
@@ -517,6 +522,7 @@ export DATABASE_URL=postgres://atik@127.0.0.1:5432/atik
 npm run db:push                     # drizzle şemasını uygula
 AV_RATE_LIMIT=off npm start &       # testte hız sınırı kapalı (CSRF açık kalır)
 npm run test:oidc                   # kurumsal giriş çekirdeği (PKCE, state, RS256, eşleme)
+npm run test:ldap                   # LDAP çekirdeği (BER, filtre/DN kaçışı, ayrıştırma)
 npm run test:db-api                 # 51 kontrol: ölçüm geçmişi, RADPEER, model uçları
 npm run db:local:stop
 ```
@@ -634,6 +640,16 @@ docs/             Yayınlama ve işletim kılavuzları
   yönetici yapar) ya da doğrulanmış e-postayla mevcut hesap devralınır; SSO oturumu
   da `sessions` kaydına yazılır ve Oturumlar ekranından iptal edilebilir. Kurulum ve
   güvenlik kararları: [docs/OIDC.md](docs/OIDC.md).
+- **Kurumsal giriş / dizin (LDAP-AD):** `LDAP_URL` + `LDAP_BASE_DN` (servis
+  hesabıyla arama) ya da `LDAP_USER_DN_TEMPLATE` (doğrudan bind) tanımlıysa aynı
+  `/giris` formu dizin hesabıyla da girer: kullanıcı adı+parola yerel hesapta
+  doğrulanamazsa dizin sunucusuna sorulur, parola **kullanıcının kendi DN'iyle
+  yeniden bind edilerek** doğrulanır (parola uygulamada saklanmaz). Dizin DN'i
+  `users.ldap_dn` alanına yazılır; `LDAP_ADMIN_GROUP` üyeliği yönetici yapar;
+  kilitli/pasif hesap dizinle atlanmaz; boş parola ağa hiç çıkmaz (anonim bind
+  koruması); filtre/DN değerleri RFC 4515/4514 ile kaçırılır. Dizin sunucusu
+  yoksa "parola hatalı" yerine 503 + açıklama döner. Kurulum, güvenlik kararları
+  ve sınırlar: [docs/LDAP.md](docs/LDAP.md).
 - **İki faktörlü doğrulama (F2):** `REQUIRE_TOTP_FOR_ROLES` (varsayılan `yonetici`)
   bu rollere sahip hesaplara TOTP/MFA şart koşar; Yönetim → Profil & MFA ekranından
   authenticator uygulamasıyla kurulur. Hesap MFA kurmadan giriş yapamaz, denetim

@@ -11,6 +11,8 @@ export interface LoginMode {
   lockout?: { max: number; minutes: number };
   /** Kurumsal giriş (OIDC) yapılandırıldıysa düğme gösterilir. */
   oidc?: { enabled: boolean; label?: string };
+  /** LDAP/AD etkinse aynı formun dizin hesabıyla da çalıştığı yazılır. */
+  ldap?: { enabled: boolean };
 }
 
 /** Callback'in döndürdüğü hata kodlarının kullanıcıya gösterilecek karşılığı. */
@@ -172,6 +174,11 @@ export default function LoginForm({ mode }: { mode: LoginMode }) {
         <p role="alert" className={`text-xs ${locked ? "rounded-lg border border-rose-400/30 bg-rose-400/10 px-2.5 py-2 font-semibold text-rose-200" : "text-rose-300"}`}>
           {locked ? "🔒 " : ""}
           {error}
+        </p>
+      )}
+      {accountRequired && mode.ldap?.enabled && (
+        <p className="text-[11px] text-slate-500" data-testid="ldap-hint">
+          Kurum dizini (LDAP/AD) etkin: aynı formdan dizin hesabınızla da girebilirsiniz.
         </p>
       )}
       {accountRequired && mode.lockout && !error && (

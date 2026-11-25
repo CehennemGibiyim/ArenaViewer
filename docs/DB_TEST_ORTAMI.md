@@ -74,12 +74,29 @@ yönetici grubu (yükseltme, düşürmeme), doğrulanmış e-posta ile bağlama,
 e-posta reddi, state/nonce/imza/token hata yolları, otomatik açma kapalı, MFA
 zorunluluğu ve yapılandırma yokluğu. Saf çekirdek: `npm run test:oidc`.
 
+Kurumsal dizin (LDAP/AD) için test kendi **sahte dizin sunucusunu** başlatır
+(gerçek TCP + BER: BindRequest/SearchRequest ayrıştırılır) ve gerçek PostgreSQL'e
+hesap açar — bkz. `docs/LDAP.md`:
+
+```bash
+DATABASE_URL=postgres://atik@127.0.0.1:5432/atik AUTH_INTEGRATION_TEST=1 \
+  npm run test:ldap-integration
+```
+
+Sonuç: **9 blok PASS** — ilk giriş (servis bind → arama → kullanıcı bind → hesap +
+oturum + `"method":"ldap"`), tekrar giriş (mükerrer hesap yok), yönetici grubu
+yükseltmesi, hatalı/boş parola (boş parola dizine **hiç** gitmez) ve bilinmeyen
+kullanıcı, filtre enjeksiyonu, otomatik açma kapalı (403), pasif hesabın dizinle
+atlanmaması, doğrudan bind modu (tek bind) ve dizin sunucusu kapalıyken 503.
+Saf çekirdek: `npm run test:ldap` (ağ yok).
+
 Kilit ayarları testte/deployda ortam değişkeniyle verilir:
 `AUTH_LOCK_MAX_FAILURES` (varsayılan 5) ve `AUTH_LOCK_MINUTES` (varsayılan 15).
 Oturum kayıtları `sessions` tablosundadır; `db:push` bu tabloyu ve
 `users.failed_login_count`/`users.locked_until` kolonlarını ekler. Kurumsal giriş
 için `users.oidc_issuer`/`users.oidc_subject` kolonları ve `users_oidc_idx`
-indeksi aynı komutla gelir.
+indeksi, LDAP için `users.ldap_dn` kolonu ve `users_ldap_idx` indeksi aynı komutla
+gelir.
 
 ## 2) Playwright tarayıcısı — npm'den Chromium
 

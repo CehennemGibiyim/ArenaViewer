@@ -6,6 +6,7 @@ import { authRequired } from "@/lib/server/auth";
 import { hasAnyActiveUser } from "@/lib/server/accounts";
 import { lockoutPolicy } from "@/lib/server/lockout";
 import { oidcConfig } from "@/lib/server/oidc";
+import { ldapConfig } from "@/lib/server/ldap";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "ATIKVIEWER — Giriş" };
@@ -46,6 +47,7 @@ export default async function GirisPage() {
                   const c = oidcConfig();
                   return c ? { enabled: true, label: c.label } : { enabled: false };
                 })(),
+                ldap: { enabled: ldapConfig() !== null },
               }}
             />
           )}
