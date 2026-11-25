@@ -573,8 +573,8 @@ const BASE_ITEMS: GapItem[] = [
     id: "c-seg-rtstruct", category: "measure", title: "Segmentasyon editörü + DICOM SEG/RTSTRUCT dışa aktarma",
     status: "kismi", priority: "P1", effort: "M",
     market: ["3D Slicer", "OHIF"],
-    ours: "Motor aday maskesi salt-okunur örtü; düzenleme ve SEG/RTSTRUCT çıktısı yok.",
-    action: "Fırça/eşik/SAM düzenleme; hacim; SEG/RTSTRUCT üretimi ve rapora aktarım.",
+    ours: "**Bu sürümde eklendi:** `src/lib/segmentation.ts` — fırça/silgi, eşik dolgusu, tohumdan bölge büyütme, kesit kopyalama, hacim (px×py×dilim, mL), maske JSON kalıcılığı. `src/lib/dicomSeg.ts` — DICOM **SEG** (1 bit/piksel, segment başına etiket/renk/algoritma türü, çerçeve = segment×kesit) ve **RTSTRUCT** (maske sınırlarından CLOSED_PLANAR konturlar, ROI gözlemleri). Dışa aktar menüsünden (Segmentasyon → DICOM SEG / RTSTRUCT). dicom-parser ile okunabilirlik ve maske↔piksel birebirliği test edildi. KALAN: düzenleme arayüzü (tuval üzerinde fırça), SAM/AI tohumlama, interaktif kontur düzeltme; kontur konkav segmentlerde dış zarfa yaklaşır.",
+    action: "Tuval içi fırça arayüzü + AI tohumlama; konturların tam kenar izleme (marching squares) ile düzeltilmesi.",
   },
   {
     id: "c-recist-full", category: "measure", title: "RECIST tamamlayıcıları: lenf nodu, non-hedef lezyon, otomatik lezyon eşleştirme",

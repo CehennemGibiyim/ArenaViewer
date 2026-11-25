@@ -7,6 +7,8 @@ import { buildKeyObjectSelection, buildPresentationState } from "@/lib/dicomSr";
 import { planKeyObject } from "@/lib/pacsSend";
 import { annotationsToMeasurements, exportCoverage, siteCode } from "@/lib/measurementExport";
 import { buildMeasurementReportSr } from "@/lib/sr1500";
+import { buildRtStruct, buildSegDocument } from "@/lib/dicomSeg";
+import { emptyMask, makeSegmentDef, paint, prune } from "@/lib/segmentation";
 
 interface Props {
   series: SeriesData | null;
@@ -112,6 +114,62 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
     toast(`TID 1500 SR indirildi: ${measurements.length} sayısal ölçüm${cov.skipped.length ? ` (yazılmayan: ${cov.skipped.join(", ")})` : ""}.`, 6000);
   };
 
+  /**
+   * Ekran işaretlerinden segmentasyon → DICOM SEG / RTSTRUCT.
+   * Kaynak: kapalı şekiller (elips/dikdörtgen/çokgen) ve uzunluk/elipsoid
+   * işaretlerinin orta noktasına küçük fırça izi. AI örtüsü düzenlenebilir maske değildir.
+   */
+  const exportSeg = (kind: "seg" | "rtstruct") => {
+    setOpen(false);
+    if (!series) { toast("Önce bir görüntü serisi açın."); return; }
+    if (!series.seriesUid || !series.sopClassUid || !series.sopUids?.length) {
+      toast("Bu seride SOP Instance UID bilgisi yok; SEG/RTSTRUCT yalnızca gerçek DICOM serileri için üretilir.", 7000);
+      return;
+    }
+    const w = series.width, h = series.height;
+    const shapes = annotations.filter((a) => ["ellipse", "rect", "polygon", "length", "ellipsoid"].includes(a.kind));
+    if (!shapes.length) { toast("Önce görüntü üzerinde en az bir şekil/ölçüm işaretleyin.", 6000); return; }
+    const mask = emptyMask(w, h);
+    const brush = (cx: number, cy: number, r: number) => paint(mask, 0, Math.round(cx), Math.round(cy), r);
+    for (const a of shapes) {
+      const p = a.points;
+      if (!p.length) continue;
+      if (a.kind === "polygon") {
+        // Çokgen: köşeler arasını doldur (kenar çizgisi + iç dolgu yaklaşımı).
+        for (let i = 0; i < p.length; i++) {
+          const q = p[(i + 1) % p.length];
+          const steps = Math.max(1, Math.round(Math.hypot(q.x - p[i].x, q.y - p[i].y)));
+          for (let k = 0; k <= steps; k++) brush(p[i].x + ((q.x - p[i].x) * k) / steps, p[i].y + ((q.y - p[i].y) * k) / steps, 1);
+        }
+      } else if (p.length >= 2) {
+        const cx = (p[0].x + p[1].x) / 2, cy = (p[0].y + p[1].y) / 2;
+        const r = Math.max(2, Math.round(Math.min(Math.abs(p[1].x - p[0].x), Math.abs(p[1].y - p[0].y)) / 2));
+        brush(cx, cy, Math.min(r, 40));
+      }
+    }
+    prune(mask);
+    if (!mask.slices.size) { toast("İşaretlerden maske üretilemedi (kesit/koordinat eksik).", 6000); return; }
+    const geo = {
+      pxMm: pxMm > 0 ? pxMm : 1,
+      pyMm: series.pixelSpacing > 0 ? series.pixelSpacing : 1,
+      dz: (series.sliceSpacing ?? series.sliceThickness) > 0 ? (series.sliceSpacing ?? series.sliceThickness) : 1,
+      origin: (series.ipp?.[0] ?? [0, 0, 0]) as [number, number, number],
+    };
+    const base = {
+      patientName: series.patientName, patientId: series.patientId, patientSex: series.patientSex,
+      studyUid: series.studyUid, studyDate: series.studyDate, institution: series.institution,
+      source: { seriesUid: series.seriesUid, sopClassUid: series.sopClassUid, sopUids: series.sopUids },
+      frameOfReferenceUid: series.frameOfRef, geometry: geo, width: w, height: h,
+    };
+    const def = makeSegmentDef(1, bodyPart ? `${bodyPart} işaretli alan` : "İşaretli alan", "MANUAL");
+    const bytes = kind === "seg"
+      ? buildSegDocument({ ...base, segments: [{ def, mask }] })
+      : buildRtStruct({ ...base, rois: [{ def, mask }] });
+    const ext = kind === "seg" ? "SEG" : "RTSTRUCT";
+    download(new Blob([bytes.slice().buffer as ArrayBuffer], { type: "application/dicom" }), `${ext}-${series.modality}-${mask.slices.size}-kesit.dcm`);
+    toast(`${ext} indirildi (${mask.slices.size} kesit). Hekim düzenlemesine açıktır; AI örtüsü maske değildir.`, 7000);
+  };
+
   /** KO/PR nesnesini PACS'e STOW-RS ile gönderir (rapor SR'ı rapor penceresinden gider). */
   const sendToPacs = async (kind: "ko" | "pr") => {
     setOpen(false);
@@ -148,6 +206,8 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
           <button className={item} onClick={exportPr} title="Pencere, döndürme ve çevirme ayarlarını GSPS belgesi olarak kaydeder">🖼 Görünüm → DICOM PR (sunum durumu)</button>
           <div className="my-1 border-t border-[#1e2735]" />
           <button className={item} disabled={sending !== null} onClick={() => void sendToPacs("ko")}>☁ Anahtar kesitler → PACS&apos;e gönder (KO)</button>
+          <button className={item} onClick={() => exportSeg("seg")} title="İşaretli alanlardan DICOM Segmentasyon (SEG, 1 bit/piksel) üretir">🧩 Segmentasyon → DICOM SEG</button>
+          <button className={item} onClick={() => exportSeg("rtstruct")} title="İşaretli alanlardan RTSTRUCT (ROI konturları) üretir">🧩 Segmentasyon → RTSTRUCT</button>
           <button className={item} onClick={exportSr1500} title="Ölçümleri TID 1500 yapılandırılmış rapor (Comprehensive SR) olarak indirir">📐 Ölçümler → DICOM SR (TID 1500)</button>
           <button className={item} disabled={sending !== null} onClick={() => void sendToPacs("pr")} title="Pencere/döndürme ayarını GSPS olarak PACS'e yazar">☁ Görünüm (PR) → PACS&apos;e gönder</button>
           <div className="px-3 py-1 text-[10px] leading-relaxed text-slate-500">Video/PNG görüntü verisini olduğu gibi aktarır; kimlik bilgisi içermez ama anonimleştirme/DICOM etiketi taşımaz.</div>
