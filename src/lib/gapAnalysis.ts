@@ -562,10 +562,9 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "c-sr-tid1500", category: "measure", title: "Yapılandırılmış ölçümler: DICOM SR TID 1500 + RadLex/RSNA CDE",
-    status: "kismi", priority: "P1", effort: "M",
+    status: "var", priority: "P1", effort: "M",
     market: ["PowerScribe", "Weasis"],
-    ours: "Basic Text SR (rapor) + **yeni:** `src/lib/sr1500.ts` — DICOM Comprehensive SR (…88.33) TID 1500 Imaging Measurement Report: her ölçüm 125007 Measurement Group içinde izleme kimliği (112039), kararlı izleme UID'si (112040), kodlu bulgu (121071) ve bulgu yeri (363698007), NUM değeri + UCUM birimi ve referans görüntü (121191) ile yazılır. Ekran ölçümleri `measurementExport.ts` ile bu yapıya çevrilir (uzunluk/elipsoid/ROI/çokgen). Kod UYDURULMAZ: standart kodlar DCM/SCT/UCUM, diğerleri 99ATIKVIEWER. KALAN: lisanslı RadLex/SNOMED CT sözlüğü eşlemesi (kurum lisansı).",
-    action: "RadLex/SNOMED CT sözlük dosyasıyla kod eşleme tablosu (lisans kurumda).",
+    ours: "**Bu sürümde eklendi:** `src/lib/sr1500.ts` TID 1500 Imaging Measurement Report (her ölçüm 125007 Measurement Group içinde izleme kimliği 112039, kararlı UID 112040, kodlu bulgu 121071, bölge 363698007, NUM değer + UCUM, referans görüntü 121191) üretiminin üzerine **ölçüm defteri**: `sr1500Registry.ts` + `/api/measurements`. (1) **Kod defteri**: kurumun lisanslı RadLex/SNOMED CT/LOINC sözlüğü JSON olarak yüklenir; girişler biçim denetiminden geçer (SCT sayısal, RadLex RID###, bilinmeyen şema reddedilir). Sözlükte olmayan kavram için **standart kod uydurulmaz** — 99ATIKVIEWER yerel koduna düşer ve gerekçe kaydedilir; kod denetimi standart/yerel oranını ve yerel kod gerekçelerini verir. (2) **Belge denetimi**: boş UID/kimlik, sayısal olmayan değer ve mükerrer izleme anahtarı yakalanır. (3) **Uzunlamasına izleme**: izleme anahtarı (kararlı UID ya da site|bulgu|kimlik) ile eşleştirme, RECIST benzeri eşiklerle (≥%20 ve ≥5 mm büyüme, ≥%30 küçülme) büyüme/küçülme/stabil/yeni/kayboldu sınıflaması; eşleşmeyenler sessizce düşürülmez. (4) **Çıktı**: okunur özet, CSV ve FHIR R4 Observation demeti (kodlar gerçek şemadan → `coding.system`; yerel kod kendi sisteminde). Belge istenirse PACS'e STOW edilir; STOW başarısızsa belge indirilebilir kalır. KALAN: sözlük dosyasının kurum lisansıyla sağlanması ve tüm bölge/bulgu kavramlarının eşlenmesi.",    action: "Kurum lisanslı RadLex/SNOMED CT sözlüğünün sağlanması ve kalan kavramların eşlenmesi (lisans kurumda).",
   },
   {
     id: "c-seg-rtstruct", category: "measure", title: "Segmentasyon editörü + DICOM SEG/RTSTRUCT dışa aktarma",

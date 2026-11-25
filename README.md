@@ -359,6 +359,23 @@ Rapor alanlarındaki 🎤 düğmesi Web Speech API (tr-TR) kullanır; metin `dic
   `kontrast artır`, `ters çevir`, `pencere daralt`, `geri al`, `kaydet`, `temizle`. Bir parça
   **tamamen** komutsa komut sayılır; "kırık ileri deplase" gibi cümleler metin olarak yazılır.
 
+## Ölçüm defteri — TID 1500 + kod defteri (c-sr-tid1500)
+
+Dışa aktarma menüsü: **"Ölçümleri deftere işle (kod denetimi)"** ve **"Ölçüm SR → PACS'e gönder (STOW)"**
+(`src/lib/sr1500Registry.ts`, `/api/measurements`).
+
+- **Kod defteri:** kurumun lisanslı RadLex/SNOMED CT/LOINC sözlüğü JSON olarak yüklenir
+  (`PUT /api/measurements`, yalnız yönetici). Biçim denetimi: SCT sayısal, RadLex `RID###`,
+  bilinmeyen şema reddedilir. Sözlükte olmayan kavram için **standart kod uydurulmaz**;
+  `99ATIKVIEWER` yerel koduna düşer ve gerekçe kaydedilir.
+- **Kod denetimi:** standart/yerel kod oranı + yerel kodların gerekçe listesi (uyum raporu).
+- **Uzunlamasına izleme:** izleme anahtarı (kararlı UID ya da `site|bulgu|kimlik`) ile eşleştirme;
+  ≥%20 **ve** ≥5 mm büyüme, ≥%30 küçülme → büyüme/küçülme; eşleşmeyenler yeni/kayboldu
+  olarak raporlanır (sessizce düşmez). CSV çıktısı vardır.
+- **FHIR:** ölçümler `Observation` kaynaklarına çevrilir; kod yalnız gerçek şemadansa
+  `coding.system` yazılır, yerel kod kendi sisteminde kalır.
+- **Belge denetimi:** boş UID/kimlik, sayısal olmayan değer, mükerrer izleme anahtarı yakalanır.
+
 ## İnme hattı (a-stroke)
 
 Rapor panelindeki **ASPECTS** bölümünde zaman çizelgesi ve kod inme çağrısı vardır
@@ -594,6 +611,7 @@ npm run test:dimse                  # DIMSE köprüsü C-FIND/C-MOVE (w-pacs)
 npm run test:auditchain             # imzalı denetim paketi + üretim kapısı (w-audit)
 npm run test:validation             # alt grup doğrulama + kabul eşiği (t-validation)
 npm run test:stroke                 # inme hattı: zaman çizelgesi + kod inme (a-stroke)
+npm run test:sr1500reg              # TID 1500 ölçüm defteri + kod sözlüğü (c-sr-tid1500)
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)

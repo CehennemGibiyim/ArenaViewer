@@ -44,7 +44,7 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
   const [fps, setFps] = useState(12);
   const [side, setSide] = useState(512);
   const [prog, setProg] = useState<{ done: number; total: number } | null>(null);
-  const [sending, setSending] = useState<"ko" | "pr" | null>(null);
+  const [sending, setSending] = useState<"ko" | "pr" | "sr1500" | "sr1500-stow" | null>(null);
   const abort = useRef<AbortController | null>(null);
   const n = series?.slices.length ?? 0;
   const imageOk = !!series && (!series.specialType || series.specialType === "image") && n > 0;
@@ -140,6 +140,47 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
     download(new Blob([bytes.slice().buffer as ArrayBuffer], { type: "application/dicom" }), `SR1500-${series.modality}-${measurements.length}-olcum.dcm`);
     const cov = exportCoverage(annotations);
     toast(`TID 1500 SR indirildi: ${measurements.length} sayısal ölçüm${cov.skipped.length ? ` (yazılmayan: ${cov.skipped.join(", ")})` : ""}.`, 6000);
+  };
+
+  /**
+   * Ölçüm defteri (c-sr-tid1500): belgeyi sunucuda üretir, kod denetimini
+   * (standart / yerel kod oranı) ve isteğe bağlı PACS gönderimini raporlar.
+   * Kod uydurulmaz: sözlükte olmayan kavram yerel şemaya düşer.
+   */
+  const registerSr1500 = async (stow: boolean) => {
+    setOpen(false);
+    if (!series) { toast("Önce bir görüntü serisi açın."); return; }
+    const measurements = annotationsToMeasurements(annotations, {
+      pxMm: pxMm > 0 ? pxMm : 1,
+      site: bodyPart ? siteCode(bodyPart) : undefined,
+      series: { seriesUid: series.seriesUid, sopClassUid: series.sopClassUid, sopUids: series.sopUids },
+    });
+    if (measurements.length === 0) { toast("Kayıt için sayısal ölçüm gerekir (uzunluk/elipsoid/ROI/çokgen).", 7000); return; }
+    setSending(stow ? "sr1500-stow" : "sr1500");
+    try {
+      const r = await apiFetch("/api/measurements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studyUid: series.studyUid,
+          measurements,
+          stow,
+          inline: false,
+          title: `${series.modality} ${bodyPart || series.description} ölçümleri`,
+        }),
+      });
+      const d = (await r.json().catch(() => ({}))) as {
+        error?: string; count?: number; text?: string; stowed?: { ok: boolean; message: string } | null;
+        coding?: { standard: number; local: number; note: string };
+      };
+      if (!r.ok) throw new Error(d.error ?? "Kayıt başarısız");
+      const coding = d.coding ? ` · kod: ${d.coding.standard} standart / ${d.coding.local} yerel` : "";
+      const stowText = d.stowed ? ` · PACS: ${d.stowed.ok ? "gönderildi" : d.stowed.message}` : "";
+      toast(`TID 1500 deftere işlendi: ${d.count ?? measurements.length} ölçüm${coding}${stowText}.`, 9000);
+      if (d.text) console.info(d.text);
+    } catch (e) {
+      toast(`Ölçüm kaydı başarısız: ${e instanceof Error ? e.message : "hata"}`, 8000);
+    } finally { setSending(null); }
   };
 
   /**
