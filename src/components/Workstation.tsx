@@ -437,6 +437,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     if (!series || !isImageSeries) { toast("MPR için önce çok kesitli bir BT veya MR görüntü serisi seçin."); return; }
     if (!["CT", "MR"].includes(series.modality) || series.isColor) { toast("MPR yalnızca gri tonlamalı, hacim oluşturan BT/MR serileri için kullanılabilir."); return; }
     if (series.slices.length < 3) { toast("MPR için aynı seride en az 3 kesit gerekir."); return; }
+    if (series.unverifiedMultiFrameGeometry) { toast("Çok kareli BT/MR geometrisi doğrulanmadığı için MPR ve 3B hacim kullanılamaz."); return; }
     setCine(false);
     setMprInitialTab(initialTab);
     setMpr(true);
@@ -652,11 +653,11 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
       if (parsed.length === 0) { setToastMsg(""); setImportReport(report); return; }
       const st = report.stats;
       // Bazı seriler açıldı ama bir kısmı çözülemediyse sessiz kalma: raporu kendiliğinden göster.
-      if (Object.keys(st.failed).length || Object.keys(st.unsupported).length) setImportReport(report);
+      if (Object.keys(st.failed).length || Object.keys(st.unsupported).length || warns.length) setImportReport(report);
       setLoaded((prev) => [...parsed, ...prev]);
       const sorted = [...parsed].sort((a, b) => b.slices.length - a.slices.length);
       selectSeries(sorted[0], parsed);
-      toast(`${arr.length} dosyadan ${parsed.length} seri açıldı${warns.length ? "; bazı dosyalar atlandı — ayrıntı için seri listesindeki “Yükleme raporu”." : "."}`, 6000);
+      toast(`${arr.length} dosyadan ${parsed.length} seri açıldı${warns.length ? "; yükleme uyarıları var — ayrıntı için “Yükleme raporu”." : "."}`, 6000);
     } catch (e) {
       setToastMsg("");
       if (!controller.signal.aborted && importRef.current === controller) {
@@ -1018,6 +1019,11 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
       } catch (e) {
         if (runRef.current !== run) return;
         pushFeed(`CXR modeli çalıştırılamadı: ${e instanceof Error ? e.message : "hata"} — görüntüler radyolog tarafından değerlendirilmelidir.`, "warn");
+        // Başarısız çıkarım, negatif model sonucu veya tamamlanmış analiz değildir.
+        engine = "no-model";
+        findings = [];
+        setCxr(null);
+        setHeats(new Map());
       }
     }
 
@@ -1049,7 +1055,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     }
     if (runRef.current !== run) return;
 
-    if (deepOut && deepOut.findings.length > 0) {
+    if (deepOut) {
       result = {
         ...result,
         model: `${result.model} + ${deepProto === "ct-head" ? "ct-head-hemorrhage-detection" : "MONAI lung_nodule_ct_detection"} (yerel, ücretsiz)`,
@@ -1092,7 +1098,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     } else {
       for (const f of result.findings) if (f.category !== "Sistem" && f.category !== "ROI") pushFeed(`⚑ [Kesit ${f.keySliceNumber}/${N}] ${f.label} — ${f.densityOrSignal}, ${f.sizeMmStr}`, "finding");
       pushFeed(`✓ ${N} kesit işlendi · ${result.findings.filter((f) => f.category !== "Sistem" && f.category !== "ROI").length} aday odak · triyaj: ${result.triage.level}`, "done");
-      if (result.triage.score > 0.8) pushFeed("⚠ Kritik aday odak: bildirim oluşturuldu (zil simgesi).", "warn");
+      if (result.triage.score > 0.8) pushFeed("⚠ Yüksek öncelikli aday: hekim incelemesi gerekir. Bildirim teslimi bu uyarıdan doğrulanamaz.", "warn");
       // Masaüstü bildirimi (a-notify): izin önce sorulur; izin yoksa sessizce geçilir.
       const crit = result.findings.find((f) => f.severity === "kritik" || f.severity === "yuksek");
       if (crit) void notifyCriticalFinding({ label: crit.label, location: crit.anatomicalLocation, detail: crit.densityOrSignal, studyUid: s.studyUid });

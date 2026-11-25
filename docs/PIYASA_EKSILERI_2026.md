@@ -83,6 +83,22 @@ Notlar:
 
 ---
 
+### Format / veri okuma: seri geometri kalite uyarıları
+
+Tek kareli CT/MR serilerinde tutarlı yön ve konum mevcutsa kesitler geometrik
+sıralanır. Aynı/çok yakın düzlem (≤0,01 mm) ve en az üç pozitif aralık varsa
+medyandan %25 fazla sapma yükleme raporunda görünür. Bu eşikler yalnız teknik
+uyarıdır: tekrar fazları ya da değişken kalınlık normal olabilir; kayıp kesit
+veya tanı iddiası değildir. Konum/yön eksik ya da tutarsızsa örnek numarasıyla
+sıralanır ve uyarılır; gelişmiş çok kareli geometri bu kontrolde doğrulanmaz.
+
+Format envanterinde palette LUT varyantları ve MPEG video/tüm nesne varyantları
+tam doğrulanmadığı için `f-pixel` ve `f-objects` kısmi olarak düzeltilmiştir.
+Karşılaştırma endeksi ve tamamlanan madde sayısı bundan dolayı düşebilir; bu,
+yeni bir hata yaratıldığı anlamına değil, önceki kapsam iddiasının düzeltilmesine
+karşılık gelir. Şifreli ZIP, JPEG-XL, MPEG ve hastane verisiyle geniş uyumluluk
+ayrıca açık kalır.
+
 ## A. Klinik yapay zekâ ürün fikirleri
 
 | ID | Özellik | P | Çaba | Piyasa örneği | Bizde şu an | Fikir / nasıl yapılır |
@@ -228,3 +244,23 @@ açıktır; bu nedenle `w-pacs` kısmi kalır.
 - Yeni AI modülleri için lisanslı model mi, kendi verimizle eğitilen model mi?
 - Küçük politika: `docs/PIYASA_ANALIZI.md`’deki “bizde eksik” tabloları ile bu liste
   senkron tutulmalı; yeni özellik eklenince `/kiyaslama` öğesi güncellenir.
+### Format ve veri okuma: dış kıyaslama (25 Kasım 2026)
+
+- [3D Slicer DICOM dokümantasyonu](https://slicer.readthedocs.io/en/latest/user_guide/modules/dicom.html), düzensiz kesit aralığı için edinim geometrisini bir dönüşümle düzenleyebildiğini ve alınmamış kesitle sonradan kaybolmuş kesitin güvenilir biçimde ayırt edilemeyeceğini belirtir. ArenaViewer şimdilik yalnız uyarır; geometriyi düzeltmez. Uyarı tek başına farklılaştırıcı veya klinik doğrulama değildir.
+- [OHIF 3.3 sürüm duyurusu](https://ohif.org/newsletters/2022-11-21-ohif%20viewer:%20dicom%20segmentation%20support), DICOM SEG görüntüleme ve SR TID 1410 desteğini açıklıyor. ArenaViewer'da nesne çeşitlerinin uçtan uca uyumluluğu ayrıca doğrulanmalıdır; SEG türleri ve kaynak görüntüyle uzamsal eşleme öncelikli çalışma alanıdır.
+- [highdicom SEG dokümantasyonu](https://highdicom.readthedocs.io/en/latest/seg.html), BINARY, FRACTIONAL ve LABELMAP ile sıkıştırma ve kaynak görüntü hizalamasında görüntüleyiciler arası uyumluluk farklılıklarına dikkat çeker. Destek matrisi gerçek örneklerle tür ve aktarım sözdizimi bazında test edilmelidir.
+
+Öncelikli sonraki adımlar: (1) PALETTE COLOR LUT için gerçek referans örnekleri, (2) çok kareli enhanced DICOM per-frame geometri ve güvenli hacim oluşturma, (3) SEG/SR ve video için gerçek örneklerle destek matrisi. Bu alanlar tamamlanmış veya klinik kullanıma uygun sayılmaz.
+
+#### PALETTE COLOR adımı
+İkili US/SS descriptor alanları, işaretli ilk eşlenen değer, 8/16 bit LUT ve endian duyarlı veri okuma düzeltildi. Sentetik dosyalarla renk değerleri yükleme yolunda sınanır. Eksik, çelişkili veya desteklenmeyen LUT içeren palet görüntüleri sessizce gri/yanlış renkle açılmak yerine uyarıyla atlanır. 8 ve 16-bit segmented LUT için discrete, linear ve indirect segmentler uygulanıp sentetik verilerle test edildi. Gerçek hasta/PACS verisi veya klinik validasyon yapılmadı. 8-bit tek girişli LUT veri kodlaması belirsiz olduğundan güvenli biçimde reddedilir. Descriptor ve veri yorumlaması için [DICOM Image Pixel Module](https://dicom.nema.org/medical/Dicom/2016a/output/chtml/part03/sect_C.7.6.3.html) esas alındı. Format maddesi kısmi kalır.
+
+Çok kareli BT/MR dosyalarında kare bazlı geometri çözülmediğinden seri 2B görüntülenebilir; MPR ve 3B hacim devre dışıdır. Bu önlem gelişmiş geometri desteği yerine geçmez.
+
+Segmentli tabloların yapısı [DICOM C.7.9.2](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.9.2.html) ile kıyaslandı. Bozuk, iç içe indirect, taşan ve uzunluğu eşleşmeyen tablolar reddedilir.
+
+### AI geri bildirim ve bildirim görünürlüğü — kodlama aşaması
+Yönetim ekranında her çalışmanın son raporu (taslak dahil) üzerinden motor, kayıtlı model adı ve kategori bazında karar sayıları ve onay/ret arasındaki onay payı gösterilecek şekilde düzenlendi. Bu oran referans etiketli klinik PPV değildir; hekim eklemeleri de doğrulanmış yanlış negatif sayısı değildir. Hekim kararlarından hesaplanan kalibrasyon/ECE çıktısı kaldırıldı. Analiz akışındaki bildirim teslimini doğrulamayan "bildirim oluşturuldu" ifadesi düzeltildi. Gerçek model sürümü/sabit kimliği, bağımsız etiketler ve klinik doğrulama hâlâ eksiktir. PostgreSQL entegrasyon testi yetki, son rapor seçimi, motor/model ayrımı ve karar özetlerini doğruladı. Genel testler ve CI build/UI/PACS/Pages kontrolleri geçti; klinik doğrulama yapılmadı.
+
+### AI izlenebilirliği ve başarısız çıkarım
+Geri bildirim özeti, raporda kayıtlı model kartı sürümünü ayrı gruplar; bulunmayan veya bozuk kartlar "Bilinmiyor" olarak gösterilir. Kartın beyanı, çalıştırılmış ağırlığın hash/sürüm doğrulaması değildir. Tek seri derin model çalışıp aday üretmese de raporda çalıştırıldığı kaydedilir. CXR çıkarımı başarısızsa işlem artık negatif bir model sonucu gibi raporlanmaz: motor "model bağlı değil" durumuna döner ve hekim değerlendirmesi gerekir. Gerçek model dosyası kimliği, çalıştırma geçmişi ve bağımsız klinik doğrulama halen eksiktir.

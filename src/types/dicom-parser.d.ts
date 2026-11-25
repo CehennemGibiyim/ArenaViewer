@@ -19,6 +19,7 @@ declare module "dicom-parser" {
 
   export interface DicomDataSet {
     byteArray: Uint8Array;
+    byteArrayParser: { readUint16(bytes: Uint8Array, offset: number): number; readInt16(bytes: Uint8Array, offset: number): number };
     elements: { [tag: string]: DicomElement };
     string(tag: string, index?: number): string | undefined;
     uint16(tag: string, index?: number): number | undefined;
