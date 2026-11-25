@@ -82,7 +82,11 @@
     "test:seg-ui": "node tests/seg-editor-browser.cjs",
     "test:measure-history": "tsx tests/measure-history.test.ts",
     "test:radpeer": "tsx tests/radpeer.test.ts",
-    "test:model-registry": "tsx tests/model-registry.test.ts"
+    "test:model-registry": "tsx tests/model-registry.test.ts",
+    "db:local": "node scripts/local-postgres.mjs start",
+    "db:local:stop": "node scripts/local-postgres.mjs stop",
+    "db:push": "drizzle-kit push --config=drizzle.config.ts",
+    "test:db-api": "tsx tests/db-api.e2e.ts"
   },
   "dependencies": {
     "dicom-parser": "^1.8.21",
@@ -113,5 +117,8 @@
     "tailwindcss": "4.1.17",
     "tsx": "^4.23.15",
     "typescript": "5.9.3"
+  },
+  "optionalDependencies": {
+    "@embedded-postgres/linux-x64": "^17.12.0-beta.19"
   }
 }

@@ -2,7 +2,12 @@
  *
  * Gereksinim: `NEXT_PUBLIC_E2E_FIXTURES=true` ile çalışan bir sunucu.
  *   NEXT_PUBLIC_E2E_FIXTURES=true npm run dev -- -p 3100
- *   BASE_URL=http://127.0.0.1:3100 NODE_PATH=<playwright> node tests/seg-editor-browser.cjs
+ *   BASE_URL=http://127.0.0.1:3100 node tests/seg-editor-browser.cjs
+ *
+ * Tarayıcı ikilisi: Playwright CDN'i kapalı ortamlarda `CHROMIUM_PATH` ile
+ * hazır bir Chromium (ör. @sparticuz/chromium) verilebilir:
+ *   CHROMIUM_PATH=/tmp/chromium LD_LIBRARY_PATH=/tmp/al2023/lib:/tmp \
+ *     BASE_URL=http://127.0.0.1:3100 node tests/seg-editor-browser.cjs
  *
  * Neden ayrı: fırça/eşik etkileşimi yalnızca gerçek DOM olaylarıyla doğrulanır;
  * lib testleri maskeyi kapsar, tuval eşlemesini kapsamaz.
@@ -11,7 +16,12 @@ const assert = require("node:assert/strict");
 const { chromium } = require("playwright");
 
 async function main() {
-  const browser = await chromium.launch({ args: ["--no-sandbox"] });
+  const launch = {
+    args: ["--no-sandbox", "--disable-dev-shm-usage", ...(process.env.CHROMIUM_PATH ? ["--disable-gpu", "--single-process", "--no-zygote"] : [])],
+  };
+  // Playwright CDN'i erişilemezse hazır Chromium ikilisi (sandbox/CI) kullanılır.
+  if (process.env.CHROMIUM_PATH) launch.executablePath = process.env.CHROMIUM_PATH;
+  const browser = await chromium.launch(launch);
   const page = await browser.newPage({ serviceWorkers: "block", viewport: { width: 1500, height: 950 } });
   page.setDefaultTimeout(20000);
   const errors = [];

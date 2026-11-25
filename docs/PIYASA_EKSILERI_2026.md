@@ -70,10 +70,18 @@ planı ve konu karmasına bağlı atama `src/lib/modelRegistry.ts` içindedir
 (`tests/model-registry.test.ts`). Kısmi kalma nedeni: atama gerçek çıkarım isteğine
 bağlı değil ve sürüm bazlı canlı metrik toplanmıyor.
 
-**Doğrulama sınırı:** bu ortamda PostgreSQL yok; ölçüm geçmişi, RADPEER ve model
-kayıt defteri uçlarının uçtan uca (DB'li) testi çalıştırılamadı. Saf mantık ve
-istemci eşlemeleri test edildi; DB'li CI adımları `test:review`/`test:folder` gibi
-mevcut entegrasyon testleriyle birlikte koşar.
+**Doğrulama (artık DB'li):** PostgreSQL 17.12 npm paketinden (root/docker olmadan)
+çalıştırıldı ve şema uygulandı; `npm run test:db-api` gerçek HTTP + gerçek şema
+üzerinden **38/38 kontrol** geçti: ölçüm geçmişinde CSRF reddi, yazma/değiştirme
+(kopya yok), güncelleme; RADPEER'da örnekleme, açıklama zorunluluğu, istatistik ve
+örneklemden çıkarma; model kayıt defterinde upsert, aşama/trafik kuralları ve
+`audit_logs` izleri. Giriş akışı entegrasyon testi de boş veritabanında geçti.
+Ayrıntı ve komutlar: [DB_TEST_ORTAMI.md](DB_TEST_ORTAMI.md).
+
+Tarayıcı testleri için Playwright CDN'i kapalıydı; npm'den gelen Chromium 158 ile
+`test:menu` (16), `test:review` (5), `test:report-flow` (3), `test:folder` (3) ve
+`test:seg-ui` (1) çalıştırıldı — hepsi geçti. Kalan sınır: fixture verisi ve
+`trust` kimlik doğrulamalı yerel PostgreSQL üretim uyumunu kanıtlamaz.
 
 ## 0.0b Performans hattı: GPU pencereleme + Web Worker (v-perf)
 

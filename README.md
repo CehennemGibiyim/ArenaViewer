@@ -446,12 +446,13 @@ npm run test:icd10                   # ICD-10 öneri + istem uygunluğu
 npm run test:msk                     # MSK protokol hesapları + nokta yapışması
 npm run test:esign                   # imza kaydı + NES sınır etiketi
 npm run test:xref                    # 3B imleç: en yakın kesit + panel güncellemeleri
-npm run test:perf                   # pencere/seviye doğruluğu + önbellek ön-işleme
-npm run bench:window                # WL/WW dönüşümü kıyaslaması (eski vs LUT)
 npm run test:perf                   # LUT ↔ GPU referansı, worker sözleşmesi, CPU yedeği
+npm run bench:window                # WL/WW dönüşümü kıyaslaması (eski vs LUT)
 npm run test:measure-history        # ölçüm → geçmiş satırı, trend, %değişim, ikilenme
 npm run test:radpeer                # RADPEER örneklem + uyuşmazlık istatistiği
 npm run test:model-registry         # model kayıt defteri + deterministik A/B
+npm run test:db-api                 # (PostgreSQL + sunucu) ölçüm geçmişi, RADPEER, model uçları
+npm run test:seg-ui                 # (tarayıcı) segment editörü: fırça/eşik/geri al + mL hacim
 npm run test:pr                     # GSPS/PR dışa aktarma + parse doğrulama
 npm run test:notify                 # masaüstü bildirimi + izin akışı
 npm run test:prior                  # önceki tetkik ölçüm karşılaştırması
@@ -463,7 +464,6 @@ npm run test:siem                   # SIEM kuyruğu, yeniden deneme, HMAC imza
 npm run test:ctp                    # CTP cSVD dekonvolüsyonu + otomatik AIF
 npm run test:sr1500                 # TID 1500 yapılandırılmış ölçüm SR (+köprü)
 npm run test:seg                    # segmentasyon maskesi + tuval eşlemesi + DICOM SEG/RTSTRUCT
-npm run test:seg-ui                 # (tarayıcı) fırça/eşik/geri al + mL hacim aktarımı
 npm run test:recistfull             # RECIST hedef seçimi + non-hedef + genel yanıt
 npm run test:closeloop              # kapanış döngüsü süre/eskalasyon kuralları
 npm run test:followup               # takip görev kovaları + iade eşleme
@@ -484,10 +484,51 @@ npm run test:menu                   # menü, sekme, MPR, PNG, iframe, hata senar
 npm run test:folder                 # klasör içe aktarma + yükleme raporu
 npm run test:review                 # görüntü inceleme ölçümleri
 npm run test:report-flow            # rapor onay + derin AI akışı
+npm run test:seg-ui                 # segment editörü: fırça/eşik/geri al + mL hacim
 ```
 
 > `tests/menu-interactions.cjs` hem klasik `webkitdirectory` yolunu hem de Chromium'un
 > `showDirectoryPicker` yolunu ayrı ayrı sınar. Windows için ayrıntı: [docs/WINDOWS_KURULUM.md](docs/WINDOWS_KURULUM.md)
+
+### Veritabanlı uçtan uca test (PostgreSQL)
+
+Ölçüm geçmişi, RADPEER ve model kayıt defteri uçları gerçek şemaya, CSRF/oturum
+katmanına ve HTTP sınırına bağlıdır; saf birim testleri bunu kanıtlamaz. Docker ya
+da root olmadan, PostgreSQL npm paketinden çalıştırılabilir (Linux x64 için
+`@embedded-postgres/linux-x64` **opsiyonel** bağımlılıktır; macOS/Windows'ta
+`EMBEDDED_PG_DIR` ile kendi `initdb`/`postgres` dizininizi verin):
+
+```bash
+npm run db:local                    # initdb (gerekirse) + postgres + veritabanı
+export DATABASE_URL=postgres://atik@127.0.0.1:5432/atik
+npm run db:push                     # drizzle şemasını uygula
+AV_RATE_LIMIT=off npm start &       # testte hız sınırı kapalı (CSRF açık kalır)
+npm run test:db-api                 # 38 kontrol: ölçüm geçmişi, RADPEER, model uçları
+npm run db:local:stop
+```
+
+`db:local` veri dizinini depo dışında tutar (varsayılan `/tmp/av-pgdata`) ve yalnız
+`127.0.0.1`i dinler; kimlik doğrulaması `trust`tur — **üretim için uygun değildir**.
+Giriş akışı testi boş bir veritabanı ister:
+
+```bash
+DATABASE_URL=postgres://atik@127.0.0.1:5432/atik_auth AUTH_INTEGRATION_TEST=1 npm run test:auth-integration
+```
+
+### Playwright tarayıcısı CDN'e erişemiyorsa
+
+`npx playwright install chromium` bu ortamda engellenebilir. Alternatif: npm'den
+gelen hazır Chromium (`@sparticuz/chromium`; ikili + gerekli kütüphaneler pakette).
+
+```bash
+npm i -D @sparticuz/chromium            # yalnız test için
+eval "$(node scripts/local-chromium.mjs --print-env)"
+BASE_URL=http://127.0.0.1:3000 npm run test:seg-ui
+```
+
+Betik `CHROMIUM_PATH` ve `LD_LIBRARY_PATH`i yazdırır; verilmezse testler
+Playwright'ın kendi tarayıcısını arar. Ayrıntı ve doğrulanmış komut çıktısı:
+[docs/DB_TEST_ORTAMI.md](docs/DB_TEST_ORTAMI.md).
 
 ## GitHub ve yayınlama
 
