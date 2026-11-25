@@ -133,6 +133,17 @@ Notlar:
 
 ---
 
+### P1 — PACS gönderim doğrulaması (E1/E6)
+
+STOW isteği tek bir DICOM nesnesi gönderir. HTTP 2xx tek başına başarı değildir:
+PACS yanıtındaki kabul edilen SOP UID gönderilen nesneyle eşleşmelidir. Red,
+karışık sonuç veya boş/ayrıştırılamayan yanıt başarılı gösterilmez; sonuç
+belirsizse nesne PACS'te kaydedilmiş olabilir, yeniden göndermeden önce PACS'te
+kontrol edilmelidir. Uygulama istemcisinin STOW/QIDO/WADO döngüsü Orthanc CI
+testine eklenmiştir; yerel HTTP testleri red ve hatalı yanıtları da sınar.
+Bu, dcm4chee veya hastane PACS uyumluluğunun kanıtı değildir. DIMSE desteği
+açıktır; bu nedenle `w-pacs` kısmi kalır.
+
 ## E. Entegrasyon (PACS / HIS / IHE)
 
 | ID | Özellik | P | Çaba | Bizde şu an | Fikir |

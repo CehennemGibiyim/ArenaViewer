@@ -1,6 +1,8 @@
 import http from "node:http";
+import * as dicomParser from "dicom-parser";
 import https from "node:https";
 import { decryptText, isEncrypted } from "./crypto";
+import { parseStowResponse } from "@/lib/stowResponse";
 import { DEFAULT_PACS, isHttpUrl, trimRoot, type PacsConfig } from "@/lib/pacsPresets";
 
 /**
@@ -230,6 +232,9 @@ function boundary() {
 export async function stowInstance(cfg: PacsConfig, bytes: Uint8Array, timeoutMs = 60000): Promise<StowResult> {
   const root = cfg.wadoRoot || cfg.qidoRoot;
   if (!root) throw new Error("PACS adresi yapılandırılmamış.");
+  let sopUid = "";
+  try { sopUid = dicomParser.parseDicom(bytes, { untilTag: "x00080018" }).string("x00080018") ?? ""; } catch { /* geçersiz içerik reddedilir */ }
+  if (!isUid(sopUid)) throw new Error("DICOM SOP Instance UID okunamadı; gönderim yapılmadı.");
   const urlStr = `${trimRoot(root)}/studies`;
   const bnd = boundary();
   const head = Buffer.from(`--${bnd}\r\nContent-Type: application/dicom\r\nContent-Length: ${bytes.length}\r\n\r\n`, "ascii");
@@ -260,26 +265,10 @@ export async function stowInstance(cfg: PacsConfig, bytes: Uint8Array, timeoutMs
   });
 
   if (!res.status || res.status >= 400) throw new Error(friendlyStatus(res.status));
-  const text = res.body.toString("utf8").trim();
-  let failed: string[] = [];
-  let stored = 0;
-  if (text.startsWith("[") || text.startsWith("{")) {
-    try {
-      const arr = JSON.parse(text) as DJson[];
-      for (const o of arr) {
-        const ref = o["00081199"]?.Value?.[0] as { "00081155"?: { Value?: unknown[] } } | undefined;
-        const fai = o["00081198"]?.Value?.[0] as { "00081155"?: { Value?: unknown[] } } | undefined;
-        if (ref?.["00081155"]?.Value) stored += ref["00081155"].Value.length;
-        if (fai?.["00081155"]?.Value) failed = failed.concat(fai["00081155"].Value.map((v) => String(v)));
-      }
-    } catch { /* yanıt gövdesi boş/JSON değil: 2xx zaten başarı */ }
-  }
-  return {
-    ok: true,
-    failed,
-    stored: stored || 1,
-    message: failed.length > 0 ? `PACS ${failed.length} nesneyi reddetti.` : "PACS nesneyi kabul etti.",
-  };
+  // HTTP 2xx tek başına kabul kanıtı değildir: 202 kısmi red içerebilir.
+  // Bir nesne gönderildiği için tam bir Referenced SOP kaydı aranır.
+  const { stored } = parseStowResponse(res.body.toString("utf8").trim(), sopUid);
+  return { ok: true, failed: [], stored, message: "PACS nesneyi kabul etti." };
 }
 
 // ───────────── WADO-RS ─────────────
