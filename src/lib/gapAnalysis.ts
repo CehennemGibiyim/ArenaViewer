@@ -284,7 +284,7 @@ const BASE_ITEMS: GapItem[] = [
     id: "a-prior", category: "ai", title: "Önceki tetkikle karşılaştırma / interval değişim",
     status: "kismi", priority: "P1", effort: "L",
     market: ["Aidoc", "Rad AI"],
-    ours: "**Kısmen:** Aynı hastanın önceki tetkikleri ve raporları listelenir (`patientReports`, `priorStudies`) ve `openPrior` ile karşılaştırmalı açılır; eksik: otomatik interval-değişim özeti/ödeme grafiği (lesionTracking testi var ama UI bağlantısı sınırlı).",
+    ours: "**Bu sürümde eklendi:** `intervalChange.ts` iki tetkikin ölçülmüş lezyonlarını eşleştirip (anatomi + konum) çalışma düzeyinde tablo üretir: büyüme / küçülme / stabil / yeni / kayboldu / ölçüm yok, mutlak mm ve yüzde farkı, toplam çap değişimi ve okunur süre (ör. 6 ay 18 gün). Sağ panel → Geçmiş sekmesinde 'Interval değişim özeti' kartı olarak görünür, CSV indirilebilir. Eşikler kurala bağlı: büyüme ≥ 5 mm ve ≥ %20, küçülme ≥ 5 mm ve ≥ %30; kayıt (registration) yapılmadığı ve ölçümlerin hekim tarafından yapıldığı kartta yazılıdır.",
     action: "Hasta bazlı çalışma geçmişi, kayıt ve değişim özeti.",
   },
   {

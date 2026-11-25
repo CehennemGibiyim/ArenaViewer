@@ -5,6 +5,7 @@ import { fmtConf } from "@/lib/format";
 import { KIND_LABEL, annotationSummary } from "@/lib/geometry";
 import ReviewMetrics from "./ReviewMetrics";
 import { priorDelta } from "@/lib/priorCompare";
+import { CHANGE_LABEL, CHANGE_TONE, compareInterval, intervalCsv, pickPriorReport, type IntervalSummary } from "@/lib/intervalChange";
 import { BAND_LABEL, uncertaintyBand, uncertaintyNote } from "@/lib/uncertainty";
 import type {
   AiMode, AiProtocol, AnalysisResult, Annotation, Finding, KeyImage, SavedReport, SeriesData, StudyRow, UserInfo,
@@ -117,6 +118,16 @@ export default function RightPanel(p: Props) {
   const busy = status === "infer" || status === "scanning";
   const unit = series?.unit ?? "SI";
   const priors = p.patientReports.filter((r) => !series || r.studyUid !== series.studyUid).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  // Interval değişim özeti (a-prior): en güncel aynı modalite raporu ile
+  // karşılaştırılır; ölçüm yoksa tablo "karşılaştırılabilir ölçüm yok" der.
+  const currentReport = p.patientReports.find((r) => series && r.studyUid === series.studyUid) ?? null;
+  const priorReport = currentReport ? pickPriorReport(p.patientReports, currentReport) : priors[0] ?? null;
+  const interval: IntervalSummary | null = currentReport && priorReport
+    ? compareInterval(
+        { date: priorReport.createdAt, findings: priorReport.findingsJson },
+        { date: currentReport.createdAt, findings: currentReport.findingsJson },
+      )
+    : null;
 
   return (
     <div className="flex h-full w-full flex-col border-l border-[#1a2230] bg-[#0b0f16]">
@@ -437,6 +448,51 @@ export default function RightPanel(p: Props) {
 
         {tab === "gecmis" && (
           <div className="flex flex-col gap-2">
+            {interval && (
+              <div className="rounded-xl border border-violet-500/30 bg-violet-500/5 p-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-violet-300">Interval değişim özeti</span>
+                  <span className="font-mono text-[9.5px] text-slate-400">{interval.days} gün</span>
+                </div>
+                <p className="mt-1 text-[11px] font-semibold leading-snug text-slate-100">{interval.headline}</p>
+                {interval.warning && <p className="mt-1 text-[10px] text-amber-300/90">{interval.warning}</p>}
+                {interval.rows.length > 0 && (
+                  <div className="mt-1.5 flex flex-col gap-1">
+                    {interval.rows.map((r) => (
+                      <div key={`${r.kind}-${r.id}`} className="rounded border border-[#1a2332] bg-[#080c12]/80 p-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-[10.5px] font-bold text-slate-200" title={`${r.anatomy} · ${r.location}`}>{r.anatomy} · {r.location}</span>
+                          <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-black ${
+                            CHANGE_TONE[r.kind] === "kirmizi" ? "bg-rose-500/20 text-rose-300"
+                            : CHANGE_TONE[r.kind] === "yesil" ? "bg-emerald-500/20 text-emerald-300"
+                            : CHANGE_TONE[r.kind] === "mor" ? "bg-violet-500/25 text-violet-200"
+                            : CHANGE_TONE[r.kind] === "sari" ? "bg-amber-500/20 text-amber-200"
+                            : "bg-slate-500/20 text-slate-300"}`}>{CHANGE_LABEL[r.kind].toUpperCase()}</span>
+                        </div>
+                        <div className="mt-0.5 font-mono text-[9.5px] text-slate-400">{r.text}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {interval.rows.length > 0 && (
+                  <div className="mt-1.5 flex items-center justify-between border-t border-violet-500/20 pt-1.5">
+                    <span className="font-mono text-[9.5px] text-slate-400">Toplam çap {interval.sumBeforeMm} → {interval.sumAfterMm} mm{interval.sumDeltaPct === null ? "" : ` (${interval.sumDeltaPct > 0 ? "+" : ""}${interval.sumDeltaPct}%)`}</span>
+                    <button
+                      onClick={() => {
+                        const blob = new Blob([intervalCsv(interval)], { type: "text/csv;charset=utf-8" });
+                        const a = document.createElement("a");
+                        a.href = URL.createObjectURL(blob);
+                        a.download = `interval-degisim-${interval.toDate.slice(0, 10)}.csv`;
+                        a.click();
+                        URL.revokeObjectURL(a.href);
+                      }}
+                      className="cursor-pointer rounded border border-violet-400/40 bg-violet-500/20 px-2 py-0.5 text-[10px] font-bold text-violet-200 hover:bg-violet-500/30"
+                    >⇩ CSV</button>
+                  </div>
+                )}
+                <p className="mt-1 text-[9px] leading-snug text-slate-500">Eşikler: büyüme ≥ 5 mm ve ≥ %20, küçülme ≥ 5 mm ve ≥ %30. Kayıt (registration) yapılmaz; eşleştirme anatomi + konum metnine dayalıdır. Karar hekimindir.</p>
+              </div>
+            )}
             <div className="flex items-center justify-between"><span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Bu hastanın çalışmaları ({p.priorStudies.length})</span><button onClick={p.onRefreshReports} className="cursor-pointer text-[10px] text-cyan-400">⟳ yenile</button></div>
             {p.priorStudies.length === 0 && <p className="text-[11px] text-slate-500">Sunucuya kayıtlı başka çalışma yok. (Çalışma Listesi → ☁ Sunucuya kaydet ile geçmiş oluşur.)</p>}
             {p.priorStudies.map((s) => (
