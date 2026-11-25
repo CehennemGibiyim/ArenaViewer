@@ -578,10 +578,10 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "c-recist-full", category: "measure", title: "RECIST tamamlayıcıları: lenf nodu, non-hedef lezyon, otomatik lezyon eşleştirme",
-    status: "kismi", priority: "P1", effort: "M",
-    market: ["3D Slicer", "RadiAnt"],
-    ours: "**Eklendi:** `lesionTracking.ts` (anatomi+konum eşleştirme, lenf nodu kısa eksen tablosu, non-hedef durumu) ve **yeni** `recistFull.ts`: hedef seçim denetimi (hedef ≥10 mm, lenf nodu kısa eksen ≥15 mm, organ başına ≤2, toplam ≤5), non-hedef bileşkesi (CR / non-CR-non-PD / PD) ve RECIST 1.1 genel yanıt tablosu (yeni lezyon → PD; hedef CR + non-hedef CR → CR). Nodül takibi panelinde hedef işaretleme, non-hedef seçimi ve GENEL YANIT kutusu; CSV'ye genel değerlendirme eklenir. Seçim SİLİNMEZ, ihlaller uyarı olarak gösterilir. KALAN: ölçümlerin görüntüden otomatik çıkarılması ve 3B lezyon eşleştirme.",
-    action: "Otomatik lezyon ölçümü (segmentasyondan) ve 3B kayıt (registration) ile eşleştirme.",
+    status: "var", priority: "P1", effort: "M",
+    market: ["Lunit", "Aidoc", "qure.ai"],
+    ours: "Üç bileşen de çalışır durumda. **Lenf nodu:** `lymphNodeTable`/`lymphNodeCategory` (kısa eksen <10 normal, <15 takip, ≥15 patolojik) ve hedef seçim denetiminde ≥15 mm kuralı. **Non-hedef:** `nonTargetStatus` (CR / non-CR-non-PD / PD) + genel yanıt bileşkesi (`recistFull.ts`; hedef CR + non-hedef CR → CR, yeni lezyon → PD). **Otomatik eşleştirme:** `summarizeNoduleTracking` en yeni iki çalışmayı anatomi + lezyon adı imzasıyla eşleştirir; Δ mm/%, yeni ve saptanmayan lezyonlar Nodül takibi panelindeki «Çalışmalar arası eşleştirme» bölümünde (CSV dahil). **Otomatik ölçüm:** segmentasyon maskesinden uzun/kısa eksen (`segmentation.ts → maxAxes`/`sliceAxes`: dışbükey zarf + en uzak çift, minimum genişlik) editörde «Eksen: uzun … / kısa … mm» olarak gösterilir. Sınır: eşleştirme kural tabanlıdır (3B deformable kayıt yok) ve maske hekim tarafından çizilmelidir; çaplar hekim onayına tabidir.",
+    action: "3B deformable kayıt ile otomatik lezyon eşleştirme (kurumsal doğrulama gerektirir).",
   },
   {
     id: "c-measure-history", category: "measure", title: "Ölçüm geçmişi ve trend grafikleri (çap/HU/SUV zaman serisi)",

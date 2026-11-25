@@ -184,6 +184,103 @@ export function volume(m: SegMask, spacing: { px: number; py?: number; sliceThic
   };
 }
 
+/** Eksen ölçümü sonucu: en büyük kesitte uzun/kısa eksen (RECIST için çap adayı). */
+export interface AxisResult {
+  /** Uzun eksen (mm): düzlemdeki en büyük nokta çifti mesafesi. */
+  longMm: number;
+  /** Kısa eksen (mm): dışbükey zarfın minimum genişliği (uzun eksene dik). */
+  shortMm: number;
+  /** En büyük uzun eksenin görüldüğü kesit indeksi. */
+  slice: number;
+  /** Maske kesit aralığının z yüksekliği (mm); null = tek kesit. */
+  zExtentMm: number | null;
+}
+
+/** Monoton zincir ile dışbükey zarf (mm uzayında; nokta listesi saat yönü tersi). */
+function convexHull(pts: { x: number; y: number }[]): { x: number; y: number }[] {
+  const p = [...pts].sort((a, b) => (a.x === b.x ? a.y - b.y : a.x - b.x));
+  if (p.length <= 2) return p;
+  const cross = (o: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }) =>
+    (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  const lower: { x: number; y: number }[] = [];
+  for (const q of p) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], q) <= 0) lower.pop();
+    lower.push(q);
+  }
+  const upper: { x: number; y: number }[] = [];
+  for (let i = p.length - 1; i >= 0; i--) {
+    const q = p[i];
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], q) <= 0) upper.pop();
+    upper.push(q);
+  }
+  return [...lower.slice(0, -1), ...upper.slice(0, -1)];
+}
+
+/** Bir kesitin eksenleri (mm): uzun = en uzak zarf çifti, kısa = zarfın min genişliği. */
+export function sliceAxes(points: readonly { x: number; y: number }[], mmPerPxX = 1, mmPerPxY?: number): { longMm: number; shortMm: number } | null {
+  if (points.length === 0) return null;
+  const sx = mmPerPxX > 0 ? mmPerPxX : 1;
+  const sy = mmPerPxY && mmPerPxY > 0 ? mmPerPxY : sx;
+  const mm = points.map((p) => ({ x: p.x * sx, y: p.y * sy }));
+  const hull = convexHull(mm);
+  if (hull.length === 1) return { longMm: 0, shortMm: 0 };
+  // Uzun eksen: zarf üzerinde en uzak çift (zarf küçüktür → kaba kuvvet yeterli).
+  let longMm = 0;
+  for (let i = 0; i < hull.length; i++) {
+    for (let j = i + 1; j < hull.length; j++) {
+      const d = Math.hypot(hull[i].x - hull[j].x, hull[i].y - hull[j].y);
+      if (d > longMm) longMm = d;
+    }
+  }
+  // Kısa eksen: her zarf kenarı için en büyük dik uzaklık (min alınır) = min genişlik.
+  let shortMm = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < hull.length; i++) {
+    const a = hull[i];
+    const b = hull[(i + 1) % hull.length];
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    if (len === 0) continue;
+    let far = 0;
+    for (const q of hull) {
+      const d = Math.abs((b.x - a.x) * (a.y - q.y) - (a.x - q.x) * (b.y - a.y)) / len;
+      if (d > far) far = d;
+    }
+    if (far < shortMm) shortMm = far;
+  }
+  if (!Number.isFinite(shortMm)) shortMm = 0;
+  return { longMm: Number(longMm.toFixed(2)), shortMm: Number(shortMm.toFixed(2)) };
+}
+
+/**
+ * Segmentasyon maskesinden lezyon çapları (c-recist-full: otomatik ölçüm).
+ *
+ * Kesit başına uzun/kısa eksen hesaplanır; **en uzun eksenin** bulunduğu kesit
+ * raporlanır (RECIST hedef lezyon ölçümü tek düzlemde yapılır). Kısa eksen lenf
+ * nodu kuralı (≥15 mm) için kullanılabilir. Değerler piksel merkezleri arasındaki
+ * mesafedir; maske sınırındaki yarım piksel payı eklenmez.
+ */
+export function maxAxes(
+  m: SegMask,
+  spacing: { px: number; py?: number; sliceThickness: number; sliceSpacing?: number },
+): AxisResult | null {
+  const dz = spacing.sliceSpacing && spacing.sliceSpacing > 0 ? spacing.sliceSpacing : spacing.sliceThickness > 0 ? spacing.sliceThickness : 1;
+  let best: (AxisResult & { longMm: number }) | null = null;
+  let zMin: number | null = null;
+  let zMax: number | null = null;
+  for (const [i, s] of m.slices) {
+    const pts: { x: number; y: number }[] = [];
+    for (let k = 0; k < s.length; k++) if (s[k]) pts.push({ x: k % m.width, y: Math.floor(k / m.width) });
+    if (pts.length === 0) continue;
+    zMin = zMin === null ? i : Math.min(zMin, i);
+    zMax = zMax === null ? i : Math.max(zMax, i);
+    const ax = sliceAxes(pts, spacing.px, spacing.py);
+    if (!ax) continue;
+    if (!best || ax.longMm > best.longMm) best = { ...ax, slice: i, zExtentMm: null };
+  }
+  if (!best) return null;
+  const zExtent = zMin === null || zMax === null ? null : zMax > zMin ? Number(((zMax - zMin) * dz).toFixed(2)) : null;
+  return { longMm: best.longMm, shortMm: best.shortMm, slice: best.slice, zExtentMm: zExtent };
+}
+
 /** Maskeyi çalışma durumuna yazılabilir JSON'a çevirir (base64, kesit başına). */
 export function maskToJson(m: SegMask): { width: number; height: number; slices: { slice: number; data: string }[] } {
   const enc = (b: Uint8Array) => {

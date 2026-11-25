@@ -32,7 +32,7 @@ const series = {
 const seg = renderToStaticMarkup(
   <SegEditor series={series} slice={0} wl={40} ww={80} invert={false} pxMm={0.5} onClose={() => {}} toast={() => {}} />
 );
-for (const marker of ["Segmentasyon editörü", "Fırça", "Silgi", "Eşik dolgusu", "Bölge büyüt", "Hacim", "DICOM SEG indir", "RTSTRUCT indir"]) {
+for (const marker of ["Segmentasyon editörü", "Fırça", "Silgi", "Eşik dolgusu", "Bölge büyüt", "Hacim", "Eksen:", "DICOM SEG indir", "RTSTRUCT indir"]) {
   assert.ok(seg.includes(marker), `editörde "${marker}" bulunmalı`);
 }
 assert.ok(seg.includes("0.00 mL"), "boş maskede hacim 0,00 mL");

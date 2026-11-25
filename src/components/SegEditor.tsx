@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SeriesData } from "@/lib/types";
 import {
   copySlice, emptyMask, growRegion, makeSegmentDef, maskFromJson, maskPixelCount, maskToJson,
-  paint, prune, thresholdFill, volume, type SegMask,
+  maxAxes, paint, prune, thresholdFill, volume, type SegMask,
 } from "@/lib/segmentation";
 import { buildRtStruct, buildSegDocument } from "@/lib/dicomSeg";
 import { buildWindowLUT } from "@/lib/window";
@@ -102,6 +102,17 @@ export default function SegEditor({ series, slice: activeSlice, wl, ww, invert, 
   const vol = useMemo(() => {
     if (!series) return null;
     return volume(mask, {
+      px: pxMm > 0 ? pxMm : 1,
+      py: series.pixelSpacing > 0 ? series.pixelSpacing : 1,
+      sliceThickness: series.sliceThickness,
+      sliceSpacing: series.sliceSpacing,
+    });
+  }, [series, pxMm, mask]);
+
+  // Otomatik çap (c-recist-full): maskeden uzun/kısa eksen — hedef lezyon ölçüsü adayı.
+  const axes = useMemo(() => {
+    if (!series) return null;
+    return maxAxes(mask, {
       px: pxMm > 0 ? pxMm : 1,
       py: series.pixelSpacing > 0 ? series.pixelSpacing : 1,
       sliceThickness: series.sliceThickness,
@@ -318,7 +329,16 @@ export default function SegEditor({ series, slice: activeSlice, wl, ww, invert, 
             <div className="text-slate-400">Hacim</div>
             <div className="text-lg font-bold text-cyan-200">{vol ? vol.ml.toFixed(2) : "0.00"} mL</div>
             <div className="text-slate-500">{vol ? vol.voxelCount.toLocaleString("tr-TR") : 0} piksel · {vol?.mm3 ? Math.round(vol.mm3).toLocaleString("tr-TR") : 0} mm³</div>
-            <div className="mt-1 text-[10px] text-amber-300/80">Hacim piksel aralığına göredir; hekim onayına tabidir.</div>
+            <div className="mt-1 border-t border-[#1a2230] pt-1 text-slate-400" data-testid="seg-axes">
+              Eksen: {axes ? (
+                <>
+                  uzun <span className="font-mono text-cyan-200">{axes.longMm.toFixed(1)}</span> mm · kısa{" "}
+                  <span className="font-mono text-cyan-200">{axes.shortMm.toFixed(1)}</span> mm
+                  <span className="text-slate-500"> (kesit {axes.slice + 1}{axes.zExtentMm ? `, z ${axes.zExtentMm} mm` : ""})</span>
+                </>
+              ) : "—"}
+            </div>
+            <div className="mt-1 text-[10px] text-amber-300/80">Hacim ve eksen piksel aralığına göredir; RECIST için uzun eksen adayıdır, hekim onayına tabidir.</div>
           </div>
 
           <div className="rounded border border-[#1a2230] p-2">

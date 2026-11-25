@@ -5,7 +5,7 @@
  */
 import { parseDicom } from "dicom-parser";
 import { buildRtStruct, buildSegDocument, contourPoints, maskContour, packBinaryFrames, unpackBinaryFrame, SOP_RTSTRUCT, SOP_SEG } from "../src/lib/dicomSeg";
-import { copySlice, emptyMask, getPixel, growRegion, makeSegmentDef, maskFromJson, maskPixelCount, maskToJson, paint, prune, thresholdFill, unionMasks, volume } from "../src/lib/segmentation";
+import { copySlice, emptyMask, getPixel, growRegion, makeSegmentDef, maskFromJson, maskPixelCount, maskToJson, maxAxes, paint, prune, sliceAxes, thresholdFill, unionMasks, volume } from "../src/lib/segmentation";
 
 let failed = 0;
 const ok = (cond: boolean, msg: string) => {
@@ -116,6 +116,54 @@ const rtText = new TextDecoder("utf-8").decode(u8(rtBytes));
 ok(rtText.includes("CLOSED_PLANAR"), "kontur geometri türü CLOSED_PLANAR");
 ok(rtText.includes("Nodül") && rtText.includes("ORGAN"), "ROI adı ve türü yazıldı");
 ok(!!drt.string("x30060010") || rtText.includes("1.2.840.10008.5.1.4.1.1.481.5"), "RTSTRUCT başlığı yazıldı");
+
+// ── maskeden eksen ölçümü (c-recist-full: otomatik çap) ──
+// 5 piksel yatay çizgi, 0,5 mm/piksel → uzun eksen 2,0 mm, kısa eksen 0.
+const line = Array.from({ length: 5 }, (_, i) => ({ x: i, y: 0 }));
+const la = sliceAxes(line, 0.5, 0.5)!;
+ok(Math.abs(la.longMm - 2) < 1e-9, `yatay çizgi uzun ekseni 2 mm (${la.longMm})`);
+ok(la.shortMm === 0, "tek sıra pikselde kısa eksen 0");
+
+// 10×10 kare, 0,5 mm/piksel → uzun eksen köşegen ≈ 6,36 mm; kısa eksen kenar = 4,5 mm
+const square = [];
+for (let y = 0; y < 10; y++) for (let x = 0; x < 10; x++) square.push({ x, y });
+const sq = sliceAxes(square, 0.5, 0.5)!;
+ok(Math.abs(sq.longMm - Math.sqrt(81 * 2) * 0.5) < 0.02, `kare uzun ekseni köşegen (${sq.longMm})`);
+ok(Math.abs(sq.shortMm - 4.5) < 0.02, `kare kısa ekseni kenar (${sq.shortMm})`);
+
+// Dikdörtgen 20×4 piksel (0,5 mm): uzun ≈ 9,76 mm (köşegen), kısa ≈ 1,5 mm
+const rect = [];
+for (let y = 0; y < 4; y++) for (let x = 0; x < 20; x++) rect.push({ x, y });
+const rc = sliceAxes(rect, 0.5, 0.5)!;
+ok(Math.abs(rc.longMm - Math.hypot(19, 3) * 0.5) < 0.02, `dikdörtgen uzun ekseni (${rc.longMm})`);
+ok(Math.abs(rc.shortMm - 1.5) < 0.02, `dikdörtgen kısa ekseni (${rc.shortMm})`);
+
+// Anizotropik piksel: 4 piksel yatay, px=1 mm, py=3 mm → 3 mm; dikeyde 1 piksel × 3 mm
+const aniso = sliceAxes(Array.from({ length: 4 }, (_, i) => ({ x: i, y: 0 })), 1, 3)!;
+ok(Math.abs(aniso.longMm - 3) < 1e-9, "anizotropik piksel uzunluğa yansır");
+
+ok(sliceAxes([], 1) === null, "boş kesitte eksen yok");
+
+// Maske genelinde: en büyük kesit seçilir, z yüksekliği raporlanır.
+const am = emptyMask(20, 20);
+for (let x = 2; x < 6; x++) am.slices.set(1, (am.slices.get(1) ?? new Uint8Array(400)));
+const setPx = (mask: typeof am, z: number, x: number, y: number) => {
+  const s = mask.slices.get(z) ?? new Uint8Array(mask.width * mask.height);
+  s[y * mask.width + x] = 1;
+  mask.slices.set(z, s);
+};
+for (let x = 2; x < 6; x++) setPx(am, 1, x, 5);       // 4 px → 2 mm
+for (let x = 2; x < 12; x++) setPx(am, 3, x, 8);       // 10 px → 5 mm (en büyük)
+setPx(am, 7, 3, 3);                                     // tek piksel
+const ma = maxAxes(am, { px: 0.5, py: 0.5, sliceThickness: 2 })!;
+ok(ma.slice === 3, "en büyük uzun eksenin kesiti seçilir");
+ok(Math.abs(ma.longMm - 4.5) < 1e-9, `maskeden uzun eksen 4,5 mm (${ma.longMm})`);
+ok(ma.zExtentMm === 12, `z yüksekliği kesit aralığından (${ma.zExtentMm} mm)`);
+ok(maxAxes(emptyMask(5, 5), { px: 1, sliceThickness: 1 }) === null, "boş maskede eksen yok");
+const single = emptyMask(5, 5);
+const sp2 = new Uint8Array(25); sp2[12] = 1; single.slices.set(4, sp2);
+const sa = maxAxes(single, { px: 1, sliceThickness: 1 })!;
+ok(sa.longMm === 0 && sa.zExtentMm === null, "tek piksel/tek kesit: eksen 0, z yüksekliği yok");
 
 if (failed) { console.error(`${failed} segmentasyon testi başarısız`); process.exit(1); }
 console.log("Tüm c-seg-rtstruct (segmentasyon + SEG/RTSTRUCT) testleri geçti.");
