@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { NotificationRow } from "@/lib/types";
+import { apiFetch } from "@/lib/csrfClient";
 
 /**
  * Bildirim zili: kritik bulgu bildirimleri (D1) ve takip önerisi görevleri (D2).
@@ -19,7 +20,7 @@ export default function NotificationsBell() {
 
   const load = useCallback(async () => {
     try {
-      const r = await fetch("/api/notifications");
+      const r = await apiFetch("/api/notifications");
       if (r.ok) setItems((await r.json()) as NotificationRow[]);
     } catch {
       /* çevrimdışı */
@@ -37,7 +38,7 @@ export default function NotificationsBell() {
   const openFollowups = followups.filter((n) => n.status === "acik").length;
 
   const patch = async (id: number, body: Record<string, unknown>) => {
-    await fetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...body }) });
+    await apiFetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...body }) });
     void load();
   };
   const ack = (id: number) => patch(id, {});
@@ -63,7 +64,7 @@ export default function NotificationsBell() {
     const body = id
       ? { action: "outcome", id, outcome: text.trim() }
       : { action: "outcome", auto: true, outcome: text.trim(), modality: modality.trim() || undefined };
-    const r = await fetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const r = await apiFetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const d = (await r.json().catch(() => ({}))) as { error?: string; match?: string };
     setSweepMsg(r.ok ? `Sonuç kaydedildi (${d.match ?? "eşleşti"}).` : (d.error ?? "Sonuç bağlanamadı"));
     void load();
@@ -73,7 +74,7 @@ export default function NotificationsBell() {
   const sweep = async () => {
     setSweepMsg("Taranıyor…");
     try {
-      const r = await fetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "sweep", escalationRole: "ikinci-hekim" }) });
+      const r = await apiFetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "sweep", escalationRole: "ikinci-hekim" }) });
       const d = (await r.json().catch(() => ({}))) as { overdue?: number; escalated?: number; error?: string };
       setSweepMsg(r.ok ? `${d.overdue ?? 0} gecikmiş bildirim; ${d.escalated ?? 0} eskalasyon kaydı açıldı.` : (d.error ?? "Tarama başarısız (yönetici/radyolog yetkisi gerekir)."));
       void load();

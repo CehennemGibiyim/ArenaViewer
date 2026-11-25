@@ -355,6 +355,7 @@ npm run test:followup               # takip görev kovaları + iade eşleme
 npm run test:stowanon               # anonim seri → PACS (plan + sunucu doğrulaması)
 npm run test:wadoframe              # kare düzeyinde getirme + istemci önbelleği
 npm run test:mwl                    # Modality Worklist (DICOMweb + DIMSE köprüsü)
+npm run test:webhard                # hız sınırı + CSRF + CSP
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)
@@ -417,6 +418,20 @@ docs/             Yayınlama ve işletim kılavuzları
   kayıtları şifle” yalnız aynı anahtarla yeniden şifreler, anahtar rotasyonu için
   çift anahtarlı çözüm ya da yeni kurulum + içe aktarma gerekir.
 - Hasta verisi diskte AES-256-GCM ile şifrelidir; anahtar yedeğini saklayın.
+- **Web sertleştirme (G1):** tüm yanıtlarda `nosniff`, `Referrer-Policy`, COOP/CORP,
+  `Permissions-Policy`, `X-Frame-Options` ve sayfalarda **nonce tabanlı CSP**
+  (`script-src 'self' 'nonce-…' 'strict-dynamic' 'wasm-unsafe-eval'`; `object-src 'none'`,
+  `frame-ancestors 'self'`). CSP ihlalleri `/api/csp-report` ucuna raporlanır; günlüğe
+  yalnız yönerge/engellenen adres/köken yazılır (hasta bağlamı taşınmaz).
+- **Hız sınırı:** API uçları sınıf bazlı kayan pencere ile sınırlanır (giriş 10/dk,
+  analiz 30/dk, PACS/HBYS 60/dk, yazma 120/dk, genel 600/dk). Sınır aşımı `429` +
+  `Retry-After` döner. Sayaçlar süreç belleğindedir (tek örnek); çok örnekli dağıtımda
+  Redis gerekir. Ölçüm/test için `AV_RATE_LIMIT=off`.
+- **CSRF:** durum değiştiren API istekleri `Origin`/`Referer`/`Sec-Fetch-Site` kontrolünden
+  ve `av_csrf` çerezi ↔ `x-csrf-token` başlığı eşleşmesinden geçer (tarayıcı tarafındaki
+  yardımcı: `src/lib/csrfClient.ts` → `apiFetch`). İlk sayfa yüklemesindeki çerez yarışı
+  için istemci, `needsCsrfToken` yanıtında jetonu tazeleyip bir kez yeniden dener.
+
 - **Erişim kapısı:** `ACCESS_TOKEN` tanımlıysa tüm sayfa/API istekleri `/giris`
   sayfasına düşer; doğru anahtar oturum çerezi (`httpOnly`, 30 gün) yazar. API’ler
   401 döner, `/api/health` ve giriş akışı kapalı kalmaz. Tanım **yoksa** kapı

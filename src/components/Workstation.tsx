@@ -44,6 +44,7 @@ import type {
   HangingProtocolRule, ImageReview, KeyImage, Layout, Lesion, SavedReport, SeriesData, StudyRow, ToolName, UserInfo, WindowPreset,
 } from "@/lib/types";
 import { LAYOUTS, WINDOW_PRESETS, type UserPrefs } from "@/lib/prefs";
+import { apiFetch } from "@/lib/csrfClient";
 
 type Rot = 0 | 90 | 180 | 270;
 const CELLS: Record<Layout, number> = { "1x1": 1, "1x2": 2, "2x1": 2, "2x2": 4, "1x3": 3, "3x1": 3, "2x3": 6, "3x2": 6 };
@@ -477,7 +478,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     loadedKey.current = "";
     const key = stateKey;
     const controller = new AbortController();
-    fetch(`/api/state?${new URLSearchParams({ studyUid: series.studyUid, seriesKey: seriesKey(series) })}`, { signal: controller.signal })
+    apiFetch(`/api/state?${new URLSearchParams({ studyUid: series.studyUid, seriesKey: seriesKey(series) })}`, { signal: controller.signal })
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { annotations: Annotation[]; keyImages: KeyImage[] } | null) => {
         if (controller.signal.aborted) return;
@@ -493,7 +494,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   useEffect(() => {
     if (!series || loadedKey.current !== stateKey) return;
     const t = setTimeout(() => {
-      fetch("/api/state", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studyUid: series.studyUid, seriesKey: seriesKey(series), annotations, keyImages }) }).catch(() => {});
+      apiFetch("/api/state", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studyUid: series.studyUid, seriesKey: seriesKey(series), annotations, keyImages }) }).catch(() => {});
     }, 1200);
     return () => clearTimeout(t);
   }, [annotations, keyImages, stateKey, series]);
@@ -502,7 +503,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   const refreshContext = useCallback(async () => {
     if (!series) return;
     try {
-      const [r, s] = await Promise.all([fetch(`/api/reports?patientId=${encodeURIComponent(series.patientId)}`), fetch("/api/studies")]);
+      const [r, s] = await Promise.all([apiFetch(`/api/reports?patientId=${encodeURIComponent(series.patientId)}`), apiFetch("/api/studies")]);
       if (r.ok) setPatientReports((await r.json()) as SavedReport[]);
       if (s.ok) setPriorStudies(((await s.json()) as StudyRow[]).filter((x) => x.patientId === series.patientId && x.studyUid !== series.studyUid));
     } catch {}
@@ -695,7 +696,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
 
   const ensureStudy = useCallback(async (s: SeriesData): Promise<number | null> => {
     try {
-      const r = await fetch("/api/studies", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studyUid: s.studyUid, patientName: s.patientName, patientId: s.patientId, patientAge: s.patientAge, patientSex: s.patientSex, studyDate: s.studyDate, institution: s.institution, modality: s.modality, bodyPart: s.bodyPart, seriesDescription: s.description, sliceCount: s.slices.length }) });
+      const r = await apiFetch("/api/studies", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studyUid: s.studyUid, patientName: s.patientName, patientId: s.patientId, patientAge: s.patientAge, patientSex: s.patientSex, studyDate: s.studyDate, institution: s.institution, modality: s.modality, bodyPart: s.bodyPart, seriesDescription: s.description, sliceCount: s.slices.length }) });
       return r.ok ? ((await r.json()) as { id: number }).id : null;
     } catch { return null; }
   }, []);
@@ -714,7 +715,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
       for (let i = 0; i < files.length; i += 3) {
         await Promise.all(files.slice(i, i + 3).map(async (f, j) => {
           const last = i + j === files.length - 1 ? `&last=1&n=${files.length}` : "";
-          const res = await fetch(`/api/storage/upload?studyId=${id}&name=${encodeURIComponent(f.name)}${last}`, { method: "POST", body: f, signal: AbortSignal.timeout(60000) });
+          const res = await apiFetch(`/api/storage/upload?studyId=${id}&name=${encodeURIComponent(f.name)}${last}`, { method: "POST", body: f, signal: AbortSignal.timeout(60000) });
           if (!res.ok) throw new Error(`${f.name} kaydedilemedi (${res.status})`);
           done++;
           toast(`Sunucuya kaydediliyor: ${done}/${files.length}`, 0);
@@ -728,14 +729,14 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
 
   const loadFromServer = useCallback(async (s: StudyRow, controller: AbortController): Promise<SeriesData[]> => {
     const signal = controller.signal;
-    const r = await withImportTimeout(fetch(`/api/storage/study/${s.id}`, { signal }), signal);
+    const r = await withImportTimeout(apiFetch(`/api/storage/study/${s.id}`, { signal }), signal);
     if (!r.ok) throw new Error("Çalışma dosyaları alınamadı");
     const { files } = (await r.json()) as { files: { id: number; name: string }[] };
     const out: File[] = [];
     for (let i = 0; i < files.length; i += 4) {
       assertNotAborted(signal);
       const part = await Promise.all(files.slice(i, i + 4).map(async (f) => {
-        const res = await withImportTimeout(fetch(`/api/storage/file/${f.id}`, { signal }), signal);
+        const res = await withImportTimeout(apiFetch(`/api/storage/file/${f.id}`, { signal }), signal);
         if (!res.ok) throw new Error(`${f.name} alınamadı`);
         return new File([await res.blob()], f.name);
       }));
@@ -778,14 +779,14 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     const signal = controller.signal;
     setProgress({ count: 0, total: 1 });
     try {
-      const li = await withImportTimeout(fetch(`/api/pacs/instances?studyUid=${encodeURIComponent(s.studyUid)}`, { signal }), signal);
+      const li = await withImportTimeout(apiFetch(`/api/pacs/instances?studyUid=${encodeURIComponent(s.studyUid)}`, { signal }), signal);
       const list = (await li.json()) as { seriesUid: string; sopUid: string }[] | { error: string };
       if (!li.ok || !Array.isArray(list)) throw new Error((list as { error: string }).error ?? "PACS hatası");
       const files: File[] = [];
       for (let i = 0; i < list.length; i += 4) {
         assertNotAborted(signal);
         const part = await Promise.all(list.slice(i, i + 4).map(async (x) => {
-          const r = await withImportTimeout(fetch(`/api/pacs/instance?${new URLSearchParams({ studyUid: s.studyUid, seriesUid: x.seriesUid, sopUid: x.sopUid })}`, { signal }), signal, 60000);
+          const r = await withImportTimeout(apiFetch(`/api/pacs/instance?${new URLSearchParams({ studyUid: s.studyUid, seriesUid: x.seriesUid, sopUid: x.sopUid })}`, { signal }), signal, 60000);
           if (!r.ok) throw new Error("Görüntü alınamadı");
           return new File([await r.blob()], `${x.sopUid}.dcm`);
         }));
@@ -1031,7 +1032,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     const stat = [...annotations].reverse().find((a) => a.stats);
     let result: AnalysisResult;
     try {
-      const res = await fetch("/api/analyze", {
+      const res = await apiFetch("/api/analyze", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           studyUid: s.studyUid, engine, findings, review, clinicalNote,
@@ -1065,7 +1066,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         setShadowHidden((n) => n + hidden.length);
         try {
           const rec = toShadowRecord(engine || "unknown", result.model, s.studyUid, s.modality, hidden);
-          await fetch("/api/shadow", {
+          await apiFetch("/api/shadow", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(rec),
@@ -1150,7 +1151,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
           sliceCount: imageSeries.reduce((n, x) => n + x.slices.length, 0),
           sliceThickness: imageSeries[0].sliceThickness,
         };
-        const sres = await fetch("/api/analyze", {
+        const sres = await apiFetch("/api/analyze", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             studyUid: series?.studyUid || imageSeries[0].studyUid,
@@ -1176,7 +1177,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
             representativeImages: reps,
           };
         });
-        const rep = await fetch("/api/multi-analyze", {
+        const rep = await apiFetch("/api/multi-analyze", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             studyUid: series?.studyUid || imageSeries[0].studyUid,
@@ -1238,7 +1239,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         imageSeries.length > 0
       ) {
         try {
-          await fetch("/api/analyze", {
+          await apiFetch("/api/analyze", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -1313,7 +1314,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   };
 
   const openSaved = async (id: number) => {
-    const r = await fetch(`/api/reports/${id}`);
+    const r = await apiFetch(`/api/reports/${id}`);
     if (!r.ok) { alert("Rapor açılamadı"); return; }
     const { report: x } = (await r.json()) as { report: SavedReport };
     let kis: KeyImage[] = [];
@@ -1340,7 +1341,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     const kiPayload = prioritizedKi.length ? JSON.stringify(prioritizedKi.slice(0, 4)) : r.keyImageDataUrl;
     let res: Response;
     try {
-      res = await fetch("/api/reports", {
+      res = await apiFetch("/api/reports", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           reportId: r.id, action,
@@ -1394,7 +1395,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
 
   // Sunucudaki tercihler (F3): yalnız açılışta; istasyonda elle değiştirilebilir.
   useEffect(() => {
-    fetch("/api/profile/preferences").then((r) => (r.ok ? r.json() : null)).then((d: { prefs?: UserPrefs } | null) => {
+    apiFetch("/api/profile/preferences").then((r) => (r.ok ? r.json() : null)).then((d: { prefs?: UserPrefs } | null) => {
       const p = d?.prefs;
       if (!p) return;
       if ((LAYOUTS as readonly string[]).includes(p.layout)) setLayout(p.layout as Layout);
@@ -1510,7 +1511,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
           <Link href="/kiyaslama" prefetch={false} className="rounded-lg border border-violet-400/50 bg-violet-500/10 px-2.5 py-1.5 text-xs font-bold text-violet-200 hover:bg-violet-500/20">📊 Kıyaslama</Link>
           <Link href="/yonetim" prefetch={false} className="rounded-lg border border-slate-500/50 px-2.5 py-1.5 text-xs font-bold text-slate-200 hover:bg-slate-500/10">⚙ Yönetim</Link>
           <Link href="/tercihler" prefetch={false} title="Kullanıcı tercihleri (düzen, pencere ön ayarı, otomatik protokol)" className="rounded-lg border border-slate-500/50 px-2.5 py-1.5 text-xs font-bold text-slate-200 hover:bg-slate-500/10">🧰 Tercihler</Link>
-          <button onClick={() => void fetch("/api/auth/logout", { method: "POST" }).finally(() => { window.location.reload(); })} title="Oturumu kapat" className="rounded-lg border border-rose-400/40 px-2.5 py-1.5 text-xs font-bold text-rose-300 hover:bg-rose-400/10">⎋ Çıkış</button>
+          <button onClick={() => void apiFetch("/api/auth/logout", { method: "POST" }).finally(() => { window.location.reload(); })} title="Oturumu kapat" className="rounded-lg border border-rose-400/40 px-2.5 py-1.5 text-xs font-bold text-rose-300 hover:bg-rose-400/10">⎋ Çıkış</button>
           <NotificationsBell />
           <button onClick={openReport} className="cursor-pointer rounded-lg border border-cyan-400/60 bg-gradient-to-r from-cyan-500/20 to-emerald-500/20 px-3 py-1.5 text-xs font-bold text-cyan-200 hover:text-white">📄 Rapor <span className={`ml-1 rounded-full px-1.5 text-[9px] font-black ${reportStatus === "onaylandi" ? "bg-emerald-500 text-slate-950" : "bg-rose-500 text-white"}`}>{reportStatus === "onaylandi" ? "ONAYLI" : "TASLAK"}</span></button>
           <Link href="/yonetim" prefetch={false} title="Rapor imzasında görünecek hekim adı — düzenlemek için tıklayın" className="text-right leading-tight hover:opacity-80">

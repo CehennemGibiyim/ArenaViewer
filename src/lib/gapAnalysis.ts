@@ -706,8 +706,8 @@ const BASE_ITEMS: GapItem[] = [
     id: "g-webhard", category: "trust", title: "Web hardening: CSP, X-Frame-Options, CSRF, rate limiting",
     status: "kismi", priority: "P1", effort: "S",
     market: ["Kurumsal standart"],
-    ours: "**Bu sürümde kısmen uygulandı:** `next.config.ts` ile nosniff, Referrer-Policy, COOP/CORP, Permissions-Policy ve CSP (frame-ancestors 'self'); sayfa/API no-store. Rate limiting ve CSRF token yok.",
-    action: "IP/kullanıcı bazlı hız sınırı ve state-değiştiren uçlar için CSRF koruması.",
+    ours: "**Bu sürümde tamamlandı:** `next.config.ts` statik başlıkları (nosniff, Referrer-Policy, COOP/CORP, Permissions-Policy) + `src/proxy.ts` içinde **nonce tabanlı CSP** (`strict-dynamic`, `object-src none`, `frame-ancestors self`, `wasm-unsafe-eval`), `X-Frame-Options: SAMEORIGIN` ve CSP ihlal rapor ucu (`/api/csp-report`). **Hız sınırı:** `src/lib/webSecurity.ts` `RateLimiter` (kayan pencere, IP/kullanıcı anahtarı, uç sınıfına göre 10–600 istek/dk, `429` + `Retry-After`, `AV_RATE_LIMIT=off`). **CSRF:** Origin/Referer/Sec-Fetch-Site doğrulaması + `av_csrf` çerezi ↔ `x-csrf-token` çift gönderim jetonu; istemci `apiFetch` sarmalayıcısı tüm bileşenlerde kullanılıyor (403 `needsCsrfToken` → bir kez yeniden dene). Test: `npm run test:webhard`.",
+    action: "Çok örnekli dağıtım için Redis tabanlı paylaşılan sayaç; CSP raporlarının SIEM'e aktarımı.",
   },
   {
     id: "g-audit-export", category: "trust", title: "Denetim dışa aktarımı (Syslog/CEF/JSON) + uzun vadeli arşiv",

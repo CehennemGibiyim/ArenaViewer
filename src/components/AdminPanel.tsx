@@ -46,11 +46,12 @@ const COMPLIANCE = [
 ];
 
 async function api<T>(url: string, init?: RequestInit): Promise<{ ok: boolean; data: T }> {
-  const r = await fetch(url, init);
+  const r = await apiFetch(url, init);
   return { ok: r.ok, data: (await r.json().catch(() => ({}))) as T };
 }
 const json = (method: string, body: unknown): RequestInit => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 import { formatHours } from "@/lib/workflowStats";
+import { apiFetch } from "@/lib/csrfClient";
 
 const card = "rounded-xl border border-[#1e2735] bg-[#0b1018] p-4";
 const input = "rounded-lg border border-[#1e2735] bg-[#0e141d] px-2.5 py-1.5 text-xs text-slate-100 focus:border-cyan-400/50 focus:outline-none";
@@ -249,7 +250,7 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
         <h1 className="font-mono text-sm font-black tracking-[0.15em] text-slate-100">ATIK<span className="text-cyan-400">VIEWER</span> · YÖNETİM</h1>
         <span className="ml-auto flex items-center gap-3">
           <span className="text-xs text-slate-400" title={`Rol: ${user.role}`}>{user.title} {user.fullName} · <span className="font-mono text-[10px] text-slate-500">{user.role}</span></span>
-          <button className={`${btn} border border-rose-400/40 text-rose-300 hover:bg-rose-400/10`} onClick={() => void fetch("/api/auth/logout", { method: "POST" }).finally(() => { window.location.reload(); })}>⎋ Çıkış</button>
+          <button className={`${btn} border border-rose-400/40 text-rose-300 hover:bg-rose-400/10`} onClick={() => void apiFetch("/api/auth/logout", { method: "POST" }).finally(() => { window.location.reload(); })}>⎋ Çıkış</button>
         </span>
       </header>
       <main className="mx-auto max-w-6xl px-5 py-6">

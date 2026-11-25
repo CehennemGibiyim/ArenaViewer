@@ -11,6 +11,7 @@ import { annotationsToMeasurements, exportCoverage, siteCode } from "@/lib/measu
 import { buildMeasurementReportSr } from "@/lib/sr1500";
 import { buildRtStruct, buildSegDocument } from "@/lib/dicomSeg";
 import { emptyMask, makeSegmentDef, paint, prune } from "@/lib/segmentation";
+import { apiFetch } from "@/lib/csrfClient";
 
 interface Props {
   series: SeriesData | null;
@@ -106,7 +107,7 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
       const plan = planAnonStow(anon.map((a) => ({ name: a.name, bytes: a.bytes })), series.sopUids);
       if (!plan.ok) { toast(plan.reason ?? "Gönderim hazırlanamadı", 7000); return; }
       setSending("pr");
-      const r = await fetch("/api/pacs/stow", {
+      const r = await apiFetch("/api/pacs/stow", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ kind: "anon", studyUid: series.studyUid, instances: plan.instances }),
       });
@@ -206,7 +207,7 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
     setProg(null);
     setSending(kind);
     try {
-      const r = await fetch("/api/pacs/stow", {
+      const r = await apiFetch("/api/pacs/stow", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           kind, studyUid: series.studyUid, seriesKey: `${series.seriesUid ?? series.description}|${series.slices.length}`,

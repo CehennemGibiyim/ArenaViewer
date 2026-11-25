@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { StudyRow, UserInfo } from "@/lib/types";
+import { apiFetch } from "@/lib/csrfClient";
 
 interface PacsStudy {
   studyUid: string;
@@ -75,7 +76,7 @@ export default function WorklistModal({ open, onClose, user, onOpenStudy, onOpen
 
   const load = useCallback(async () => {
     setLoading(true);
-    const r = await fetch(`/api/studies?${new URLSearchParams({ q, status })}`);
+    const r = await apiFetch(`/api/studies?${new URLSearchParams({ q, status })}`);
     if (r.ok) setRows((await r.json()) as StudyRow[]);
     setLoading(false);
   }, [q, status]);
@@ -84,12 +85,12 @@ export default function WorklistModal({ open, onClose, user, onOpenStudy, onOpen
   }, [open, tab, load]);
 
   const patch = async (id: number, body: Record<string, unknown>) => {
-    await fetch(`/api/studies/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    await apiFetch(`/api/studies/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     void load();
   };
   const searchPacs = async () => {
     setPacsErr("");
-    const r = await fetch(`/api/pacs/studies?q=${encodeURIComponent(pq)}`);
+    const r = await apiFetch(`/api/pacs/studies?q=${encodeURIComponent(pq)}`);
     const d = await r.json();
     if (!r.ok) { setPacs([]); setPacsErr((d as { error?: string }).error ?? "PACS hatası"); return; }
     setPacs(d as PacsStudy[]);
@@ -103,7 +104,7 @@ export default function WorklistModal({ open, onClose, user, onOpenStudy, onOpen
     if (mwlDate) params.set("date", mwlDate);
     if (mwlModality) params.set("modality", mwlModality);
     if (mwlOpen) params.set("open", "1");
-    const r = await fetch(`/api/his/mwl?${params}`);
+    const r = await apiFetch(`/api/his/mwl?${params}`);
     const d = (await r.json().catch(() => ({}))) as { items?: MwlRow[]; error?: string };
     if (!r.ok) { setMwl([]); setMwlErr(d.error ?? "MWL sorgusu başarısız"); }
     else setMwl(d.items ?? []);
@@ -125,7 +126,7 @@ export default function WorklistModal({ open, onClose, user, onOpenStudy, onOpen
   const takeMwl = async (row: MwlRow) => {
     setMwlBusy(true);
     setMwlNote("");
-    const r = await fetch("/api/his/mwl", {
+    const r = await apiFetch("/api/his/mwl", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(row),

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { apiFetch } from "@/lib/csrfClient";
 
 interface SetupInfo {
   needed: boolean;
@@ -25,7 +26,7 @@ export default function SetupForm({ accessEnabled }: { accessEnabled: boolean })
   useEffect(() => {
     void (async () => {
       try {
-        const r = await fetch("/api/auth/setup");
+        const r = await apiFetch("/api/auth/setup");
         if (r.ok) setInfo((await r.json()) as SetupInfo);
       } catch {
         /* çevrimdışı */
@@ -36,7 +37,7 @@ export default function SetupForm({ accessEnabled }: { accessEnabled: boolean })
   if (!info?.needed) return null;
 
   async function startTotp() {
-    const r = await fetch("/api/auth/setup", { method: "PUT" });
+    const r = await apiFetch("/api/auth/setup", { method: "PUT" });
     if (r.ok) setQr(await r.json());
   }
 
@@ -46,7 +47,7 @@ export default function SetupForm({ accessEnabled }: { accessEnabled: boolean })
     setBusy(true);
     setError("");
     try {
-      const r = await fetch("/api/auth/setup", {
+      const r = await apiFetch("/api/auth/setup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

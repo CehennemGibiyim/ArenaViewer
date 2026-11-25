@@ -7,6 +7,7 @@
  */
 import { useState } from "react";
 import { LAYOUTS, WINDOW_PRESETS, type LayoutPref, type UserPrefs } from "@/lib/prefs";
+import { apiFetch } from "@/lib/csrfClient";
 
 export default function PreferencesPanel() {
   const [prefs, setPrefs] = useState<UserPrefs | null>(null);
@@ -16,7 +17,7 @@ export default function PreferencesPanel() {
 
   const load = async () => {
     try {
-      const r = await fetch("/api/profile/preferences");
+      const r = await apiFetch("/api/profile/preferences");
       if (!r.ok) throw new Error(((await r.json().catch(() => ({}))) as { error?: string }).error ?? "Tercihler yüklenemedi");
       const d = (await r.json()) as { prefs: UserPrefs; defaults: UserPrefs };
       setPrefs(d.prefs); setDefaults(d.defaults);
@@ -25,7 +26,7 @@ export default function PreferencesPanel() {
 
   const save = async (next: UserPrefs) => {
     setBusy(true); setMsg("");
-    const r = await fetch("/api/profile/preferences", {
+    const r = await apiFetch("/api/profile/preferences", {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(next),
     });
@@ -38,7 +39,7 @@ export default function PreferencesPanel() {
 
   const reset = async () => {
     setBusy(true); setMsg("");
-    const r = await fetch("/api/profile/preferences", { method: "DELETE" });
+    const r = await apiFetch("/api/profile/preferences", { method: "DELETE" });
     const d = (await r.json().catch(() => ({}))) as { prefs?: UserPrefs };
     setBusy(false);
     if (d.prefs) { setPrefs(d.prefs); setMsg("Varsayılanlara dönüldü."); } else setMsg("Sıfırlanamadı");

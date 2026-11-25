@@ -15,6 +15,7 @@ import { MACRO_GROUPS, macroById, macrosByGroup, type MacroGroup } from "@/lib/m
 import type {
   Finding, FindingApprovalStatus, KeyImage, ModelCard, ReportAddendum, ReportVersion, SavedReport, TemplateRow, UserInfo,
 } from "@/lib/types";
+import { apiFetch } from "@/lib/csrfClient";
 
 export interface ReportData {
   id?: number;
@@ -214,7 +215,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
 
   const loadSignatures = useCallback(async (id: number) => {
     try {
-      const r = await fetch(`/api/reports/${id}/signature`);
+      const r = await apiFetch(`/api/reports/${id}/signature`);
       if (!r.ok) return;
       const d = (await r.json()) as { records?: SignatureRecord[] };
       setSigRecords(Array.isArray(d.records) ? d.records : []);
@@ -226,7 +227,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
     setSigBusy(true);
     setSigMsg("");
     try {
-      const r = await fetch(`/api/reports/${report.id}/signature`, {
+      const r = await apiFetch(`/api/reports/${report.id}/signature`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ method: sigMethod }),
       });
@@ -238,21 +239,21 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
   }, [report.id, sigMethod, loadSignatures]);
 
   const loadDetail = useCallback(async (id: number) => {
-    const r = await fetch(`/api/reports/${id}`);
+    const r = await apiFetch(`/api/reports/${id}`);
     if (!r.ok) return;
     const d = (await r.json()) as { versions: ReportVersion[]; addenda: ReportAddendum[] };
     setVersions(d.versions);
     setAddenda(d.addenda);
-    fetch("/api/shares").then((sr) => (sr.ok ? sr.json() : null)).then((sd: { shares?: typeof shares } | null) => {
+    apiFetch("/api/shares").then((sr) => (sr.ok ? sr.json() : null)).then((sd: { shares?: typeof shares } | null) => {
       if (sd?.shares) setShares(sd.shares.filter((x) => x.reportId === id));
     }).catch(() => {});
-    fetch(`/api/reports/${id}/peer-reviews`).then((pr) => (pr.ok ? pr.json() : null)).then((pd: { reviews?: typeof peerList } | null) => {
+    apiFetch(`/api/reports/${id}/peer-reviews`).then((pr) => (pr.ok ? pr.json() : null)).then((pd: { reviews?: typeof peerList } | null) => {
       if (pd?.reviews) setPeerList(pd.reviews);
     }).catch(() => {});
   }, []);
   useEffect(() => {
     if (!open) return;
-    fetch("/api/templates").then((r) => (r.ok ? r.json() : [])).then((t: TemplateRow[]) => setTemplates(t)).catch(() => {});
+    apiFetch("/api/templates").then((r) => (r.ok ? r.json() : [])).then((t: TemplateRow[]) => setTemplates(t)).catch(() => {});
   }, [open]);
   useEffect(() => {
     void (async () => {
@@ -300,12 +301,12 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
   const saveTemplate = async () => {
     const name = window.prompt("Şablon adı", `${report.modality} ${report.bodyPart} — özel`);
     if (!name) return;
-    const r = await fetch("/api/templates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, modality: report.modality, bodyPart: report.bodyPart, technique: report.technique, findings: report.findingsText, impression: report.impression, recommendation: report.recommendation }) });
-    if (r.ok) fetch("/api/templates").then((x) => x.json()).then((t: TemplateRow[]) => setTemplates(t));
+    const r = await apiFetch("/api/templates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, modality: report.modality, bodyPart: report.bodyPart, technique: report.technique, findings: report.findingsText, impression: report.impression, recommendation: report.recommendation }) });
+    if (r.ok) apiFetch("/api/templates").then((x) => x.json()).then((t: TemplateRow[]) => setTemplates(t));
   };
   const draftImpression = async () => {
     setBusy(true); setError("");
-    const r = await fetch("/api/reports/draft-impression", {
+    const r = await apiFetch("/api/reports/draft-impression", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         modality: report.modality, bodyPart: report.bodyPart,
@@ -326,7 +327,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
     if (!report.id) { setError("Önce raporu taslak olarak kaydedin; görevler yalnız kayıtlı rapora bağlanır."); return; }
     const days = t.intervalDays ?? 0;
     const due = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
-    const r = await fetch("/api/notifications", {
+    const r = await apiFetch("/api/notifications", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -360,7 +361,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
     if (!report.id) return;
     setBusy(true); setPeerMsg(""); setError("");
     try {
-      const r = await fetch(`/api/reports/${report.id}/peer-reviews`, {
+      const r = await apiFetch(`/api/reports/${report.id}/peer-reviews`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ result: peerResult, discrepancyType: peerType, note: peerNote }),
       });
@@ -378,7 +379,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
     if (!report.id) return;
     setBusy(true); setShareMsg(""); setError("");
     try {
-      const r = await fetch("/api/shares", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "report", reportId: report.id, ttlHours: shareTtl }) });
+      const r = await apiFetch("/api/shares", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "report", reportId: report.id, ttlHours: shareTtl }) });
       const d = (await r.json().catch(() => ({}))) as { ok?: boolean; url?: string; error?: string };
       if (!r.ok || !d.url) throw new Error(d.error ?? "Bağlantı oluşturulamadı");
       try { await navigator.clipboard.writeText(`${window.location.origin}${d.url}`); setShareMsg("Bağlantı kopyalandı."); }
@@ -392,7 +393,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
   const revokeShare = async (token: string) => {
     setBusy(true); setShareMsg(""); setError("");
     try {
-      const r = await fetch(`/api/shares/${token}`, { method: "DELETE" });
+      const r = await apiFetch(`/api/shares/${token}`, { method: "DELETE" });
       if (!r.ok) throw new Error(((await r.json().catch(() => ({}))) as { error?: string }).error ?? "Kapatılamadı");
       setShareMsg("Bağlantı kapatıldı.");
       if (report.id) await loadDetail(report.id);
@@ -420,7 +421,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
   /** FHIR dosyasını fetch ile alıp indirir (sunucuda da, statik demoda da çalışır). */
   const downloadFhir = async (id: number) => {
     try {
-      const r = await fetch(`/api/reports/${id}/fhir`);
+      const r = await apiFetch(`/api/reports/${id}/fhir`);
       if (!r.ok) throw new Error(((await r.json()) as { error?: string }).error ?? "FHIR dışa aktarılamadı");
       const blob = new Blob([await r.text()], { type: "application/fhir+json" });
       const a = document.createElement("a");
@@ -435,7 +436,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
   const sendToPacs = async (id: number) => {
     setBusy(true); setError("");
     try {
-      const r = await fetch("/api/pacs/stow", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reportId: id }) });
+      const r = await apiFetch("/api/pacs/stow", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reportId: id }) });
       const d = (await r.json().catch(() => ({}))) as { ok?: boolean; message?: string; stored?: number; pacs?: string; error?: string };
       if (!r.ok) throw new Error(d.error ?? "PACS'e gönderilemedi");
       setNotice(`PACS'e gönderildi: ${d.stored ?? 1} nesne kaydedildi (${d.pacs ?? "PACS"}).`);
@@ -476,7 +477,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
   const addAddendum = async () => {
     if (!report.id || addText.trim().length < 3) return;
     setBusy(true);
-    const r = await fetch(`/api/reports/${report.id}/addenda`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: addText }) });
+    const r = await apiFetch(`/api/reports/${report.id}/addenda`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: addText }) });
     setBusy(false);
     if (r.ok) { setAddText(""); void loadDetail(report.id); } else setError(((await r.json()) as { error?: string }).error ?? "Addendum eklenemedi");
   };
