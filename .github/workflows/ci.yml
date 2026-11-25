@@ -57,6 +57,11 @@ jobs:
           AUTH_INTEGRATION_TEST: "1"
         run: npm run test:auth-integration
 
+      - name: PostgreSQL AI geri bildirim entegrasyon testi
+        env:
+          AI_PERFORMANCE_INTEGRATION_TEST: "1"
+        run: npm run test:ai-performance-integration
+
 
   # Pages yalnız main'e dağıtılır; PR'da aynı statik derleme dağıtımsız sınanır.
   pages-build:

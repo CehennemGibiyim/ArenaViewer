@@ -78,7 +78,8 @@
     "test:stow-client": "tsx tests/stow-client.test.ts",
     "test:auth-integration": "tsx tests/auth-login.integration.ts",
     "test:series-geometry": "tsx tests/series-geometry.test.ts",
-    "test:palette-color": "tsx tests/palette-color.test.ts"
+    "test:palette-color": "tsx tests/palette-color.test.ts",
+    "test:ai-performance-integration": "tsx tests/ai-performance.integration.ts"
   },
   "dependencies": {
     "dicom-parser": "^1.8.21",
