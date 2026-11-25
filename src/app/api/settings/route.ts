@@ -6,6 +6,7 @@ import { publicPacsConfig } from "@/lib/server/pacs";
 import { loadMwlEndpoints, loadPacsConfig } from "@/lib/server/pacsConfig";
 import { getSetting, isHttpUrl, setSetting } from "@/lib/server/settings";
 import { DEFAULT_PACS, type PacsAuthType, type PacsConfig } from "@/lib/pacsPresets";
+import { parseChannels, serializeChannels } from "@/lib/notifyChannels";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,9 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     retentionDraftDays: Number(await getSetting("retentionDraftDays", "0")),
     criticalWebhookUrl: await getSetting("criticalWebhookUrl"),
+    // Kritik bulgu kanalları (e-posta/SMS/çağrı/webhook) — normalize edilmiş JSON.
+    notifyChannels: await getSetting("notifyChannels"),
+    notifyChannelErrors: parseChannels(await getSetting("notifyChannels")).errors,
     pacsBaseUrl: await getSetting("pacsBaseUrl"),
     pacs: cfg ? publicPacsConfig(cfg) : DEFAULT_PACS,
     // MWL ek uçları (ayrı kök + DIMSE C-FIND köprüsü) — boşsa MWL DICOMweb kökünü kullanır.
@@ -89,6 +93,14 @@ export async function PUT(req: NextRequest) {
       await setSetting(k, v);
       changed.push(k);
     }
+  }
+  if (b.notifyChannels !== undefined) {
+    // Dizi veya JSON metni kabul edilir; geçersiz kayıtlar atlanır ama hata döner.
+    const raw = typeof b.notifyChannels === "string" ? b.notifyChannels : JSON.stringify(b.notifyChannels ?? []);
+    const { channels, errors } = parseChannels(raw);
+    if (errors.length) return NextResponse.json({ error: errors.join(" · "), channelErrors: errors }, { status: 400 });
+    await setSetting("notifyChannels", serializeChannels(channels));
+    changed.push("notifyChannels");
   }
   if (typeof b.retentionDraftDays === "number") {
     const d = Math.max(0, Math.min(3650, Math.floor(b.retentionDraftDays)));

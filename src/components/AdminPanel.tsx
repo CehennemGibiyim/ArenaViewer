@@ -20,6 +20,9 @@ interface Status { keySource: string; plaintext: { studies: number; reports: num
 type Settings = {
   retentionDraftDays: number;
   criticalWebhookUrl: string;
+  /** Kritik bulgu kanalları: e-posta/SMS/çağrı/webhook (JSON dizi metni). */
+  notifyChannels?: string;
+  notifyChannelErrors?: string[];
   pacsBaseUrl: string;
   pacs: PacsForm;
   /** MWL ek uçları: ayrı DICOMweb MWL kökü ve/veya DIMSE C-FIND köprüsü. */
@@ -61,6 +64,8 @@ const btn = "cursor-pointer rounded-lg px-3 py-1.5 text-xs font-bold";
 export default function AdminPanel({ user }: { user: UserInfo }) {
   const [tab, setTab] = useState<Tab>("profile");
   const [msg, setMsg] = useState("");
+  const [notifyTesting, setNotifyTesting] = useState(false);
+  const [notifyTest, setNotifyTest] = useState<{ results: { id: string; kind: string; ok: boolean; status: number | null; ms: number; error?: string }[] } | null>(null);
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(""), 4000); };
 
   // hekim profili (rapor imzasında görünecek ad)
@@ -770,10 +775,38 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
               </p>
             </div>
             <div className={card}>
-              <h2 className="text-sm font-bold text-slate-100">Kritik bulgu bildirimi (webhook)</h2>
-              <input id="hook" defaultValue={settings.criticalWebhookUrl} placeholder="https://… (POST JSON)" className={`${input} mt-3 w-full`} />
-              <p className="mt-2 text-[11px] text-slate-500">Kritik/yüksek aday bulguda uygulama içi bildirim + bu adrese POST. E-posta/SMS/çağrı cihazı sağlayıcıları, webhook&apos;u dinleyen bir köprü ile bağlanır. Alındı bilgisi denetim kaydına yazılır.</p>
-              <button className={`${btn} mt-3 bg-cyan-500 text-slate-950`} onClick={() => void saveSettings({ criticalWebhookUrl: (document.getElementById("hook") as HTMLInputElement).value })}>Kaydet</button>
+              <h2 className="text-sm font-bold text-slate-100">Kritik bulgu bildirimi (e-posta · SMS · çağrı · webhook)</h2>
+              <input id="hook" defaultValue={settings.criticalWebhookUrl} placeholder="https://… (eski tek webhook, POST JSON)" className={`${input} mt-3 w-full`} />
+              <p className="mt-2 text-[11px] text-slate-500">Kritik/yüksek aday bulguda uygulama içi bildirim + aşağıdaki kanallara POST. Aynı olay tüm kanallara <b>kimliksiz</b> gider (önem, çalışma UID, modalite, kısa mesaj) — hasta adı/numarası gönderilmez. Kurumun SMTP relay&apos;i, SMS/pager ağ geçidi veya mobil-push köprüsü tek bir HTTP uç noktası olarak tanımlanır.</p>
+              <textarea id="chans" defaultValue={settings.notifyChannels} rows={8} spellCheck={false}
+                placeholder={'[\n  {"kind":"email","url":"https://mail.kurum.local/notify","to":"radyolog@kurum.local","minSeverity":"yuksek"},\n  {"kind":"sms","url":"https://sms.kurum.local/send","to":"+90555…"},\n  {"kind":"pager","url":"https://pager.kurum.local/push","to":"0042","minSeverity":"kritik"},\n  {"kind":"webhook","url":"https://bridge.kurum.local/push","minSeverity":"orta"}\n]'}
+                className={`${input} mt-3 w-full font-mono text-[11px]`} />
+              <p className="mt-1 text-[10.5px] text-slate-500">Varsayılan eşikler: webhook/e-posta <b>yüksek</b>, SMS/çağrı <b>kritik</b>. <code>enabled:false</code> ile kanalı kapatabilirsiniz. Geçersiz kayıt listeyi bozmaz; hata mesajı gösterilir.</p>
+              {!!settings.notifyChannelErrors?.length && (
+                <ul className="mt-2 space-y-0.5 text-[11px] text-amber-300">{settings.notifyChannelErrors.map((e, i) => <li key={i}>⚠ {e}</li>)}</ul>
+              )}
+              {notifyTest && (
+                <ul className="mt-2 space-y-0.5 text-[11px]">
+                  {notifyTest.results.length === 0 && <li className="text-slate-400">Tanımlı kanal yok — test gönderilmedi.</li>}
+                  {notifyTest.results.map((r) => (
+                    <li key={r.id} className={r.ok ? "text-emerald-300" : "text-rose-300"}>
+                      {r.ok ? "✓" : "✕"} {r.id} ({r.kind}) {r.status !== null ? `· HTTP ${r.status}` : "· ağ"} · {r.ms} ms{r.error ? ` — ${r.error}` : ""}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="mt-3 flex gap-2">
+                <button className={`${btn} bg-cyan-500 text-slate-950`} onClick={() => void saveSettings({ criticalWebhookUrl: (document.getElementById("hook") as HTMLInputElement).value, notifyChannels: (document.getElementById("chans") as HTMLTextAreaElement).value })}>Kaydet</button>
+                <button className={`${btn} border border-cyan-400/40 text-cyan-200 hover:bg-cyan-400/10`} disabled={notifyTesting}
+                  onClick={async () => {
+                    setNotifyTesting(true); setNotifyTest(null);
+                    const r = await api<{ error?: string; results: { id: string; kind: string; ok: boolean; status: number | null; ms: number; error?: string }[] }>("/api/notifications/test", { method: "POST" });
+                    setNotifyTesting(false);
+                    if (!r.ok) { flash(r.data.error ?? "Test gönderilemedi"); setNotifyTest({ results: [] }); return; }
+                    setNotifyTest({ results: r.data.results });
+                    flash(r.data.results.every((x) => x.ok) ? "Test iletildi" : "Bazı kanallar başarısız");
+                  }}>{notifyTesting ? "Gönderiliyor…" : "Test gönder"}</button>
+              </div>
             </div>
             <div className={card}>
               <h2 className="text-sm font-bold text-slate-100">HBYS / RIS istem alımı</h2>

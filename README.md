@@ -52,6 +52,14 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   bölge özeti (core: rCBF<%30, penumbra: Tmax≥6 sn) ve mismatch oranı. Panelden
   `ad | zaman | değer` biçiminde eğri yapıştırılır. Değerler **rölatiftir**;
   mutlak mL/100 g/dk için dansite kalibrasyonu gerekir, klinik karar aracı değildir.
+- **Kritik bulgu bildirimi (çok kanallı):** kritik/yüksek aday bulgu uygulama içi
+  bildirime ek olarak **e-posta / SMS / çağrı cihazı / webhook** kanallarına gider.
+  Kanallar Yönetim → Entegrasyon'da JSON olarak tanımlanır (kurumun SMTP relay'i,
+  SMS/pager ağ geçidi veya push köprüsü tek HTTP uç noktası); kanal başına önem
+  eşiği ve `enabled` anahtarı vardır, "Test gönder" HTTP durum kodlarını listeler.
+  Yük **kimliksizdir** (önem, çalışma UID, modalite, kısa mesaj — hasta adı
+  gönderilmez). Bir kanalın hatası diğerlerini engellemez, sonuç denetim kaydına
+  kanal bazında yazılır (`src/lib/notifyChannels.ts`).
 - **Denetim → SIEM:** Her denetim olayı aynı işlemde `audit_delivery` kuyruğuna
   CEF olarak yazılır. `AUDIT_SIEM_URL` (+ isteğe bağlı `AUDIT_SIEM_SECRET`) tanımlıysa
   HMAC-SHA256 imzalı POST ile gönderilir; hata olursa üstel geri çekilmeyle
@@ -412,6 +420,7 @@ npm run test:esign                   # imza kaydı + NES sınır etiketi
 npm run test:xref                    # 3B imleç: en yakın kesit + panel güncellemeleri
 npm run test:perf                   # pencere/seviye doğruluğu + önbellek ön-işleme
 npm run test:gpu                    # GPU pencereleme kararı + shader≡CPU eşdeğerliği
+npm run test:notify-channels        # e-posta/SMS/çağrı kanalları: ayrıştırma, eşik, PHI'siz yük
 npm run bench:window                # WL/WW dönüşümü kıyaslaması (eski vs LUT)
 npm run test:pr                     # GSPS/PR dışa aktarma + parse doğrulama
 npm run test:notify                 # masaüstü bildirimi + izin akışı
