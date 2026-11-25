@@ -305,6 +305,23 @@ gh attestation verify <dosya> --repo CehennemGibiyim/ArenaViewer   # imzalı kö
 Doğrulayıcı, SBOM'u `--sbom`, kanıtı `--provenance` ile başka yoldan da okur;
 `SHA256SUMS` üretmek için `node scripts/supplychain.mjs manifest --dir dist`.
 
+## Depolama, yedek ve DR
+
+Görüntü dosyaları `StorageAdapter` üzerinden yazılır: yerel disk (`.data/`),
+S3/MinIO (`S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`,
+`S3_REGION`, `S3_VIRTUAL_HOST=1`) veya Yönetim → Entegrasyon'daki `storage`
+ayarı. S3 istemcisi AWS SigV4 kullanır (AWS/MinIO/R2/Wasabi uyumlu).
+
+- Yedek manifesti: `GET /api/admin/backup?download=1` (dosya listesi + SHA-256)
+- Doğrulama: `POST /api/admin/backup {"verify": <manifest>}`
+- Geri yükleme: `POST /api/admin/backup {"restore": <manifest>}` — idempotent,
+  hiçbir dosyayı silmez; aynı özetliler atlanır.
+- İşletim playbook'u (pg_dump, felaket senaryoları, tatbikat listesi):
+  [docs/YEDEK_VE_DR.md](docs/YEDEK_VE_DR.md)
+
+> `DATA_ENCRYPTION_KEY` yedekten **ayrı** saklanmalıdır; anahtarsız şifreli
+> dosyalar kurtarılamaz.
+
 ## Ortam değişkenleri
 
 | Değişken | Zorunlu | Açıklama |
@@ -376,6 +393,7 @@ npm run test:wadoframe              # kare düzeyinde getirme + istemci önbelle
 npm run test:mwl                    # Modality Worklist (DICOMweb + DIMSE köprüsü)
 npm run test:webhard                # hız sınırı + CSRF + CSP
 npm run test:supplychain            # SBOM + SHA256SUMS + SLSA köken doğrulaması
+npm run test:backupdr               # depolama adaptörü + yedek/geri yükleme
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)

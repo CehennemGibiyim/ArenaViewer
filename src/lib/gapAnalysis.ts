@@ -727,8 +727,8 @@ const BASE_ITEMS: GapItem[] = [
     id: "g-backup-dr", category: "trust", title: "Yedek/geri yükleme/DR + nesne depolama adaptörü (S3/MinIO)",
     status: "kismi", priority: "P1", effort: "L",
     market: ["OHIF", "Weasis"],
-    ours: "Dosya sistemi; yedek/DR ve nesne depolama yok.",
-    action: "Depolama arayüzü + S3/MinIO; pg_dump playbook'u ve DR tatbikatı.",
+    ours: "**Bu sürümde eklendi:** `src/lib/storageAdapter.ts` — `StorageAdapter` arayüzü (`put/get/delete/list`), `FsStorage` (atomik yazma, path traversal koruması) ve `S3Storage` (AWS SigV4 elle imzalanır; AWS/MinIO/R2/Wasabi, resmî test vektörüyle doğrulandı). Etkin arka uç `src/lib/server/storage.ts`: ayar → `S3_*` ortam değişkenleri → yerel disk; yükleme/indirme uçları adaptörden geçer (doğrudan `fs` yok). Yedek: `createManifest`/`verifyManifest`/`planRestore` + `/api/admin/backup` (manifest indirme, doğrulama, idempotent geri yükleme; tümü `backup.*` denetim kaydı). Test: `npm run test:backupdr`.",
+    action: "Zamanlanmış yedek + S3 yaşam döngüsü/nesne kilidi (WORM); gerçek DR tatbikatı kaydı.",
   },
   {
     id: "g-kms", category: "trust", title: "KMS/anahtar rotasyonu (otomatik rotation, eski anahtarla çöz/yeniyle şifrele)",
