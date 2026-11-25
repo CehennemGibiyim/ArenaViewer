@@ -7,6 +7,7 @@ import { annotationSummary, dist, ellipseTest, pointInPolygon, perpendicular, re
 import { buildFusionLayer, type FusionParams } from "@/lib/fusion";
 import { jumpToPatient, refLinesFor, registerPanel, unregisterPanel, usePanelRegistry } from "@/lib/panelRegistry";
 import { planeOf, toPatient } from "@/lib/planes";
+import { buildWindowLUT, windowToRGBA } from "@/lib/window";
 import { fmtConfShort } from "@/lib/format";
 
 const SEV_COLOR: Record<string, string> = { kritik: "#ff3b5c", yuksek: "#ff9f1c", orta: "#ffd60a", dusuk: "#4cc9f0", normal: "#2ee6a8" };
@@ -89,6 +90,33 @@ interface ViewportProps {
   onHover?: (v: number | null) => void;
 }
 
+/** Taban katmanı tuvalini üretir (True Color kopyası veya WL/WW LUT uygulamasi). */
+function buildBaseCanvas(series: SeriesData, idx: number, wl: number, ww: number, invert: boolean): HTMLCanvasElement | null {
+  const sl = series.slices[idx];
+  if (!sl) return null;
+  const W = series.width, H = series.height;
+  const isColor = !!series.isColor && !!series.rgbaSlices && !!series.rgbaSlices[idx];
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const octx = c.getContext("2d");
+  if (!octx) return null;
+  const img = octx.createImageData(W, H);
+  const u32 = new Uint32Array(img.data.buffer);
+  if (isColor) u32.set(series.rgbaSlices![idx]);
+  else { const wlut = buildWindowLUT(wl, ww, invert); windowToRGBA(sl, wlut.lut, wlut.lo, u32); }
+  octx.putImageData(img, 0, 0);
+  return c;
+}
+
+/** Önbellek boyutu sınırı: en eski eklenen kayıtları siler. */
+function trimBaseCache(map: Map<string, { key: string; canvas: HTMLCanvasElement }>, max: number) {
+  while (map.size > max) {
+    const oldest = map.keys().next().value as string | undefined;
+    if (oldest === undefined) break;
+    map.delete(oldest);
+  }
+}
+
 const EMPTY_FINDINGS: Finding[] = [];
 const EMPTY_SET = new Set<string>();
 const EMPTY_ANN: Annotation[] = [];
@@ -105,7 +133,10 @@ export default function Viewport(props: ViewportProps) {
   const slice = series ? Math.max(0, Math.min(requestedSlice, series.slices.length - 1)) : 0;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const baseRef = useRef<{ key: string; canvas: HTMLCanvasElement | null }>({ key: "", canvas: null });
+  // Taban katmanı küçük önbelleği: aktif kesit + komşular (kademeli/önceden pencereleme, v-perf).
+  const BASE_CACHE_MAX = 6;
+  const PREFETCH_PIXELS_MAX = 2_000_000; // taban tabanlı ön-işleme bellek kapısı (~2 MP ≈ 8 MB)
+  const baseCache = useRef(new Map<string, { key: string; canvas: HTMLCanvasElement }>());
   const ovRef = useRef<{ key: string; canvas: HTMLCanvasElement | null }>({ key: "", canvas: null });
   const dragRef = useRef<{ button: number; sx: number; sy: number; wl: number; ww: number; zoom: number; pan: { x: number; y: number } } | null>(null);
   const [draft, setDraft] = useState<Draft>(null);
@@ -180,6 +211,34 @@ export default function Viewport(props: ViewportProps) {
     return dispToImg({ x: (cx - ox) / scale, y: (cy - oy) / scale });
   }, [getTransform, dispToImg]);
 
+  // Kademeli/önceden pencereleme (v-perf): görünür kesidin komşuları boş zamanda işlenip
+  // önbelleğe alınır; kaydırma sırasında hedef kesit hazır gelir. Bellek kapısı var:
+  // yalnızca toplam taban katmanı ~8 MB altı (≈2 MP) serilerde çalışır.
+  useEffect(() => {
+    if (!series || series.isColor) return;
+    if (series.width * series.height > PREFETCH_PIXELS_MAX) return;
+    const rWl = Math.round(wl), rWw = Math.round(ww);
+    const keys = [slice + 1, slice + 2, slice - 1, slice - 2]
+      .filter((k) => k >= 0 && k < series.slices.length)
+      .map((k) => `${series.id}|${k}|${rWl}|${rWw}|${invert}|mono`);
+    const todo = keys.filter((k) => !baseCache.current.has(k));
+    if (!todo.length) return;
+    let alive = true;
+    const step = () => {
+      if (!alive) return;
+      const k = todo.pop();
+      if (!k) return;
+      if (!baseCache.current.has(k)) {
+        const idx = Number(k.split("|")[1]);
+        const c = buildBaseCanvas(series, idx, rWl, rWw, invert);
+        if (c) { baseCache.current.set(k, { key: k, canvas: c }); trimBaseCache(baseCache.current, BASE_CACHE_MAX); }
+      }
+      setTimeout(step, 0);
+    };
+    const t = setTimeout(step, 0);
+    return () => { alive = false; clearTimeout(t); };
+  }, [series, slice, wl, ww, invert]);
+
   // ───────── Çizim Döngüsü ─────────
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -203,32 +262,10 @@ export default function Viewport(props: ViewportProps) {
     const isColor = series.isColor && series.rgbaSlices && series.rgbaSlices[sliceIdx];
     const key = `${series.id}|${slice}|${Math.round(wl)}|${Math.round(ww)}|${invert}|${isColor ? "color" : "mono"}`;
 
-    if (baseRef.current.key !== key) {
-      const c = baseRef.current.canvas ?? document.createElement("canvas");
-      c.width = W; c.height = H;
-      const octx = c.getContext("2d")!;
-      const img = octx.createImageData(W, H);
-      const u32 = new Uint32Array(img.data.buffer);
-
-      if (isColor) {
-        // True Color direct RGBA copy
-        const srcRgba = series.rgbaSlices![sliceIdx];
-        u32.set(srcRgba);
-      } else {
-        // Monochromatic WL/WW Window LUT
-        const lo = wl - ww / 2;
-        const k = 255 / Math.max(1, ww);
-        for (let i = 0; i < sl.length; i++) {
-          let g = (sl[i] - lo) * k;
-          g = g < 0 ? 0 : g > 255 ? 255 : g;
-          if (invert) g = 255 - g;
-          const gi = g | 0;
-          u32[i] = 0xff000000 | (gi << 16) | (gi << 8) | gi;
-        }
-      }
-
-      octx.putImageData(img, 0, 0);
-      baseRef.current = { key, canvas: c };
+    let cachedBase = baseCache.current.get(key);
+    if (!cachedBase) {
+      const c = buildBaseCanvas(series, sliceIdx, wl, ww, invert);
+      if (c) { cachedBase = { key, canvas: c }; baseCache.current.set(key, cachedBase); trimBaseCache(baseCache.current, BASE_CACHE_MAX); }
     }
 
     // 2. AI Maske Örtüsü
@@ -317,7 +354,8 @@ export default function Viewport(props: ViewportProps) {
     }
 
     const { scale, ox, oy, dispW, dispH } = getTransform();
-    const drawLayer = (cv: HTMLCanvasElement) => {
+    const drawLayer = (cv: HTMLCanvasElement | null) => {
+      if (!cv) return;
       ctx.save();
       ctx.imageSmoothingEnabled = scale < 3;
       ctx.translate(ox, oy);
@@ -329,7 +367,7 @@ export default function Viewport(props: ViewportProps) {
       ctx.restore();
     };
 
-    drawLayer(baseRef.current.canvas!);
+    drawLayer(baseCache.current.get(key)?.canvas ?? null);
     if (fusCanvas) drawLayer(fusCanvas);
     if (ovCanvas) drawLayer(ovCanvas);
     if (heatCanvas) drawLayer(heatCanvas);
