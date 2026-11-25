@@ -4,9 +4,19 @@ import { useState } from "react";
 import type { SeriesData } from "@/lib/types";
 import { CMAPS, type CmapName } from "@/lib/fusion";
 import { sameFrame, resampleOnto } from "@/lib/planes";
-import { estimateRigid, isIdentityRigid, normalizeRigid, rigidNote, rigidTrusted, type RigidParams } from "@/lib/fusionRigid";
+import { applyRigid, estimateRigid, isIdentityRigid, normalizeRigid, rigidNote, rigidTrusted, type RigidParams } from "@/lib/fusionRigid";
+import { deformNote, estimateDeform, isIdentityField, type DeformField } from "@/lib/fusionDeform";
 
-export interface FusionConfig { seriesId: string; alpha: number; cmap: CmapName; loPct: number; hiPct: number; rigid?: RigidParams }
+export interface FusionConfig {
+  seriesId: string;
+  alpha: number;
+  cmap: CmapName;
+  loPct: number;
+  hiPct: number;
+  rigid?: RigidParams;
+  /** Elastik (deforme) alan — katı hizalamadan sonra uygulanır. */
+  deform?: DeformField | null;
+}
 
 interface Props {
   all: SeriesData[];
@@ -21,6 +31,7 @@ interface Props {
 export default function FusionControl({ all, primary, cfg, onChange, slice = 0 }: Props) {
   const [open, setOpen] = useState(false);
   const [align, setAlign] = useState<{ busy: boolean; note: string }>({ busy: false, note: "" });
+  const [deform, setDeform] = useState<{ busy: boolean; note: string }>({ busy: false, note: "" });
   const candidates = all.filter((s) => primary && s.id !== primary.id && (!s.specialType || s.specialType === "image") && !s.isColor && s.slices.length > 0 && !!s.ipp && !!s.orientation && sameFrame(primary, s));
   const active = !!cfg;
   const set = (patch: Partial<FusionConfig>) => cfg && onChange({ ...cfg, ...patch });
@@ -28,9 +39,23 @@ export default function FusionControl({ all, primary, cfg, onChange, slice = 0 }
     const s = all.find((x) => x.id === id);
     if (!s) { onChange(null); return; }
     setAlign({ busy: false, note: "" });
+    setDeform({ busy: false, note: "" });
     onChange({ seriesId: id, alpha: 0.5, cmap: s.modality === "PT" || s.modality === "NM" ? "hot" : "rainbow", loPct: s.modality === "PT" ? 15 : 20, hiPct: s.modality === "PT" ? 80 : 100 });
   };
-  const setRigid = (patch: Partial<RigidParams>) => cfg && onChange({ ...cfg, rigid: normalizeRigid({ ...(cfg.rigid ?? {}), ...patch }) });
+  const setRigid = (patch: Partial<RigidParams>) => {
+    if (!cfg) return;
+    // Katı dönüşüm değişince önceki elastik alan geçersizdir (alan o hizalamaya
+    // göre kestirildi): sessizce eski alanı uygulamak bindirmeyi bozar.
+    const staleDeform = cfg.deform && !isIdentityField(cfg.deform);
+    onChange({ ...cfg, rigid: normalizeRigid({ ...(cfg.rigid ?? {}), ...patch }), deform: null });
+    if (staleDeform) setDeform({ busy: false, note: "Katı hizalama değişti; elastik alan sıfırlandı — yeniden hesaplayın." });
+  };
+  /** Hizalama girdisi: yeniden örneklenmiş kesit, katı dönüşüm uygulanmış hâliyle. */
+  const alignedMoving = (idx: number, other: SeriesData) => {
+    const mov = resampleOnto(primary!, idx, other);
+    if (!mov || !primary) return mov;
+    return isIdentityRigid(cfg?.rigid) ? mov : applyRigid(mov, primary.width, primary.height, cfg!.rigid!);
+  };
 
   // Otomatik katı hizalama: ana kesit ile yeniden örneklenmiş füzyon kesiti
   // arasında NCC taraması. Sonuç yalnız öneridir; hekim görsel doğrular.
@@ -48,8 +73,28 @@ export default function FusionControl({ all, primary, cfg, onChange, slice = 0 }
       return;
     }
     const est = estimateRigid(ref, mov, primary.width, primary.height, { maxShift: 25, maxRotDeg: 12 });
-    onChange({ ...cfg, rigid: est.rigid });
+    onChange({ ...cfg, rigid: est.rigid, deform: null });
     setAlign({ busy: false, note: rigidNote(est, rigidTrusted(est)) });
+    setDeform({ busy: false, note: "" });
+  };
+  // Elastik (deforme) hizalama: katı hizalama sonrası yoğun yer değiştirme alanı.
+  // Kazanç yoksa alan sıfır kalır; bindirme hiçbir durumda kötüleştirilmez.
+  const autoDeform = async () => {
+    if (!cfg || !primary) return;
+    const other = all.find((x) => x.id === cfg.seriesId);
+    if (!other) return;
+    setDeform({ busy: true, note: "Hesaplanıyor…" });
+    await new Promise((r) => setTimeout(r, 16));
+    const idx = Math.min(Math.max(0, slice), primary.slices.length - 1);
+    const ref = primary.slices[idx];
+    const mov = alignedMoving(idx, other);
+    if (!ref || !mov) {
+      setDeform({ busy: false, note: "Hizalama için konum bilgisi (IPP/IOP) eksik." });
+      return;
+    }
+    const est = estimateDeform(ref, mov, primary.width, primary.height, { maxDisp: 12, grid: 7, search: 3 });
+    onChange({ ...cfg, deform: est.improved ? est.field : null });
+    setDeform({ busy: false, note: deformNote(est) });
   };
   return (
     <div className="relative shrink-0">
@@ -114,7 +159,34 @@ export default function FusionControl({ all, primary, cfg, onChange, slice = 0 }
                     </div>
                     {align.note && <p className="text-[10px] leading-snug text-amber-200/80">{align.note}</p>}
                   </div>
-                  <p className="text-[10px] leading-relaxed text-slate-500">Eşikler, bindirilen serinin maksimumunun (%99,99) yüzdesidir. Otomatik hizalama yalnız <b>kesit içi katı</b> dönüşüm (öteleme/dönme/ölçek) kestirir; kesitler arası kayma ve elastik kayıt yoktur. Sonuç tanı aracı değildir, görsel doğrulama gerekir.</p>
+                  <div className="space-y-1 rounded border border-[#1e2735] px-2 py-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-slate-300">Elastik (deforme)</span>
+                      <span className="font-mono text-[10px] text-slate-500">
+                        {cfg.deform && !isIdentityField(cfg.deform) ? `${cfg.deform.gw}×${cfg.deform.gh} ızgara` : "kapalı"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => void autoDeform()}
+                        disabled={deform.busy}
+                        title="Katı hizalama sonrası bölgesel kaymaları kestir (blok eşleme + elastik düzleştirme)"
+                        className="cursor-pointer rounded border border-teal-400/40 bg-teal-400/10 px-2 py-0.5 text-[10px] font-semibold text-teal-200 disabled:opacity-50"
+                      >
+                        {deform.busy ? "Hesaplanıyor…" : "Elastik hizala"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { set({ deform: null }); setDeform({ busy: false, note: "" }); }}
+                        className="cursor-pointer rounded border border-[#2d3b4e] bg-[#111823] px-2 py-0.5 text-[10px] text-slate-300"
+                      >
+                        Sıfırla
+                      </button>
+                    </div>
+                    {deform.note && <p className="text-[10px] leading-snug text-teal-200/80">{deform.note}</p>}
+                  </div>
+                  <p className="text-[10px] leading-relaxed text-slate-500">Eşikler, bindirilen serinin maksimumunun (%99,99) yüzdesidir. Otomatik katı hizalama kesit içi öteleme/dönme/ölçek kestirir; elastik hizalama ardından 7×7 düğümlü yer değiştirme alanı ekler (en çok 12 px, Gauss düzleştirmeli). Kesitler arası (z) kayma ve 3B hacim kaydı yoktur; farklı modalitelerde (BT↔MR) NCC güvenilmez, kazanç yoksa alan sıfırlanır. Sonuç tanı aracı değildir, görsel doğrulama gerekir.</p>
                 </>
               )}
             </div>
