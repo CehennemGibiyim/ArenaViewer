@@ -39,9 +39,143 @@ SBOM imzalama ve kurumsal HSM gibi kalan işler nedeniyle G3 kısmi kalır.
 Son başarılı giriş zamanı yalnız parola ve gereken MFA doğrulandıktan ve oturum
 imzalanabildikten sonra güncellenir. Yanlış parola/MFA, MFA kurulmamış hesap ve
 imzalama anahtarı yokluğu zaman damgasını değiştirmez. PostgreSQL destekli CI
-entegrasyon testi bu durumları ve oturum çerezini denetler. Bu değişiklik hesap
-kilitleme, oturum iptali veya kurumsal kimlik entegrasyonunu sağlamaz; P0 madde
-kısmi kalır ve demo modu gerçek kullanıcı kimliği doğrulamaz.
+entegrasyon testi bu durumları ve oturum çerezini denetler.
+
+**Eklenen (bu sürüm):** her giriş sunucuda `sessions` satırı açar; `/api/sessions`
+listesi (yönetici tüm kullanıcıların, diğer rolleri kendi oturumlarının) ve iptali
+destekler — iptal edilen çerez hesap modunda 401 alır, çıkış da kaydı iptal eder
+(Yönetim → Oturumlar). Ayrıca art arda hatalı girişte hesap kilitlenir
+(`AUTH_LOCK_MAX_FAILURES`, varsayılan 5 / `AUTH_LOCK_MINUTES`, varsayılan 15 dk);
+kilitliyken doğru parola da reddedilir ve yanıt 423 + kalan süreyi bildirir,
+yönetici Kullanıcılar sekmesinden kilidi açar.
+
+**Kurumsal giriş (OIDC):** `OIDC_ISSUER`/`OIDC_CLIENT_ID` tanımlıysa `/giris`
+sayfasında SSO düğmesi çıkar. Akış authorization code + PKCE'dir; state/nonce/PKCE
+verifier imzalı `av_oidc` çerezinde (10 dk) tutulur, ID token yalnız RS256 ve JWKS
+ile doğrulanır (iss/aud/exp/nonce birebir). İlk girişte hesap otomatik açılır,
+`OIDC_ADMIN_GROUP` üyeliği yönetici yapar; alternatif olarak e-postası doğrulanmış
+kimlik mevcut hesaba bağlanır. SSO oturumları da `sessions` kaydına yazılır. Ayrıntı
+ve örnek yapılandırma: [OIDC.md](OIDC.md).
+
+SAML 2.0, LDAP bağlayıcısı ve hekim çoklu üyelikleri hâlâ yoktur; P0 madde bu
+nedenle kısmi kalır ve demo modu gerçek kullanıcı kimliği doğrulamaz.
+
+## 0.0c Ölçüm geçmişi, RADPEER ve model kayıt defteri
+
+**Ölçüm geçmişi (c-measure-history → var).** `measurement_history` tablosu hasta,
+çalışma, seri, etiket, tür, değer, birim ve kesit taşır; `/api/measurements` GET/POST
+uçları hasta bazlı okuma ve aynı hasta+çalışma+seri için değiştirme yapar (birim
+beyaz listesi, pozitif/sonlu değer, denetim kaydı). Araç çubuğundaki **📈 Trend**
+paneli etiket bazında zaman serisi, mini grafik, yüzde değişim ve ikilenme süresi
+gösterir; bu çalışmanın uzunluk/alan/elipsoid hacim/HU/SUV ölçümlerini kaydeder.
+Saf hesap `src/lib/measureHistory.ts`; `tests/measure-history.test.ts` mm/mm²/mL
+dönüşümünü, tarih sıralamasını, %değişimi, ikilenmeyi ve %5 stabil eşiğini sınar.
+
+**RADPEER (d-peer → var).** `src/lib/radpeer.ts` puan eşlemesi (1/2a/2b/3), oran ×
+toplam hedef örneklem, güne bağlı deterministik seçim, kendi raporunu ve zaten
+değerlendirdiğini dışlama, uyuşmazlık istatistikleri ve %95 Wilson aralığı içerir.
+`/api/peer-review/sample` ve `/api/peer-review/stats` uçlarını araç çubuğundaki
+**⚖ Peer** paneli gösterir. Hedefe ulaşılamazsa uydurma seçim yapılmaz. Test:
+`tests/radpeer.test.ts` (2000 konuluk kohortta sapma <5 puan).
+
+**Model kayıt defteri (a-modelops, kısmi).** `model_registry` tablosu model
+anahtarı, sürüm, aşama (aday/gölge/aktif/emekli), trafik %, artifact özeti ve
+notları tutar; `/api/models` (yalnız yönetici) aşama/trafik kurallarını doğrular ve
+her değişikliği önce/sonra ile denetim kaydına yazar. `/yonetim → Model kayıt
+defteri` sekmesinden sürüm kaydedilir, gölgeye alınır veya emekliye ayrılır. A/B
+planı ve konu karmasına bağlı atama `src/lib/modelRegistry.ts` içindedir
+(`tests/model-registry.test.ts`). Kısmi kalma nedeni: atama gerçek çıkarım isteğine
+bağlı değil ve sürüm bazlı canlı metrik toplanmıyor.
+
+**Doğrulama (artık DB'li):** PostgreSQL 17.12 npm paketinden (root/docker olmadan)
+çalıştırıldı ve şema uygulandı; `npm run test:db-api` gerçek HTTP + gerçek şema
+üzerinden **38/38 kontrol** geçti: ölçüm geçmişinde CSRF reddi, yazma/değiştirme
+(kopya yok), güncelleme; RADPEER'da örnekleme, açıklama zorunluluğu, istatistik ve
+örneklemden çıkarma; model kayıt defterinde upsert, aşama/trafik kuralları ve
+`audit_logs` izleri. Giriş akışı entegrasyon testi de boş veritabanında geçti.
+Ayrıntı ve komutlar: [DB_TEST_ORTAMI.md](DB_TEST_ORTAMI.md).
+
+Tarayıcı testleri için Playwright CDN'i kapalıydı; npm'den gelen Chromium 158 ile
+`test:menu` (16), `test:review` (5), `test:report-flow` (3), `test:folder` (3) ve
+`test:seg-ui` (1) çalıştırıldı — hepsi geçti. Kalan sınır: fixture verisi ve
+`trust` kimlik doğrulamalı yerel PostgreSQL üretim uyumunu kanıtlamaz.
+
+## 0.0b Performans hattı: GPU pencereleme + Web Worker (v-perf)
+
+`v-perf` kısmi kalıyor ama iki büyük kalem kapandı. **GPU:** `src/lib/webglWindow.ts`
+işaretli 16 bit kesiti `R16I` dokusuna yükler, WL/WW'yi parçacık gölgelendiricisinde
+uygular; pencere alt sınırı tam sayı değilse veya çıktı CPU referansından
+(`windowSampleGray`) ±1'den fazla saparsa GPU yolu kendini kapatır ve CPU yolu
+kullanılır — yanlış gri tonu gösterme riski yoktur. **Worker:** `src/workers/window.worker.ts`
+≥1 MP kesitleri ana iş parçacığı dışında çevirir; piksel kopyası transfer edilir
+(seri verisi sahipsiz kalmaz), RGBA tamponu geri transfer edilir. Worker yoksa,
+CSP engellerse, hata verirse veya 2,5 s'de yanıt gelmezse aynı hesaplama ana iş
+parçacığında yapılır. GPU yolu etkinken komşu kesitlerin CPU ön-işlemesi atlanır.
+
+Doğrulama: `tests/perf-window.test.ts` gölgelendirici formülünü LUT ile
+karşılaştırır (`windowGrayFromIndex`, `windowSampleGray`), worker sözleşmesini
+(kaynak denetimi) ve tarayıcısız ortamda CPU yedeğinin birebir aynı sonucu
+verdiğini sınar. Ölçüm: `npm run bench:window`.
+
+Kalan: gerçek ilerlemeli decode
+(çok çözünürlüklü piramit) ve Int16 bellek düzeni.
+
+## 0.0a Bu turda kapatılan madde: etkileşimli segmentasyon (m-seg)
+
+`m-seg` **kısmi**den **var**a geçti. Kütüphane zaten vardı; eksik olan tuval üstü
+düzenleme arayüzüydü. Eklenenler: araç çubuğunda **🧩 Segment** düğmesi,
+`src/components/SegmentationEditor.tsx` (fırça, silgi, HU eşik dolgusu, tohumdan
+bölge büyütme, kesit kopyalama, kesit/tüm maske temizleme, 12 adımlı geri al, renk
+ve opaklık), `Viewport` içinde AI aday örtüsünden bağımsız `OverlayData.manual`
+katmanı, alt bilgi çubuğunda mL hacim ve aynı maskeden DICOM SEG/RTSTRUCT indirme.
+
+Ek olarak **AI tohumlama** (AI aday maskesini kopya olarak düzenlemeye alma) ve
+**kesit dağılımı** (maske kesit kesit mm²/mL; en geniş kesit, toplam hacim, bara
+tıklayınca o kesite gidiş — `volume().perSlice` + `sliceProfileSummary`) vardır.
+
+Doğrulama: `tests/seg.test.ts` tuval→piksel eşlemesini (`screenToImage`, kırpma
+dahil), hızlı fırça darbesinde boşluk kalmamasını (`paintStroke`), geri alma
+kopyasının bağımsızlığını (`cloneMask`), kesit profili toplamlarını ve
+SEG/RTSTRUCT gidiş-dönüşünü sınar. `tests/seg-editor-browser.cjs`
+(`npm run test:seg-ui`) gerçek tarayıcıda fırça, eşik, geri al, kesit kopyalama,
+mL hacmin ana görünümleyiciye aktarımını, AI tohumlamayı ve kesit dağılımını
+denetler; Playwright tarayıcı ikilisi kurulu olmayan ortamda çalışmaz.
+
+Kalan iş (neden hâlâ tam puan değil): SAM tabanlı yarı otomatik bölütleme yoktur;
+RTSTRUCT konturları satır taramasıyla üretildiği için konkav segmentlerde dış
+zarfa yaklaşır. Maske hekim
+düzenlemesidir, rapora otomatik yazılmaz ve AI aday örtüsü düzenlenebilir maske
+değildir.
+
+Bu turun sonunda kıyaslama verisi **101 madde — 43 var / 58 kısmi / 0 yok**
+durumundadır (turun başında 101 / 40 / 61). `/kiyaslama` sayfası bu sayıları
+`gapAnalysis.ts` verisinden üretir; yayındaki sayfalar ancak yeni sürüm
+yayımlandığında güncellenir.
+
+## 0.0 Bu turda açılan yeni hat: radyasyon dozu (RDSR)
+
+Piyasa listesinde ayrı bir madde olmayan, ama doz yönetimi ürünlerinin (DoseWatch
+vb.) çekirdeğini oluşturan **RDSR okuma** işine başlandı. `src/lib/dose.ts` DICOM
+X-Ray Radiation Dose SR (SOP Class `1.2.840.10008.5.1.4.1.1.88.67`) içeriğini
+ayrıştırır: ışınlama olaylarından CTDIvol/DLP, olay yoksa accumulated toplamlar;
+eksik değer **tahmin edilmez**, uyarı olarak yazılır. Panel (`☢ Doz`) dosyayı
+tarayıcıda okur (sunucuya göndermez), DLP × bölge katsayısıyla yaklaşık etkin doz
+gösterir ve **örnek** DRL değerleriyle oran karşılaştırması yapar (değerler
+kullanıcı tarafından düzenlenebilir, doğrulanmamıştır). Sentetik RDSR gerçek DICOM
+baytlarıyla yazılıp dicom-parser + SR ayrıştırıcısından geri okunur (`npm run test:dose`).
+
+Kalan iş (kısmi kalma nedeni): hasta/modalite bazında sunucuda doz birikimi ve
+trend, uyarı eşikleri, PACS'ten otomatik RDSR çekme ve ulusal/kurumsal DRL
+tablosunun onaylı sürümü. Etkin doz ve DRL karşılaştırması klinik kanıt değildir.
+
+## 0.0b Erişilebilirlik ve kısayollar
+
+Klavye kısayolları artık sunucudaki kullanıcı tercihine bağlıdır ve çakışmalar
+`src/lib/shortcuts.ts` içinde çözülür; `?` erişilebilir yardım tablosunu açar.
+“İçeriğe geç” bağlantısı, görünür odak halkaları, `aria-live` bildirim, yüksek
+kontrast teması ve hareket azaltma eklendi. Kalan: ekran okuyucuyla uçtan uca
+bağımsız denetim, ölçek/yazı tipi seçenekleri ve WCAG 2.2 AA doğrulaması
+(kurum/bağımsız denetim) — bu nedenle `i-a11y` kısmi kalır.
 
 ## 0. Nasıl okunur
 
@@ -59,12 +193,14 @@ kısmi kalır ve demo modu gerçek kullanıcı kimliği doğrulamaz.
 ## 0.1 Modalite bazında donanım durumu (tarama)
 
 Görüntüleme altyapısı (füzyon, ölçüm, pencere, hanging protocol) tüm modalitelerde
-ortaktır; **MPR/MIP/VR henüz yoktur**. Modaliteye özel **AI bulgu motoru** ve
-**rapor şablonu** kapsamı aşağıdadır:
+ortaktır. **MPR** (aksiyel/koronal/sagittal + oblik yeniden kesit), **MIP** ve
+**3B hacim (VR)** vardır (`v-mpr`, `v-mip`, `v-vr` = var); kavisli MPR, cinematic VR
+ve kırpma/kemik çıkarma gibi ileri adımlar yoktur. Modaliteye özel **AI bulgu
+motoru** ve **rapor şablonu** kapsamı aşağıdadır:
 
 | Modalite | Görüntüleme | AI bulgu/analiz | Rapor şablonu | Asma protokolü |
 |---|---|---|---|---|
-| CT | Tam (pencereler, kalibrasyon, füzyon); MPR/MIP yok | **Yerel modeller:** toraks nodül (MONAI, bbox) + beyin İCH (6 sınıf, bbox) — hasta verisi dış ağa çıkmaz | 11 | BT Beyin / Toraks / Abdomen-Pelvis / Anjiyo / Ürotrakt |
+| CT | Tam (pencereler, kalibrasyon, füzyon, MPR/MIP/VR) | **Yerel modeller:** toraks nodül (MONAI, bbox) + beyin İCH (6 sınıf, bbox) — hasta verisi dış ağa çıkmaz | 11 | BT Beyin / Toraks / Abdomen-Pelvis / Anjiyo / Ürotrakt |
 | MR | Tam (sekans listesi, karşılaştırma, ölçüm) | **Yalnız görüntü incelemesi** (tanı üretmez) — MR'ya özel model yok | 17 | MR Çoklu Sekans (T1/T2/FLAIR/DWI düzeni) |
 | CR / DX | Tam (PA/lateral düzeni, teknik kalite kontrolü) | **Yerel derin model:** Medical_X DenseNet121 (Apache-2.0) — 14 torasik bulgu olasılığı + Grad-CAM ısı örtüsü; CTR hesaplayıcı. Lokalizasyon kutusu YOK, skorlar kalibre değil, klinik doğrulaması yok | 2 | Direkt Grafi |
 | US | Tam (cine + renkli Doppler) | TI-RADS skor paneli; tanı motoru yok | 6 | Yok |
@@ -170,7 +306,7 @@ açıktır; bu nedenle `w-pacs` kısmi kalır.
 
 | ID | Özellik | P | Çaba | Bizde şu an | Fikir |
 |---|---|---|---|---|---|
-| F1 | **Kimlik:** kullanıcı adı/parola + MFA + oturum zaman aşımı (SSO sırasıyla) | P0 | L | ACCESS_TOKEN tek kapıydı; parola/oturum/MFA yoktu | **Bu sürümde minimum uygulandı:** `AUTH_MODE=hesap` ile scrypt parola, imzalı oturum çerezi (8 saat), TOTP/MFA (`otplib`), `REQUIRE_TOTP_FOR_ROLES`. Kalan: SSO/OIDC/LDAP/SAML entegrasyonu. |
+| F1 | **Kimlik:** kullanıcı adı/parola + MFA + oturum zaman aşımı (SSO sırasıyla) | P0 | L | ACCESS_TOKEN tek kapıydı; parola/oturum/MFA yoktu | **Bu sürümde minimum uygulandı:** `AUTH_MODE=hesap` ile scrypt parola, imzalı oturum çerezi (8 saat), TOTP/MFA (`otplib`), `REQUIRE_TOTP_FOR_ROLES`. **Eklenen:** sunucu tarafı oturum listesi/iptali (Yönetim → Oturumlar), hesap kilitleme + kilidi açma (Yönetim → Kullanıcılar) **OIDC ile kurumsal giriş** (PKCE, RS256/JWKS, grup→yönetici, `docs/OIDC.md`) ve **LDAP/AD bağlayıcısı** (gerçek LDAPv3 BER istemcisi, kullanıcının kendi DN'iyle bind, filtre/DN kaçışı, anonim bind koruması, `docs/LDAP.md`). **SAML 2.0 SP** de eklendi (SP-initiated, imzalı durum çerezi, kendi XML DSig/C14N doğrulayıcısı, koşullar + audience + InResponseTo, `saml_replay` ile replay koruması, `docs/SAML.md`). Kalan: IdP-initiated akış, şifreli assertion, SLO ve hekim çoklu üyelikleri. |
 | F2 | **RBAC detayı:** radyolog/teknisyen/arator/yönetici + hekim profilleri | P0 | M | Tek operatör profili; `authorize()` rolleri yok sayıyordu | **Bu sürümde uygulandı:** `yonetici/radyolog/teknisyen` rol denetimi tüm API uçlarında aktif, Yönetim → Kullanıcılar (ekle/rol/pasif/parola sıfırla). Kalan: arator rolü ve hekim profil çoklu üyelikleri. |
 | F3 | **Kullanıcı başına tercihler** (layout, preset, kısayol) sunucuda | P2 | S–M | **Bu sürümde eklendi:** `/tercihler` sayfası + `/api/profile/preferences`; açılış düzeni uygulanır. | Kalanlar arşiv/KMS ve SLSA attestation; log seviyesi ortam değişkenine bağlanacak.
 | F4 | **Turnaround/istatistik panosu** (TAT, bulgu/adet, onay süresi) | P2 | M | **Bu sürümde eklendi:** `/api/reports/stats` + Yönetim > İş akışı (TAT medyan/p90, durum/modalite dağılımı, eski taslak). | Haftalık trend grafikleri ve hedef eşik uyarıları.

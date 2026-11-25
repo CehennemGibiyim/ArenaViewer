@@ -12,6 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   buildCsp,
+  frameAncestorSources,
   checkCsrf,
   clientKey,
   cookieValue,
@@ -155,7 +156,24 @@ async function main() {
   assert.doesNotMatch(line, /AHMET|12345/, "hasta bağlamı günlüğe sızmaz");
   assert.equal(summarizeCspReport(null), "", "boş rapor");
   assert.equal(summarizeCspReport({ "csp-report": {} }), "", "boş alanlar");
-  console.log("PASS CSP (nonce/strict-dynamic/wasm + rapor özeti)");
+  assert.doesNotMatch(buildCsp({ frameAncestors: [] }), /frame-ancestors 'self' https:/, "ek köken yokken yalnız 'self'");
+  assert.match(
+    buildCsp({ frameAncestors: ["https://*.e2b.app"] }),
+    /frame-ancestors 'self' https:\/\/\*\.e2b\.app/,
+    "portal/önizleme kökeni çerçeveleme listesine eklenebilir"
+  );
+  // AV_FRAME_ANCESTORS ayrıştırma: yalnız http(s) kökenleri, joker alt alan adı serbest.
+  assert.deepEqual(frameAncestorSources(undefined), [], "tanımsız → boş");
+  assert.deepEqual(frameAncestorSources(""), [], "boş → boş");
+  assert.deepEqual(frameAncestorSources("https://portal.hastane.local https://*.e2b.app"), [
+    "https://portal.hastane.local",
+    "https://*.e2b.app",
+  ]);
+  assert.deepEqual(frameAncestorSources("https://a.example,http://b.example:8080"), ["https://a.example", "http://b.example:8080"], "virgül de ayırır, port korunur");
+  assert.deepEqual(frameAncestorSources("*"), [], "joker tüm sitelere açmaz");
+  assert.deepEqual(frameAncestorSources("javascript:alert(1) data:text/html,x"), [], "betik/veri şeması reddedilir");
+  assert.deepEqual(frameAncestorSources("https://iyi.example https://kötü example"), ["https://iyi.example"], "geçersiz belirteç atlanır");
+  console.log("PASS CSP (nonce/strict-dynamic/wasm + rapor özeti + çerçeveleme listesi)");
 
   // ── 6) Proxy ve istemci bağlantısı (kaynak sözleşmesi) ─────────────────
   const proxy = read("src/proxy.ts");

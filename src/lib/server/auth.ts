@@ -4,7 +4,8 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import type { Role, UserInfo } from "@/lib/types";
-import { sessionUserId } from "./session";
+import { sessionRef } from "./session";
+import { isSessionActive, touchSession } from "./sessions";
 
 /**
  * KİMLİK DOĞRULAMA KATMANI.
@@ -103,9 +104,22 @@ export async function getCurrentUser(sessionUid?: number | null): Promise<UserIn
   }
 }
 
-/** İstekteki oturum çerezinden kullanıcıyı döndürür. */
+/**
+ * İstekteki oturum çerezinden kullanıcıyı döndürür.
+ *
+ * Çerezde sunucu oturum kimliği varsa kaydın iptal edilmemiş ve süresinin
+ * dolmamış olduğu da doğrulanır: "Oturumlar" ekranından iptal edilen bir çerez,
+ * süresi dolmadan geçersizleşir (hesap modunda 401, demo modunda operatöre düşer).
+ */
 export async function currentUser(req: NextRequest): Promise<UserInfo | null> {
-  return getCurrentUser(sessionUserId(req));
+  const ref = sessionRef(req);
+  if (!ref) return getCurrentUser(null);
+  if (ref.sid) {
+    const active = await isSessionActive(ref.sid);
+    if (!active) return authRequired() ? null : getCurrentUser(null);
+    void touchSession(ref.sid);
+  }
+  return getCurrentUser(ref.uid);
 }
 
 export async function updateOperator(p: { fullName?: string; title?: string; regNo?: string }): Promise<UserInfo> {

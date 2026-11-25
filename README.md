@@ -32,11 +32,21 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   ≥15 mm; organ başına ≤2, toplam ≤5), non-hedef bileşkesi ve **genel yanıt
   tablosu** (yeni lezyon → PD; hedef CR + non-hedef CR → CR). Nodül takibi
   panelinden işaretlenir; CSV'ye genel değerlendirme eklenir.
-- **Segmentasyon + SEG/RTSTRUCT:** Fırça/silgi, eşik dolgusu ve tohumdan bölge
-  büyütme ile maske düzenleme; hacim (mL) hesabı. DICOM **SEG** (1 bit/piksel,
-  segment başına renk/etiket/algoritma) ve **RTSTRUCT** (CLOSED_PLANAR konturlar)
-  dışa aktarımı; ekran işaretlerinden otomatik maske üretimi. AI aday örtüsü
-  düzenlenebilir maske değildir; SEG/RTSTRUCT hekim düzenlemesine açıktır.
+- **Segmentasyon + SEG/RTSTRUCT (etkileşimli):** Araç çubuğundaki **🧩 Segment**
+  düğmesi tuval üstünde düzenleyiciyi açar: fırça/silgi (sürüklemede kesintisiz iz),
+  HU eşik dolgusu, tohumdan bağlantılı bölge büyütme, kesit kopyalama, kesit/tüm maske
+  temizleme, 12 adımlı geri al, renk ve opaklık. Maske ana görüntüleyicide AI aday
+  örtüsünden **bağımsız** ayrı katman olarak çizilir, alt bilgi çubuğunda mL hacim
+  görünür (piksel alanı × kesit kalınlığı; aralık varsa o kullanılır). Aynı maskeden
+  DICOM **SEG** (1 bit/piksel) ve **RTSTRUCT** (CLOSED_PLANAR konturlar) indirilir.
+  **AI tohumlama:** düzenleyicideki “AI adayından başlat” bölümü, Vision AI'nın
+  ürettiği bulgu maskesini kopya olarak çalışma maskesine aktarır (AI önerisi
+  değişmez, “AI tohumlu …” etiketiyle ve geri alınabilir). **Kesit dağılımı:**
+  maske kesit kesit alan (mm²) ve hacim (mL) olarak listelenir — en geniş kesit,
+  toplam hacim ve bara tıklayınca o kesite gidiş. **Sınır:** SAM tabanlı yarı
+  otomatik bölütleme yoktur;
+  RTSTRUCT konturları satır taramasıdır, konkav segmentlerde dış zarfa yaklaşır; AI
+  aday örtüsü düzenlenebilir maske değildir.
 - **Yapılandırılmış ölçüm SR (TID 1500):** Ekran ölçümleri (uzunluk, elipsoid,
   ROI, çokgen) DICOM **Comprehensive SR** olarak yazılır: 125007 Measurement
   Group içinde izleme kimliği, kodlu bulgu/bölge, NUM değer + UCUM birimi ve
@@ -88,10 +98,18 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   gider; ayrıca DICOM **Key Object Selection** (KO) ve **Grayscale Softcopy
   Presentation State** (GSPS/PR: pencere, döndürme, çevirme, referanslar) olarak
   dışa aktarılabilir (araç çubuğundaki "Dışa aktar"). PR rapor belgesi değildir.
-- **Performans:** Pencere/seviye (WL/WW) dönüşümü tek geçişli tablo + renk
-  paletiyle yapılır (`src/lib/window.ts`); ölçülmüş kazanç 512×512'de ≈2×,
-  4096×4096'da ≈2.2× (`npm run bench:window`). Kaydırmada komşu kesitler boş
-  zamanda ön-işlenir (sınırlı önbellek; büyük grafiklerde bellek kapısı uygulanır).
+- **Performans (v-perf):** Pencere/seviye (WL/WW) dönüşümü tek geçişli tablo +
+  renk paletiyle yapılır (`src/lib/window.ts`); ölçülmüş kazanç 512×512'de ≈2×,
+  4096×4096'da ≈2.2× (`npm run bench:window`). İşaretli/işaretsiz 16 bit **ve
+  float32** kesitlerde **WebGL2 GPU pencereleme** vardır (`src/lib/webglWindow.ts`): dönüşüm gölgelendiricide
+  yapılır, çıktı her yeni doku boyutunda `readPixels` ile CPU referansına karşı
+  öz-test edilir ve uyuşmazlıkta CPU yoluna düşer. ≥1 MP kesitler **Web Worker**'da
+  çevrilir (`src/workers/window.worker.ts`; kopyalanmış piksel girer, RGBA sıfır
+  kopyayla döner); worker yoksa/hata verirse/süre aşımında aynı sonuç ana iş
+  parçacığında hesaplanır. Kaydırmada komşu kesitler boş zamanda ön-işlenir
+  (sınırlı önbellek; GPU yolu açıkken CPU ön-işleme atlanır, büyük grafiklerde
+  bellek kapısı uygulanır). **Sınır:**
+  gerçek ilerlemeli decode (çok çözünürlüklü piramit) yoktur.
 - **3B imleç:** İmleç aracı (araç çubuğu) ile tıklanan noktada aynı çalışmanın
   (Frame of Reference) diğer panellerinin kesidi o hasta koordinatına atlar;
   paralel olmayan serilerde de nokta bazlı en yakın kesit seçilir.
@@ -134,11 +152,44 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   **Çıkarım tamamen bu makinede çalışır; hasta verisi dışarı çıkmaz, ücretli servis
   kullanılmaz. Klinik doğrulanmamıştır; her bulgu radyoloji uzmanı onayı gerektirir.**
 - **Raporlama:** taslak → onay akışı, bulgu bazlı hekim doğrulaması, sürümleme,
-  addendum, A4 yazdırma, FHIR R4 DiagnosticReport dışa aktarma, ikinci okuma (peer review) kaydı
+  addendum, A4 yazdırma, FHIR R4 DiagnosticReport dışa aktarma, ikinci okuma (peer review) kaydı.
+- **Ölçüm geçmişi ve trend:** araç çubuğu → **📈 Trend**. Bu çalışmanın uzunluk,
+  alan, elipsoid hacim ve ortalama HU/SUV ölçümleri `measurement_history` tablosuna
+  yapılandırılmış satır olarak yazılır (`/api/measurements`); panel seçili hastanın
+  geçmişini etiket bazında zaman serisi + mini grafik + yüzde değişim + ikilenme
+  süresi olarak gösterir. Aynı hasta+çalışma+seri yeniden kaydedilirse satırlar
+  değiştirilir (kopya üretmez). **Sınır:** aynı etiketli ölçümler aynı lezyon kabul
+  edilir; eksik ölçüm tahmin edilmez, %5 altı oynama stabil sayılır.
+- **RADPEER (peer review gözetimi):** araç çubuğu → **⚖ Peer**. Onaylı raporlardan
+  güne bağlı deterministik örneklem (`/api/peer-review/sample`, varsayılan %5; kendi
+  raporunuz ve değerlendirdikleriniz hariç) ve uyuşmazlık istatistikleri
+  (`/api/peer-review/stats`): RADPEER 1/2a/2b/3 dağılımı, fark türleri, hekim bazında
+  uyum ve %95 Wilson aralığı. Değerlendirilmemiş raporlar uyumlu sayılmaz.
+- **Model kayıt defteri:** `/yonetim → Model kayıt defteri`. `model_registry`
+  tablosunda model anahtarı + sürüm + aşama (aday/gölge/aktif/emekli) + trafik %
+  tutulur; her değişiklik önce/sonra ile denetim kaydına yazılır. A/B planı konu
+  kimliğinin karmasına bağlıdır (aynı hasta aynı sürümde kalır). **Sınır:** atama
+  şu an plan düzeyindedir; gerçek çıkarım isteğine bağlanmamıştır.
 - **Süreli paylaşım:** onaylı rapor için süre seçilebilir (1–30 gün), kapatılabilir,
   filigranlı salt okunur bağlantı (`/paylas/<token>`); her erişim denetimde işlenir. Ham görüntü paylaşılmaz.
 - **İş akışı:** çalışma listesi, PACS (DICOMweb QIDO/WADO — hazır sistem ayarları, şifreli kimlik, bağlantı testi), HBYS istem alımı,
   kritik bulgu bildirimleri, şifreli sunucu depolaması, hash zincirli denetim kaydı
+- **Radyasyon dozu (RDSR):** üst çubuk → **☢ Doz**. DICOM X-Ray Radiation Dose SR
+  (SOP Class `…88.67`) belgeleri **tarayıcıda** okunur; ışınlama olaylarından
+  CTDIvol ve DLP çıkarılır, olay yoksa belgedeki toplam (accumulated) değerler
+  kullanılır. Eksik değer tahmin edilmez, uyarı olarak yazılır. DLP × bölge
+  katsayısıyla **yaklaşık** etkin doz hesaplanır; DRL karşılaştırması
+  kullanıcı tarafından düzenlenebilen **örnek** değerlerle yapılır. Özet panoya ve
+  `.txt` olarak dışa aktarılabilir. Dosya sunucuya gönderilmez. Dozimetri ölçümü
+  veya klinik karar aracı değildir; kurumsal DRL ve doz yönetimi süreci gerekir
+  (`src/lib/dose.ts`, `src/components/DosePanel.tsx`, `npm run test:dose`).
+- **Erişilebilirlik ve kısayollar:** “İçeriğe geç” bağlantısı, görünür odak
+  halkaları, `aria-live` bildirimler, diyaloglarda `role="dialog"`/`aria-modal`,
+  yüksek kontrast teması, hareket azaltma (tercih veya `prefers-reduced-motion`)
+  ve `forced-colors` desteği. İstasyon kısayolları (kesit, döndürme, çevirme,
+  ters, anahtar kesit, sıfırlama, tam ekran, rapor, doz) **Tercihler → Klavye**
+  ekranından özelleştirilir; çakışma çözülür ve `?` tuşu erişilebilir yardım
+  tablosunu açar (`src/lib/shortcuts.ts`, `npm run test:shortcuts`).
 
 ## Hızlı başlangıç (Docker Compose — önerilen)
 
@@ -362,6 +413,23 @@ ayarı. S3 istemcisi AWS SigV4 kullanır (AWS/MinIO/R2/Wasabi uyumlu).
 | `AUTH_MODE` | Hayır | Boş/demo: ACCESS_TOKEN varsa onunla, yoksa tek operatör. `hesap`: kullanıcı adı/parola (+MFA) zorunlu, rol denetimi aktif |
 | `SESSION_SECRET` | Hesap modunda | Oturum çerezini imzalayan gizli anahtar (tanımsızsa `DATA_ENCRYPTION_KEY` kullanılır) |
 | `REQUIRE_TOTP_FOR_ROLES` | Hayır | MFA zorunluluğu olan roller (varsayılan `yonetici`). Bu rollerdeki hesaplar authenticator kodu olmadan giremez |
+| `AUTH_LOCK_MAX_FAILURES` | Hayır | Art arda kaç hatalı denemede hesap kilitlenir (varsayılan 5) |
+| `OIDC_ISSUER` / `OIDC_CLIENT_ID` | Hayır | Kurumsal giriş (OpenID Connect) — ikisi de tanımlıysa `/giris` sayfasında SSO düğmesi çıkar. Ayrıntı: [docs/OIDC.md](docs/OIDC.md) |
+| `OIDC_CLIENT_SECRET` / `OIDC_REDIRECT_URI` | Hayır | Confidential client sırrı ve sabit dönüş adresi (ters vekil arkasında önerilir) |
+| `OIDC_ADMIN_GROUP` / `OIDC_DEFAULT_ROLE` | Hayır | Yönetici yapan grup adı ve yeni SSO hesaplarının rolü (varsayılan `radyolog`) |
+| `OIDC_AUTO_PROVISION` / `OIDC_LINK_BY_EMAIL` / `OIDC_SKIP_TOTP` | Hayır | Otomatik hesap açma, doğrulanmış e-posta ile hesap devralma ve SSO'da uygulama TOTP'sini atlama (`0` ile kapatılır) |
+| `LDAP_URL` + `LDAP_BASE_DN` | Hayır | LDAP/AD bağlayıcısı — `ldap://`/`ldaps://` ve arama kökü. İkisi geçerliyse giriş formu dizin hesabıyla da çalışır. Ayrıntı: [docs/LDAP.md](docs/LDAP.md) |
+| `LDAP_BIND_DN` / `LDAP_BIND_PASSWORD` | Hayır | Kullanıcı araması için servis hesabı (yalnız okuma yeterli). Boşsa şablon modu kullanılır |
+| `LDAP_USER_DN_TEMPLATE` / `LDAP_USER_FILTER` | Hayır | Servis hesabı olmadan DN şablonu (`uid={username},…`) ya da özel arama filtresi (`{username}` kaçırılır) |
+| `LDAP_ADMIN_GROUP` / `LDAP_DEFAULT_ROLE` / `LDAP_AUTO_PROVISION` | Hayır | Yönetici yapan grup (DN ya da CN), yeni hesapların rolü ve ilk girişte otomatik hesap açma |
+| `LDAP_ATTR_NAME` / `LDAP_ATTR_MAIL` / `LDAP_ATTR_GROUPS` / `LDAP_TIMEOUT_MS` | Hayır | Dizin öznitelik eşlemesi (varsayılan `cn`/`mail`/`memberOf`) ve zaman aşımı (1–30 sn) |
+| `AV_FRAME_ANCESTORS` | Hayır | Uygulamanın **iframe içinde** çerçevelenebileceği ek kökenler (boşluk/virgülle; ör. `https://portal.hastane.local https://*.e2b.app`). Tanımsızsa yalnız aynı köken ve `X-Frame-Options: SAMEORIGIN` gönderilir; tanımlıysa CSP `frame-ancestors` listesine eklenir. Yalnız http(s) kökenleri kabul edilir, `*` reddedilir |
+| `SAML_IDP_SSO_URL` + `SAML_IDP_ENTITY_ID` + `SAML_IDP_CERT` | Hayır | SAML 2.0 SP — üçü birlikte tanımlıysa `/giris`'te SAML düğmesi çıkar; SP meta verisi `/api/auth/saml/metadata`. Ayrıntı: [docs/SAML.md](docs/SAML.md) |
+| `SAML_ENTITY_ID` / `SAML_ACS_URL` / `SAML_LABEL` | Hayır | SP entityID (varsayılan `atikviewer-sp`), sabit ACS adresi ve düğme etiketi |
+| `SAML_ADMIN_GROUP` / `SAML_DEFAULT_ROLE` / `SAML_AUTO_PROVISION` / `SAML_LINK_BY_EMAIL` | Hayır | Yönetici yapan grup, yeni hesapların rolü, otomatik açma ve (varsayılan kapalı) kullanıcı adı devralma |
+| `SAML_ATTR_NAME` / `SAML_ATTR_MAIL` / `SAML_ATTR_GROUPS` / `SAML_NAME_ID_FORMAT` | Hayır | Talep eşlemesi (varsayılan `displayName`/`mail`/`memberOf`) ve istenen NameID biçimi |
+| `SAML_CLOCK_SKEW_SEC` / `SAML_ALLOW_SHA1` / `SAML_SKIP_TOTP` | Hayır | Saat kayması toleransı (≤600 sn), SHA-1 imza izni (varsayılan red) ve SSO'da TOTP atlama |
+| `AUTH_LOCK_MINUTES` | Hayır | Kilit süresi, dakika (varsayılan 15) |
 | `LLM_API_URL` / `LLM_API_KEY` / `LLM_MODEL` | Hayır | Taslak izlenim LLM'i (yoksa kural tabanlı yedek). Ücretsiz yerel yol: [docs/OLLAMA.md](docs/OLLAMA.md) |
 | `AI_WORKER_URL` | Hayır | Yerel derin AI worker adresi (varsayılan `http://127.0.0.1:8787`) |
 
@@ -400,8 +468,14 @@ npm run test:icd10                   # ICD-10 öneri + istem uygunluğu
 npm run test:msk                     # MSK protokol hesapları + nokta yapışması
 npm run test:esign                   # imza kaydı + NES sınır etiketi
 npm run test:xref                    # 3B imleç: en yakın kesit + panel güncellemeleri
-npm run test:perf                   # pencere/seviye doğruluğu + önbellek ön-işleme
+npm run test:perf                   # LUT ↔ GPU referansı, worker sözleşmesi, CPU yedeği
 npm run bench:window                # WL/WW dönüşümü kıyaslaması (eski vs LUT)
+npm run test:measure-history        # ölçüm → geçmiş satırı, trend, %değişim, ikilenme
+npm run test:radpeer                # RADPEER örneklem + uyuşmazlık istatistiği
+npm run test:model-registry         # model kayıt defteri + deterministik A/B
+npm run test:db-api                 # (PostgreSQL + sunucu) ölçüm geçmişi, RADPEER, model uçları
+npm run test:seg-ui                 # (tarayıcı) segment editörü: fırça/eşik/geri al + AI tohumlama + mL hacim
+npm run test:panels-ui              # (tarayıcı+DB) 📈 Trend, ⚖ Peer, model kayıt defteri, Oturumlar, hesap kilidi
 npm run test:pr                     # GSPS/PR dışa aktarma + parse doğrulama
 npm run test:notify                 # masaüstü bildirimi + izin akışı
 npm run test:prior                  # önceki tetkik ölçüm karşılaştırması
@@ -412,7 +486,7 @@ npm run test:pacssend               # KO/PR → PACS gönderim planı ve uç sö
 npm run test:siem                   # SIEM kuyruğu, yeniden deneme, HMAC imza
 npm run test:ctp                    # CTP cSVD dekonvolüsyonu + otomatik AIF
 npm run test:sr1500                 # TID 1500 yapılandırılmış ölçüm SR (+köprü)
-npm run test:seg                    # segmentasyon maskesi + DICOM SEG/RTSTRUCT
+npm run test:seg                    # segmentasyon maskesi + tuval eşlemesi + DICOM SEG/RTSTRUCT
 npm run test:recistfull             # RECIST hedef seçimi + non-hedef + genel yanıt
 npm run test:closeloop              # kapanış döngüsü süre/eskalasyon kuralları
 npm run test:followup               # takip görev kovaları + iade eşleme
@@ -424,6 +498,8 @@ npm run test:supplychain            # SBOM + SHA256SUMS + SLSA köken doğrulama
 npm run test:backupdr               # depolama adaptörü + yedek/geri yükleme
 npm run test:kms                    # anahtar halkası + rotasyon
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
+npm run test:dose                   # RDSR (radyasyon dozu) okuma/özet/DRL + gerçek DICOM baytları
+npm run test:shortcuts              # klavye kısayolu ayrıştırma, eşleştirme ve çakışma çözümü
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)
 npm run build && npm start &
@@ -431,10 +507,56 @@ npm run test:menu                   # menü, sekme, MPR, PNG, iframe, hata senar
 npm run test:folder                 # klasör içe aktarma + yükleme raporu
 npm run test:review                 # görüntü inceleme ölçümleri
 npm run test:report-flow            # rapor onay + derin AI akışı
+npm run test:seg-ui                 # segment editörü: fırça/eşik/geri al + AI tohumlama + mL hacim
+npm run test:panels-ui              # 📈 Trend, ⚖ Peer, model kayıt defteri, Oturumlar ve hesap kilidi panelleri
 ```
 
 > `tests/menu-interactions.cjs` hem klasik `webkitdirectory` yolunu hem de Chromium'un
 > `showDirectoryPicker` yolunu ayrı ayrı sınar. Windows için ayrıntı: [docs/WINDOWS_KURULUM.md](docs/WINDOWS_KURULUM.md)
+
+### Veritabanlı uçtan uca test (PostgreSQL)
+
+Ölçüm geçmişi, RADPEER ve model kayıt defteri uçları gerçek şemaya, CSRF/oturum
+katmanına ve HTTP sınırına bağlıdır; saf birim testleri bunu kanıtlamaz. Docker ya
+da root olmadan, PostgreSQL npm paketinden çalıştırılabilir (Linux x64 için
+`@embedded-postgres/linux-x64` **opsiyonel** bağımlılıktır; macOS/Windows'ta
+`EMBEDDED_PG_DIR` ile kendi `initdb`/`postgres` dizininizi verin):
+
+```bash
+npm run db:local                    # initdb (gerekirse) + postgres + veritabanı
+export DATABASE_URL=postgres://atik@127.0.0.1:5432/atik
+npm run db:push                     # drizzle şemasını uygula
+AV_RATE_LIMIT=off npm start &       # testte hız sınırı kapalı (CSRF açık kalır)
+npm run test:oidc                   # kurumsal giriş çekirdeği (PKCE, state, RS256, eşleme)
+npm run test:ldap                   # LDAP çekirdeği (BER, filtre/DN kaçışı, ayrıştırma)
+npm run test:saml                   # SAML çekirdeği (XML DSig/c14n, koşullar, replay)
+npm run test:frame-ui               # iframe gömme: izinli köken çerçevelenir, izinsiz engellenir (iki sunucu + Chromium)
+npm run test:db-api                 # 51 kontrol: ölçüm geçmişi, RADPEER, model uçları
+npm run db:local:stop
+```
+
+`db:local` veri dizinini depo dışında tutar (varsayılan `/tmp/av-pgdata`) ve yalnız
+`127.0.0.1`i dinler; kimlik doğrulaması `trust`tur — **üretim için uygun değildir**.
+Giriş akışı testi boş bir veritabanı ister:
+
+```bash
+DATABASE_URL=postgres://atik@127.0.0.1:5432/atik_auth AUTH_INTEGRATION_TEST=1 npm run test:auth-integration
+```
+
+### Playwright tarayıcısı CDN'e erişemiyorsa
+
+`npx playwright install chromium` bu ortamda engellenebilir. Alternatif: npm'den
+gelen hazır Chromium (`@sparticuz/chromium`; ikili + gerekli kütüphaneler pakette).
+
+```bash
+npm i -D @sparticuz/chromium            # yalnız test için
+eval "$(node scripts/local-chromium.mjs --print-env)"
+BASE_URL=http://127.0.0.1:3000 npm run test:seg-ui
+```
+
+Betik `CHROMIUM_PATH` ve `LD_LIBRARY_PATH`i yazdırır; verilmezse testler
+Playwright'ın kendi tarayıcısını arar. Ayrıntı ve doğrulanmış komut çıktısı:
+[docs/DB_TEST_ORTAMI.md](docs/DB_TEST_ORTAMI.md).
 
 ## GitHub ve yayınlama
 
@@ -511,6 +633,41 @@ docs/             Yayınlama ve işletim kılavuzları
   silme ve ayarlar yalnız yönetici). İlk yönetici `/giris` sayfasındaki kurulum
   formuyla oluşturulur; sonraki hesaplar Yönetim → Kullanıcılar bölümünden eklenir.
   Oturum imzalı bir çerezle taşınır (`SESSION_SECRET`/`DATA_ENCRYPTION_KEY` anahtarı).
+- **Aktif oturumlar ve hesap kilidi (w-auth):** her giriş sunucuda bir `sessions`
+  satırı açar; Yönetim → **Oturumlar** sekmesi kullanıcı/IP/tarayıcı/son görülme
+  bilgisiyle listeler ve tek tek ya da "diğer oturumları kapat" ile iptal eder —
+  iptal edilen çerez hesap modunda 401 alır (çıkış da kaydı iptal eder). Art arda
+  `AUTH_LOCK_MAX_FAILURES` (5) hatalı denemede hesap `AUTH_LOCK_MINUTES` (15) dk
+  kilitlenir; kilitliyken doğru parola da reddedilir (423 + kalan süre) ve yönetici
+  Kullanıcılar sekmesindeki **Kilidi aç** ile sıfırlar. Her iki olay denetim
+  kaydına yazılır (`auth.session.revoke`, `auth.login.locked`, `user.unlock`).
+- **Kurumsal giriş / SSO (OIDC):** `OIDC_ISSUER` + `OIDC_CLIENT_ID` tanımlıysa
+  `/giris` sayfasında "🏥 Kurumsal kimlikle giriş" düğmesi çıkar; authorization
+  code + PKCE akışı, state/nonce imzalı çerezde, ID token yalnız RS256 ve JWKS ile
+  doğrulanır (iss/aud/exp/nonce). İlk girişte hesap otomatik açılır (`OIDC_ADMIN_GROUP`
+  yönetici yapar) ya da doğrulanmış e-postayla mevcut hesap devralınır; SSO oturumu
+  da `sessions` kaydına yazılır ve Oturumlar ekranından iptal edilebilir. Kurulum ve
+  güvenlik kararları: [docs/OIDC.md](docs/OIDC.md).
+- **Kurumsal giriş / dizin (LDAP-AD):** `LDAP_URL` + `LDAP_BASE_DN` (servis
+  hesabıyla arama) ya da `LDAP_USER_DN_TEMPLATE` (doğrudan bind) tanımlıysa aynı
+  `/giris` formu dizin hesabıyla da girer: kullanıcı adı+parola yerel hesapta
+  doğrulanamazsa dizin sunucusuna sorulur, parola **kullanıcının kendi DN'iyle
+  yeniden bind edilerek** doğrulanır (parola uygulamada saklanmaz). Dizin DN'i
+  `users.ldap_dn` alanına yazılır; `LDAP_ADMIN_GROUP` üyeliği yönetici yapar;
+  kilitli/pasif hesap dizinle atlanmaz; boş parola ağa hiç çıkmaz (anonim bind
+  koruması); filtre/DN değerleri RFC 4515/4514 ile kaçırılır. Dizin sunucusu
+  yoksa "parola hatalı" yerine 503 + açıklama döner. Kurulum, güvenlik kararları
+  ve sınırlar: [docs/LDAP.md](docs/LDAP.md).
+- **Kurumsal giriş / SAML 2.0 (SP):** `SAML_IDP_SSO_URL` + `SAML_IDP_ENTITY_ID` +
+  `SAML_IDP_CERT` tanımlıysa `/giris`'te SAML düğmesi çıkar. SP-initiated akış:
+  imzalı durum çerezi (requestID + RelayState + ACS), HTTP-Redirect AuthnRequest,
+  HTTP-POST yanıtı. Yanıt **kendi XML DSig doğrulayıcımızla** denetlenir: Exclusive/
+  Inclusive C14N, Assertion ya da Response imzası, özet/signedInfo kontrolü,
+  RSA-SHA256+ (SHA-1 varsayılan **red**), Status/Issuer/Destination, Conditions
+  (süre + audience), SubjectConfirmationData (recipient + InResponseTo) ve
+  `saml_replay` tablosuyla **replay koruması**. `(IdP, NameID)` ile hesap eşleme,
+  grup → yönetici, `SAML_AUTO_PROVISION`; denetim `auth.login.saml`. Ayrıntı ve
+  bilinen sınırlar: [docs/SAML.md](docs/SAML.md).
 - **İki faktörlü doğrulama (F2):** `REQUIRE_TOTP_FOR_ROLES` (varsayılan `yonetici`)
   bu rollere sahip hesaplara TOTP/MFA şart koşar; Yönetim → Profil & MFA ekranından
   authenticator uygulamasıyla kurulur. Hesap MFA kurmadan giriş yapamaz, denetim

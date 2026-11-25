@@ -7,7 +7,59 @@ import { apiFetch } from "@/lib/csrfClient";
 export interface LoginMode {
   accessEnabled: boolean;
   authRequired: boolean;
+  /** Hesap kilitleme ilkesi (w-auth): kaç hatalı denemede kaç dakika kilit. */
+  lockout?: { max: number; minutes: number };
+  /** Kurumsal giriş (OIDC) yapılandırıldıysa düğme gösterilir. */
+  oidc?: { enabled: boolean; label?: string };
+  /** LDAP/AD etkinse aynı formun dizin hesabıyla da çalıştığı yazılır. */
+  ldap?: { enabled: boolean };
+  /** SAML 2.0 kimlik sağlayıcısı yapılandırıldıysa ikinci düğme gösterilir. */
+  saml?: { enabled: boolean; label?: string };
 }
+
+/** SAML dönüşündeki hata kodlarının kullanıcıya gösterilecek karşılığı. */
+function SAMLErrorText(code: string): string {
+  const map: Record<string, string> = {
+    yapilandirma: "SAML yapılandırılmamış (SAML_IDP_SSO_URL / SAML_IDP_ENTITY_ID / SAML_IDP_CERT).",
+    durum: "SAML giriş oturumu geçersiz ya da süresi dolmuş; yeniden deneyin.",
+    durum_baglaci: "SAML RelayState eşleşmedi; giriş yeniden başlatılmalı.",
+    bicim: "Kimlik sağlayıcıdan geçerli bir SAML yanıtı gelmedi.",
+    xml: "SAML yanıtı geçersiz XML içeriyor.",
+    durum_kodu: "Kimlik sağlayıcı girişi reddetti.",
+    imza: "SAML yanıtının imzası doğrulanamadı.",
+    "imza değeri": "SAML yanıtının imzası doğrulanamadı.",
+    özet: "SAML yanıtı değiştirilmiş görünüyor (özet uyuşmuyor).",
+    sha1: "SHA-1 imzalı SAML yanıtı güvenlik politikası gereği reddedildi.",
+    veren: "Yanıt beklenen kimlik sağlayıcıdan gelmiyor.",
+    hedef: "Yanıt bu uygulamaya yönlendirilmemiş.",
+    alici: "Yanıt bu uygulamaya gönderilmemiş.",
+    kosul: "SAML yanıtında koşullar eksik.",
+    sure: "SAML yanıtının geçerlilik süresi dolmuş ya da henüz başlamamış.",
+    izleyici: "Yanıt bu uygulama için düzenlenmemiş (audience).",
+    istek: "Yanıt bu giriş isteğine ait değil.",
+    ozne: "Yanıtta kullanıcı kimliği (NameID) yok.",
+    onay: "SAML özne onayı (SubjectConfirmation) eksik.",
+    yeniden: "Bu SAML yanıtı daha önce kullanılmış.",
+    hesap: "Bu kimlik için yetkili bir hesap yok.",
+    mfa_gerekli: "Bu hesap iki adımlı doğrulama istiyor; kullanıcı adı + parola ile girin.",
+    oturum: "Oturum kurulamadı.",
+  };
+  return map[code] ?? "SAML girişi tamamlanamadı.";
+}
+
+/** Callback'in döndürdüğü hata kodlarının kullanıcıya gösterilecek karşılığı. */
+const OIDC_ERRORS: Record<string, string> = {
+  yapilandirma: "Kurumsal giriş yapılandırılmamış (OIDC_ISSUER / OIDC_CLIENT_ID).",
+  durum: "Kurumsal giriş oturumu geçersiz ya da süresi dolmuş; yeniden deneyin.",
+  kod: "Kimlik sağlayıcı yetkilendirme kodu göndermedi.",
+  kesif: "Kimlik sağlayıcıya ulaşılamadı (keşif belgesi).",
+  jeton: "Kimlik sağlayıcı geçerli bir token vermedi.",
+  jwks: "Kimlik sağlayıcının imza anahtarları alınamadı.",
+  jeton_dogrulama: "Kimlik sağlayıcının yanıtı doğrulanamadı (imza/iss/aud/nonce).",
+  hesap: "Bu kurumsal kimlik için yetkili bir hesap yok; yöneticiden hesap isteyin.",
+  mfa_gerekli: "Bu hesap için ayrıca uygulama iki faktörlü doğrulaması gerekli; parola ile girin.",
+  oturum: "Oturum açılamadı; daha sonra tekrar deneyin.",
+};
 
 /**
  * Giriş formu.
@@ -27,6 +79,9 @@ export default function LoginForm({ mode }: { mode: LoginMode }) {
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [needsTotp, setNeedsTotp] = useState(false);
+  const [locked, setLocked] = useState(false);
+  const oidcError = sp.get("oidc_error") ?? "";
+  const samlError = sp.get("saml_error") ?? "";
   const [totpMissing, setTotpMissing] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -36,6 +91,7 @@ export default function LoginForm({ mode }: { mode: LoginMode }) {
     if (busy) return;
     setBusy(true);
     setError("");
+    setLocked(false);
     try {
       const r = await apiFetch("/api/auth/login", {
         method: "POST",
@@ -51,12 +107,14 @@ export default function LoginForm({ mode }: { mode: LoginMode }) {
         error?: string;
         requiresTotp?: boolean;
         totpMissing?: boolean;
+        locked?: boolean;
       } | null;
       if (!r.ok) {
         if (d?.requiresTotp) {
           setNeedsTotp(true);
           setTotpMissing(!!d.totpMissing);
         }
+        setLocked(!!d?.locked);
         setError(d?.error ?? `Giriş reddedildi (${r.status})`);
         return;
       }
@@ -136,7 +194,40 @@ export default function LoginForm({ mode }: { mode: LoginMode }) {
         </>
       )}
 
-      {error && <p role="alert" className="text-xs text-rose-300">{error}</p>}
+      {oidcError && (
+        <p
+          role="alert"
+          data-testid="oidc-error"
+          className="rounded-lg border border-rose-400/30 bg-rose-400/10 px-2.5 py-2 text-xs font-semibold text-rose-200"
+        >
+          {OIDC_ERRORS[oidcError] ?? (oidcError.startsWith("idp_") ? `Kimlik sağlayıcı girişi reddetti (${oidcError.slice(4)}).` : "Kurumsal giriş tamamlanamadı.")}
+        </p>
+      )}
+      {samlError && (
+        <p
+          role="alert"
+          data-testid="saml-error"
+          className="rounded-lg border border-rose-400/30 bg-rose-400/10 px-2.5 py-2 text-xs font-semibold text-rose-200"
+        >
+          {SAMLErrorText(samlError)}
+        </p>
+      )}
+      {error && (
+        <p role="alert" className={`text-xs ${locked ? "rounded-lg border border-rose-400/30 bg-rose-400/10 px-2.5 py-2 font-semibold text-rose-200" : "text-rose-300"}`}>
+          {locked ? "🔒 " : ""}
+          {error}
+        </p>
+      )}
+      {accountRequired && mode.ldap?.enabled && (
+        <p className="text-[11px] text-slate-500" data-testid="ldap-hint">
+          Kurum dizini (LDAP/AD) etkin: aynı formdan dizin hesabınızla da girebilirsiniz.
+        </p>
+      )}
+      {accountRequired && mode.lockout && !error && (
+        <p className="text-[11px] text-slate-500">
+          Art arda {mode.lockout.max} hatalı denemede hesap {mode.lockout.minutes} dk kilitlenir.
+        </p>
+      )}
       <button
         type="submit"
         disabled={
@@ -148,6 +239,34 @@ export default function LoginForm({ mode }: { mode: LoginMode }) {
       >
         {busy ? "Doğrulanıyor…" : "Giriş"}
       </button>
+      {mode.saml?.enabled && (
+        <div className="space-y-2 border-t border-[#1a2230] pt-3">
+          <a
+            href={`/api/auth/saml/start?next=${encodeURIComponent(next)}`}
+            data-testid="saml-login"
+            className="block w-full rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-3 py-2 text-center text-sm font-bold text-emerald-200 transition hover:bg-emerald-400/20"
+          >
+            🔐 {mode.saml.label ?? "Kurumsal kimlikle giriş (SAML)"}
+          </a>
+          <p className="text-center text-[10.5px] text-slate-500">
+            Hastane SAML kimlik sağlayıcısı ile giriş; parola ve MFA sağlayıcıda doğrulanır.
+          </p>
+        </div>
+      )}
+      {mode.oidc?.enabled && (
+        <div className="space-y-2 border-t border-[#1a2230] pt-3">
+          <a
+            href={`/api/auth/oidc/start?next=${encodeURIComponent(next)}`}
+            data-testid="oidc-login"
+            className="block w-full rounded-lg border border-cyan-400/40 bg-cyan-400/10 px-3 py-2 text-center text-sm font-bold text-cyan-200 transition hover:bg-cyan-400/20"
+          >
+            🏥 {mode.oidc.label ?? "Kurumsal kimlikle giriş"}
+          </a>
+          <p className="text-center text-[10.5px] text-slate-500">
+            Hastane dizini (OIDC) ile giriş; parola ve MFA kimlik sağlayıcıda doğrulanır.
+          </p>
+        </div>
+      )}
       <p className="text-center text-[11px] leading-relaxed text-slate-500">
         Bu uygulama araştırma/demo amaçlıdır; klinik karar için kullanılamaz.
         <br />

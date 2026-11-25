@@ -29,7 +29,66 @@ export const users = pgTable("users", {
   twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   lastLoginAt: timestamp("last_login_at"),
-});
+  /** Art arda başarısız giriş sayısı (başarılı girişte sıfırlanır). */
+  failedLoginCount: integer("failed_login_count").notNull().default(0),
+  /** Hesap kilidinin bitişi; null = kilitli değil. */
+  lockedUntil: timestamp("locked_until"),
+  /** Kurumsal kimlik bağlantısı (OIDC): veren kurum ve kimliğin kalıcı kimliği. */
+  oidcIssuer: text("oidc_issuer").notNull().default(""),
+  oidcSubject: text("oidc_subject").notNull().default(""),
+  /** LDAP/AD bağlantısı: dizindeki ayırt edici ad (küçük harfe indirgenmiş). */
+  ldapDn: text("ldap_dn").notNull().default(""),
+  /** SAML bağlantısı: IdP entityID + NameID (kimliğin kalıcı eşi). */
+  samlIssuer: text("saml_issuer").notNull().default(""),
+  samlNameId: text("saml_name_id").notNull().default(""),
+}, (t) => [
+  index("users_oidc_idx").on(t.oidcIssuer, t.oidcSubject),
+  index("users_ldap_idx").on(t.ldapDn),
+  index("users_saml_idx").on(t.samlIssuer, t.samlNameId),
+]);
+
+/**
+ * SAML tek kullanım kaydı: doğrulanmış her Assertion ID'si buraya yazılır.
+ *
+ * Neden DB: uygulama birden çok süreçte çalışabilir; yeniden oynatma (replay)
+ * korumasının süreçler arası çalışması gerekir. `assertion_id` benzersizdir,
+ * yinelenen ekleme `null` döner ve giriş reddedilir.
+ */
+export const samlReplay = pgTable(
+  "saml_replay",
+  {
+    id: serial("id").primaryKey(),
+    assertionId: text("assertion_id").notNull(),
+    consumedAt: timestamp("consumed_at").notNull().defaultNow(),
+    /** Assertion'ın son geçerlilik anı; sonrasında satır silinebilir. */
+    expiresAt: timestamp("expires_at").notNull(),
+  },
+  (t) => [uniqueIndex("saml_replay_assertion_idx").on(t.assertionId), index("saml_replay_expiry_idx").on(t.expiresAt)]
+);
+
+/**
+ * Sunucu tarafı oturum kaydı — "aktif oturum listesi / iptali" için.
+ *
+ * Oturum kimliği imzalı çerezde taşınır; burada yalnız sunucunun bildiği kayıt
+ * tutulur. Çerez geçerli olsa bile kayıt iptal edilmişse (revoked_at) istek
+ * kimliksiz sayılır. Böylece "oturumu kapat" gerçekten sunucuda etki eder.
+ */
+export const sessions = pgTable(
+  "sessions",
+  {
+    /** 32 karakterlik rastgele hex (çerezde imzalı taşınır). */
+    id: text("id").primaryKey(),
+    userId: integer("user_id").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    lastSeenAt: timestamp("last_seen_at").notNull().defaultNow(),
+    expiresAt: timestamp("expires_at").notNull(),
+    revokedAt: timestamp("revoked_at"),
+    revokedBy: integer("revoked_by"),
+    ip: text("ip").notNull().default(""),
+    userAgent: text("user_agent").notNull().default(""),
+  },
+  (t) => [index("sessions_user_idx").on(t.userId)],
+);
 
 export const auditLogs = pgTable(
   "audit_logs",
@@ -183,6 +242,52 @@ export const peerReviews = pgTable("peer_reviews", {
   contentHash: text("content_hash").notNull().default(""),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+/**
+ * Model kayıt defteri (a-modelops): model sürümleri, aşamaları ve A/B trafik
+ * payları. Her değişiklik denetim kaydına yazılır; performans iddiası taşımaz.
+ */
+export const modelRegistry = pgTable(
+  "model_registry",
+  {
+    id: serial("id").primaryKey(),
+    modelKey: text("model_key").notNull(),
+    version: text("version").notNull(),
+    stage: text("stage").notNull().default("aday"), // aday | gölge | aktif | emekli
+    trafficPct: integer("traffic_pct").notNull().default(0),
+    artifactHash: text("artifact_hash").notNull().default(""),
+    notes: text("notes").notNull().default(""),
+    createdBy: text("created_by").notNull().default(""),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("model_registry_uq").on(t.modelKey, t.version)],
+);
+
+/**
+ * Ölçüm geçmişi (c-measure-history): hasta ve çalışma bazında yapılandırılmış
+ * sayısal ölçümler (mm / mm² / mL / HU / SUV). Trend yalnız bu satırlardan
+ * hesaplanır; eksik ölçüm tahmin edilmez. `label` = ölçüm türü + kullanıcı etiketi.
+ */
+export const measurementHistory = pgTable(
+  "measurement_history",
+  {
+    id: serial("id").primaryKey(),
+    patientId: text("patient_id").notNull(),
+    studyUid: text("study_uid").notNull().default(""),
+    studyDate: text("study_date").notNull().default(""),
+    seriesKey: text("series_key").notNull().default(""),
+    modality: text("modality").notNull().default(""),
+    label: text("label").notNull(),
+    kind: text("kind").notNull().default(""),
+    value: real("value").notNull(),
+    unit: text("unit").notNull(),
+    slice: integer("slice").notNull().default(0),
+    recordedBy: integer("recorded_by"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("measurement_history_patient_idx").on(t.patientId, t.label)],
+);
 
 /** Seri bazlı ölçüm/anotasyon ve anahtar kesitler. keyImages şifreli JSON. */
 export const studyState = pgTable(

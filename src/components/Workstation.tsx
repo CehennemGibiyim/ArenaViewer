@@ -12,6 +12,13 @@ import VolumeView from "./VolumeView";
 import ExportMenu from "./ExportMenu";
 import NoduleTracker from "./NoduleTracker";
 import FusionControl, { type FusionConfig } from "./FusionControl";
+import ShortcutHelp from "./ShortcutHelp";
+import DosePanel from "./DosePanel";
+import SegmentationEditor, { type SegEditorState, type SegCandidate } from "./SegmentationEditor";
+import MeasureHistoryPanel from "./MeasureHistoryPanel";
+import PeerReviewPanel from "./PeerReviewPanel";
+import { measurementsToRows } from "@/lib/measureHistory";
+import type { SegMask } from "@/lib/segmentation";
 import { setRefLines } from "@/lib/panelRegistry";
 import { notifyCriticalFinding } from "@/lib/notify";
 import SRViewer from "./SRViewer";
@@ -43,7 +50,8 @@ import type {
   AiMode, AiProtocol, AnalysisResult, Annotation, EngineKind, Finding, FindingApprovalStatus,
   HangingProtocolRule, ImageReview, KeyImage, Layout, Lesion, SavedReport, SeriesData, StudyRow, ToolName, UserInfo, WindowPreset,
 } from "@/lib/types";
-import { LAYOUTS, WINDOW_PRESETS, type UserPrefs } from "@/lib/prefs";
+import { LAYOUTS, THEMES, WINDOW_PRESETS, themeAttr, type UserPrefs } from "@/lib/prefs";
+import { DEFAULT_SHORTCUTS, formatShortcut, matchShortcut, resolveShortcuts, type ShortcutAction } from "@/lib/shortcuts";
 import { apiFetch } from "@/lib/csrfClient";
 
 type Rot = 0 | 90 | 180 | 270;
@@ -210,6 +218,12 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   const [mprInitialTab, setMprInitialTab] = useState<"not" | "3b">("not");
   const [showOverlays, setShowOverlays] = useState(true);
   const [hangingModalOpen, setHangingModalOpen] = useState(false);
+  /** Klavye kısayolu yardımı ve doz paneli (i-a11y + yeni RDSR modülü). */
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [doseOpen, setDoseOpen] = useState(false);
+  /** Etkin atamalar: sunucu tercihleri gelene kadar fabrika ayarları. */
+  const [shortcuts, setShortcuts] = useState<Record<ShortcutAction, string>>({ ...DEFAULT_SHORTCUTS });
+  const [theme, setTheme] = useState("");
   const [showSeriesPanel, setShowSeriesPanel] = useState(true);
   const [showRightPanel, setShowRightPanel] = useState(true);
   const [pngImage, setPngImage] = useState<ImageExport | null>(null);
@@ -244,6 +258,15 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   /** CXR model olasılıkları (panel tablosu için; rapora işlenmez). */
   const [cxr, setCxr] = useState<CxrResult | null>(null);
   const [overlayOpacity, setOverlayOpacity] = useState(0.35);
+  /** Hekim segmentasyonu (m-seg): maske, segment tanımı, opaklık ve mL hacmi. */
+  const [seg, setSeg] = useState<SegEditorState | null>(null);
+  const [segOpen, setSegOpen] = useState(false);
+  /** Viewport maske tuvalinin önbellek anahtarı; her düzenlemede artar. */
+  const [segVersion, setSegVersion] = useState(0);
+  /** Ölçüm geçmişi paneli (c-measure-history). */
+  const [historyOpen, setHistoryOpen] = useState(false);
+  /** RADPEER örneklem + uyuşmazlık istatistikleri paneli (d-peer). */
+  const [peerOpen, setPeerOpen] = useState(false);
   const [engineNotes, setEngineNotes] = useState<string[]>([]);
   /** Gölge modda bu oturumda rapora girmeyen AI adayı sayısı (yalnızca bilgi amaçlı). */
   const [shadowHidden, setShadowHidden] = useState(0);
@@ -306,6 +329,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     const close = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       setMpr(false); setHangingModalOpen(false); setWorklistOpen(false); setPngImage(null); setReportOpen(false);
+      setHelpOpen(false); setDoseOpen(false);
     };
     window.addEventListener("keydown", close);
     return () => window.removeEventListener("keydown", close);
@@ -456,6 +480,8 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     setLiveFindings([]);
     setMasks(null);
     setHeats(null);
+    setSeg(null);
+    setSegOpen(false);
     setCxr(null);
     setShadowHidden(0);
     setEngineNotes([]);
@@ -595,19 +621,6 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     }
   }, [series, keyImages, slice, wl, ww, invert, annotations, liveFindings, revealed, toast]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!series || !isImageSeries || reportOpen || hangingModalOpen || worklistOpen || mpr || pngImage || isTyping(e.target) || e.ctrlKey || e.metaKey) return;
-      if (e.key === "ArrowUp" || e.key === "ArrowLeft") setSlice((p) => Math.max(0, p - 1));
-      else if (e.key === "ArrowDown" || e.key === "ArrowRight") setSlice((p) => Math.min(series.slices.length - 1, p + 1));
-      else if (e.key === "r" || e.key === "R") setRotation((r) => ((r + 90) % 360) as Rot);
-      else if (e.key === "h" || e.key === "H") setFlipH((v) => !v);
-      else if (e.key === "v" || e.key === "V") setFlipV((v) => !v);
-      else if (e.key === "k" || e.key === "K") captureKey();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [series, captureKey, isImageSeries, reportOpen, hangingModalOpen, worklistOpen, mpr, pngImage]);
 
   // ───── Dosya / Klasör / PACS ─────
   const beginImport = useCallback(() => {
@@ -1282,6 +1295,11 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded, clinicalNote, series, refreshContext]);
 
+  /** Geçmişe yazılacak yapılandırılmış ölçüm satırları (değer üretilmez). */
+  const historyRows = useMemo(() => series && isImageSeries
+    ? measurementsToRows({ annotations, series, pxMm, suvFactor: series.suv?.factor ?? null })
+    : [], [annotations, series, isImageSeries, pxMm]);
+
   const measurementsText = useMemo(() => {
     const unit = series?.unit ?? "SI";
     return [...annotations].filter((a) => a.kind !== "arrow").sort((a, b) => a.slice - b.slice).map((a) => `Kesit ${a.slice + 1} · ${KIND_LABEL[a.kind]}: ${annotationSummary(a, pxMm, unit, series?.suv?.factor)}`).join("\n");
@@ -1379,17 +1397,74 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   // Pencere ön ayarları tüm modalitelerde listelenir: aynı isimler MR/US grafide de
   // yardımcı olur; özel AR/Onc olayları kullanıcı kendi ayarını kaydedebilir.
   const allPresets = useMemo<WindowPreset[]>(() => series ? [...CT_PRESETS, ...presets] : CT_PRESETS, [series, presets]);
-  const overlay: OverlayData | null = masks || heats
-    ? { masks: masks ?? new Map(), opacity: overlayOpacity, heats: heats ?? undefined, heatOpacity }
+  const manualMask = seg && series && seg.seriesId === series.id ? seg.mask : null;
+
+  /**
+   * AI aday maskeleri (m-seg tohumlama): yalnız görünür bulguların maskeleri,
+   * seri uzayına kopyalanır. AI önerisi değiştirilmez; düzenleyici kopya alır.
+   */
+  const segCandidates = useMemo<SegCandidate[]>(() => {
+    if (!series || !isImageSeries || !masks) return [];
+    const findings = analysis?.findings ?? liveFindings;
+    const out: SegCandidate[] = [];
+    for (const [fid, slices] of masks) {
+      if (!slices || slices.size === 0) continue;
+      if (!revealed.has(fid)) continue;
+      const f = findings.find((x) => x.id === fid);
+      const label = f ? `${f.category} · ${f.label}` : fid;
+      const mask: SegMask = { width: series.width, height: series.height, slices: new Map(slices) };
+      out.push({ id: fid, label, mask });
+    }
+    return out;
+  }, [series, isImageSeries, masks, analysis, liveFindings, revealed]);
+  const overlay: OverlayData | null = masks || heats || manualMask
+    ? {
+        masks: masks ?? new Map(), opacity: overlayOpacity, heats: heats ?? undefined, heatOpacity,
+        manual: manualMask?.slices, manualOpacity: seg?.opacity ?? 0.45,
+        manualColor: seg?.def.color, manualVersion: segVersion,
+      }
     : null;
   const cells = CELLS[layout];
   const refLabel = ["Panel 2", "Panel 3", "Panel 4", "Panel 5", "Panel 6"];
 
-  // Kayıtlı temayı ilk açılışta uygula
+  // ───── Yapılandırılabilir klavye kısayolları (i-a11y + f-prefs) ─────
+  // Metin alanlarında ve bir diyalog/panel açıkken yalnızca yardım tuşu çalışır;
+  // böylece yazarken kesit atlama gibi istenmeyen eylemler olmaz.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const target = e.target;
+      if (isTyping(target) || (target instanceof HTMLElement && target.isContentEditable)) return;
+
+      if (matchShortcut(e, shortcuts.help)) { e.preventDefault(); setHelpOpen((v) => !v); return; }
+
+      const modalOpen = reportOpen || hangingModalOpen || worklistOpen || mpr || pngImage || helpOpen || doseOpen || noduleOpen || segOpen || historyOpen || peerOpen;
+      if (modalOpen) return;
+
+      if (matchShortcut(e, shortcuts.dose)) { e.preventDefault(); setDoseOpen(true); return; }
+      if (matchShortcut(e, shortcuts.report)) { e.preventDefault(); openReport(); return; }
+      if (matchShortcut(e, shortcuts.fullscreen)) { e.preventDefault(); void toggleFullscreen(); return; }
+      if (!series || !isImageSeries) return;
+      if (matchShortcut(e, shortcuts.slicePrev)) { e.preventDefault(); setSlice((p) => Math.max(0, p - 1)); }
+      else if (matchShortcut(e, shortcuts.sliceNext)) { e.preventDefault(); setSlice((p) => Math.min(series.slices.length - 1, p + 1)); }
+      else if (matchShortcut(e, shortcuts.rotate)) setRotation((r) => ((r + 90) % 360) as Rot);
+      else if (matchShortcut(e, shortcuts.flipH)) setFlipH((v) => !v);
+      else if (matchShortcut(e, shortcuts.flipV)) setFlipV((v) => !v);
+      else if (matchShortcut(e, shortcuts.invert)) setInvert((v) => !v);
+      else if (matchShortcut(e, shortcuts.keyImage)) captureKey();
+      else if (matchShortcut(e, shortcuts.resetView)) resetView(series);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
+  // Kayıtlı temayı ilk açılışta uygula (yerel seçim sunucu tercihinden önce gelir).
   useEffect(() => {
     try {
       const t = localStorage.getItem("atik-theme");
       if (t) document.documentElement.setAttribute("data-theme", t);
+      const motion = localStorage.getItem("atik-motion");
+      if (motion) document.documentElement.dataset.motion = motion;
     } catch { /* depolama kapalıysa varsayılan tema */ }
   }, []);
 
@@ -1397,10 +1472,34 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   useEffect(() => {
     apiFetch("/api/profile/preferences").then((r) => (r.ok ? r.json() : null)).then((d: { prefs?: UserPrefs } | null) => {
       const p = d?.prefs;
-      if (!p) return;
+      if (!p) {
+        // Sunucu yoksa (statik demo) kısayollar fabrika ayarında kalır.
+        setShortcuts(resolveShortcuts({}));
+        return;
+      }
       if ((LAYOUTS as readonly string[]).includes(p.layout)) setLayout(p.layout as Layout);
       if ((WINDOW_PRESETS as readonly string[]).includes(p.defaultWindow) && p.defaultWindow !== "") setDefaultWindow(p.defaultWindow);
-    }).catch(() => { /* tercih alınamazsa yerel davranış */ });
+      setShortcuts(resolveShortcuts(p.shortcuts));
+      if (p.theme) {
+        const attr = themeAttr(p.theme);
+        setTheme(attr);
+        if (attr) document.documentElement.setAttribute("data-theme", attr);
+        else document.documentElement.removeAttribute("data-theme");
+        try { localStorage.setItem("atik-theme", attr); } catch { /* depolama kapalı */ }
+      }
+      document.documentElement.dataset.motion = p.reducedMotion ? "reduce" : "auto";
+      try { localStorage.setItem("atik-motion", p.reducedMotion ? "reduce" : "auto"); } catch { /* depolama kapalı */ }
+    }).catch(() => setShortcuts(resolveShortcuts({})));
+  }, []);
+
+  // Kısayollar değiştiğinde (ör. Tercihler sayfası bu sekmeyi güncellediğinde) yeniden oku.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== "atik-shortcuts" || !e.newValue) return;
+      try { setShortcuts(resolveShortcuts(JSON.parse(e.newValue))); } catch { /* bozuk JSON yok sayılır */ }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   // Tercih edilen pencere ön ayarı (F3): yalnızca seri anahtarı değiştiğinde,
@@ -1446,14 +1545,16 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
           <a href={`/?fresh=${APP_BUILD}`} title="Arayüz paketini temiz biçimde yeniden yükle" className="rounded px-1.5 py-1 text-[10px] text-slate-400 hover:bg-white/10 hover:text-white">↻ Yenile</a>
           <select
             aria-label="Tema seç"
-            defaultValue=""
-            onChange={(e) => { const t = e.target.value; if (t) document.documentElement.setAttribute("data-theme", t); else document.documentElement.removeAttribute("data-theme"); try { localStorage.setItem("atik-theme", t); } catch { /* depolama kapalıysa sessizce geç */ } }}
-            className="rounded-md border border-[#1e2735] bg-[#0e141d] px-1.5 py-1 text-[10px] text-slate-300"
+            value={theme}
+            onChange={(e) => {
+              const t = e.target.value;
+              setTheme(t);
+              if (t) document.documentElement.setAttribute("data-theme", t); else document.documentElement.removeAttribute("data-theme");
+              try { localStorage.setItem("atik-theme", t); } catch { /* depolama kapalıysa sessizce geç */ }
+            }}
+            className="rounded-md border border-[#1e2735] bg-[#0e141d] px-1.5 py-1 text-[10px] text-slate-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300"
           >
-            <option value="">Koyu (Varsayılan)</option>
-            <option value="clinic-blue">Klinik Mavi</option>
-            <option value="slate-light">Açık Tema</option>
-            <option value="high-contrast">Yüksek Kontrast</option>
+            {THEMES.map((t) => <option key={t.id} value={t.attr}>{t.label}</option>)}
           </select>
         </div>
         <FileSelectControl onFiles={(files) => void processFiles(files, undefined, "dosya")} />
@@ -1504,7 +1605,21 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         <Btn onClick={exportAnon} title="Anonimleştirilmiş DICOM (ZIP)">Anonim DICOM</Btn>
         <Btn onClick={() => { if (!series || !isImageSeries) { toast("Önce bir görüntü serisi açın."); return; } setNoduleOpen(true); }} title="Nodül takibi: zaman serisi, Lung-RADS özeti, hacim ikilenme süresi">Nodül takibi</Btn>
         <ExportMenu series={isImageSeries ? series : null} wl={wl} ww={ww} invert={invert} slice={slice} rotation={rotation} flipH={flipH} flipV={flipV} keyImages={keyImages} annotations={annotations} pxMm={pxMm} bodyPart={series?.bodyPart ?? ""} toast={toast} />
-        <Btn onClick={() => void toggleFullscreen()} title="Tam ekran">⛶</Btn>
+        <Btn onClick={() => void toggleFullscreen()} title={`Tam ekran (${formatShortcut(shortcuts.fullscreen)})`}>⛶</Btn>
+        <Btn onClick={() => setDoseOpen(true)} title={`Radyasyon dozu: RDSR dosyası oku, CTDIvol/DLP ve DRL karşılaştır (${formatShortcut(shortcuts.dose)})`}>☢ Doz</Btn>
+        <Btn
+          onClick={() => {
+            if (!series) { toast("Ölçüm geçmişi için önce bir hasta/seri seçin."); return; }
+            if (!series.patientId) { toast("Bu seride hasta kimliği yok; geçmiş hasta bazında tutulur."); return; }
+            setHistoryOpen(true);
+          }}
+          title="Ölçüm geçmişi: hastanın önceki çalışmalarındaki ölçümler, yüzde değişim ve ikilenme süresi"
+        >📈 Trend</Btn>
+        <Btn
+          onClick={() => setPeerOpen(true)}
+          title="RADPEER: günün ikinci okuma örneklemi, uyuşmazlık ve RADPEER puan dağılımı"
+        >⚖ Peer</Btn>
+        <Btn onClick={() => setHelpOpen(true)} title={`Klavye kısayolları (${formatShortcut(shortcuts.help)})`}>⌨ Kısayollar</Btn>
         <div className="ml-auto flex min-w-0 flex-wrap items-center gap-2">
           <span className="rounded border border-amber-400/40 bg-amber-400/10 px-2 py-1 text-[9px] font-bold tracking-wide text-amber-300">KLİNİK KARAR İÇİN KULLANILAMAZ</span>
           <Link href="/paketler" prefetch={false} title="Windows · Linux · macOS kurulum paketleri ve dosya yolları" className="rounded-lg border border-emerald-400/50 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-bold text-emerald-200 hover:bg-emerald-500/20">📦 Kurulum</Link>
@@ -1527,9 +1642,20 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         {series && series.modality !== "US" && series.slices.length > 0 && (
           <Btn on={tool === "msk"} tone="violet" title="MSK ölçüm protokolleri: adlandırılmış noktalar, ölçümler ve aralık yorumu (ölçüm yardımcısı)" onClick={() => mskSelect(tool === "msk" ? null : (mskProtocolId ?? "wrist-pa"))}>🦴 MSK</Btn>
         )}
+        <Btn
+          on={segOpen || !!manualMask}
+          tone="violet"
+          data-testid="open-seg-editor"
+          title="Segmentasyon: fırça/silgi/eşik ile maske düzenle, mL hacim hesapla, DICOM SEG veya RTSTRUCT indir"
+          onClick={() => {
+            if (!series || !isImageSeries) { toast("Segmentasyon için bir görüntü serisi seçin."); return; }
+            if (series.isColor) { toast("Segmentasyon gri tonlamalı serilerde çalışır; renkli/US görüntülerde maske anlamsızdır."); return; }
+            setSegOpen(true);
+          }}
+        >🧩 Segment</Btn>
         <div className="mx-1 h-5 w-px shrink-0 bg-[#1e2735]" />
         <Btn on={invert} tone="amber" onClick={() => setInvert((v) => !v)}>Ters</Btn>
-        <Btn onClick={() => setRotation((r) => ((r + 90) % 360) as Rot)} title="R">⟳ Döndür</Btn>
+        <Btn onClick={() => setRotation((r) => ((r + 90) % 360) as Rot)} aria-keyshortcuts={shortcuts.rotate} title={`90° döndür (${formatShortcut(shortcuts.rotate)})`}>⟳ Döndür</Btn>
         <Btn on={flipH} onClick={() => setFlipH((v) => !v)} title="H">⇆</Btn>
         <Btn on={flipV} onClick={() => setFlipV((v) => !v)} title="V">⇅</Btn>
         <Btn onClick={() => { if (series) { resetView(series); toast("Görüntü ayarları sıfırlandı.", 2500); } else toast("Önce bir görüntü serisi açın."); }}>Sıfırla</Btn>
@@ -1555,7 +1681,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         <div className="mx-1 h-5 w-px shrink-0 bg-[#1e2735]" />
         <FusionControl all={all} primary={isImageSeries ? series : null} cfg={fusionCfg} onChange={setFusionCfg} />
         <Btn on={refLinesOn} tone="violet" onClick={() => { setRefLinesOn((v) => { setRefLines(!v); return !v; }); }} title="Çapraz referans çizgileri: diğer panellerin kesit düzlemlerini bu görüntüde çizgi olarak göster">Ref. çizgi</Btn>
-        <Btn tone="amber" onClick={captureKey} title="Anahtar kesit ekle (K)">★ Anahtar kesit{keyImages.length ? ` (${keyImages.length})` : ""}</Btn>
+        <Btn tone="amber" onClick={captureKey} aria-keyshortcuts={shortcuts.keyImage} title={`Anahtar kesit ekle (${formatShortcut(shortcuts.keyImage)})`}>★ Anahtar kesit{keyImages.length ? ` (${keyImages.length})` : ""}</Btn>
         {pxOverride[series?.id ?? ""] && <span className="shrink-0 rounded border border-emerald-400/30 px-1.5 py-0.5 text-[10px] text-emerald-300">kalibre</span>}
       </div>
 
@@ -1589,7 +1715,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         </aside>}
 
         {/* Orta: Ana Görüntüleme & Çoklu Izgara / Özel Nesneler */}
-        <main aria-label="Görüntüleme alanı" className="relative min-w-0 flex-1">
+        <main id="main-content" tabIndex={-1} aria-label="Görüntüleme alanı" className="relative min-w-0 flex-1 focus:outline-none">
           <ViewerErrorBoundary resetKey={series?.id ?? "empty"}>
           {series?.specialType === "sr" && series.srData ? (
             <SRViewer sr={series.srData} onJumpToSlice={(s) => setSlice(s - 1)} />
@@ -1661,6 +1787,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
             <span>{series.width}×{series.height} · {series.isColor ? "RGB" : series.slices[0]?.constructor.name.replace("Array", "")}</span>
             <span>Ölçüm: {annotations.length}</span>
             <span>★ {keyImages.length}</span>
+            {manualMask && <span className="text-fuchsia-300" title="Hekim segmentasyonu hacmi (piksel alanı × kesit kalınlığı)">Segment: {seg?.volume.ml.toFixed(2)} mL</span>}
             {series.overlays && series.overlays.length > 0 && <span className="text-emerald-400">Katman: {series.overlays.length}</span>}
           </>
         )}
@@ -1673,6 +1800,37 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
       {noduleOpen && series && <NoduleTracker patientId={series.patientId} patientName={series.patientName} studyDate={series.studyDate} measurements={noduleMeasurements} onClose={() => setNoduleOpen(false)} />}
       {pngImage && <ExportImageDialog image={pngImage} onClose={closePng} />}
       {importReport && <ImportReportDialog report={importReport} onClose={closeImportReport} />}
+      <ShortcutHelp open={helpOpen} onClose={() => setHelpOpen(false)} shortcuts={shortcuts} />
+      <DosePanel open={doseOpen} onClose={() => setDoseOpen(false)} />
+      <PeerReviewPanel open={peerOpen} onClose={() => setPeerOpen(false)} />
+      <MeasureHistoryPanel
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        patientId={series?.patientId ?? ""}
+        patientName={series?.patientName}
+        series={isImageSeries ? series : null}
+        rowsToSave={historyRows}
+        toast={toast}
+      />
+      {segOpen && series && (
+        <SegmentationEditor
+          series={series}
+          slice={slice}
+          wl={wl}
+          ww={ww}
+          invert={invert}
+          pxMm={pxMm}
+          initial={seg}
+          candidates={segCandidates}
+          onApply={(next) => {
+            setSeg(next);
+            setSegVersion((v) => v + 1);
+            if (!next) toast("Hekim segmentasyonu kaldırıldı.", 3000);
+          }}
+          onClose={() => setSegOpen(false)}
+          toast={toast}
+        />
+      )}
       {hangingModalOpen && <HangingProtocolEditorModal
         open={hangingModalOpen}
         onClose={() => setHangingModalOpen(false)}

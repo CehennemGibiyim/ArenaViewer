@@ -4,6 +4,10 @@ import SetupForm from "@/components/SetupForm";
 import { accessEnabled } from "@/lib/server/access";
 import { authRequired } from "@/lib/server/auth";
 import { hasAnyActiveUser } from "@/lib/server/accounts";
+import { lockoutPolicy } from "@/lib/server/lockout";
+import { oidcConfig } from "@/lib/server/oidc";
+import { ldapConfig } from "@/lib/server/ldap";
+import { samlConfig } from "@/lib/server/saml";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "ATIKVIEWER — Giriş" };
@@ -35,7 +39,22 @@ export default async function GirisPage() {
           {needsSetup ? (
             <SetupForm accessEnabled={accessEnabled()} />
           ) : (
-            <LoginForm mode={{ accessEnabled: accessEnabled(), authRequired: authRequired() }} />
+            <LoginForm
+              mode={{
+                accessEnabled: accessEnabled(),
+                authRequired: authRequired(),
+                lockout: lockoutPolicy(),
+                oidc: (() => {
+                  const c = oidcConfig();
+                  return c ? { enabled: true, label: c.label } : { enabled: false };
+                })(),
+                ldap: { enabled: ldapConfig() !== null },
+                saml: (() => {
+                  const c = samlConfig();
+                  return c ? { enabled: true, label: c.label } : { enabled: false };
+                })(),
+              }}
+            />
           )}
         </Suspense>
       </div>
