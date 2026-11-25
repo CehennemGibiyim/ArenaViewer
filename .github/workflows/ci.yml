@@ -52,6 +52,11 @@ jobs:
       - name: Birim testleri
         run: npm test
 
+      - name: PostgreSQL kimlik ve MFA giriş testi
+        env:
+          AUTH_INTEGRATION_TEST: "1"
+        run: npm run test:auth-integration
+
 
   # Gerçek PACS (Orthanc) ile uçtan uca DICOMweb testi: STOW yükle → QIDO bul →
   # WADO geri al → temizlik. ORTHANC_URL tanımsızca test kendini atlar.

@@ -75,7 +75,8 @@
     "test:triage-queue": "tsx tests/triage-queue.test.ts",
     "test:gap-progress": "tsx tests/gap-progress.test.ts",
     "test:stow-response": "tsx tests/stow-response.test.ts",
-    "test:stow-client": "tsx tests/stow-client.test.ts"
+    "test:stow-client": "tsx tests/stow-client.test.ts",
+    "test:auth-integration": "tsx tests/auth-login.integration.ts"
   },
   "dependencies": {
     "dicom-parser": "^1.8.21",

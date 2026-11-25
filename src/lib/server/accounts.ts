@@ -82,8 +82,12 @@ export async function authenticate(username: string, password: string): Promise<
   const acc = await findAccountByUsername(username);
   if (!acc || !acc.active) return null;
   if (!verifyPassword(password ?? "", acc.passwordHash)) return null;
-  await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, acc.id));
   return acc;
+}
+
+/** Yalnız tüm kimlik doğrulama adımları ve imzalı oturum üretimi başarılıysa çağrılır. */
+export async function recordSuccessfulLogin(id: number): Promise<void> {
+  await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, id));
 }
 
 export function toUserInfo(a: AccountRecord): UserInfo {
