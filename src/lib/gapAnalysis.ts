@@ -573,8 +573,8 @@ const BASE_ITEMS: GapItem[] = [
     id: "c-seg-rtstruct", category: "measure", title: "Segmentasyon editörü + DICOM SEG/RTSTRUCT dışa aktarma",
     status: "kismi", priority: "P1", effort: "M",
     market: ["3D Slicer", "OHIF"],
-    ours: "**Bu sürümde eklendi:** `src/lib/segmentation.ts` — fırça/silgi, eşik dolgusu, tohumdan bölge büyütme, kesit kopyalama, hacim (px×py×dilim, mL), maske JSON kalıcılığı. `src/lib/dicomSeg.ts` — DICOM **SEG** (1 bit/piksel, segment başına etiket/renk/algoritma türü, çerçeve = segment×kesit) ve **RTSTRUCT** (maske sınırlarından CLOSED_PLANAR konturlar, ROI gözlemleri). Dışa aktar menüsünden (Segmentasyon → DICOM SEG / RTSTRUCT). dicom-parser ile okunabilirlik ve maske↔piksel birebirliği test edildi. KALAN: düzenleme arayüzü (tuval üzerinde fırça), SAM/AI tohumlama, interaktif kontur düzeltme; kontur konkav segmentlerde dış zarfa yaklaşır.",
-    action: "Tuval içi fırça arayüzü + AI tohumlama; konturların tam kenar izleme (marching squares) ile düzeltilmesi.",
+    ours: "`src/lib/segmentation.ts` — fırça/silgi, eşik dolgusu, tohumdan bölge büyütme, kesit kopyalama, hacim (px×py×dilim, mL), maskeden otomatik uzun/kısa eksen, maske JSON kalıcılığı; tuval içi fırça arayüzü (`SegEditor`) ve DICOM **SEG** (1 bit/piksel) + **RTSTRUCT** dışa aktarma çalışıyor. **Yeni — gerçek kenar izleme:** `traceContours` Moore komşuluk izlemesiyle (Jacob durma kuralı) her bağlı bileşenin **sıralı** sınır poligonunu üretir; satır taramasının içbükeylikleri kesme hatası giderildi. RTSTRUCT artık kesit başına **bileşen başına ayrı CLOSED_PLANAR kontur** yazar (`sliceContourPoints`), böylece çok odaklı/ayrık segmentler doğru temsil edilir. 78 test (L şekli içbükey köşe, halka, iki bileşen, tek piksel/çizgi, mm dönüşümü). SINIR: delikler ayrı ROI olarak yazılmaz (yalnız dış sınır) ve AI tohumlama yok.",
+    action: "AI tohumlama (model), delikler için iç kontur/ROI ayrımı ve kontur simplifikasyonu (Douglas-Peucker).",
   },
   {
     id: "c-recist-full", category: "measure", title: "RECIST tamamlayıcıları: lenf nodu, non-hedef lezyon, otomatik lezyon eşleştirme",

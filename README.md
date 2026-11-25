@@ -74,7 +74,9 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   **fırça/silgi** (1–40 px), **eşik dolgusu** (HU aralığı), **tohumdan bölge
   büyütme**, kesit gezinme ve «sonraki kesite kopyala». Maske seri kimliğiyle
   tarayıcıda saklanır; **hacim mL/mm³** canlı hesaplanır (piksel aralığı × kesit
-  kalınlığı); maskeden **otomatik uzun/kısa eksen** (mm, RECIST çap adayı) okunur. DICOM **SEG** (1 bit/piksel, renk/etiket/algoritma) ve **RTSTRUCT**
+  kalınlığı); maskeden **otomatik uzun/kısa eksen** (mm, RECIST çap adayı) okunur.
+  RTSTRUCT için **gerçek kenar izleme** (Moore): her bağlı bileşen sıralı kontur
+  olarak yazılır, içbükeylikler korunur. DICOM **SEG** (1 bit/piksel, renk/etiket/algoritma) ve **RTSTRUCT**
   (CLOSED_PLANAR konturlar) dışa aktarımı; Dışa aktar menüsündeki işaret tabanlı
   SEG çıktısı elle çizilen maskeyle **birleştirilir**. AI aday örtüsü
   düzenlenebilir maske değildir; SEG/RTSTRUCT hekim düzenlemesine açıktır.

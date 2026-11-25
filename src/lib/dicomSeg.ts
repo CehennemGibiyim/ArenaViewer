@@ -206,18 +206,117 @@ export function buildSegDocument(input: SegInput): Uint8Array {
  * Her satırın en sol ve en sağ dolu pikseli alınır; üst kenar soldan sağa,
  * alt kenar sağdan sola eklenir. Konkav segmentlerde dış zarfa yaklaşır.
  */
-export function maskContour(mask: Uint8Array, width: number, height: number): { x: number; y: number }[] {
-  const left: { x: number; y: number }[] = [];
-  const right: { x: number; y: number }[] = [];
-  for (let y = 0; y < height; y++) {
-    let l = -1, r = -1;
-    for (let x = 0; x < width; x++) {
-      if (mask[y * width + x]) { if (l < 0) l = x; r = x; }
+/**
+ * Moore komşuluk izleme (8 komşu, saat yönü, batıdan başlar): tek bir bağlı
+ * bileşenin sınır piksellerini **sıralı** döndürür. Kenar izleme, satır taraması
+ * gibi içbükeylikleri kesmez.
+ */
+const MOORE: [number, number][] = [
+  [-1, 0], [-1, -1], [0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1],
+];
+
+function traceBoundary(
+  sx: number, sy: number, width: number, height: number,
+  inside: (x: number, y: number) => boolean,
+): { x: number; y: number }[] {
+  const pts: { x: number; y: number }[] = [];
+  let cx = sx, cy = sy;
+  // Geri izleme (backtrack) hücresi: başlangıçta batı komşusu.
+  let bx = sx - 1, by = sy;
+  const dirIndex = (dx: number, dy: number) => {
+    const i = MOORE.findIndex(([mx, my]) => mx === dx && my === dy);
+    return i < 0 ? 0 : i;
+  };
+  const seenStates = new Set<number>();
+  const guard = 8 * width * height + 16;
+  for (let step = 0; step < guard; step++) {
+    const backDir = dirIndex(bx - cx, by - cy);
+    const state = (cy * width + cx) * 8 + backDir;
+    if (seenStates.has(state)) break; // Jacob'ın durma kuralı: durum tekrarı
+    seenStates.add(state);
+    pts.push({ x: cx, y: cy });
+    let moved = false;
+    for (let k = 1; k <= 8; k++) {
+      const d = (backDir + k) % 8;
+      const nx = cx + MOORE[d][0], ny = cy + MOORE[d][1];
+      if (!inside(nx, ny)) continue;
+      bx = cx; by = cy; // eski piksel yeni backtrack
+      cx = nx; cy = ny;
+      moved = true;
+      break;
     }
-    if (l >= 0) { left.push({ x: l, y }); right.push({ x: r, y }); }
+    if (!moved) break; // izole piksel
+    if (cx === sx && cy === sy) break; // başlangıca döndük
   }
-  if (!left.length) return [];
-  return [...left, ...right.reverse()];
+  // Ardışık tekrarları at
+  return pts.filter((p, i) => i === 0 || p.x !== pts[i - 1].x || p.y !== pts[i - 1].y);
+}
+
+const polyArea = (pts: readonly { x: number; y: number }[]): number => {
+  if (pts.length < 3) return 0;
+  let a = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i], q = pts[(i + 1) % pts.length];
+    a += p.x * q.y - q.x * p.y;
+  }
+  return Math.abs(a) / 2;
+};
+
+/**
+ * Maskedeki **tüm bağlı bileşenlerin** sınır konturları (büyükten küçüğe).
+ *
+ * Delikler (iç boşluk) ayrı kontur olarak döndürülmez; DICOM RTSTRUCT'ta delik
+ * XOR ile değil, ayrı ROI/kontur ile temsil edilir. Bu nedenle içi boş halkalarda
+ * yalnız dış sınır çıkar.
+ */
+export function traceContours(mask: Uint8Array, width: number, height: number): { x: number; y: number }[][] {
+  const inside = (x: number, y: number) => x >= 0 && y >= 0 && x < width && y < height && mask[y * width + x] !== 0;
+  const seen = new Uint8Array(width * height);
+  const out: { x: number; y: number }[][] = [];
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = y * width + x;
+      if (seen[idx] || !inside(x, y)) continue;
+      // 4-komşu taşkın doldurma: bileşenin en üst-sol pikselini bul
+      const stack = [idx];
+      seen[idx] = 1;
+      let startX = x, startY = y;
+      while (stack.length) {
+        const p = stack.pop()!;
+        const px = p % width, py = (p - px) / width;
+        if (py < startY || (py === startY && px < startX)) { startX = px; startY = py; }
+        const nb: [number, number][] = [[px + 1, py], [px - 1, py], [px, py + 1], [px, py - 1]];
+        for (const [nx, ny] of nb) {
+          if (!inside(nx, ny)) continue;
+          const ni = ny * width + nx;
+          if (seen[ni]) continue;
+          seen[ni] = 1;
+          stack.push(ni);
+        }
+      }
+      const poly = traceBoundary(startX, startY, width, height, inside);
+      if (poly.length > 0) out.push(poly);
+    }
+  }
+  return out.sort((a, b) => polyArea(b) - polyArea(a));
+}
+
+/** Geriye dönük uyumluluk: en büyük bileşenin sınır konturu. */
+export function maskContour(mask: Uint8Array, width: number, height: number): { x: number; y: number }[] {
+  const polys = traceContours(mask, width, height);
+  return polys[0] ?? [];
+}
+
+/**
+ * Bir kesitteki tüm konturların hasta koordinatları (mm) — bileşen başına bir
+ * CLOSED_PLANAR kontur. RTSTRUCT üretimi ve testler bu yardımcıyı paylaşır.
+ */
+export function sliceContourPoints(
+  mask: Uint8Array, width: number, height: number, geometry: SegGeometry, slice: number, maxPoints = 200,
+): number[][] {
+  return traceContours(mask, width, height)
+    .filter((p) => p.length >= 3)
+    .map((p) => contourPoints(p, geometry, slice, maxPoints));
 }
 
 /** Kontur noktalarını piksel → hasta koordinatına (mm) çevirir ve seyreltir. */
@@ -267,15 +366,15 @@ export function buildRtStruct(input: RtStructInput): Uint8Array {
     for (const slice of [...roi.mask.slices.keys()].sort((a, b) => a - b)) {
       const m = roi.mask.slices.get(slice)!;
       if (!m.some((v) => v)) continue;
-      const pts = maskContour(m, input.width, input.height);
-      if (pts.length < 3) continue;
-      const data = contourPoints(pts, input.geometry, slice, maxPts);
-      contours.push(item(
-        S(0x3006, 0x0042, "CS", "CLOSED_PLANAR"),
-        S(0x3006, 0x0046, "IS", String(data.length / 3)),
-        S(0x3006, 0x0050, "DS", data.join("\\")),
-        S(0x3006, 0x0040, "IS", String(slice + 1)),
-      ));
+      // Birden fazla bağlı bileşen varsa her biri ayrı kontur olarak yazılır.
+      for (const data of sliceContourPoints(m, input.width, input.height, input.geometry, slice, maxPts)) {
+        contours.push(item(
+          S(0x3006, 0x0042, "CS", "CLOSED_PLANAR"),
+          S(0x3006, 0x0046, "IS", String(data.length / 3)),
+          S(0x3006, 0x0050, "DS", data.join("\\")),
+          S(0x3006, 0x0040, "IS", String(slice + 1)),
+        ));
+      }
     }
     roiContourSeq.push(item(
       S(0x3006, 0x0084, "IS", String(n)),
