@@ -152,6 +152,9 @@ jobs:
       PORT: 3000
       # Test-only synthetic series are compiled into this UI-test artifact only.
       NEXT_PUBLIC_E2E_FIXTURES: "true"
+      # Bağımsız tarayıcı testleri aynı IP üzerinden kısa sürede analiz çalıştırır.
+      # Hız sınırı test:webhard içinde ayrıca doğrulanır; üretimde kapatılmaz.
+      AV_RATE_LIMIT: "off"
     steps:
       - uses: actions/checkout@v4
 
