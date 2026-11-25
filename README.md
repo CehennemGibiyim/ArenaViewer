@@ -286,6 +286,25 @@ MWL_PACS_HOST=10.0.0.20 MWL_PACS_PORT=104 MWL_PACS_AET=ORTHANC npm run mwl:cfind
 - `findscu` (dcm4che) yoksa `MWL_BACKEND=bin` + `MWL_BIN` ile kendi C-FIND betiğinizi bağlayın;
   köprü ham Implicit VR yanıtını da DICOM JSON'a çevirir (`parseImplicitVr`).
 
+## Tedarik zinciri (SBOM + SLSA)
+
+Her `v*` etiketinde `.github/workflows/sbom.yml` şunları üretir ve Release'e ekler:
+CycloneDX 1.6 **SBOM**, kaynak arşivi, `SHA256SUMS` ve **SLSA v1 derleme kökeni**
+(`actions/attest-build-provenance`; imza GitHub OIDC ile atılır, özel anahtar yok).
+`.github/workflows/supplychain-verify.yml` yayınlanan varlıkları indirip bağımsız
+olarak yeniden doğrular.
+
+İndirilen bir sürümü kurumda denetlemek için:
+
+```bash
+node scripts/supplychain.mjs verify --dir <indirilen-klasör> --strict
+# → SHA256SUMS eşleşmesi, SBOM biçimi (purl/lisans), kanıtın dosya özetleriyle bağlantısı
+gh attestation verify <dosya> --repo CehennemGibiyim/ArenaViewer   # imzalı köken
+```
+
+Doğrulayıcı, SBOM'u `--sbom`, kanıtı `--provenance` ile başka yoldan da okur;
+`SHA256SUMS` üretmek için `node scripts/supplychain.mjs manifest --dir dist`.
+
 ## Ortam değişkenleri
 
 | Değişken | Zorunlu | Açıklama |
@@ -356,6 +375,7 @@ npm run test:stowanon               # anonim seri → PACS (plan + sunucu doğru
 npm run test:wadoframe              # kare düzeyinde getirme + istemci önbelleği
 npm run test:mwl                    # Modality Worklist (DICOMweb + DIMSE köprüsü)
 npm run test:webhard                # hız sınırı + CSRF + CSP
+npm run test:supplychain            # SBOM + SHA256SUMS + SLSA köken doğrulaması
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)

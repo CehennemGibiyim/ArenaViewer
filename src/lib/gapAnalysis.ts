@@ -720,8 +720,8 @@ const BASE_ITEMS: GapItem[] = [
     id: "g-supplychain", category: "trust", title: "Tedarik zinciri: CodeQL, SBOM, imzalı derleme (SLSA), dependency review",
     status: "kismi", priority: "P1", effort: "M",
     market: ["Tüm kurumsal ürünler"],
-    ours: "**Bu sürümde eklendi:** CodeQL (JS/TS, security-and-quality), CycloneDX SBOM (release'a yüklenir), PR'de dependency-review (critical uyarılarını kırar; depo için Dependency graph açık olmalı), Dependabot. İmzalı derleme (SLSA attestation) yok.",
-    action: "Release attestation (SLSA builder) ekle.",
+    ours: "CodeQL (JS/TS, security-and-quality), Dependabot, PR'de dependency-review. **Bu sürümde tamamlandı:** `sbom.yml` artık CycloneDX 1.6 SBOM + kaynak arşivi + `SHA256SUMS` üretir ve **SLSA v1 derleme kökenini** GitHub OIDC ile imzalar (`actions/attest-build-provenance`, `gh attestation verify` ile üretimden hemen sonra doğrulanır). `scripts/supplychain.mjs` bağımsız doğrulayıcı: özet eşleşmesi, SBOM biçimi (purl/lisans), kanıtın `subject[].digest.sha256` bağlantısı — `npm run test:supplychain`. `supplychain-verify.yml` yayınlanan varlıkları indirip yeniden denetler.",
+    action: "İmzalama anahtarının kurumsal HSM'e taşınması ve SBOM'un imzalı olarak yayınlanması (cosign/Sigstore `attest`).",
   },
   {
     id: "g-backup-dr", category: "trust", title: "Yedek/geri yükleme/DR + nesne depolama adaptörü (S3/MinIO)",
