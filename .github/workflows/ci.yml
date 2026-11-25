@@ -192,13 +192,31 @@ jobs:
           }
 
       - name: Klasör içe aktarma testleri (3 kontrol)
-        run: npm run test:folder
+        run: |
+          set -o pipefail
+          npm run test:folder 2>&1 | tee /tmp/folder-test.log || {
+            message=$(tail -40 /tmp/folder-test.log | sed -e 's/%/%25/g' -e ':a;N;$!ba;s/\n/%0A/g' -e 's/\r/%0D/g')
+            echo "::error title=folder test çıktısı::$message"
+            exit 1
+          }
 
       - name: Görüntü inceleme testleri (5 kontrol)
-        run: npm run test:review
+        run: |
+          set -o pipefail
+          npm run test:review 2>&1 | tee /tmp/review-test.log || {
+            message=$(tail -40 /tmp/review-test.log | sed -e 's/%/%25/g' -e ':a;N;$!ba;s/\n/%0A/g' -e 's/\r/%0D/g')
+            echo "::error title=review test çıktısı::$message"
+            exit 1
+          }
 
       - name: Rapor onay + derin AI akışı (CI'da onay tamamlanır)
-        run: npm run test:report-flow
+        run: |
+          set -o pipefail
+          npm run test:report-flow 2>&1 | tee /tmp/report-flow-test.log || {
+            message=$(tail -40 /tmp/report-flow-test.log | sed -e 's/%/%25/g' -e ':a;N;$!ba;s/\n/%0A/g' -e 's/\r/%0D/g')
+            echo "::error title=report-flow test çıktısı::$message"
+            exit 1
+          }
 
       - name: Sunucu günlüğü (hata durumunda)
         if: failure()

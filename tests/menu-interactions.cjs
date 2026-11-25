@@ -33,7 +33,7 @@ async function chooser(page, root, name) {
 async function main() {
   const browser = await chromium.launch({ args: ["--no-sandbox"] });
   try {
-    const ctx = await browser.newContext({ viewport: { width: 1280, height: 850 }, acceptDownloads: true });
+    const ctx = await browser.newContext({ serviceWorkers: "block", viewport: { width: 1280, height: 850 }, acceptDownloads: true });
     const page = await ctx.newPage();
     page.setDefaultTimeout(10000);
     const errors = [];
@@ -181,7 +181,7 @@ async function main() {
     await ctx.close();
 
     for (const kind of ["malformed", "storage-denied", "cancel-import"]) {
-      const c = await browser.newContext({ viewport: { width: 1280, height: 850 } });
+      const c = await browser.newContext({ serviceWorkers: "block", viewport: { width: 1280, height: 850 } });
       const p = await c.newPage(); p.setDefaultTimeout(10000);
       const errors = []; p.on("pageerror", (e) => errors.push(e.message));
       if (kind === "malformed") await c.addInitScript(() => {
@@ -219,7 +219,7 @@ async function main() {
     // Üretim güvenlik politikası (CSP frame-ancestors self ve X-Frame-Options)
     // farklı port/kökendeki sayfaların uygulamayı çerçevelemesini engeller.
     // Gerçekten izin verilen aynı-kökenli sandbox senaryosunu test et.
-    const cc = await browser.newContext({ viewport: { width: 1280, height: 850 } });
+    const cc = await browser.newContext({ serviceWorkers: "block", viewport: { width: 1280, height: 850 } });
     const pp = await cc.newPage(); pp.setDefaultTimeout(10000);
     const frameErrors = []; pp.on("pageerror", (e) => frameErrors.push(e.message));
     await pp.goto(BASE);
