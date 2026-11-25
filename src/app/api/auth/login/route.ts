@@ -3,7 +3,7 @@ import { verify as verifyTotp } from "otplib";
 import { ACCESS_COOKIE, accessEnabled, checkToken } from "@/lib/server/access";
 import { audit } from "@/lib/server/audit";
 import { authRequired } from "@/lib/server/auth";
-import { authenticate, totpRequiredFor, toUserInfo } from "@/lib/server/accounts";
+import { authenticate, recordSuccessfulLogin, totpRequiredFor, toUserInfo } from "@/lib/server/accounts";
 import { issueSessionCookie, SESSION_COOKIE } from "@/lib/server/session";
 
 export const dynamic = "force-dynamic";
@@ -81,6 +81,8 @@ export async function POST(req: NextRequest) {
   const cookie = issueSessionCookie(acc.id);
   const res = NextResponse.json({ ok: true, guest: false, user: toUserInfo(acc) });
   if (cookie) {
+    // MFA ve oturum imzası başarıyla tamamlanmadan son giriş güncellenmemeli.
+    await recordSuccessfulLogin(acc.id);
     res.cookies.set(SESSION_COOKIE, cookie, {
       httpOnly: true,
       sameSite: "lax",

@@ -34,6 +34,15 @@ etkinleştirildi: 25 Kasım 2026'da SBOM API'si 602 paket döndürdü ve PR #21'
 olmadığından, açık içeren bir değişikliğin tespit edilmesi ayrıca sınanmadı.
 SBOM imzalama ve kurumsal HSM gibi kalan işler nedeniyle G3 kısmi kalır.
 
+### P0 — kimlik giriş kaydı (w-auth)
+
+Son başarılı giriş zamanı yalnız parola ve gereken MFA doğrulandıktan ve oturum
+imzalanabildikten sonra güncellenir. Yanlış parola/MFA, MFA kurulmamış hesap ve
+imzalama anahtarı yokluğu zaman damgasını değiştirmez. PostgreSQL destekli CI
+entegrasyon testi bu durumları ve oturum çerezini denetler. Bu değişiklik hesap
+kilitleme, oturum iptali veya kurumsal kimlik entegrasyonunu sağlamaz; P0 madde
+kısmi kalır ve demo modu gerçek kullanıcı kimliği doğrulamaz.
+
 ## 0. Nasıl okunur
 
 | Öncelik | Anlamı |
