@@ -14,10 +14,11 @@ import NoduleTracker from "./NoduleTracker";
 import FusionControl, { type FusionConfig } from "./FusionControl";
 import ShortcutHelp from "./ShortcutHelp";
 import DosePanel from "./DosePanel";
-import SegmentationEditor, { type SegEditorState } from "./SegmentationEditor";
+import SegmentationEditor, { type SegEditorState, type SegCandidate } from "./SegmentationEditor";
 import MeasureHistoryPanel from "./MeasureHistoryPanel";
 import PeerReviewPanel from "./PeerReviewPanel";
 import { measurementsToRows } from "@/lib/measureHistory";
+import type { SegMask } from "@/lib/segmentation";
 import { setRefLines } from "@/lib/panelRegistry";
 import { notifyCriticalFinding } from "@/lib/notify";
 import SRViewer from "./SRViewer";
@@ -1397,6 +1398,25 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   // yardımcı olur; özel AR/Onc olayları kullanıcı kendi ayarını kaydedebilir.
   const allPresets = useMemo<WindowPreset[]>(() => series ? [...CT_PRESETS, ...presets] : CT_PRESETS, [series, presets]);
   const manualMask = seg && series && seg.seriesId === series.id ? seg.mask : null;
+
+  /**
+   * AI aday maskeleri (m-seg tohumlama): yalnız görünür bulguların maskeleri,
+   * seri uzayına kopyalanır. AI önerisi değiştirilmez; düzenleyici kopya alır.
+   */
+  const segCandidates = useMemo<SegCandidate[]>(() => {
+    if (!series || !isImageSeries || !masks) return [];
+    const findings = analysis?.findings ?? liveFindings;
+    const out: SegCandidate[] = [];
+    for (const [fid, slices] of masks) {
+      if (!slices || slices.size === 0) continue;
+      if (!revealed.has(fid)) continue;
+      const f = findings.find((x) => x.id === fid);
+      const label = f ? `${f.category} · ${f.label}` : fid;
+      const mask: SegMask = { width: series.width, height: series.height, slices: new Map(slices) };
+      out.push({ id: fid, label, mask });
+    }
+    return out;
+  }, [series, isImageSeries, masks, analysis, liveFindings, revealed]);
   const overlay: OverlayData | null = masks || heats || manualMask
     ? {
         masks: masks ?? new Map(), opacity: overlayOpacity, heats: heats ?? undefined, heatOpacity,
@@ -1801,6 +1821,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
           invert={invert}
           pxMm={pxMm}
           initial={seg}
+          candidates={segCandidates}
           onApply={(next) => {
             setSeg(next);
             setSegVersion((v) => v + 1);

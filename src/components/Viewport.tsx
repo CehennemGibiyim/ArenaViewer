@@ -275,12 +275,12 @@ export default function Viewport(props: ViewportProps) {
     const key = `${series.id}|${slice}|${Math.round(wl)}|${Math.round(ww)}|${invert}|${isColor ? "color" : "mono"}`;
 
     // Taban katmanı üç yoldan biriyle hazırlanır (v-perf):
-    //   1) GPU gölgelendiricisi (16 bit işaretli kesitler, tam sayı pencere),
+    //   1) GPU gölgelendiricisi (16 bit işaretli/işaretsiz kesitler, tam sayı pencere),
     //   2) büyük kesitlerde Web Worker (ana iş parçacığı boş kalır, kademeli çizim),
     //   3) ana iş parçacığı LUT yolu.
     let baseSource: CanvasImageSource | null = null;
     const slPixels = series.slices[sliceIdx];
-    if (!isColor && slPixels instanceof Int16Array) {
+    if (!isColor && (slPixels instanceof Int16Array || slPixels instanceof Uint16Array)) {
       if (gpuRef.current === undefined) gpuRef.current = createWindowGpuRenderer();
       const gpu = gpuRef.current;
       if (gpu && gpu.draw(slPixels, W, H, wl, ww, invert)) baseSource = gpu.canvas;

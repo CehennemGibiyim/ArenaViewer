@@ -33,6 +33,13 @@ export interface SegEditorState {
   volume: VolumeResult;
 }
 
+/** AI aday maskesi: bulgu kimliği + etiket + seri uzayında maske. */
+export interface SegCandidate {
+  id: string;
+  label: string;
+  mask: SegMask;
+}
+
 interface Props {
   series: SeriesData;
   slice: number;
@@ -41,6 +48,8 @@ interface Props {
   invert: boolean;
   pxMm: number;
   initial?: SegEditorState | null;
+  /** Vision AI aday maskeleri (tohumlama); boşsa bölüm "aday yok" der. */
+  candidates?: SegCandidate[];
   onApply: (state: SegEditorState | null) => void;
   onClose: () => void;
   toast: (m: string, ms?: number) => void;
@@ -50,7 +59,7 @@ type Tool = "brush" | "erase" | "threshold" | "grow";
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
-export default function SegmentationEditor({ series, slice, wl, ww, invert, pxMm, initial, onApply, onClose }: Props) {
+export default function SegmentationEditor({ series, slice, wl, ww, invert, pxMm, initial, candidates = [], onApply, onClose }: Props) {
   const reusable = initial && initial.seriesId === series.id && initial.mask.width === series.width && initial.mask.height === series.height;
   const [seg, setSeg] = useState<{ mask: SegMask; v: number }>(() => ({
     mask: reusable ? cloneMask(initial!.mask) : emptyMask(series.width, series.height),
@@ -266,6 +275,25 @@ export default function SegmentationEditor({ series, slice, wl, ww, invert, pxMm
     setMsg(`Kesit ${localSlice} maskesi kesit ${localSlice + 1}'e kopyalandı.`);
   };
 
+  /**
+   * AI aday maskesini düzenlemeye açar (tohumlama).
+   *
+   * AI önerisi DEĞİŞTİRİLMEZ: çalışma maskesine kopya alınır, hekim düzenler.
+   * Kopya olduğu için geri alınabilir ve kaydedilen maske hekim sorumluluğundadır;
+   * rapora AI bulgusu olarak yazılmaz.
+   */
+  const seedFromCandidate = (c: SegCandidate) => {
+    if (c.mask.width !== series.width || c.mask.height !== series.height) {
+      setMsg("AI aday maskesinin boyutu bu seriyle uyuşmuyor; tohumlama yapılmadı.");
+      return;
+    }
+    snapshot();
+    const next = cloneMask(c.mask);
+    commitMask(next);
+    setLabel((prev) => (prev.startsWith("AI tohumlu") ? prev : `AI tohumlu · ${c.label}`.slice(0, 64)));
+    setMsg(`AI adayı “${c.label}” düzenlemeye alındı (${next.slices.size} kesit). AI önerisi değişmez; maske hekim düzenlemesidir.`);
+  };
+
   const clearAll = () => {
     snapshot();
     commitMask(emptyMask(series.width, series.height));
@@ -404,6 +432,28 @@ export default function SegmentationEditor({ series, slice, wl, ww, invert, pxMm
               <label className="block text-[11px] text-slate-300">Örtü opaklığı: %{Math.round(opacity * 100)}
                 <input type="range" min={5} max={90} value={Math.round(opacity * 100)} onChange={(e) => setOpacity(Number(e.target.value) / 100)} className="mt-1 w-full cursor-pointer" />
               </label>
+            </section>
+
+            <section>
+              <div className="mb-1 text-[10px] font-black uppercase tracking-widest text-slate-400">AI adayından başlat</div>
+              {candidates.length === 0 ? (
+                <p className="text-[10px] leading-snug text-slate-500">
+                  Aday maske yok. Vision AI analizini çalıştırıp bulguları görünür yapın; aday maskeler burada listelenir.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-1">
+                  {candidates.slice(0, 6).map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => seedFromCandidate(c)}
+                      title={`${c.label} — ${c.mask.slices.size} kesit; düzenlemeye kopyalanır`}
+                      className={`${btn} border-cyan-400/40 text-cyan-100`}
+                    >{c.label.length > 26 ? `${c.label.slice(0, 26)}…` : c.label}</button>
+                  ))}
+                </div>
+              )}
+              <p className="mt-1 text-[10px] leading-snug text-slate-500">Tohumlama yalnız kopya alır; AI aday örtüsü değişmez, maske hekim düzenlemesi olarak kalır.</p>
             </section>
 
             <section>

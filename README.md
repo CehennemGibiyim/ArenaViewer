@@ -39,7 +39,10 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   örtüsünden **bağımsız** ayrı katman olarak çizilir, alt bilgi çubuğunda mL hacim
   görünür (piksel alanı × kesit kalınlığı; aralık varsa o kullanılır). Aynı maskeden
   DICOM **SEG** (1 bit/piksel) ve **RTSTRUCT** (CLOSED_PLANAR konturlar) indirilir.
-  **Sınır:** AI/SAM aday maskesini düzenlemeye açma (tohumlama) ve hacim trendi yoktur;
+  **AI tohumlama:** düzenleyicideki “AI adayından başlat” bölümü, Vision AI'nın
+  ürettiği bulgu maskesini kopya olarak çalışma maskesine aktarır (AI önerisi
+  değişmez, “AI tohumlu …” etiketiyle ve geri alınabilir). **Sınır:** kesit kesit
+  hacim trendi ve SAM tabanlı yarı otomatik bölütleme yoktur;
   RTSTRUCT konturları satır taramasıdır, konkav segmentlerde dış zarfa yaklaşır; AI
   aday örtüsü düzenlenebilir maske değildir.
 - **Yapılandırılmış ölçüm SR (TID 1500):** Ekran ölçümleri (uzunluk, elipsoid,
@@ -95,15 +98,15 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   dışa aktarılabilir (araç çubuğundaki "Dışa aktar"). PR rapor belgesi değildir.
 - **Performans (v-perf):** Pencere/seviye (WL/WW) dönüşümü tek geçişli tablo +
   renk paletiyle yapılır (`src/lib/window.ts`); ölçülmüş kazanç 512×512'de ≈2×,
-  4096×4096'da ≈2.2× (`npm run bench:window`). İşaretli 16 bit kesitlerde **WebGL2
-  GPU pencereleme** vardır (`src/lib/webglWindow.ts`): dönüşüm gölgelendiricide
+  4096×4096'da ≈2.2× (`npm run bench:window`). İşaretli **ve işaretsiz** 16 bit
+  kesitlerde **WebGL2 GPU pencereleme** vardır (`src/lib/webglWindow.ts`): dönüşüm gölgelendiricide
   yapılır, çıktı her yeni doku boyutunda `readPixels` ile CPU referansına karşı
   öz-test edilir ve uyuşmazlıkta CPU yoluna düşer. ≥1 MP kesitler **Web Worker**'da
   çevrilir (`src/workers/window.worker.ts`; kopyalanmış piksel girer, RGBA sıfır
   kopyayla döner); worker yoksa/hata verirse/süre aşımında aynı sonuç ana iş
   parçacığında hesaplanır. Kaydırmada komşu kesitler boş zamanda ön-işlenir
   (sınırlı önbellek; GPU yolu açıkken CPU ön-işleme atlanır, büyük grafiklerde
-  bellek kapısı uygulanır). **Sınır:** float32/işaretsiz seriler CPU yolunda kalır;
+  bellek kapısı uygulanır). **Sınır:** float32 seriler CPU yolunda kalır;
   gerçek ilerlemeli decode (çok çözünürlüklü piramit) yoktur.
 - **3B imleç:** İmleç aracı (araç çubuğu) ile tıklanan noktada aynı çalışmanın
   (Frame of Reference) diğer panellerinin kesidi o hasta koordinatına atlar;
@@ -452,7 +455,8 @@ npm run test:measure-history        # ölçüm → geçmiş satırı, trend, %de
 npm run test:radpeer                # RADPEER örneklem + uyuşmazlık istatistiği
 npm run test:model-registry         # model kayıt defteri + deterministik A/B
 npm run test:db-api                 # (PostgreSQL + sunucu) ölçüm geçmişi, RADPEER, model uçları
-npm run test:seg-ui                 # (tarayıcı) segment editörü: fırça/eşik/geri al + mL hacim
+npm run test:seg-ui                 # (tarayıcı) segment editörü: fırça/eşik/geri al + AI tohumlama + mL hacim
+npm run test:panels-ui              # (tarayıcı+DB) 📈 Trend, ⚖ Peer, /yonetim model kayıt defteri
 npm run test:pr                     # GSPS/PR dışa aktarma + parse doğrulama
 npm run test:notify                 # masaüstü bildirimi + izin akışı
 npm run test:prior                  # önceki tetkik ölçüm karşılaştırması
@@ -484,7 +488,8 @@ npm run test:menu                   # menü, sekme, MPR, PNG, iframe, hata senar
 npm run test:folder                 # klasör içe aktarma + yükleme raporu
 npm run test:review                 # görüntü inceleme ölçümleri
 npm run test:report-flow            # rapor onay + derin AI akışı
-npm run test:seg-ui                 # segment editörü: fırça/eşik/geri al + mL hacim
+npm run test:seg-ui                 # segment editörü: fırça/eşik/geri al + AI tohumlama + mL hacim
+npm run test:panels-ui              # 📈 Trend, ⚖ Peer ve model kayıt defteri panelleri
 ```
 
 > `tests/menu-interactions.cjs` hem klasik `webkitdirectory` yolunu hem de Chromium'un

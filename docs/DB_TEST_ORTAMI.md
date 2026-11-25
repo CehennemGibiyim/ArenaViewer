@@ -66,6 +66,7 @@ geçti. (Test, `users` tablosuna id=1 eklediği için boş şema ister.)
 npm i -D @sparticuz/chromium          # ya da depo dışına kurup AV_CHROMIUM_MODULE verin
 eval "$(node scripts/local-chromium.mjs --print-env)"   # CHROMIUM_PATH + LD_LIBRARY_PATH
 BASE_URL=http://127.0.0.1:3000 npm run test:seg-ui
+BASE_URL=http://127.0.0.1:3000 DATABASE_URL=... npm run test:panels-ui
 ```
 
 `scripts/local-chromium.mjs` Chromium'u `/tmp/chromium`e, Amazon Linux uyumlu
@@ -83,7 +84,8 @@ Playwright 1.65.1.
 | `test:review` | 5 kontrol — renkli Doppler 12/12 kare, US raporu, CR tek kare, BT beyin |
 | `test:report-flow` | 3 kontrol — onay kapıları, derin AI akışı, JS hatası yok |
 | `test:folder` | 3 kontrol — boş/medikal olmayan/desteklenmeyen klasör mesajları |
-| `test:seg-ui` | 1 kontrol — segment editöründe fırça, eşik, geri al, kesit kopyalama ve mL hacmin ana görünümleyiciye aktarımı |
+| `test:seg-ui` | 2 kontrol — segment editöründe fırça, eşik, geri al, kesit kopyalama, mL hacmin ana görünümleyiciye aktarımı ve **AI adayından tohumlama** |
+| `test:panels-ui` | 4 kontrol — 📈 Trend (DB'deki ölçümler, %+değişim, ikilenme), ⚖ Peer (RADPEER dağılımı, %95 GA), /yonetim → model kayıt defteri (sürüm/aşama/trafik planı) |
 
 Fixture'lı production derlemesi ve sunucu:
 

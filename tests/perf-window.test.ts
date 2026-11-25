@@ -77,6 +77,15 @@ ok(windowSampleGray(1000, 40.5, 400, true) === 255 - windowSampleGray(1000, 40.5
 ok(gpuWindowCompatible(40, 400) && !gpuWindowCompatible(40.5, 400), "GPU yalnız tam sayı pencere alt sınırında kullanılır");
 ok(WINDOW_WORKER_MIN_PIXELS === 1_000_000, "worker eşiği ~1 MP");
 ok(WINDOW_SHADER_SOURCE.frag.includes("texelFetch") && WINDOW_SHADER_SOURCE.frag.includes("uSpan") && WINDOW_SHADER_SOURCE.frag.includes("uInvert"), "gölgelendirici pencereleme formülünü taşıyor");
+ok(WINDOW_SHADER_SOURCE.frag.includes("isampler2D") && WINDOW_SHADER_SOURCE.fragUnsigned.includes("usampler2D"), "işaretli ve işaretsiz kesitler için ayrı doku örnekleyicisi");
+const u16 = new Uint16Array(intSrc.length);
+for (let i = 0; i < intSrc.length; i++) u16[i] = (intSrc[i] + 32768) & 0xffff;
+let u16Diff = 0;
+for (let i = 0; i < 256; i++) {
+  const got = renderWindowFrame(u16.subarray(i, i + 1), wl, ww, false)[0] & 0xff;
+  u16Diff = Math.max(u16Diff, Math.abs(got - windowSampleGray(u16[i], wl, ww, false)));
+}
+ok(u16Diff === 0, "işaretsiz 16 bit değerler GPU referansıyla aynı griyi veriyor");
 
 // ── worker sözleşmesi ──
 const workerSrc = readFileSync(path.join(root, "src/workers/window.worker.ts"), "utf8");
@@ -86,6 +95,7 @@ ok(clientSrc.includes("new Worker(new URL") && clientSrc.includes("renderWindowF
 const glSrc = readFileSync(path.join(root, "src/lib/webglWindow.ts"), "utf8");
 ok(glSrc.includes("readPixels") && glSrc.includes("windowSampleGray"), "GPU çıktısı CPU referansıyla öz-test edilir");
 ok(vp.includes("createWindowGpuRenderer") && vp.includes("renderWindowWorker"), "Viewport GPU ve worker yollarını bağlar");
+ok(vp.includes("slPixels instanceof Uint16Array"), "Viewport işaretsiz 16 bit kesitleri de GPU'ya veriyor");
 
 // ── worker istemcisi: tarayıcı yoksa (Node) CPU'ya düşer, söz reddetmez ──
 // (Üst düzey await kullanılmaz: depo testleri CJS olarak çalıştırılır.)

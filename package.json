@@ -86,7 +86,8 @@
     "db:local": "node scripts/local-postgres.mjs start",
     "db:local:stop": "node scripts/local-postgres.mjs stop",
     "db:push": "drizzle-kit push --config=drizzle.config.ts",
-    "test:db-api": "tsx tests/db-api.e2e.ts"
+    "test:db-api": "tsx tests/db-api.e2e.ts",
+    "test:panels-ui": "node tests/panels-browser.cjs"
   },
   "dependencies": {
     "dicom-parser": "^1.8.21",

@@ -79,6 +79,25 @@ async function main() {
     // AI aday örtüsü ile karışmamalı: AI analizi çalıştırmadan da maske görünür.
     assert.match(await page.locator("body").innerText(), /Segment: \d+\.\d{2} mL/);
 
+    // ── AI aday maskesinden tohumlama (m-seg) ──
+    // Analiz, bulgu maskelerini üretir; düzenleyici bunları tohum olarak kopyalar.
+    await page.getByRole("button", { name: /Analizi başlat/ }).first().click();
+    await page.locator("footer").getByText(/ANALİZ TAMAM/).waitFor({ timeout: 90000 });
+    await page.getByTestId("open-seg-editor").click();
+    const dialog2 = page.getByRole("dialog", { name: /Segmentasyon düzenleyici/ });
+    await dialog2.waitFor();
+    const seed = dialog2.locator("button").filter({ hasText: /Nodül|Pulmoner/ }).first();
+    await seed.waitFor();
+    await seed.click();
+    await dialog2.getByText(/düzenlemeye alındı/).waitFor();
+    const seedLabel = await dialog2.locator('label:has-text("Segment adı") input').inputValue();
+    assert.match(seedLabel, /^AI tohumlu/, `segment adı AI tohumlamasını gösterir (${seedLabel})`);
+    const seedVol = await dialog2.getByText(/voksel · /).first().innerText();
+    assert.doesNotMatch(seedVol, /^0 voksel/, `tohumlanan maske boş değil (${seedVol})`);
+    await dialog2.getByRole("button", { name: /Uygula ve kapat/ }).click();
+    await dialog2.waitFor({ state: "hidden" });
+    console.log("PASS AI tohumlama: aday maske düzenlemeye kopyalandı ve hacim üretti.");
+
     assert.deepEqual(errors, [], `sayfa hatası olmamalı: ${errors.join(" | ")}`);
     console.log("PASS Segment editörü: fırça, eşik, geri al, kesit kopyalama ve mL hacim aktarımı çalışıyor.");
   } finally {
