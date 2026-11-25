@@ -31,6 +31,9 @@ export interface AccountRecord {
   failedLoginCount: number;
   /** Kilit bitişi; null ise kilit yok. */
   lockedUntil: Date | null;
+  /** Kurumsal kimlik bağlantısı (OIDC); boş dize = bağlı değil. */
+  oidcIssuer?: string;
+  oidcSubject?: string;
 }
 
 const selectAccount = () =>

@@ -61,10 +61,25 @@ listesi/iptali** (kendi oturumu `current` işaretli, yetkisiz iptal 403, iptal e
 kilitliyken doğru parola da reddedilir, `unlockAccount` sonrası giriş başarılı ve
 sayaç sıfır). (Test, `users` tablosuna id=1 eklediği için boş şema ister.)
 
+Kurumsal giriş (OIDC) için ayrı bir test vardır; kendi sahte IdP'sini başlatır
+(keşif + JWKS + token ucu) ve DB'ye hesap açar — bkz. `docs/OIDC.md`:
+
+```bash
+DATABASE_URL=postgres://atik@127.0.0.1:5432/atik AUTH_INTEGRATION_TEST=1 \
+  npm run test:oidc-integration
+```
+
+Sonuç: **8 blok PASS** — ilk giriş (PKCE + hesap açma + oturum), tekrar giriş,
+yönetici grubu (yükseltme, düşürmeme), doğrulanmış e-posta ile bağlama, doğrulanmamış
+e-posta reddi, state/nonce/imza/token hata yolları, otomatik açma kapalı, MFA
+zorunluluğu ve yapılandırma yokluğu. Saf çekirdek: `npm run test:oidc`.
+
 Kilit ayarları testte/deployda ortam değişkeniyle verilir:
 `AUTH_LOCK_MAX_FAILURES` (varsayılan 5) ve `AUTH_LOCK_MINUTES` (varsayılan 15).
 Oturum kayıtları `sessions` tablosundadır; `db:push` bu tabloyu ve
-`users.failed_login_count`/`users.locked_until` kolonlarını ekler.
+`users.failed_login_count`/`users.locked_until` kolonlarını ekler. Kurumsal giriş
+için `users.oidc_issuer`/`users.oidc_subject` kolonları ve `users_oidc_idx`
+indeksi aynı komutla gelir.
 
 ## 2) Playwright tarayıcısı — npm'den Chromium
 

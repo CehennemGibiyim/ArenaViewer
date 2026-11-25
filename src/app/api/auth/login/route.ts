@@ -6,6 +6,7 @@ import { authRequired } from "@/lib/server/auth";
 import { attemptLogin, lockRemainingMinutes, lockoutPolicy, recordFailedAttempt, recordSuccessfulLogin, totpRequiredFor, toUserInfo } from "@/lib/server/accounts";
 import { issueSessionCookie, SESSION_COOKIE } from "@/lib/server/session";
 import { createSession } from "@/lib/server/sessions";
+import { oidcConfig } from "@/lib/server/oidc";
 
 export const dynamic = "force-dynamic";
 
@@ -173,5 +174,10 @@ export async function GET() {
     authRequired: authRequired(),
     hasSigningKey: !!(process.env.SESSION_SECRET || process.env.DATA_ENCRYPTION_KEY),
     lockout: lockoutPolicy(),
+    // Kurumsal giriş yalnız yapılandırılmışsa önerilir (istemci düğmeyi buna göre çizer).
+    oidc: (() => {
+      const c = oidcConfig();
+      return c ? { enabled: true, label: c.label } : { enabled: false, label: "" };
+    })(),
   });
 }

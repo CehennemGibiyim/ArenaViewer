@@ -46,6 +46,7 @@ function isPublic(pathname: string): boolean {
     pathname === "/api/auth/login" ||
     pathname === "/api/auth/logout" ||
     pathname === "/api/auth/setup" ||
+    pathname.startsWith("/api/auth/oidc/") ||
     pathname === "/favicon.ico"
   ) {
     return true;

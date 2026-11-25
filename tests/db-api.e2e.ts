@@ -177,6 +177,10 @@ async function main() {
   ok((auditMap["report.peer_review"] ?? 0) >= 1, "denetim: ikinci okuma iz bıraktı");
 
   // ═══════════ 5) OTURUM LİSTESİ + HESAP KİLİDİ (w-auth) ═══════════
+  // Kurumsal giriş bu sunucuda yapılandırılmadı: istemciye bunun açıkça
+  // bildirilmesi gerekir (giriş sayfası düğmeyi buna göre çizer).
+  const loginInfo = await api("/api/auth/login");
+  ok(loginInfo.status === 200 && loginInfo.json?.oidc?.enabled === false, "kurumsal giriş kapalıyken /api/auth/login bunu bildiriyor");
   const sessList = await api("/api/sessions");
   ok(sessList.status === 200 && Array.isArray(sessList.json?.sessions), "oturum listesi HTTP üzerinden okunuyor");
   ok((await api("/api/sessions?id=kisa", "DELETE")).status === 400, "geçersiz oturum kimliği 400 ile reddediliyor");

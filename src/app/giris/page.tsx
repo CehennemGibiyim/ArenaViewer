@@ -5,6 +5,7 @@ import { accessEnabled } from "@/lib/server/access";
 import { authRequired } from "@/lib/server/auth";
 import { hasAnyActiveUser } from "@/lib/server/accounts";
 import { lockoutPolicy } from "@/lib/server/lockout";
+import { oidcConfig } from "@/lib/server/oidc";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "ATIKVIEWER — Giriş" };
@@ -36,7 +37,17 @@ export default async function GirisPage() {
           {needsSetup ? (
             <SetupForm accessEnabled={accessEnabled()} />
           ) : (
-            <LoginForm mode={{ accessEnabled: accessEnabled(), authRequired: authRequired(), lockout: lockoutPolicy() }} />
+            <LoginForm
+              mode={{
+                accessEnabled: accessEnabled(),
+                authRequired: authRequired(),
+                lockout: lockoutPolicy(),
+                oidc: (() => {
+                  const c = oidcConfig();
+                  return c ? { enabled: true, label: c.label } : { enabled: false };
+                })(),
+              }}
+            />
           )}
         </Suspense>
       </div>

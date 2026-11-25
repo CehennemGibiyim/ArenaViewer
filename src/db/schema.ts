@@ -33,7 +33,10 @@ export const users = pgTable("users", {
   failedLoginCount: integer("failed_login_count").notNull().default(0),
   /** Hesap kilidinin bitişi; null = kilitli değil. */
   lockedUntil: timestamp("locked_until"),
-});
+  /** Kurumsal kimlik bağlantısı (OIDC): veren kurum ve kimliğin kalıcı kimliği. */
+  oidcIssuer: text("oidc_issuer").notNull().default(""),
+  oidcSubject: text("oidc_subject").notNull().default(""),
+}, (t) => [index("users_oidc_idx").on(t.oidcIssuer, t.oidcSubject)]);
 
 /**
  * Sunucu tarafı oturum kaydı — "aktif oturum listesi / iptali" için.

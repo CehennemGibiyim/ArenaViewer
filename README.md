@@ -412,6 +412,10 @@ ayarı. S3 istemcisi AWS SigV4 kullanır (AWS/MinIO/R2/Wasabi uyumlu).
 | `SESSION_SECRET` | Hesap modunda | Oturum çerezini imzalayan gizli anahtar (tanımsızsa `DATA_ENCRYPTION_KEY` kullanılır) |
 | `REQUIRE_TOTP_FOR_ROLES` | Hayır | MFA zorunluluğu olan roller (varsayılan `yonetici`). Bu rollerdeki hesaplar authenticator kodu olmadan giremez |
 | `AUTH_LOCK_MAX_FAILURES` | Hayır | Art arda kaç hatalı denemede hesap kilitlenir (varsayılan 5) |
+| `OIDC_ISSUER` / `OIDC_CLIENT_ID` | Hayır | Kurumsal giriş (OpenID Connect) — ikisi de tanımlıysa `/giris` sayfasında SSO düğmesi çıkar. Ayrıntı: [docs/OIDC.md](docs/OIDC.md) |
+| `OIDC_CLIENT_SECRET` / `OIDC_REDIRECT_URI` | Hayır | Confidential client sırrı ve sabit dönüş adresi (ters vekil arkasında önerilir) |
+| `OIDC_ADMIN_GROUP` / `OIDC_DEFAULT_ROLE` | Hayır | Yönetici yapan grup adı ve yeni SSO hesaplarının rolü (varsayılan `radyolog`) |
+| `OIDC_AUTO_PROVISION` / `OIDC_LINK_BY_EMAIL` / `OIDC_SKIP_TOTP` | Hayır | Otomatik hesap açma, doğrulanmış e-posta ile hesap devralma ve SSO'da uygulama TOTP'sini atlama (`0` ile kapatılır) |
 | `AUTH_LOCK_MINUTES` | Hayır | Kilit süresi, dakika (varsayılan 15) |
 | `LLM_API_URL` / `LLM_API_KEY` / `LLM_MODEL` | Hayır | Taslak izlenim LLM'i (yoksa kural tabanlı yedek). Ücretsiz yerel yol: [docs/OLLAMA.md](docs/OLLAMA.md) |
 | `AI_WORKER_URL` | Hayır | Yerel derin AI worker adresi (varsayılan `http://127.0.0.1:8787`) |
@@ -510,6 +514,7 @@ npm run db:local                    # initdb (gerekirse) + postgres + veritaban�
 export DATABASE_URL=postgres://atik@127.0.0.1:5432/atik
 npm run db:push                     # drizzle şemasını uygula
 AV_RATE_LIMIT=off npm start &       # testte hız sınırı kapalı (CSRF açık kalır)
+npm run test:oidc                   # kurumsal giriş çekirdeği (PKCE, state, RS256, eşleme)
 npm run test:db-api                 # 50 kontrol: ölçüm geçmişi, RADPEER, model uçları
 npm run db:local:stop
 ```
@@ -620,6 +625,13 @@ docs/             Yayınlama ve işletim kılavuzları
   kilitlenir; kilitliyken doğru parola da reddedilir (423 + kalan süre) ve yönetici
   Kullanıcılar sekmesindeki **Kilidi aç** ile sıfırlar. Her iki olay denetim
   kaydına yazılır (`auth.session.revoke`, `auth.login.locked`, `user.unlock`).
+- **Kurumsal giriş / SSO (OIDC):** `OIDC_ISSUER` + `OIDC_CLIENT_ID` tanımlıysa
+  `/giris` sayfasında "🏥 Kurumsal kimlikle giriş" düğmesi çıkar; authorization
+  code + PKCE akışı, state/nonce imzalı çerezde, ID token yalnız RS256 ve JWKS ile
+  doğrulanır (iss/aud/exp/nonce). İlk girişte hesap otomatik açılır (`OIDC_ADMIN_GROUP`
+  yönetici yapar) ya da doğrulanmış e-postayla mevcut hesap devralınır; SSO oturumu
+  da `sessions` kaydına yazılır ve Oturumlar ekranından iptal edilebilir. Kurulum ve
+  güvenlik kararları: [docs/OIDC.md](docs/OIDC.md).
 - **İki faktörlü doğrulama (F2):** `REQUIRE_TOTP_FOR_ROLES` (varsayılan `yonetici`)
   bu rollere sahip hesaplara TOTP/MFA şart koşar; Yönetim → Profil & MFA ekranından
   authenticator uygulamasıyla kurulur. Hesap MFA kurmadan giriş yapamaz, denetim

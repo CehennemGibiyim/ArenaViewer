@@ -9,7 +9,23 @@ export interface LoginMode {
   authRequired: boolean;
   /** Hesap kilitleme ilkesi (w-auth): kaç hatalı denemede kaç dakika kilit. */
   lockout?: { max: number; minutes: number };
+  /** Kurumsal giriş (OIDC) yapılandırıldıysa düğme gösterilir. */
+  oidc?: { enabled: boolean; label?: string };
 }
+
+/** Callback'in döndürdüğü hata kodlarının kullanıcıya gösterilecek karşılığı. */
+const OIDC_ERRORS: Record<string, string> = {
+  yapilandirma: "Kurumsal giriş yapılandırılmamış (OIDC_ISSUER / OIDC_CLIENT_ID).",
+  durum: "Kurumsal giriş oturumu geçersiz ya da süresi dolmuş; yeniden deneyin.",
+  kod: "Kimlik sağlayıcı yetkilendirme kodu göndermedi.",
+  kesif: "Kimlik sağlayıcıya ulaşılamadı (keşif belgesi).",
+  jeton: "Kimlik sağlayıcı geçerli bir token vermedi.",
+  jwks: "Kimlik sağlayıcının imza anahtarları alınamadı.",
+  jeton_dogrulama: "Kimlik sağlayıcının yanıtı doğrulanamadı (imza/iss/aud/nonce).",
+  hesap: "Bu kurumsal kimlik için yetkili bir hesap yok; yöneticiden hesap isteyin.",
+  mfa_gerekli: "Bu hesap için ayrıca uygulama iki faktörlü doğrulaması gerekli; parola ile girin.",
+  oturum: "Oturum açılamadı; daha sonra tekrar deneyin.",
+};
 
 /**
  * Giriş formu.
@@ -30,6 +46,7 @@ export default function LoginForm({ mode }: { mode: LoginMode }) {
   const [code, setCode] = useState("");
   const [needsTotp, setNeedsTotp] = useState(false);
   const [locked, setLocked] = useState(false);
+  const oidcError = sp.get("oidc_error") ?? "";
   const [totpMissing, setTotpMissing] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -142,6 +159,15 @@ export default function LoginForm({ mode }: { mode: LoginMode }) {
         </>
       )}
 
+      {oidcError && (
+        <p
+          role="alert"
+          data-testid="oidc-error"
+          className="rounded-lg border border-rose-400/30 bg-rose-400/10 px-2.5 py-2 text-xs font-semibold text-rose-200"
+        >
+          {OIDC_ERRORS[oidcError] ?? (oidcError.startsWith("idp_") ? `Kimlik sağlayıcı girişi reddetti (${oidcError.slice(4)}).` : "Kurumsal giriş tamamlanamadı.")}
+        </p>
+      )}
       {error && (
         <p role="alert" className={`text-xs ${locked ? "rounded-lg border border-rose-400/30 bg-rose-400/10 px-2.5 py-2 font-semibold text-rose-200" : "text-rose-300"}`}>
           {locked ? "🔒 " : ""}
@@ -164,6 +190,20 @@ export default function LoginForm({ mode }: { mode: LoginMode }) {
       >
         {busy ? "Doğrulanıyor…" : "Giriş"}
       </button>
+      {mode.oidc?.enabled && (
+        <div className="space-y-2 border-t border-[#1a2230] pt-3">
+          <a
+            href={`/api/auth/oidc/start?next=${encodeURIComponent(next)}`}
+            data-testid="oidc-login"
+            className="block w-full rounded-lg border border-cyan-400/40 bg-cyan-400/10 px-3 py-2 text-center text-sm font-bold text-cyan-200 transition hover:bg-cyan-400/20"
+          >
+            🏥 {mode.oidc.label ?? "Kurumsal kimlikle giriş"}
+          </a>
+          <p className="text-center text-[10.5px] text-slate-500">
+            Hastane dizini (OIDC) ile giriş; parola ve MFA kimlik sağlayıcıda doğrulanır.
+          </p>
+        </div>
+      )}
       <p className="text-center text-[11px] leading-relaxed text-slate-500">
         Bu uygulama araştırma/demo amaçlıdır; klinik karar için kullanılamaz.
         <br />
