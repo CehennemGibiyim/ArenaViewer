@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { UserInfo } from "@/lib/types";
 import { AUTH_LABELS, PACS_PRESETS, type PacsAuthType, type PacsConfig } from "@/lib/pacsPresets";
 
@@ -18,6 +18,8 @@ interface WorkflowStats {
   pendingDrafts: number; staleDrafts: { olderDays: number; count: number };
   perRadiologist: { name: string; approved: number; medianHours: number | null; p90Hours: number | null }[];
 }
+interface WeekBucket { weekStart: string; label: string; approved: number; medianHours: number | null; p90Hours: number | null }
+interface TatTarget { status: "hedef-icinde" | "sinirda" | "hedef-disi" | "bilinmiyor"; targetHours: number; ratio: number | null; note: string }
 interface Status { keySource: string; plaintext: { studies: number; reports: number }; totals: Record<string, number>; retentionDraftDays: number }
 type Settings = {
   retentionDraftDays: number;
@@ -97,9 +99,29 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
   // iş akışı istatistikleri (F4)
   const [stats, setStats] = useState<WorkflowStats | null>(null);
   const [statsNote, setStatsNote] = useState("");
-  const loadStats = useCallback(async () => {
-    const r = await api<{ stats: WorkflowStats; note: string }>("/api/reports/stats");
-    if (r.ok && r.data.stats) { setStats(r.data.stats); setStatsNote(r.data.note); }
+  // Haftalık TAT trendi ve hedef eşiği (f-tat)
+  const [weekly, setWeekly] = useState<WeekBucket[]>([]);
+  const [tatTargetState, setTatTargetState] = useState<TatTarget | null>(null);
+  const [tatAlertList, setTatAlertList] = useState<string[]>([]);
+  const [targetHours, setTargetHours] = useState("24");
+  const [trendModality, setTrendModality] = useState("");
+  const targetHoursRef = useRef("24");
+  const trendModalityRef = useRef("");
+  useEffect(() => { targetHoursRef.current = targetHours; }, [targetHours]);
+  useEffect(() => { trendModalityRef.current = trendModality; }, [trendModality]);
+  const loadStats = useCallback(async (target = "24", modality = "") => {
+    const params = new URLSearchParams();
+    if (Number(target) > 0) params.set("targetHours", target);
+    if (modality) params.set("modality", modality);
+    const q = params.toString() ? `?${params.toString()}` : "";
+    const r = await api<{ stats: WorkflowStats; note: string; weekly?: WeekBucket[]; target?: TatTarget; alerts?: string[] }>(`/api/reports/stats${q}`);
+    if (r.ok && r.data.stats) {
+      setStats(r.data.stats);
+      setStatsNote(r.data.note);
+      setWeekly(r.data.weekly ?? []);
+      setTatTargetState(r.data.target ?? null);
+      setTatAlertList(r.data.alerts ?? []);
+    }
   }, []);
   // güvenlik / ayarlar
   const [status, setStatus] = useState<Status | null>(null);
@@ -179,7 +201,7 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
         if (r.ok) setPerf(r.data);
         await loadRegistry();
       }
-      if (tab === "stats") await loadStats();
+      if (tab === "stats") await loadStats(targetHoursRef.current, trendModalityRef.current);
       if (["security", "integration", "compliance"].includes(tab)) await loadSettings();
       if (tab === "security") await loadKeyring();
     })();
@@ -639,6 +661,55 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
         {tab === "stats" && (
           <div className="mt-4 space-y-3">
             <div className="rounded-lg border border-cyan-400/25 bg-cyan-400/5 p-3 text-xs text-cyan-200">{statsNote}</div>
+            <div className={`${card} space-y-2`}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <b className="text-xs text-slate-200">Haftalık TAT trendi</b>
+                <div className="flex items-center gap-1 text-[11px] text-slate-400">
+                  <span>Hedef (saat)</span>
+                  <input value={targetHours} onChange={(e) => setTargetHours(e.target.value)} className={`${input} w-16`} aria-label="Hedef TAT (saat)" />
+                  <select value={trendModality} onChange={(e) => setTrendModality(e.target.value)} aria-label="Modalite süzgeci" className={`${input} w-24`}>
+                    <option value="">tümü</option>
+                    {Object.keys(stats?.byModality ?? {}).sort().map((m) => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                  <button onClick={() => void loadStats(targetHours, trendModality)} className={`${btn} bg-cyan-400/15 text-cyan-200 ring-1 ring-cyan-400/40`}>Uygula</button>
+                  {tatTargetState && (
+                    <span className={`ml-2 rounded px-1.5 py-0.5 text-[10px] font-black ${tatTargetState.status === "hedef-icinde" ? "bg-emerald-500/20 text-emerald-200" : tatTargetState.status === "sinirda" ? "bg-amber-500/20 text-amber-200" : tatTargetState.status === "hedef-disi" ? "bg-rose-500/20 text-rose-200" : "bg-slate-500/20 text-slate-300"}`}>
+                      {tatTargetState.status === "hedef-icinde" ? "HEDEF İÇİNDE" : tatTargetState.status === "sinirda" ? "SINIRDA" : tatTargetState.status === "hedef-disi" ? "HEDEF DIŞI" : "VERİ YOK"}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <svg viewBox="0 0 620 120" className="w-full" role="img" aria-label="Haftalık TAT trendi">
+                {(() => {
+                  const max = Math.max(1, ...weekly.map((w) => w.medianHours ?? 0), Number(targetHours) || 24);
+                  const bw = 620 / Math.max(1, weekly.length);
+                  const targetY = 100 - ((Number(targetHours) || 24) / max) * 90;
+                  return (
+                    <>
+                      {weekly.map((w, i) => {
+                        const h = ((w.medianHours ?? 0) / max) * 90;
+                        const over = w.medianHours !== null && w.medianHours > (Number(targetHours) || 24);
+                        return (
+                          <g key={w.weekStart}>
+                            <rect x={i * bw + 4} y={100 - h} width={Math.max(2, bw - 8)} height={Math.max(0.5, h)} fill={over ? "#fb7185" : "#22d3ee"} opacity="0.75">
+                              <title>{`${w.label}: medyan ${w.medianHours ?? "—"} sa · ${w.approved} rapor`}</title>
+                            </rect>
+                            <text x={i * bw + bw / 2} y={114} textAnchor="middle" fontSize="9" fill="#64748b">{w.label}</text>
+                          </g>
+                        );
+                      })}
+                      <line x1="0" y1={targetY} x2="620" y2={targetY} stroke="#fbbf24" strokeWidth="1" strokeDasharray="4 3" />
+                    </>
+                  );
+                })()}
+              </svg>
+              <div className="text-[10px] text-slate-500">Çubuklar onaylanan raporların haftalık medyan TAT değeri; kesikli çizgi hedef ({targetHours} sa). Boş haftalar ölçüm yok demektir.</div>
+              {tatAlertList.length > 0 && (
+                <ul className="rounded border border-amber-400/40 bg-amber-400/10 px-2 py-1 text-[10.5px] text-amber-200">
+                  {tatAlertList.map((a) => <li key={a}>• {a}</li>)}
+                </ul>
+              )}
+            </div>
             {!stats && <div className={`${card}`}>Yükleniyor…</div>}
             {stats && (
               <>

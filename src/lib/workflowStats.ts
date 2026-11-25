@@ -126,3 +126,117 @@ export function formatHours(h: number | null): string {
   if (h < 48) return `${(Math.round(h * 10) / 10).toLocaleString("tr-TR")} sa`;
   return `${(Math.round(h / 24)).toLocaleString("tr-TR")} gün`;
 }
+
+// ───────── Haftalık trend ve hedef TAT (f-tat) ─────────
+
+export interface WeekBucket {
+  /** Haftanın başlangıcı (yyyy-mm-dd, pazartesi) */
+  weekStart: string;
+  label: string;
+  approved: number;
+  medianHours: number | null;
+  p90Hours: number | null;
+}
+
+/** Verilen tarihin hafta başlangıcı (yyyy-mm-dd, pazartesi). */
+export function weekStartOf(d: Date): string {
+  const day = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const dow = (day.getUTCDay() + 6) % 7; // pazartesi = 0
+  day.setUTCDate(day.getUTCDate() - dow);
+  return day.toISOString().slice(0, 10);
+}
+
+const shortDate = (iso: string) => {
+  const [, m, d] = iso.split("-");
+  return `${Number(d)}.${Number(m)}`;
+};
+
+/**
+ * Son `weeks` hafta için onaylanan rapor TAT trendi (eskiden yeniye).
+ * `modality` verilirse yalnız o modalite sayılır. Boş haftalar da döner
+ * (medianHours null) ki grafik kesintisiz olsun.
+ */
+export function weeklyTrend(rows: ReportStatRow[], weeks = 8, now: Date = new Date(), modality?: string): WeekBucket[] {
+  const n = Math.max(1, Math.min(52, Math.round(weeks)));
+  const buckets = new Map<string, number[]>();
+  const starts: string[] = [];
+  const base = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(base.getTime());
+    d.setUTCDate(d.getUTCDate() - i * 7);
+    const wk = weekStartOf(d);
+    starts.push(wk);
+    if (!buckets.has(wk)) buckets.set(wk, []);
+  }
+  for (const r of rows) {
+    if (r.status !== "onaylandi") continue;
+    if (modality && (r.modality || "?") !== modality) continue;
+    const h = turnaroundHours(r.createdAt, r.approvedAt);
+    if (h === null) continue;
+    const ref = r.approvedAt ? new Date(r.approvedAt) : null;
+    if (!ref || !Number.isFinite(ref.getTime())) continue;
+    const wk = weekStartOf(ref);
+    const list = buckets.get(wk);
+    if (list) list.push(h);
+  }
+  const uniq = [...new Set(starts)].sort();
+  return uniq.map((wk) => {
+    const hours = buckets.get(wk) ?? [];
+    return {
+      weekStart: wk,
+      label: shortDate(wk),
+      approved: hours.length,
+      medianHours: round(median(hours)),
+      p90Hours: round(percentile(hours, 90)),
+    };
+  });
+}
+
+export type TatStatus = "hedef-icinde" | "sinirda" | "hedef-disi" | "bilinmiyor";
+
+export interface TatTargetResult {
+  status: TatStatus;
+  targetHours: number;
+  /** median / target (hedefe oran) */
+  ratio: number | null;
+  note: string;
+}
+
+/**
+ * Medyan TAT'ı hedefe göre sınıflar: ≤hedef → içinde, ≤1,25×hedef → sınırda,
+ * üstü → hedef dışı. Ölçüm yoksa "bilinmiyor".
+ */
+export function tatTarget(medianHours: number | null, targetHours = 24): TatTargetResult {
+  const target = Number.isFinite(targetHours) && targetHours > 0 ? targetHours : 24;
+  if (medianHours === null || !Number.isFinite(medianHours)) {
+    return { status: "bilinmiyor", targetHours: target, ratio: null, note: "Onaylanmış rapor yok; hedef karşılaştırması yapılamadı." };
+  }
+  const ratio = medianHours / target;
+  if (ratio <= 1) return { status: "hedef-icinde", targetHours: target, ratio, note: `Medyan TAT hedefin içinde (${formatHours(medianHours)} ≤ ${formatHours(target)}).` };
+  if (ratio <= 1.25) return { status: "sinirda", targetHours: target, ratio, note: `Medyan TAT hedefin %${Math.round((ratio - 1) * 100)} üzerinde; sınır bölgesi.` };
+  return { status: "hedef-disi", targetHours: target, ratio, note: `Medyan TAT hedefin %${Math.round((ratio - 1) * 100)} üzerinde (${formatHours(medianHours)} > ${formatHours(target)}).` };
+}
+
+/**
+ * Yönetici için uyarı satırları: genel hedef durumu, haftalık keskin artış ve
+ * hedefi aşan son haftalar. Yalnız ölçüm varsa üretilir.
+ */
+export function tatAlerts(weekly: readonly WeekBucket[], target: TatTargetResult, staleCount = 0): string[] {
+  const out: string[] = [];
+  if (target.status === "hedef-disi" || target.status === "sinirda") out.push(target.note);
+  const measured = weekly.filter((w) => w.medianHours !== null);
+  const worst = measured.slice().sort((a, b) => (b.medianHours ?? 0) - (a.medianHours ?? 0))[0];
+  if (worst && worst.medianHours !== null && worst.medianHours > target.targetHours) {
+    out.push(`${worst.label} haftası hedefi aştı (${formatHours(worst.medianHours)}, ${worst.approved} rapor).`);
+  }
+  if (measured.length >= 2) {
+    const last = measured[measured.length - 1];
+    const prev = measured[measured.length - 2];
+    if (last.medianHours !== null && prev.medianHours !== null && prev.medianHours > 0) {
+      const change = last.medianHours / prev.medianHours - 1;
+      if (change >= 0.25) out.push(`Son hafta önceki haftaya göre %${Math.round(change * 100)} daha yavaş.`);
+    }
+  }
+  if (staleCount > 0) out.push(`${staleCount} taslak uzun süredir onay bekliyor (eşik: ayarlardaki bayat taslak günü).`);
+  return out;
+}

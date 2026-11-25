@@ -14,6 +14,7 @@ import SegEditor from "../src/components/SegEditor";
 import NoduleTracker from "../src/components/NoduleTracker";
 import MeasureHistoryPanel from "../src/components/MeasureHistoryPanel";
 import LungQuantPanel from "../src/components/LungQuantPanel";
+import NuclearPanel from "../src/components/NuclearPanel";
 import type { SeriesData } from "../src/lib/types";
 
 const mirror = renderToStaticMarkup(<MirrorView />);
@@ -76,5 +77,13 @@ for (const marker of ["Akciğer kantitasyonu · LAA-950", "Hesaplanıyor…", "T
 assert.ok(lung.includes('data-testid="lung-quant-panel"'), "akciğer paneli işaretli render edilir");
 assert.ok(lung.includes('role="dialog"') && lung.includes('aria-modal="true"'), "akciğer paneli diyalog semantiği taşır (i-a11y)");
 console.log("PASS akciğer kantitasyonu: panel hesaplama öncesi durumda render edilir.");
+
+// a-nm: nükleer tıp paneli (SUV çarpanı yokken uyarı, TIC girişi) SSR'da render edilir.
+const nuc = renderToStaticMarkup(<NuclearPanel series={chest} onClose={() => {}} />);
+for (const marker of ["Nükleer tıp · MTV / SUV / TIC", "SUV çarpanı yok", "Zaman-aktivite eğrisi (TIC)", "yetersiz veri"]) {
+  assert.ok(nuc.includes(marker), `nükleer panelde "${marker}" bulunmalı`);
+}
+assert.ok(nuc.includes('role="dialog"') && nuc.includes('aria-modal="true"'), "nükleer panel diyalog semantiği taşır");
+console.log("PASS nükleer tıp: panel SUV çarpanı olmadan uyarıyla render edilir.");
 
 console.log("Tüm arayüz duman testleri geçti.");

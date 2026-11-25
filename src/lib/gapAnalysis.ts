@@ -552,8 +552,8 @@ const BASE_ITEMS: GapItem[] = [
     id: "a-nm", category: "ai", title: "Nükleer tıp: DSA çıkarma, TIC eğrileri, MTV/SUVpeak",
     status: "kismi", priority: "P3", effort: "L",
     market: ["RadiAnt", "Hermes"],
-    ours: "**Bu sürümde eklendi:** `src/lib/nuclear.ts` — pre/post subtraksiyon özeti, TIC modeli (wash-out/plato/progressif) ve SUV haritasından MTV/SUVpeak.",
-    action: "Gerçek rekonstrüksiyon/dönüşüm kalibrasyonu ve 3B metabolik hacim görselleştirmesi.",
+    ours: "**Panel olarak çalışıyor:** Araç çubuğu → 🧪 Nükleer (PT/NM veya SUV çarpanı olan seri). `sampleSuvVoxels` seri piksellerini `SuvInfo.factor` ile SUV'a çevirip örnekler (2 piksel / ≤64 kesit); eşik **mutlak SUV** ya da **maksimumun %'si** (varsayılan %41) olarak seçilir, `metabolicTumorVolume` ile **MTV/SUVpeak**, eşik üstü **SUVmean** ve voksel sayısı gösterilir. Hekimin girdiği noktalardan **TIC** sınıflandırması (wash-out ≥%15 / plato / progresif) + zirve, wash-in, wash-out yüzdeleri; «Rapora ekle» satırı. SUV çarpanı yoksa panel uyarır ve elle çarpan girişi verir. Pre/post subtraksiyon özeti (`subtractionSummary`) kütüphanede. 31 test (TIC sınırları, örnekleme adımları, eşik modları). SINIR: **3B metabolik hacim görselleştirmesi ve gerçek rekonstrüksiyon/decay kalibrasyonu yok**; MTV örnekleme tabanlı tahmindir.",
+    action: "3B MTV görselleştirmesi, doz/decay/atenüasyon kalibrasyonu ve ROI tabanlı SUVpeak (1 cm³ küre) tanımı.",
   },
   {
     id: "a-modelops", category: "ai", title: "Model operasyonları: kayıt defteri, A/B, kalibrasyon ve drift izleme",
@@ -676,10 +676,10 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "f-tat", category: "workflow", title: "Turnaround/istatistik panosu (TAT, onay süresi, bulgu/adet)",
-    status: "kismi", priority: "P2", effort: "M",
+    status: "var", priority: "P2", effort: "M",
     market: ["Aidoc", "Viz.ai"],
-    ours: "**Bu sürümde eklendi:** `/api/reports/stats` + Yönetim > İş akışı sekmesi: toplam/onaylanan rapor, durum ve modalite dağılımı, ortalama/medyan/p90 TAT, eski taslak uyarısı ve hekim başına kırılım (`src/lib/workflowStats.ts`). Haftalık trend grafiği yok.",
-    action: "Hafta/modalite bazlı trend grafikleri ve hedef TAT uyarı eşikleri.",
+    ours: "`/api/reports/stats` + Yönetim > İş akışı: toplam/onaylanan, durum ve modalite dağılımı, ortalama/medyan/p90 TAT, eski taslak ve hekim kırılımı. **Yeni:** **haftalık TAT trendi** (`weeklyTrend`, 8 hafta, onaylanma tarihine göre, boş haftalar dahil) + **modalite süzgeci**, **hedef TAT eşiği** (varsayılan 24 sa, panelden değiştirilebilir; ≤hedef içinde, ≤1,25×hedef sınırda, üstü hedef dışı) ve otomatik **uyarılar**: hedefi aşan hafta, önceki haftaya göre %25'ten fazla yavaşlama, bayat taslak. Panelde çubuk grafik + kesikli hedef çizgisi (`?targetHours=`/`?modality=` parametreleri; `src/lib/workflowStats.ts`, 37 test).",
+    action: "Kurumsal: modalite bazlı ayrı hedefler ve e-posta/Slack raporu (sağlayıcı kurumda).",
   },
   {
     id: "f-batch", category: "workflow", title: "Toplu/arka plan içe aktarma kuyruğu",

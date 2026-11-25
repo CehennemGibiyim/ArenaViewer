@@ -43,6 +43,12 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
 - **Akciğer kantitasyonu:** Araç çubuğu → 🫁 Akciğer (CT): LAA-950 (emfizem
   oranı), ortalama HU, PD15, tahmini hacim ve **kesit dağılım profili**. Gövde
   dışı hava dışlanır; lob/fissür ayrımı yoktur, DSBG ile birlikte değerlendirilir.
+- **Nükleer tıp:** Araç çubuğu → 🧪 Nükleer (PT/NM ya da SUV çarpanı olan seri):
+  eşik tabanlı **MTV/SUVpeak/SUVmean** (mutlak SUV veya maksimumun %41'i) ve
+  zaman-aktivite noktalarından **TIC** sınıflandırması (wash-out/plato/progresif).
+- **İş akışı panosu:** Yönetim → İş akışı: **haftalık TAT trendi** (modalite
+  süzgeçli), ayarlanabilir **hedef TAT** eşiği ve otomatik uyarılar (hedefi aşan
+  hafta, %25'ten fazla yavaşlama, bayat taslak).
 - **Erişilebilirlik:** görünür klavye odağı, «İçeriğe geç» bağlantısı, diyaloglarda
   `role="dialog"`/`aria-modal` + Escape, `aria-live` geri bildirim, **yüksek
   kontrast** teması (◐ Kontrast; tercih cihazda saklanır) ve `prefers-reduced-motion`
@@ -475,6 +481,7 @@ npm run test:measure-history        # sunucu ölçüm geçmişi serileri + trend
 npm run test:lungquant              # LAA-950, PD15, kesit profili, örnekleme
 npm run test:model-registry         # model kayıt defteri + A/B ataması
 npm run test:a11y                   # WCAG kontrastı + tema sabitleri
+npm run test:nuclear                # MTV/SUV örnekleme + TIC sınıflandırması
 npm run test:closeloop              # kapanış döngüsü süre/eskalasyon kuralları
 npm run test:followup               # takip görev kovaları + iade eşleme
 npm run test:stowanon               # anonim seri → PACS (plan + sunucu doğrulaması)

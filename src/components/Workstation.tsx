@@ -20,6 +20,7 @@ import ECGViewer from "./ECGViewer";
 import HangingProtocolEditorModal from "./HangingProtocolEditorModal";
 import SegEditor from "./SegEditor";
 import LungQuantPanel from "./LungQuantPanel";
+import NuclearPanel from "./NuclearPanel";
 import { HIGH_CONTRAST_CLASS, HIGH_CONTRAST_STORAGE_KEY, SKIP_LINK_LABEL } from "@/lib/a11y";
 import { canMirror, metaOf, MIRROR_CHANNEL, MIRROR_PATH, type MirrorMessage, type MirrorState } from "@/lib/mirror";
 import ViewerErrorBoundary from "./ViewerErrorBoundary";
@@ -192,6 +193,8 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   /** MSK ölçüm yardımcısı: seçili protokol, toplanan nokta sayısı ve sonuçlar. */
   // Yüksek kontrast teması (i-a11y) — cihazda saklanır
   const [highContrast, setHighContrast] = useState(false);
+  // Nükleer tıp analizi (a-nm)
+  const [nuclearOpen, setNuclearOpen] = useState(false);
   // Akciğer kantitasyonu (a-lungquant)
   const [lungQuantOpen, setLungQuantOpen] = useState(false);
   const [mskProtocolId, setMskProtocolId] = useState<string | null>(null);
@@ -332,7 +335,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   useEffect(() => {
     const close = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      setMpr(false); setHangingModalOpen(false); setWorklistOpen(false); setPngImage(null); setReportOpen(false); setLungQuantOpen(false);
+      setMpr(false); setHangingModalOpen(false); setWorklistOpen(false); setPngImage(null); setReportOpen(false); setLungQuantOpen(false); setNuclearOpen(false);
     };
     window.addEventListener("keydown", close);
     return () => window.removeEventListener("keydown", close);
@@ -1633,6 +1636,9 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         {series && series.modality !== "US" && series.slices.length > 0 && (
           <Btn on={tool === "msk"} tone="violet" title="MSK ölçüm protokolleri: adlandırılmış noktalar, ölçümler ve aralık yorumu (ölçüm yardımcısı)" onClick={() => mskSelect(tool === "msk" ? null : (mskProtocolId ?? "wrist-pa"))}>🦴 MSK</Btn>
         )}
+        {series && series.slices.length > 0 && (series.modality === "PT" || series.modality === "NM" || series.suv) && (
+          <Btn on={nuclearOpen} title="Nükleer tıp: eşik tabanlı MTV/SUVpeak ve TIC (zaman-aktivite) sınıflandırması" onClick={() => setNuclearOpen((v) => !v)}>🧪 Nükleer</Btn>
+        )}
         {series && series.modality === "CT" && series.slices.length > 1 && (
           <Btn on={lungQuantOpen} title="Akciğer kantitasyonu: LAA-950, ortalama HU, PD15, hacim ve kesit dağılımı (kural tabanlı)" onClick={() => setLungQuantOpen((v) => !v)}>🫁 Akciğer</Btn>
         )}
@@ -1781,6 +1787,13 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
       <WorklistModal open={worklistOpen} onClose={() => setWorklistOpen(false)} user={user} onOpenStudy={(s) => void openStored(s)} onOpenPacs={(s) => void openPacs(s)} />
       {mpr && series && <div className="fixed inset-0 z-50 bg-[#070a0f]"><ViewerErrorBoundary resetKey={series.id} label="MPR" onClose={() => setMpr(false)}><VolumeView series={series} wl={wl} ww={ww} invert={invert} initialTab={mprInitialTab} onClose={() => setMpr(false)} /></ViewerErrorBoundary></div>}
       {noduleOpen && series && <NoduleTracker patientId={series.patientId} patientName={series.patientName} studyDate={series.studyDate} measurements={noduleMeasurements} onClose={() => setNoduleOpen(false)} />}
+      {series && nuclearOpen && (
+        <NuclearPanel
+          series={series}
+          onClose={() => setNuclearOpen(false)}
+          onAddToFindings={(text) => { pushFeed(text, "finding"); void navigator.clipboard?.writeText(text).catch(() => {}); toast("Nükleer tıp özeti akışa yazıldı ve kopyalandı."); }}
+        />
+      )}
       {series && lungQuantOpen && (
         <LungQuantPanel
           series={series}
