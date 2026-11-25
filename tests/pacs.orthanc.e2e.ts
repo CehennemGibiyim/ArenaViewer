@@ -13,7 +13,8 @@
  */
 import { randomInt } from "node:crypto";
 import * as dicomParser from "dicom-parser";
-import { parseMultipartRelated } from "../src/lib/server/pacs";
+import { parseMultipartRelated, qidoInstances, qidoStudies, stowInstance, wadoInstance } from "../src/lib/server/pacs";
+import { DEFAULT_PACS } from "../src/lib/pacsPresets";
 
 const BASE = (process.env.ORTHANC_URL ?? "").replace(/\/$/, "");
 const USER = process.env.ORTHANC_USER ?? "orthanc";
@@ -124,7 +125,7 @@ const ok = (cond: boolean, msg: string) => {
 };
 
 async function main() {
-  const root = "1.2.826.0.1.3680043.8.498.";
+  const root = "1.2.826.0.1.3680043.8.498";
   const patientId = `ARENA-${Date.now()}`;
   const studyUid = uid(root);
   const seriesUid = uid(root);
@@ -135,17 +136,18 @@ async function main() {
   const parsed = dicomParser.parseDicom(dcm);
   ok(parsed.string("x0020000d") === studyUid && parsed.string("x0020000e") === seriesUid && parsed.string("x00080018") === sopUid, "minimal DICOM: UID alanları okunabilir");
 
-  // 1) STOW-RS: tek part'lı multipart gövde
-  const boundary = `arena-${Date.now()}`;
-  const head = Buffer.from(`--${boundary}\r\nContent-Type: application/dicom\r\n\r\n`);
-  const tail = Buffer.from(`\r\n--${boundary}--\r\n`);
-  const stowResp = await req("/dicom-web/studies", {
-    method: "POST",
-    headers: { "Content-Type": `multipart/related; type="application/dicom"; boundary=${boundary}` },
-    body: Buffer.concat([head, Buffer.from(dcm), tail]),
-  });
-  if (!stowResp.ok) console.error(`STOW yanıtı: ${(await stowResp.text()).slice(0, 1000)}`);
-  ok(stowResp.ok, `STOW-RS: örnek çalışma yüklendi (${stowResp.status})`);
+  try {
+  // 1) Uygulamanın gerçek DICOMweb istemcisi üzerinden STOW, QIDO ve WADO.
+  const cfg = { ...DEFAULT_PACS, name: "Orthanc E2E", qidoRoot: `${BASE}/dicom-web`, auth: { ...DEFAULT_PACS.auth, type: "basic" as const, username: USER, password: PASS } };
+  const stow = await stowInstance(cfg, dcm);
+  ok(stow.ok && stow.stored === 1 && stow.failed.length === 0, "Uygulama STOW: Orthanc kabul yanıtını doğruladı");
+  const found = await qidoStudies(cfg, patientId);
+  ok(found.some((study) => study.studyUid === studyUid && study.patientId === patientId), "Uygulama QIDO: doğru çalışma ve hasta kimliği");
+  const appInstances = await qidoInstances(cfg, studyUid);
+  ok(appInstances.some((item) => item.seriesUid === seriesUid && item.sopUid === sopUid), "Uygulama QIDO: seri ve SOP UID eşleşti");
+  const retrieved = await wadoInstance(cfg, studyUid, seriesUid, sopUid);
+  const retrievedDs = dicomParser.parseDicom(retrieved);
+  ok(retrievedDs.string("x00080018") === sopUid && retrievedDs.string("x0020000d") === studyUid, "Uygulama WADO: doğru DICOM geri alındı");
 
   // 2) QIDO-RS: çalışmayı hasta kimliğiyle bul
   const studies = (await jget(`/dicom-web/studies?PatientID=${patientId}&includefield=all`)) as Array<Record<string, unknown>>;
@@ -169,7 +171,8 @@ async function main() {
     ok(false, `WADO-RS: instance alınamadı (${wado.status})`);
   }
 
-  // 5) Temizlik
+  } finally {
+  // Test hata verse de yalnızca bu testin StudyInstanceUID kaydını temizle.
   const lookup = await req("/tools/find", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -187,6 +190,7 @@ async function main() {
     ok(deleted.every((response) => response.ok) && remainingIds.length === 0, "Temizlik: çalışma silindi");
   } else {
     ok(false, `Temizlik: Orthanc çalışma kimliği bulunamadı (${lookup.status})`);
+  }
   }
 
   if (failed) { console.error(`${failed} Orthanc e2e adımı başarısız`); process.exit(1); }
