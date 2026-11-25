@@ -359,6 +359,24 @@ Rapor alanlarındaki 🎤 düğmesi Web Speech API (tr-TR) kullanır; metin `dic
   `kontrast artır`, `ters çevir`, `pencere daralt`, `geri al`, `kaydet`, `temizle`. Bir parça
   **tamamen** komutsa komut sayılır; "kırık ileri deplase" gibi cümleler metin olarak yazılır.
 
+## Klinik doğrulama panosu (alt grup / yanlılık)
+
+`/api/ai/validation` (Yönetim → AI performans) hekim etiketlerinden alt grup metrikleri üretir:
+
+- **Boyutlar:** yaş bandı (`<18`, `18-39`, `40-59`, `60-74`, `75+`; DICOM `067Y`/`045D`/`012M` ayrıştırılır),
+  cinsiyet (`M`/`F`/`E`/`K` normalleştirilir) ve modalite.
+- **Metrikler:** duyarlılık, özgüllük, PPV, NPV, doğruluk + **Wilson %95 güven aralığı**;
+  n < 20 ise satır "gösterge" (soluk) işaretlenir, sıfır toplamda metrik üretilmez.
+- **Yanlılık taraması:** her boyutta en iyi/en kötü duyarlılık farkı > 10 puan ise
+  n yeterliyse *kritik*, değilse *uyarı*.
+- **Kabul eşiği:** ≥100 olgu, duyarlılık ≥ %80, özgüllük ≥ %70, fark ≤ 10 puan → GEÇTİ/GEÇMEDİ
+  (her kontrol gerekçesiyle yazılır). Sorgu parametreleriyle özelleştirilebilir (`minN`, `minSens`, `minSpec`).
+- **Sürüm karşılaştırması:** iki model sürümünün Wilson aralıkları örtüşüyorsa "anlamlı fark yok" denir.
+- **Parmak izi:** `vd-…`; veri + eşik değişince değişir (hangi ölçümün hangi veriyle alındığı kayıtlı).
+
+Sınır: pano **izleme** aracıdır; kontrollü klinik doğrulama çalışmasının (ardışık örneklem, körleme,
+bağımsız referans) yerini tutmaz — yanıt bunu açıkça yazar.
+
 ## Denetim kanıtı (imzalı paket)
 
 Hash zincirli denetim kaydı zaten değiştirilemez; üstüne **dış denetçiye verilebilir kanıt**
@@ -560,6 +578,7 @@ npm run test:notifych               # çok kanallı bildirim teslimatı (a-notif
 npm run test:templaterank           # şablon sıralama + RadReport kodu (r-template)
 npm run test:dimse                  # DIMSE köprüsü C-FIND/C-MOVE (w-pacs)
 npm run test:auditchain             # imzalı denetim paketi + üretim kapısı (w-audit)
+npm run test:validation             # alt grup doğrulama + kabul eşiği (t-validation)
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)

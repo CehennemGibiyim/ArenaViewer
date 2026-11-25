@@ -12,6 +12,18 @@ interface LexRow { from: string; to: string; accepts: number; rejects: number; l
 interface AuditRow { id: number; ts: string; username: string; action: string; entityType: string; entityId: string; details: string; hash: string }
 interface UserRow { id: number; username: string; fullName: string; title: string; regNo: string; role: string; active: boolean; twoFactorEnabled: boolean; lastLoginAt: string | null }
 interface CalibRow { engine: string; category: string; n: number; bins: { binLo: number; binHi: number; n: number; meanPred: number | null; empirical: number | null }[]; ece: number | null }
+interface ValidData {
+  threshold: { minSensitivity: number; minSpecificity: number; minN: number; maxSensitivityGap: number };
+  cases: number;
+  labeledFindings: number;
+  metrics: Array<{ group: string; value: string; n: number; sensitivity: number | null; sensitivityCi: { lo: number; hi: number } | null; specificity: number | null; ppv: number | null; accuracy: number | null; reliable: boolean }>;
+  fairness: Array<{ severity: "bilgi" | "uyari" | "kritik"; group: string; message: string }>;
+  acceptance: { passed: boolean; checks: Array<{ name: string; value: string; ok: boolean; detail: string }> } | null;
+  shadow: { note: string; confirmRate: number | null; missedByAi: number } | null;
+  fingerprint: string;
+  note: string;
+}
+
 interface PerfRow { engine: string; category: string; shown: number; approved: number; rejected: number; edited: number; pending: number; manualAdded: number; ppv: number | null }
 interface WorkflowStats {
   total: number; byStatus: Record<string, number>; byModality: Record<string, number>;
@@ -97,6 +109,12 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
   const [pacs, setPacs] = useState<PacsForm | null>(null);
   const [pacsHint, setPacsHint] = useState("");
   // Anahtar halkası (g-kms): kimlikler + rotasyon durumu; `newKey` yalnız bir kez gösterilir.
+  /** Klinik doğrulama panosu: alt grup metrikleri + kabul eşiği (t-validation). */
+  const [valid, setValid] = useState<ValidData | null>(null);
+  const loadValidation = useCallback(async () => {
+    const r = await api<ValidData>("/api/ai/validation");
+    if (r.ok) setValid(r.data);
+  }, []);
   /** Denetim paketi doğrulama ve üretim modu kapısı (w-audit). */
   const [auditVerify, setAuditVerify] = useState<{ ok: boolean; report: string } | null>(null);
   const [auditGate, setAuditGate] = useState<{ ok: boolean; mode: string; warning: string | null; signed?: boolean } | null>(null);
@@ -207,13 +225,13 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
       if (tab === "profile") { await loadProfile(); await loadMfa(); }
       if (tab === "users") await loadUsers();
       if (tab === "audit") { await loadAudit(); await loadSiem(); }
-      if (tab === "ai") { const r = await api<{ rows: PerfRow[]; note: string }>("/api/ai/performance"); if (r.ok) setPerf(r.data); }
+      if (tab === "ai") { const r = await api<{ rows: PerfRow[]; note: string }>("/api/ai/performance"); if (r.ok) setPerf(r.data); void loadValidation(); }
       if (tab === "stats") await loadStats();
       if (["security", "integration", "compliance"].includes(tab)) await loadSettings();
       if (tab === "security") { await loadKeyring(); await loadLexicon(); }
       if (tab === "integration") { void loadNotify(); void checkDimse(); }
     })();
-  }, [tab, loadProfile, loadAudit, loadSiem, loadStats, loadSettings, loadUsers, loadMfa, loadKeyring, loadLexicon, loadNotify, checkDimse]);
+  }, [tab, loadProfile, loadAudit, loadSiem, loadStats, loadSettings, loadUsers, loadMfa, loadKeyring, loadLexicon, loadNotify, checkDimse, loadValidation]);
 
   const saveSettings = async (patch: Record<string, unknown>) => {
     const r = await api<{ error?: string }>("/api/settings", json("PUT", patch));
@@ -513,6 +531,58 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
         {tab === "ai" && (
           <div className="mt-4 space-y-3">
             <div className="rounded-lg border border-amber-400/30 bg-amber-400/5 p-3 text-xs text-amber-200">{perf?.note ?? "Yükleniyor…"}</div>
+            <div className={card}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-sm font-bold text-slate-100">Klinik doğrulama ve alt grup izleme</h2>
+                <button className="cursor-pointer text-[10px] text-cyan-400" onClick={() => void loadValidation()}>yenile</button>
+              </div>
+              {!valid ? <p className="mt-2 text-xs text-slate-400">Yükleniyor…</p> : (
+                <>
+                  <p className="mt-2 text-[11px] leading-relaxed text-slate-400">{valid.note}</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+                    <span className="rounded bg-[#0b1018] px-2 py-1">Etiketli olgu: <b className="text-cyan-300">{valid.cases}</b></span>
+                    <span className="rounded bg-[#0b1018] px-2 py-1">Bulgu etiketi: <b className="text-cyan-300">{valid.labeledFindings}</b></span>
+                    {valid.fingerprint && <span className="rounded bg-[#0b1018] px-2 py-1 font-mono text-[10px] text-slate-400">{valid.fingerprint}</span>}
+                  </div>
+                  <div className={`mt-2 rounded border p-2 text-[11px] ${valid.acceptance?.passed ? "border-emerald-400/30 bg-emerald-400/5 text-emerald-200" : "border-rose-400/40 bg-rose-400/10 text-rose-200"}`}>
+                    <b>Kabul eşiği: {valid.acceptance?.passed ? "GEÇTİ" : "GEÇMEDİ"}</b>
+                    <ul className="mt-1 space-y-0.5">
+                      {(valid.acceptance?.checks ?? []).map((c) => <li key={c.name}>{c.ok ? "✓" : "✕"} {c.name}: <b>{c.value}</b> — {c.detail}</li>)}
+                    </ul>
+                  </div>
+                  {(valid.fairness?.length ?? 0) > 0 && (
+                    <ul className="mt-2 space-y-1 text-[11px]">
+                      {(valid.fairness ?? []).map((f, i) => (
+                        <li key={i} className={f.severity === "kritik" ? "text-rose-300" : f.severity === "uyari" ? "text-amber-300" : "text-slate-400"}>
+                          {f.severity === "kritik" ? "⚠" : f.severity === "uyari" ? "?" : "i"} {f.message}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {(valid.metrics?.length ?? 0) > 0 && (
+                    <div className="mt-2 overflow-x-auto">
+                      <table className="w-full text-[10.5px]">
+                        <thead className="text-left text-slate-500"><tr>{["Grup", "Değer", "n", "Duyarlılık (%95)", "Özgüllük", "PPV", "Doğruluk"].map((h) => <th key={h} className="border-b border-[#1a2230] px-1.5 py-1 font-semibold">{h}</th>)}</tr></thead>
+                        <tbody>
+                          {(valid.metrics ?? []).map((m, i) => (
+                            <tr key={`${m.group}-${m.value}-${i}`} className={m.reliable ? "" : "opacity-60"}>
+                              <td className="border-b border-[#141b26] px-1.5 py-1">{m.group}</td>
+                              <td className="border-b border-[#141b26] px-1.5 py-1">{m.value}</td>
+                              <td className="border-b border-[#141b26] px-1.5 py-1 font-mono">{m.n}</td>
+                              <td className="border-b border-[#141b26] px-1.5 py-1">{m.sensitivity === null ? "—" : `%${Math.round(m.sensitivity * 100)}`}{m.sensitivityCi ? ` (${Math.round(m.sensitivityCi.lo * 100)}–${Math.round(m.sensitivityCi.hi * 100)})` : ""}</td>
+                              <td className="border-b border-[#141b26] px-1.5 py-1">{m.specificity === null ? "—" : `%${Math.round(m.specificity * 100)}`}</td>
+                              <td className="border-b border-[#141b26] px-1.5 py-1">{m.ppv === null ? "—" : `%${Math.round(m.ppv * 100)}`}</td>
+                              <td className="border-b border-[#141b26] px-1.5 py-1">{m.accuracy === null ? "—" : `%${Math.round(m.accuracy * 100)}`}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  <p className="mt-2 text-[10px] text-slate-500">Gölge mod: {valid.shadow?.note ?? "—"} Onay oranı: {valid.shadow?.confirmRate === null || valid.shadow?.confirmRate === undefined ? "—" : `%${Math.round(valid.shadow.confirmRate * 100)}`} · AI&apos;nın kaçırdığı: {valid.shadow?.missedByAi ?? 0}</p>
+                </>
+              )}
+            </div>
             <div className={`${card} overflow-x-auto p-0`}>
               <table className="w-full text-[11.5px]">
                 <thead className="text-left text-slate-500"><tr>{["Motor", "Kategori", "Gösterilen", "Onaylanan", "Reddedilen", "Düzenlenen", "Bekleyen", "Kesinlik (PPV)", "AI'nın kaçırdığı (hekim ekledi)"].map((h) => <th key={h} className="border-b border-[#1a2230] px-3 py-2 font-semibold">{h}</th>)}</tr></thead>
