@@ -423,6 +423,7 @@ ayarı. S3 istemcisi AWS SigV4 kullanır (AWS/MinIO/R2/Wasabi uyumlu).
 | `LDAP_USER_DN_TEMPLATE` / `LDAP_USER_FILTER` | Hayır | Servis hesabı olmadan DN şablonu (`uid={username},…`) ya da özel arama filtresi (`{username}` kaçırılır) |
 | `LDAP_ADMIN_GROUP` / `LDAP_DEFAULT_ROLE` / `LDAP_AUTO_PROVISION` | Hayır | Yönetici yapan grup (DN ya da CN), yeni hesapların rolü ve ilk girişte otomatik hesap açma |
 | `LDAP_ATTR_NAME` / `LDAP_ATTR_MAIL` / `LDAP_ATTR_GROUPS` / `LDAP_TIMEOUT_MS` | Hayır | Dizin öznitelik eşlemesi (varsayılan `cn`/`mail`/`memberOf`) ve zaman aşımı (1–30 sn) |
+| `AV_FRAME_ANCESTORS` | Hayır | Uygulamanın **iframe içinde** çerçevelenebileceği ek kökenler (boşluk/virgülle; ör. `https://portal.hastane.local https://*.e2b.app`). Tanımsızsa yalnız aynı köken ve `X-Frame-Options: SAMEORIGIN` gönderilir; tanımlıysa CSP `frame-ancestors` listesine eklenir. Yalnız http(s) kökenleri kabul edilir, `*` reddedilir |
 | `AUTH_LOCK_MINUTES` | Hayır | Kilit süresi, dakika (varsayılan 15) |
 | `LLM_API_URL` / `LLM_API_KEY` / `LLM_MODEL` | Hayır | Taslak izlenim LLM'i (yoksa kural tabanlı yedek). Ücretsiz yerel yol: [docs/OLLAMA.md](docs/OLLAMA.md) |
 | `AI_WORKER_URL` | Hayır | Yerel derin AI worker adresi (varsayılan `http://127.0.0.1:8787`) |
@@ -523,6 +524,7 @@ npm run db:push                     # drizzle şemasını uygula
 AV_RATE_LIMIT=off npm start &       # testte hız sınırı kapalı (CSRF açık kalır)
 npm run test:oidc                   # kurumsal giriş çekirdeği (PKCE, state, RS256, eşleme)
 npm run test:ldap                   # LDAP çekirdeği (BER, filtre/DN kaçışı, ayrıştırma)
+npm run test:frame-ui               # iframe gömme: izinli köken çerçevelenir, izinsiz engellenir (iki sunucu + Chromium)
 npm run test:db-api                 # 51 kontrol: ölçüm geçmişi, RADPEER, model uçları
 npm run db:local:stop
 ```

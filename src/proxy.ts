@@ -5,6 +5,7 @@ import {
   checkCsrf,
   clientKey,
   CSRF_COOKIE,
+  frameAncestorSources,
   isStateChanging,
   newCsrfToken,
   RateLimiter,
@@ -132,7 +133,8 @@ export function proxy(req: NextRequest) {
   // tüm betikleri engeller — G1'de CSP bu yüzden geri çekilmişti).
   const belge = !path.startsWith("/_next/") && !path.startsWith("/codecs/") && !path.startsWith("/wasm/");
   const nonce = belge ? newCsrfToken().slice(0, 32) : "";
-  const csp = belge ? buildCsp({ nonce, dev: process.env.NODE_ENV !== "production" }) : "";
+  const ekAtalar = frameAncestorSources(process.env.AV_FRAME_ANCESTORS);
+  const csp = belge ? buildCsp({ nonce, dev: process.env.NODE_ENV !== "production", frameAncestors: ekAtalar }) : "";
   const requestHeaders = new Headers(req.headers);
   if (belge) {
     requestHeaders.set("x-csp-nonce", nonce);
@@ -142,7 +144,10 @@ export function proxy(req: NextRequest) {
   for (const [k, v] of Object.entries(cors)) res.headers.set(k, v);
   if (belge) {
     res.headers.set("Content-Security-Policy", csp);
-    res.headers.set("X-Frame-Options", "SAMEORIGIN");
+    // X-Frame-Options SAMEORIGIN'i yalnız varsayılan durumda gönder: ek köken
+    // tanımlıysa CSP `frame-ancestors` geçerlidir (tarayıcılar SAMEORIGIN'i
+    // gördüğünde CSP'deki ek kökenleri de yok sayar).
+    if (!ekAtalar.length) res.headers.set("X-Frame-Options", "SAMEORIGIN");
     res.headers.set("x-csp-nonce", nonce);
   }
 

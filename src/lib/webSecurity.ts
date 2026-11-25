@@ -235,6 +235,40 @@ export interface CspOptions {
   dev?: boolean;
   /** WASM çözücüler `blob:` worker ve `wasm-unsafe-eval` ister. */
   wasm?: boolean;
+  /**
+   * `frame-ancestors` için `'self'`e ek olarak izin verilen kökenler.
+   * Varsayılan boş: uygulama yalnız kendi kökeninde çerçevelenebilir.
+   * Kurumsal portal / önizleme ortamlarında `AV_FRAME_ANCESTORS` ile verilir.
+   */
+  frameAncestors?: string[];
+}
+
+/**
+ * `AV_FRAME_ANCESTORS` ortam değişkenini güvenli köken listesine çevirir.
+ *
+ * Yalnız `http(s)://host[:port]` biçimi (alt alan adı için `*.` jokeri serbest)
+ * kabul edilir; `javascript:`, `data:` ya da `*` gibi geniş kaynaklar sessizce
+ * atılır. Amaç: uygulamayı kurumsal portalda çerçevelemek — tüm sitelere açmak
+ * değil (tıklama hırsızlığı/clickjacking koruması korunur).
+ */
+export function frameAncestorSources(raw: string | undefined): string[] {
+  if (!raw) return [];
+  const out: string[] = [];
+  for (const token of raw.split(/[\s,]+/).filter(Boolean)) {
+    // ASCII dışı (IDN/punycode'a çevrilen) belirteçler reddedilir: güvenlik
+    // başlığında karıştırılabilir (homograph) ad istemiyoruz.
+    if (token === "*" || !/^[\x21-\x7e]+$/.test(token) || !/^https?:\/\//i.test(token)) continue;
+    let host: string;
+    try {
+      host = new URL(token).host;
+    } catch {
+      continue;
+    }
+    if (!host || !/^[*a-z0-9.-]+(:\d+)?$/i.test(host)) continue;
+    const source = `${new URL(token).protocol}//${host}`;
+    if (!out.includes(source)) out.push(source);
+  }
+  return out;
 }
 
 /**
@@ -270,7 +304,7 @@ export function buildCsp(opts: CspOptions = {}): string {
     ["object-src", "'none'"],
     ["base-uri", "'self'"],
     ["form-action", "'self'"],
-    ["frame-ancestors", "'self'"],
+    ["frame-ancestors", ["'self'", ...(opts.frameAncestors ?? [])].join(" ")],
     ...(opts.dev ? [] : [["upgrade-insecure-requests", ""] as [string, string]]),
   ];
   return directives.map(([k, v]) => (v ? `${k} ${v}` : k)).join("; ");
