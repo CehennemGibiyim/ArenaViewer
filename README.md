@@ -359,6 +359,24 @@ Rapor alanlarındaki 🎤 düğmesi Web Speech API (tr-TR) kullanır; metin `dic
   `kontrast artır`, `ters çevir`, `pencere daralt`, `geri al`, `kaydet`, `temizle`. Bir parça
   **tamamen** komutsa komut sayılır; "kırık ileri deplase" gibi cümleler metin olarak yazılır.
 
+## DIMSE köprüsü (C-FIND / C-MOVE)
+
+DICOMweb'in yanında, DIMSE (TCP 104/11112) konuşan PACS'ler için HTTP köprüsü katmanı
+vardır (`src/lib/dimseBridge.ts`, `/api/pacs/dimse`). Köprü adresi Yönetim → Entegrasyon →
+*MWL köprüsü* alanındaki `dimseUrl` ile aynıdır.
+
+| İşlem | Ne yapar |
+|---|---|
+| `GET /api/pacs/dimse` | köprü sağlığı (AE Title, sürüm) ve kendi AE'miz |
+| `POST {action:"cfind", level, patientId?, accession?, studyUid?, date?, limit?}` | C-FIND (STUDY/SERIES/IMAGE), DICOM JSON → düz satırlar |
+| `POST {action:"cmove", studyUid, seriesUid?, destinationAe}` | PACS → hedef AE (AE Title 1–16 doğrulanır) |
+| `POST {action:"import", studyUid}` | kendi AE'mize (`ARENAVIEWER`) C-MOVE + çalışma kuyruğa alınır |
+
+Güvenlik/dayanıklılık: köprü yanıtında `results` yoksa veya satırlar bozuksa **hata** döner
+(boş liste değil) — klinik listede yanlışlıkla "sonuç yok" görünmez; 401/403/404/5xx okunur
+Türkçe mesaja çevrilir; köprü adresinde kullanıcı/şifre olamaz. Her işlem denetim kaydına
+yazılır (`pacs.cfind`, `pacs.cmove`, `pacs.cmove_import`).
+
 ## Şablon kütüphanesi
 
 42 hazır şablon (BT/MR/US/MG/NM/CR) + kurum şablonları; rapor ekranındaki seçici **kişisel sıralıdır**:
@@ -521,6 +539,7 @@ npm run test:genai                  # LLM taslak doğrulama katmanı (r-genai)
 npm run test:dictation              # dikte sözlüğü + sesli komutlar (r-dictate)
 npm run test:notifych               # çok kanallı bildirim teslimatı (a-notify)
 npm run test:templaterank           # şablon sıralama + RadReport kodu (r-template)
+npm run test:dimse                  # DIMSE köprüsü C-FIND/C-MOVE (w-pacs)
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)

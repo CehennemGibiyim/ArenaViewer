@@ -97,6 +97,23 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
   const [pacs, setPacs] = useState<PacsForm | null>(null);
   const [pacsHint, setPacsHint] = useState("");
   // Anahtar halkası (g-kms): kimlikler + rotasyon durumu; `newKey` yalnız bir kez gösterilir.
+  /** DIMSE köprüsü durumu ve C-FIND sonuçları (w-pacs). */
+  const [dimse, setDimse] = useState<{ configured?: boolean; ok: boolean; message: string; aeTitle?: string; ownAe?: string } | null>(null);
+  const [dimseRows, setDimseRows] = useState<{ studyUid: string; patientName: string; patientId: string; studyDate: string; modality: string; description: string }[]>([]);
+  const [dimseQ, setDimseQ] = useState({ patientId: "", accession: "" });
+  const checkDimse = useCallback(async () => {
+    const r = await api<{ configured?: boolean; ok: boolean; message: string; aeTitle?: string; ownAe?: string }>("/api/pacs/dimse");
+    if (r.ok) setDimse(r.data);
+  }, []);
+  const runCfind = async () => {
+    const r = await api<{ ok?: boolean; rows?: { studyUid: string; patientName: string; patientId: string; studyDate: string; modality: string; description: string }[]; error?: string }>("/api/pacs/dimse", json("POST", { action: "cfind", level: "STUDY", patientId: dimseQ.patientId, accession: dimseQ.accession, limit: 50 }));
+    if (r.ok && r.data.rows) { setDimseRows(r.data.rows); flash(`${r.data.rows.length} çalışma bulundu`); }
+    else { setDimseRows([]); flash(r.data.error ?? "C-FIND başarısız"); }
+  };
+  const cmoveStudy = async (studyUid: string) => {
+    const r = await api<{ ok?: boolean; error?: string; result?: { completed: number; failed: number } }>("/api/pacs/dimse", json("POST", { action: "import", studyUid }));
+    flash(r.ok && r.data.ok ? `C-MOVE: ${r.data.result?.completed ?? 0} alt işlem tamam, ${r.data.result?.failed ?? 0} hata` : r.data.error ?? "C-MOVE başarısız");
+  };
   /** Bildirim kanalları ve son teslimatlar (a-notify). */
   const [notify, setNotify] = useState<{ channels: { kind: string; enabled: boolean; targets: number; host: string }[]; recent: { id: number; channel: string; status: string; httpStatus: number | null; latencyMs: number; notificationId: number | null }[] } | null>(null);
   const [lexicon, setLexicon] = useState<LexRow[] | null>(null);
@@ -167,9 +184,9 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
       if (tab === "stats") await loadStats();
       if (["security", "integration", "compliance"].includes(tab)) await loadSettings();
       if (tab === "security") { await loadKeyring(); await loadLexicon(); }
-      if (tab === "integration") void loadNotify();
+      if (tab === "integration") { void loadNotify(); void checkDimse(); }
     })();
-  }, [tab, loadProfile, loadAudit, loadSiem, loadStats, loadSettings, loadUsers, loadMfa, loadKeyring, loadLexicon, loadNotify]);
+  }, [tab, loadProfile, loadAudit, loadSiem, loadStats, loadSettings, loadUsers, loadMfa, loadKeyring, loadLexicon, loadNotify, checkDimse]);
 
   const saveSettings = async (patch: Record<string, unknown>) => {
     const r = await api<{ error?: string }>("/api/settings", json("PUT", patch));
@@ -822,6 +839,37 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
               <p className="mt-2 text-xs text-slate-300">Durum: {settings.env.his ? <b className="text-emerald-300">etkin (HIS_API_KEY tanımlı)</b> : <b className="text-amber-300">kapalı — HIS_API_KEY tanımlayın</b>}</p>
               <pre className="mt-2 overflow-x-auto rounded bg-[#080c12] p-2 text-[10.5px] text-slate-300">{`POST /api/his/orders\nx-api-key: <HIS_API_KEY>\n{"patientName":"…","patientId":"…","accessionNumber":"A123",\n "modality":"CT","bodyPart":"BEYİN","description":"Beyin BT"}`}</pre>
               <p className="mt-2 text-[11px] text-slate-500">HL7 v2 (MLLP) alıcısı yoktur; Mirth gibi bir arabirim motoruyla bu uca köprülenir. Rapor çıktısı: <code>/api/reports/&#123;id&#125;/fhir</code> (FHIR R4 DiagnosticReport).</p>
+              <div className="mt-3 rounded border border-[#1a2230] bg-[#0b1018] p-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">DIMSE köprüsü (C-FIND / C-MOVE)</span>
+                  <button className="cursor-pointer text-[10px] text-cyan-400" onClick={() => void checkDimse()}>test et</button>
+                </div>
+                {dimse && <p className={`mt-1 text-[11px] ${dimse.ok ? "text-emerald-300" : "text-amber-300"}`}>{dimse.message}{dimse.aeTitle ? ` · AE: ${dimse.aeTitle}` : ""}{dimse.ownAe ? ` · bizim AE: ${dimse.ownAe}` : ""}</p>}
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <input className={`${input} w-40`} placeholder="Hasta kimliği" value={dimseQ.patientId} onChange={(e) => setDimseQ({ ...dimseQ, patientId: e.target.value })} />
+                  <input className={`${input} w-40`} placeholder="Erişim no" value={dimseQ.accession} onChange={(e) => setDimseQ({ ...dimseQ, accession: e.target.value })} />
+                  <button className={`${btn} bg-cyan-500 text-slate-950`} onClick={() => void runCfind()}>C-FIND</button>
+                </div>
+                {dimseRows.length > 0 && (
+                  <div className="mt-2 max-h-40 overflow-y-auto">
+                    <table className="w-full text-[10.5px]">
+                      <thead className="text-left text-slate-500"><tr>{["Tarih", "Hasta", "Modalite", "Açıklama", ""].map((h) => <th key={h} className="border-b border-[#1a2230] px-1.5 py-1 font-semibold">{h}</th>)}</tr></thead>
+                      <tbody>
+                        {dimseRows.map((r) => (
+                          <tr key={r.studyUid}>
+                            <td className="border-b border-[#141b26] px-1.5 py-1 font-mono">{r.studyDate}</td>
+                            <td className="border-b border-[#141b26] px-1.5 py-1">{r.patientName || r.patientId}</td>
+                            <td className="border-b border-[#141b26] px-1.5 py-1">{r.modality}</td>
+                            <td className="max-w-[160px] truncate border-b border-[#141b26] px-1.5 py-1" title={r.description}>{r.description}</td>
+                            <td className="border-b border-[#141b26] px-1.5 py-1 text-right"><button className="cursor-pointer text-[10px] text-cyan-400 hover:underline" onClick={() => void cmoveStudy(r.studyUid)}>C-MOVE</button></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                <p className="mt-1 text-[10px] text-slate-500">Köprü: DIMSE TCP (104/11112) tarayıcıdan konuşulamaz; <code>dcm4che</code>/Orthanc köprüsü ya da <code>scripts/mwl-cfind-proxy.ts</code> deseni HTTP&apos;ye çevirir. C-MOVE kendi AE Title&apos;ımıza (varsayılan <b>ARENAVIEWER</b>) yönlendirilir ve çalışma kaydı kuyruğa alınır.</p>
+              </div>
             </div>
             <div className={card}>
               <h2 className="text-sm font-bold text-slate-100">Üretken yapay zeka (taslak izlenim)</h2>
