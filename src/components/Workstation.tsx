@@ -652,11 +652,11 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
       if (parsed.length === 0) { setToastMsg(""); setImportReport(report); return; }
       const st = report.stats;
       // Bazı seriler açıldı ama bir kısmı çözülemediyse sessiz kalma: raporu kendiliğinden göster.
-      if (Object.keys(st.failed).length || Object.keys(st.unsupported).length) setImportReport(report);
+      if (Object.keys(st.failed).length || Object.keys(st.unsupported).length || warns.length) setImportReport(report);
       setLoaded((prev) => [...parsed, ...prev]);
       const sorted = [...parsed].sort((a, b) => b.slices.length - a.slices.length);
       selectSeries(sorted[0], parsed);
-      toast(`${arr.length} dosyadan ${parsed.length} seri açıldı${warns.length ? "; bazı dosyalar atlandı — ayrıntı için seri listesindeki “Yükleme raporu”." : "."}`, 6000);
+      toast(`${arr.length} dosyadan ${parsed.length} seri açıldı${warns.length ? "; yükleme uyarıları var — ayrıntı için “Yükleme raporu”." : "."}`, 6000);
     } catch (e) {
       setToastMsg("");
       if (!controller.signal.aborted && importRef.current === controller) {

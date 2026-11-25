@@ -73,8 +73,8 @@ export default function ImportReportDialog({ report, onClose }: { report: Import
             </div>
           )}
           {warnings.length > 0 && (
-            <details className="rounded-lg border border-[#1e2735] p-3 text-slate-300">
-              <summary className="cursor-pointer font-semibold text-slate-200">Tüm uyarılar ({warnings.length})</summary>
+            <details open className="rounded-lg border border-amber-400/30 bg-amber-400/5 p-3 text-slate-300">
+              <summary className="cursor-pointer font-semibold text-amber-200">Tüm uyarılar ({warnings.length})</summary>
               <ul className="mt-2 list-disc space-y-1 pl-4">{warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
             </details>
           )}

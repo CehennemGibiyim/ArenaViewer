@@ -3,6 +3,7 @@ import { inflateSync, unzipSync } from "fflate";
 import { assertNotAborted, withImportTimeout } from "./importOperation";
 import type { DicomOverlayPlane, DicomTag, MammographyInfo, PaletteColorLUT, Pixels, SeriesData } from "./types";
 import { suvFromDataset, parseTm } from "./suv";
+import { analyzeSlicePositions } from "./seriesGeometryQuality";
 import { applyCharset } from "./dicomCharset";
 import { codecName, decodeEncapsulatedFrames, isCodecSupported, type RawFrame } from "./codecs";
 import {
@@ -53,6 +54,7 @@ interface ParsedSlice {
   instanceNumber: number;
   sliceLocation: number;
   posKey: number | null;
+  orientation?: number[];
   pixels: Pixels;
   rgba?: Uint32Array;
   width: number;
@@ -63,6 +65,7 @@ interface ParsedSlice {
   ipp?: number[];
   sopUid?: string;
   seriesTimeS?: number | null;
+  multiFrame: boolean;
   file: File;
 }
 
@@ -281,19 +284,32 @@ function sliceKey(ds: DicomDataSet): number | null {
   const ipp = ds.string("x00200032");
   const iop = ds.string("x00200037");
   if (!ipp || !iop) return null;
-  const p = ipp.split("\\").map(Number);
-  const o = iop.split("\\").map(Number);
-  if (p.length < 3 || o.length < 6 || [...p.slice(0, 3), ...o.slice(0, 6)].some((n) => Number.isNaN(n))) return null;
+  const pParts = ipp.split("\\");
+  if (pParts.slice(0, 3).some(v => !v.trim())) return null;
+  const p = pParts.map(Number);
+  const o = parseOrientation(iop);
+  if (!o) return null;
+  if (p.length < 3 || o.length < 6 || [...p.slice(0, 3), ...o.slice(0, 6)].some((n) => !Number.isFinite(n))) return null;
   const nx = o[1] * o[5] - o[2] * o[4];
   const ny = o[2] * o[3] - o[0] * o[5];
   const nz = o[0] * o[4] - o[1] * o[3];
-  return p[0] * nx + p[1] * ny + p[2] * nz;
+  const norm = Math.hypot(nx, ny, nz);
+  if (!Number.isFinite(norm) || norm < 0.9 || norm > 1.1) return null;
+  return (p[0] * nx + p[1] * ny + p[2] * nz) / norm;
+}
+
+function parseOrientation(s: string | undefined): number[] | undefined {
+  if (!s) return undefined;
+  const parts = s.split("\\");
+  if (parts.length !== 6 || parts.some(x => !x.trim())) return undefined;
+  const values = parts.map(Number);
+  return values.every(Number.isFinite) ? values : undefined;
 }
 
 function parseVec3(s: string | undefined): number[] | undefined {
   if (!s) return undefined;
   const p = s.split("\\").map(Number);
-  return p.length >= 3 && !p.slice(0, 3).some(Number.isNaN) ? p.slice(0, 3) : undefined;
+  return p.length >= 3 && !p.slice(0, 3).some(n => !Number.isFinite(n)) ? p.slice(0, 3) : undefined;
 }
 
 function collectTags(ds: DicomDataSet): DicomTag[] {
@@ -412,12 +428,6 @@ async function readStandardImageFile(file: File): Promise<SeriesData | null> {
     reader.onerror = () => resolve(null);
     reader.readAsDataURL(file);
   });
-}
-
-function median(a: number[]): number {
-  if (a.length === 0) return 0;
-  const s = [...a].sort((x, y) => x - y);
-  return s[Math.floor(s.length / 2)];
 }
 
 /**
@@ -598,6 +608,7 @@ export async function loadMedicalFiles(
           instanceNumber: instNum + f,
           sliceLocation: sliceLoc + f,
           posKey: key,
+          orientation: dec!.frames.length > 1 ? undefined : parseOrientation(ds.string("x00200037")),
           pixels,
           rgba: dec!.rgbaFrames ? dec!.rgbaFrames[f] : undefined,
           width: dec!.width,
@@ -608,6 +619,7 @@ export async function loadMedicalFiles(
           ipp: dec.frames.length > 1 ? undefined : parseVec3(ds.string("x00200032")),
           sopUid: dec.frames.length > 1 ? undefined : ds.string("x00080018")?.trim(),
           seriesTimeS: parseTm(ds.string("x00080031") || ds.string("x00080032")),
+          multiFrame: dec!.frames.length > 1,
           file,
         })
       );
@@ -656,7 +668,9 @@ export async function loadMedicalFiles(
     const seriesDesc = first.string("x0008103e") || first.string("x00081030") || `${modality} Serisi (${list.length} Kesit)`;
     if (list.length < raw.length) onWarning?.(`"${seriesDesc}" serisinde ${raw.length - list.length} kesit farklı boyutta olduğu için atlandı.`);
 
-    const keyed = list.every((s) => s.posKey !== null);
+    // Her kesitin normalini bağımsız projekte etmek farklı yönlerde sıralamayı bozabilir.
+    const orientation = list[0].orientation;
+    const keyed = !!orientation && list.every(s => s.posKey !== null && s.orientation && s.orientation.every((v, i) => Math.abs(v - orientation[i]) <= 0.001));
     list.sort((a, b) => {
       if (keyed) return (a.posKey as number) - (b.posKey as number);
       if (a.instanceNumber !== b.instanceNumber) return a.instanceNumber - b.instanceNumber;
@@ -670,11 +684,12 @@ export async function loadMedicalFiles(
 
     const thickness = first.floatString("x00180050") ?? 0;
     const positions = keyed ? list.map((s) => s.posKey as number) : undefined;
-    const diffs = positions ? positions.slice(1).map((p, i) => Math.abs(p - positions[i])).filter((d) => d > 0.01) : [];
-    const spacing = diffs.length ? median(diffs) : thickness || 1;
-    if (diffs.length > 2) {
-      const bad = diffs.filter((d) => Math.abs(d - spacing) > spacing * 0.25).length;
-      if (bad > 0) onWarning?.(`"${seriesDesc}" serisinde ${bad} kesit aralığı düzensiz (eksik/çift kesit olabilir).`);
+    const quality = analyzeSlicePositions(positions);
+    const spacing = quality.spacing ?? (thickness || 1);
+    if (quality.samePlane > 0) onWarning?.(`"${seriesDesc}": ${quality.samePlane} komşu kesit çifti aynı veya çok yakın düzlemde (≤0,01 mm). Tekrar ya da farklı faz olabilir; geometriyi kontrol edin.`);
+    if (quality.irregular > 0) onWarning?.(`"${seriesDesc}": ${quality.irregular} kesit aralığı tipik aralıktan %25'ten fazla farklı. Geometriyi ve olası eksik kesitleri kontrol edin.`);
+    if (!keyed && list.length > 1 && !list.some(s => s.multiFrame) && ["CT", "MR"].includes(modality.toUpperCase())) {
+      onWarning?.(`"${seriesDesc}": kesitlerin konum/yön bilgisi eksik, geçersiz veya tutarsız; kesit sırası örnek numarasına göre belirlendi ve aralık geometriden doğrulanamadı.`);
     }
 
     const wl = first.floatString("x00281050");

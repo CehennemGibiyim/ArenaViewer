@@ -83,6 +83,22 @@ Notlar:
 
 ---
 
+### Format / veri okuma: seri geometri kalite uyarıları
+
+Tek kareli CT/MR serilerinde tutarlı yön ve konum mevcutsa kesitler geometrik
+sıralanır. Aynı/çok yakın düzlem (≤0,01 mm) ve en az üç pozitif aralık varsa
+medyandan %25 fazla sapma yükleme raporunda görünür. Bu eşikler yalnız teknik
+uyarıdır: tekrar fazları ya da değişken kalınlık normal olabilir; kayıp kesit
+veya tanı iddiası değildir. Konum/yön eksik ya da tutarsızsa örnek numarasıyla
+sıralanır ve uyarılır; gelişmiş çok kareli geometri bu kontrolde doğrulanmaz.
+
+Format envanterinde palette LUT varyantları ve MPEG video/tüm nesne varyantları
+tam doğrulanmadığı için `f-pixel` ve `f-objects` kısmi olarak düzeltilmiştir.
+Karşılaştırma endeksi ve tamamlanan madde sayısı bundan dolayı düşebilir; bu,
+yeni bir hata yaratıldığı anlamına değil, önceki kapsam iddiasının düzeltilmesine
+karşılık gelir. Şifreli ZIP, JPEG-XL, MPEG ve hastane verisiyle geniş uyumluluk
+ayrıca açık kalır.
+
 ## A. Klinik yapay zekâ ürün fikirleri
 
 | ID | Özellik | P | Çaba | Piyasa örneği | Bizde şu an | Fikir / nasıl yapılır |
@@ -228,3 +244,10 @@ açıktır; bu nedenle `w-pacs` kısmi kalır.
 - Yeni AI modülleri için lisanslı model mi, kendi verimizle eğitilen model mi?
 - Küçük politika: `docs/PIYASA_ANALIZI.md`’deki “bizde eksik” tabloları ile bu liste
   senkron tutulmalı; yeni özellik eklenince `/kiyaslama` öğesi güncellenir.
+### Format ve veri okuma: dış kıyaslama (25 Kasım 2026)
+
+- [3D Slicer DICOM dokümantasyonu](https://slicer.readthedocs.io/en/latest/user_guide/modules/dicom.html), düzensiz kesit aralığı için edinim geometrisini bir dönüşümle düzenleyebildiğini ve alınmamış kesitle sonradan kaybolmuş kesitin güvenilir biçimde ayırt edilemeyeceğini belirtir. ArenaViewer şimdilik yalnız uyarır; geometriyi düzeltmez. Uyarı tek başına farklılaştırıcı veya klinik doğrulama değildir.
+- [OHIF 3.3 sürüm duyurusu](https://ohif.org/newsletters/2022-11-21-ohif%20viewer:%20dicom%20segmentation%20support), DICOM SEG görüntüleme ve SR TID 1410 desteğini açıklıyor. ArenaViewer'da nesne çeşitlerinin uçtan uca uyumluluğu ayrıca doğrulanmalıdır; SEG türleri ve kaynak görüntüyle uzamsal eşleme öncelikli çalışma alanıdır.
+- [highdicom SEG dokümantasyonu](https://highdicom.readthedocs.io/en/latest/seg.html), BINARY, FRACTIONAL ve LABELMAP ile sıkıştırma ve kaynak görüntü hizalamasında görüntüleyiciler arası uyumluluk farklılıklarına dikkat çeker. Destek matrisi gerçek örneklerle tür ve aktarım sözdizimi bazında test edilmelidir.
+
+Öncelikli sonraki adımlar: (1) PALETTE COLOR LUT descriptor ve segmented LUT için referans örnekler, (2) çok kareli enhanced DICOM per-frame geometri ve güvenli hacim oluşturma, (3) SEG/SR ve video için gerçek örneklerle destek matrisi. Bu alanlar tamamlanmış veya klinik kullanıma uygun sayılmaz.
