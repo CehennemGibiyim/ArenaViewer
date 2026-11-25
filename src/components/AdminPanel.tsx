@@ -5,9 +5,10 @@ import { useCallback, useEffect, useState } from "react";
 import type { UserInfo } from "@/lib/types";
 import { AUTH_LABELS, PACS_PRESETS, type PacsAuthType, type PacsConfig } from "@/lib/pacsPresets";
 
-type Tab = "profile" | "users" | "audit" | "ai" | "stats" | "security" | "integration" | "compliance";
+type Tab = "profile" | "sessions" | "users" | "audit" | "ai" | "stats" | "security" | "integration" | "compliance";
 interface AuditRow { id: number; ts: string; username: string; action: string; entityType: string; entityId: string; details: string; hash: string }
 interface UserRow { id: number; username: string; fullName: string; title: string; regNo: string; role: string; active: boolean; twoFactorEnabled: boolean; lastLoginAt: string | null }
+interface SessionRow { id: string; userId: number; username: string; fullName: string; role: string; createdAt: string; lastSeenAt: string; expiresAt: string; revokedAt: string | null; ip: string; client: string; state: "aktif" | "suresi-dolmus" | "iptal-edilmis"; current: boolean }
 interface PerfRow { engine: string; category: string; shown: number; approved: number; rejected: number; edited: number; pending: number; manualAdded: number; ppv: number | null }
 interface WorkflowStats {
   total: number; byStatus: Record<string, number>; byModality: Record<string, number>;
@@ -128,6 +129,25 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
     if (r.ok) setKeyring(r.data);
   }, []);
 
+  // oturum yönetimi (w-auth): açık oturumlar, bu cihaz işareti, iptal
+  const [sessRows, setSessRows] = useState<SessionRow[]>([]);
+  const [sessAll, setSessAll] = useState(false);
+  const [sessMsg, setSessMsg] = useState("");
+  const [sessSupported, setSessSupported] = useState(true);
+  const loadSessions = useCallback(async () => {
+    const r = await api<{ supported: boolean; sessions: SessionRow[]; note?: string }>(`/api/auth/sessions?history=1&scope=${sessAll ? "all" : "own"}`);
+    if (r.ok) {
+      setSessRows(r.data.sessions ?? []);
+      setSessSupported(r.data.supported !== false);
+      if (r.data.note) setSessMsg(r.data.note);
+    }
+  }, [sessAll]);
+  const sessionAction = async (body: Record<string, unknown>) => {
+    const r = await api<{ ok?: boolean; revoked?: number; deleted?: number; error?: string }>("/api/auth/sessions", json("POST", body));
+    setSessMsg(r.ok ? `İşlem tamam: ${r.data.revoked ?? r.data.deleted ?? 0} oturum kapatıldı.` : r.data.error ?? "Hata");
+    void loadSessions();
+  };
+
   const loadMfa = useCallback(async () => {
     const r = await api<{ enabled: boolean; secret?: string; qr?: string }>("/api/profile/totp");
     if (r.ok) setMfa({ enabled: r.data.enabled });
@@ -136,6 +156,7 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
   useEffect(() => {
     void (async () => {
       if (tab === "profile") { await loadProfile(); await loadMfa(); }
+      if (tab === "sessions") await loadSessions();
       if (tab === "users") await loadUsers();
       if (tab === "audit") { await loadAudit(); await loadSiem(); }
       if (tab === "ai") { const r = await api<{ rows: PerfRow[]; note: string }>("/api/ai/performance"); if (r.ok) setPerf(r.data); }
@@ -143,7 +164,7 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
       if (["security", "integration", "compliance"].includes(tab)) await loadSettings();
       if (tab === "security") await loadKeyring();
     })();
-  }, [tab, loadProfile, loadAudit, loadSiem, loadStats, loadSettings, loadUsers, loadMfa, loadKeyring]);
+  }, [tab, loadProfile, loadAudit, loadSiem, loadStats, loadSettings, loadUsers, loadMfa, loadKeyring, loadSessions]);
 
   const saveSettings = async (patch: Record<string, unknown>) => {
     const r = await api<{ error?: string }>("/api/settings", json("PUT", patch));
@@ -251,7 +272,7 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
     flash(`CSV indirildi (${audit.length} kayıt${aq ? ", filtreli" : ""}). Tüm geçmiş için arama kutusunu boş bırakıp yenileyin.`);
   };
 
-  const tabs: [Tab, string][] = [["profile", "Profil & MFA"], ["users", "Kullanıcılar"], ["audit", "Denetim kaydı"], ["ai", "AI performans"], ["stats", "İş akışı"], ["security", "Güvenlik & saklama"], ["integration", "Entegrasyon"], ["compliance", "Uyum"]];
+  const tabs: [Tab, string][] = [["profile", "Profil & MFA"], ["sessions", "Oturumlar"], ["users", "Kullanıcılar"], ["audit", "Denetim kaydı"], ["ai", "AI performans"], ["stats", "İş akışı"], ["security", "Güvenlik & saklama"], ["integration", "Entegrasyon"], ["compliance", "Uyum"]];
 
   return (
     <div className="h-screen w-screen overflow-y-auto bg-[#070a0f] text-slate-200">
@@ -331,6 +352,73 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
               )}
               <p className="mt-3 text-[11px] text-slate-500">Rapor onayı hâlâ kimlik kanıtı değildir; içerik SHA-256 ile mühürlenir, denetim zinciri değişikliği saptar.</p>
             </div>
+          </div>
+        )}
+
+        {tab === "sessions" && (
+          <div className="mt-4 space-y-3">
+            <div className={`${card} flex flex-wrap items-center gap-2`}>
+              <h2 className="text-sm font-bold text-slate-100">Açık oturumlar</h2>
+              <p className="w-full text-[11px] leading-relaxed text-slate-400">
+                Her giriş sunucuda bir oturum kaydı oluşturur; buradan kapatılan oturumun çerezi
+                süresi dolmamış olsa bile <b>anında geçersiz</b> olur. Liste yalnız IP, istemci ve zaman gösterir — oturum anahtarı hiçbir zaman dışarı verilmez.
+              </p>
+              <label className="flex items-center gap-1 text-[11px] text-slate-400">
+                <input type="checkbox" checked={sessAll} onChange={(e) => setSessAll(e.target.checked)} disabled={user.role !== "yonetici"} /> tüm kullanıcıların oturumları (yönetici)
+              </label>
+              <button className={`${btn} ml-auto border border-slate-500/40 text-slate-300`} onClick={() => void loadSessions()}>↻ Yenile</button>
+            </div>
+            {sessMsg && <div className="rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-200">{sessMsg}</div>}
+            {!sessSupported && (
+              <div className="rounded-lg border border-amber-400/30 bg-amber-400/5 p-3 text-xs text-amber-200">
+                Sunucu tarafı oturum kaydı etkin değil. Şemayı uygulayın: <code>npx drizzle-kit push</code>. O zamana kadar oturumlar yalnız imzalı çerezle taşınır.
+              </div>
+            )}
+            {sessSupported && sessRows.length === 0 && <p className="text-xs text-slate-500">Kayıtlı oturum yok.</p>}
+            {sessSupported && sessRows.length > 0 && (
+              <div className="overflow-x-auto rounded-xl border border-[#1a2230]">
+                <table className="w-full text-left text-[11px]">
+                  <thead className="bg-[#0e141d] text-slate-400">
+                    <tr>
+                      <th className="px-2 py-1.5">Kullanıcı</th><th className="px-2 py-1.5">İstemci</th><th className="px-2 py-1.5">IP</th>
+                      <th className="px-2 py-1.5">Başlangıç</th><th className="px-2 py-1.5">Son görülme</th><th className="px-2 py-1.5">Bitiş</th>
+                      <th className="px-2 py-1.5">Durum</th><th className="px-2 py-1.5" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sessRows.map((r) => (
+                      <tr key={r.id} className={`border-t border-[#161d28] ${r.current ? "bg-cyan-400/5" : ""}`}>
+                        <td className="px-2 py-1.5">{r.fullName}<div className="text-[10px] text-slate-500">{r.username} · {r.role}</div></td>
+                        <td className="px-2 py-1.5 text-slate-400">{r.client}</td>
+                        <td className="px-2 py-1.5 font-mono text-[10px] text-slate-500">{r.ip || "—"}</td>
+                        <td className="px-2 py-1.5 text-slate-400">{new Date(r.createdAt).toLocaleString("tr-TR")}</td>
+                        <td className="px-2 py-1.5 text-slate-400">{new Date(r.lastSeenAt).toLocaleString("tr-TR")}</td>
+                        <td className="px-2 py-1.5 text-slate-400">{new Date(r.expiresAt).toLocaleString("tr-TR")}</td>
+                        <td className="px-2 py-1.5">
+                          <span className={r.state === "aktif" ? "text-emerald-300" : r.state === "iptal-edilmis" ? "text-rose-300" : "text-slate-500"}>
+                            {r.state === "aktif" ? "aktif" : r.state === "iptal-edilmis" ? "iptal edildi" : "süresi doldu"}
+                          </span>
+                          {r.current && <span className="ml-1 rounded bg-cyan-400/20 px-1 text-[9px] text-cyan-200">bu cihaz</span>}
+                        </td>
+                        <td className="px-2 py-1.5 text-right">
+                          {r.state === "aktif" && (
+                            <button className={`${btn} border border-rose-400/40 px-2 py-0.5 text-rose-300 hover:bg-rose-400/10`} onClick={() => void sessionAction({ action: "revoke", id: Number(r.id) })}>
+                              {r.current ? "Bu cihazı kapat" : "Kapat"}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {sessSupported && (
+              <div className="flex flex-wrap gap-2">
+                <button className={`${btn} border border-amber-400/40 text-amber-300 hover:bg-amber-400/10`} onClick={() => void sessionAction({ action: "revoke-others" })}>Bu cihaz dışındaki tüm oturumlarımı kapat</button>
+                <button className={`${btn} border border-slate-500/40 text-slate-300`} onClick={() => void sessionAction({ action: "purge-expired" })}>Süresi dolmuş kayıtları temizle (90 gün)</button>
+              </div>
+            )}
           </div>
         )}
 
@@ -691,7 +779,7 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
               <h2 className="text-sm font-bold text-slate-100">HBYS / RIS istem alımı</h2>
               <p className="mt-2 text-xs text-slate-300">Durum: {settings.env.his ? <b className="text-emerald-300">etkin (HIS_API_KEY tanımlı)</b> : <b className="text-amber-300">kapalı — HIS_API_KEY tanımlayın</b>}</p>
               <pre className="mt-2 overflow-x-auto rounded bg-[#080c12] p-2 text-[10.5px] text-slate-300">{`POST /api/his/orders\nx-api-key: <HIS_API_KEY>\n{"patientName":"…","patientId":"…","accessionNumber":"A123",\n "modality":"CT","bodyPart":"BEYİN","description":"Beyin BT"}`}</pre>
-              <p className="mt-2 text-[11px] text-slate-500">HL7 v2 (MLLP) alıcısı yoktur; Mirth gibi bir arabirim motoruyla bu uca köprülenir. Rapor çıktısı: <code>/api/reports/&#123;id&#125;/fhir</code> (FHIR R4 DiagnosticReport).</p>
+              <p className="mt-2 text-[11px] text-slate-500">HL7 v2 (MLLP) alıcısı ayrı süreçle çalışır: <code>npm run hl7:mllp</code> (ORM^O01/ORU^R01 → ACK + sipariş). Modality Worklist: <code>npm run mwl:cfind</code> köprüsü ve Çalışma listesi → İş listesi (MWL). Rapor çıktısı: <code>/api/reports/&#123;id&#125;/fhir</code> (FHIR R4 DiagnosticReport).</p>
             </div>
             <div className={card}>
               <h2 className="text-sm font-bold text-slate-100">Üretken yapay zeka (taslak izlenim)</h2>

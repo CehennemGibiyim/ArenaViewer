@@ -52,6 +52,36 @@ async function main() {
     assert.equal((await login(password)).status, 403);
     assert.equal(await lastLogin(), null, "zorunlu MFA kurulmadığında son giriş değişmemeli");
     console.log("PASS PostgreSQL giriş akışı: parola, MFA, imzasız oturum ve başarılı oturum zamanı");
+
+    // ── Sunucu taraflı oturum kaydı + iptal + kilitleme ─────────────────────
+    await db.update(users).set({ twoFactorEnabled: true }).where(eq(users.id, id));
+    const { userSessions } = await import("../src/db/schema");
+    const { checkSession, revokeSession, listSessions, loginLocked, recordAttempt } = await import("../src/lib/server/sessionStore");
+    const { sessionFromRequest } = await import("../src/lib/server/session");
+    const login2 = await login(password, await generate({ secret }));
+    assert.equal(login2.status, 200);
+    const cookie = login2.cookies.get(SESSION_COOKIE)!.value;
+    const ctx = sessionFromRequest(new NextRequest("http://localhost/api/x", { headers: { cookie: `${SESSION_COOKIE}=${cookie}` } }));
+    assert.ok(ctx?.sid, "çerez oturum kimliği (sid) taşımalı");
+    const rows = await db.select().from(userSessions).where(eq(userSessions.userId, id));
+    assert.equal(rows.length, 1, "giriş başına bir oturum kaydı");
+    assert.equal("sid" in rows[0], false, "veritabanında çerez kimliği düz metin tutulmamalı");
+    assert.equal((await checkSession(ctx!.sid, id)).ok, true, "kayıtlı oturum geçerli");
+    assert.equal(await revokeSession(ctx!.sid, id), true, "oturum iptal edilebilmeli");
+    assert.deepEqual(await checkSession(ctx!.sid, id), { ok: false, reason: "iptal" }, "iptal edilen oturum çerezle reddedilmeli");
+    assert.equal((await login2.status), 200);
+    const own = await listSessions({ userId: id, includeExpired: true });
+    assert.ok(own.length >= 1);
+    assert.equal(own[0].revokedAt !== null || own[0].expiresAt.getTime() > Date.now(), true);
+    // Kilitleme: 5 hatalı denemeden sonra kilit; başarılı kayıt kilidi kaldırır.
+    const uname = `lock-${randomUUID()}`;
+    for (let i = 0; i < 5; i++) await recordAttempt(uname, "127.0.0.1", false, "test");
+    const locked = await loginLocked(uname);
+    assert.equal(locked.locked, true, "5 hatalı denemeden sonra hesap kilitlenmeli");
+    assert.ok(locked.retryAfterSec > 0);
+    await recordAttempt(uname, "127.0.0.1", true, "");
+    assert.equal((await loginLocked(uname)).locked, false, "başarılı giriş kilidi kaldırmalı");
+    console.log("PASS PostgreSQL oturum kaydı: sid hash'li saklanıyor, iptal çerezle reddediliyor, kilit çalışıyor.");
   } finally {
     if (id) await db.delete(users).where(eq(users.id, id));
     await pool.end();

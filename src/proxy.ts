@@ -5,10 +5,14 @@ import {
   checkCsrf,
   clientKey,
   CSRF_COOKIE,
+  hstsHeader,
+  httpsUrlFor,
   isStateChanging,
   newCsrfToken,
   RateLimiter,
   ruleFor,
+  tlsPolicy,
+  tlsViolation,
 } from "@/lib/webSecurity";
 
 /**
@@ -71,6 +75,27 @@ function selfOrigin(req: NextRequest): string | null {
 
 export function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
+
+  // ── 0) TLS zorunluluğu (t-privacy) ──────────────────────────────────────
+  // `REQUIRE_TLS=1` (ters vekil x-forwarded-proto bildirir) veya `direct`.
+  // Sayfa istekleri https'e yönlendirilir; API istekleri 426 ile reddedilir
+  // (yönlendirme izleyen istemci POST gövdesini kaybederdi — sessiz veri kaybı olmasın).
+  const tls = tlsPolicy();
+  if (tlsViolation({ forwardedProto: req.headers.get("x-forwarded-proto"), protocol: req.nextUrl.protocol, pathname: path }, tls)) {
+    const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+    if (path.startsWith("/api/")) {
+      return NextResponse.json(
+        { error: "Bu uç yalnız HTTPS üzerinden kullanılabilir (REQUIRE_TLS).", tlsRequired: true },
+        { status: 426, headers: { Upgrade: "TLS/1.3" } }
+      );
+    }
+    const hedef = httpsUrlFor(req.url, host);
+    if (hedef) {
+      const r = NextResponse.redirect(hedef, 308);
+      r.headers.set("Strict-Transport-Security", hstsHeader(tls) ?? "");
+      return r;
+    }
+  }
 
   // ── 1) Hız sınırı: API uçlarında IP (ve oturum varsa kullanıcı) bazlı ──
   // `AV_RATE_LIMIT=off` testler/ölçüm için kapatır (varsayılan: açık).
@@ -139,6 +164,12 @@ export function proxy(req: NextRequest) {
   }
   const res = NextResponse.next({ request: { headers: requestHeaders } });
   for (const [k, v] of Object.entries(cors)) res.headers.set(k, v);
+  // HSTS: yalnız TLS ile erişilmiş yanıtlarda yazılır (http üzerinden HSTS
+  // göndermek etkisizdir ve tarayıcı yok sayar).
+  const hsts = hstsHeader(tls);
+  if (hsts && !tlsViolation({ forwardedProto: req.headers.get("x-forwarded-proto"), protocol: req.nextUrl.protocol, pathname: path }, tls)) {
+    res.headers.set("Strict-Transport-Security", hsts);
+  }
   if (belge) {
     res.headers.set("Content-Security-Policy", csp);
     res.headers.set("X-Frame-Options", "SAMEORIGIN");

@@ -293,3 +293,108 @@ export function summarizeCspReport(body: unknown): string {
   })();
   return [directive, blocked, host].filter(Boolean).join(" | ").slice(0, 300);
 }
+
+// ───────────────────────── TLS / HSTS politikası ─────────────────────────
+//
+// KVKK/HIPAA maddesi (t-privacy) "TLS zorunluluğu" istiyor. TLS sonlandırma
+// genelde ters vekilde (nginx/Caddy/Render) yapılır; uygulama bunu **doğrular**
+// ve zorunlu kılabilir. Üç seviye:
+//
+//  - `off`     : zorunluluk yok (yalnız yerel geliştirme; üretimde önerilmez)
+//  - `forward` : ters vekil `x-forwarded-proto: https` bildiriyorsa TLS sayılır
+//                (varsayılan: `REQUIRE_TLS=1` iken)
+//  - `direct`  : istek gerçekten https ile geldi sayılır (x-forwarded-proto
+//                yoksa da kabul; ters vekil https sonlandırıp başlığı
+//                iletmiyorsa bu modda yanlış pozitif olmaz, çünkü başlık yoksa ret)
+//
+// Health uçları ve statik varlıklar muaf: TLS'siz ortamda da canlılık kontrolü
+// çalışmalı, ama hasta verisi taşıyan hiçbir yol TLS'siz geçmemeli.
+
+export type TlsMode = "off" | "forward" | "direct";
+
+export interface TlsPolicy {
+  mode: TlsMode;
+  /** HSTS ömrü (saniye); 0 = başlık yazılmaz. */
+  hstsMaxAge: number;
+  includeSubDomains: boolean;
+  preload: boolean;
+}
+
+/**
+ * `REQUIRE_TLS` (1/true/forward/direct/0) ve `HSTS_MAX_AGE` ortam değişkenlerinden
+ * politika. Varsayılan **kapalı**dır: mevcut kurulumlar (http://localhost, iç ağ)
+ * sessizce kilitlenmesin. Üretim dağıtımı `REQUIRE_TLS=1` vermelidir.
+ */
+export function tlsPolicy(env: Record<string, string | undefined> = process.env): TlsPolicy {
+  const raw = (env.REQUIRE_TLS ?? "0").trim().toLowerCase();
+  const mode: TlsMode =
+    raw === "direct" ? "direct" : raw === "1" || raw === "true" || raw === "forward" || raw === "yes" ? "forward" : "off";
+  const hstsRaw = Number(env.HSTS_MAX_AGE ?? "31536000");
+  const hstsMaxAge = mode === "off" ? 0 : Number.isFinite(hstsRaw) && hstsRaw >= 0 && hstsRaw <= 63072000 ? Math.floor(hstsRaw) : 31536000;
+  return {
+    mode,
+    hstsMaxAge,
+    includeSubDomains: env.HSTS_SUBDOMAINS !== "0",
+    preload: env.HSTS_PRELOAD === "1",
+  };
+}
+
+export interface TlsCheckInput {
+  /** `x-forwarded-proto` başlığı (ilk değer). */
+  forwardedProto?: string | null;
+  /** İsteğin kendi URL protokolü ("https:" / "http:"). */
+  protocol?: string | null;
+  pathname: string;
+}
+
+/** TLS'siz istek zorunlu yollarda reddedilmeli mi? */
+export function tlsViolation(input: TlsCheckInput, policy: TlsPolicy = tlsPolicy()): boolean {
+  if (policy.mode === "off") return false;
+  const p = input.pathname;
+  // Statik varlık, sağlık ucu ve PWA dosyaları TLS'siz de servis edilir.
+  if (
+    p.startsWith("/_next/") ||
+    p.startsWith("/codecs/") ||
+    p.startsWith("/wasm/") ||
+    p.startsWith("/icons/") ||
+    p.startsWith("/downloads/") ||
+    p === "/api/health" ||
+    p.startsWith("/api/health/") ||
+    p === "/manifest.webmanifest" ||
+    p === "/sw.js" ||
+    p === "/offline.html" ||
+    p === "/favicon.ico"
+  ) {
+    return false;
+  }
+  const forwarded = (input.forwardedProto ?? "").split(",")[0].trim().toLowerCase();
+  const direct = (input.protocol ?? "").toLowerCase().replace(/:$/, "");
+  if (policy.mode === "direct") {
+    // Doğrudan TLS: yalnız gerçek protokol https ise geçer.
+    return !(direct === "https" || forwarded === "https");
+  }
+  // forward: ters vekil bildirmiyorsa uygulama http üzerinden erişilmiş sayılır.
+  return forwarded !== "https";
+}
+
+/** HSTS başlık değeri; politika kapalıysa null. */
+export function hstsHeader(policy: TlsPolicy = tlsPolicy()): string | null {
+  if (policy.hstsMaxAge <= 0) return null;
+  const parts = [`max-age=${policy.hstsMaxAge}`];
+  if (policy.includeSubDomains) parts.push("includeSubDomains");
+  if (policy.preload) parts.push("preload");
+  return parts.join("; ");
+}
+
+/** HTTP isteğini aynı yola https ile yönlendirmek için hedef URL. */
+export function httpsUrlFor(originalUrl: string, host?: string | null): string | null {
+  try {
+    const u = new URL(originalUrl);
+    if (host) u.host = host;
+    u.protocol = "https:";
+    u.port = "";
+    return u.toString();
+  } catch {
+    return null;
+  }
+}

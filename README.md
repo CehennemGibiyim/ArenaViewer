@@ -11,6 +11,11 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
 
 - **DICOM görüntüleyici:** klasör/dosya/ZIP içe aktarma, sürükle-bırak, pencere/seviye
   (WL/WW + BT hazır ayarları), yakınlaştırma, kaydırma, döndürme, ters çevirme, cine
+- **GPU pencereleme (büyük görüntüler):** ≥1 MP gri kesitlerde doku bir kez WebGL2'ye
+  yüklenir (Int16→R16I, Uint16→R16UI, Float32→R32F — kayıpsız), WL/WW/invert yalnız
+  uniform güncellemesi olur; shader CPU LUT'u ile **birebir** aynı gri seviyeyi verir
+  (`tests/gpu-window.test.ts`). Bağlam kaybı, doku sınırı aşımı veya renkli seride
+  sessizce CPU yoluna döner — davranış değişmez (`src/lib/gpuWindow.ts`).
 - **Gerçek codec desteği:** JPEG, JPEG Lossless, 12-bit JPEG Extended, JPEG 2000,
   HTJ2K, JPEG-LS, RLE, Deflated, Big Endian (WASM + JS çözücüler)
 - **Fotometrik yorumlar:** MONOCHROME1/2, RGB, YBR, PALETTE COLOR; DICOM Overlay
@@ -362,6 +367,11 @@ ayarı. S3 istemcisi AWS SigV4 kullanır (AWS/MinIO/R2/Wasabi uyumlu).
 | `AUTH_MODE` | Hayır | Boş/demo: ACCESS_TOKEN varsa onunla, yoksa tek operatör. `hesap`: kullanıcı adı/parola (+MFA) zorunlu, rol denetimi aktif |
 | `SESSION_SECRET` | Hesap modunda | Oturum çerezini imzalayan gizli anahtar (tanımsızsa `DATA_ENCRYPTION_KEY` kullanılır) |
 | `REQUIRE_TOTP_FOR_ROLES` | Hayır | MFA zorunluluğu olan roller (varsayılan `yonetici`). Bu rollerdeki hesaplar authenticator kodu olmadan giremez |
+| `SESSION_MAX_AGE_SECONDS` | Hayır | Oturum ömrü (varsayılan `28800` = 8 saat, sınır 3600–604800). Sunucu tarafındaki kayıt bu süreden bağımsız iptal edilebilir |
+| `LOGIN_LOCK_WINDOW_MIN` / `LOGIN_LOCK_MAX_FAILURES` / `LOGIN_LOCK_MINUTES` | Hayır | Kaba kuvvet kilidi: pencere içinde N hatalı giriş → M dakika kilit (varsayılan 15 / 5 / 15) |
+| `REQUIRE_TLS` | Hayır | `0` (kapalı, varsayılan) · `1`/`true`/`forward` (ters vekil `x-forwarded-proto` bildirir) · `direct` (TLS'i uygulama sonlandırır). TLS'siz sayfa istekleri https'e yönlenir, TLS'siz API istekleri `426` alır; `/api/health` ve statik varlıklar muaf |
+| `HSTS_MAX_AGE` / `HSTS_SUBDOMAINS` / `HSTS_PRELOAD` | Hayır | HSTS başlığı (varsayılan `31536000` / `1` / `0`). Yalnız TLS'li yanıtlarda yazılır; önce tüm alt alan adlarının https olduğundan emin olun |
+| `TRUST_PROXY` | Hayır | `1` ise istemci IP'si `x-forwarded-for` başlığından okunur (giriş kilidi ve denetim kaydı). Yalnız güvenilir ters vekil arkasında açın |
 | `LLM_API_URL` / `LLM_API_KEY` / `LLM_MODEL` | Hayır | Taslak izlenim LLM'i (yoksa kural tabanlı yedek). Ücretsiz yerel yol: [docs/OLLAMA.md](docs/OLLAMA.md) |
 | `AI_WORKER_URL` | Hayır | Yerel derin AI worker adresi (varsayılan `http://127.0.0.1:8787`) |
 
@@ -401,6 +411,7 @@ npm run test:msk                     # MSK protokol hesapları + nokta yapışma
 npm run test:esign                   # imza kaydı + NES sınır etiketi
 npm run test:xref                    # 3B imleç: en yakın kesit + panel güncellemeleri
 npm run test:perf                   # pencere/seviye doğruluğu + önbellek ön-işleme
+npm run test:gpu                    # GPU pencereleme kararı + shader≡CPU eşdeğerliği
 npm run bench:window                # WL/WW dönüşümü kıyaslaması (eski vs LUT)
 npm run test:pr                     # GSPS/PR dışa aktarma + parse doğrulama
 npm run test:notify                 # masaüstü bildirimi + izin akışı
@@ -515,6 +526,19 @@ docs/             Yayınlama ve işletim kılavuzları
   bu rollere sahip hesaplara TOTP/MFA şart koşar; Yönetim → Profil & MFA ekranından
   authenticator uygulamasıyla kurulur. Hesap MFA kurmadan giriş yapamaz, denetim
   kaydına `auth.login`/`profile.totp.*` olarak yazılır.
+- **Sunucu taraflı oturumlar (F3):** çerez yalnız rastgele bir oturum kimliği taşır,
+  kaydı veritabanındadır (SHA-256 özeti). Yönetim → **Oturumlar** sekmesinden açık
+  oturumlar görülür, tek tek ya da “bu cihaz dışındakiler” topluca kapatılır; iptal
+  edilen çerez süresi dolmamış olsa bile reddedilir. Ömür `SESSION_MAX_AGE_SECONDS`
+  (varsayılan 8 saat). Çıkış oturumu sunucuda da iptal eder.
+- **Hesap kilidi (F4):** `LOGIN_LOCK_WINDOW_MIN` içinde `LOGIN_LOCK_MAX_FAILURES`
+  hatalı giriş olursa hesap `LOGIN_LOCK_MINUTES` boyunca kilitlenir (`429` +
+  `Retry-After`); sayaç başarılı girişte sıfırlanır ve olay denetim kaydına yazılır.
+- **TLS/HSTS (G2):** `REQUIRE_TLS` açıkken TLS'siz sayfa istekleri https'e yönlendirilir,
+  TLS'siz API istekleri `426` ile reddedilir (`/api/health` muaf); HSTS başlığı TLS'li
+  yanıtlarda yazılır. Ters vekil arkasında `TRUST_PROXY=1` vererek kilidin doğru IP'yi
+  görmesini sağlayın. Sertifika sonlandırma kurumun ağında yapılır — uygulama kendi
+  sertifikasını üretmez.
 - Onay akışı hâlâ kişisel kimlik kanıtı değildir: rapora oturumdaki hekim adı
   yazılır ve içerik SHA-256 ile mühürlenir; mühür yalnızca sonradan değişikliği
   saptar. Gerçek hasta verisi için ağ düzeyinde erişim kısıtı ve kurumsal kimlik

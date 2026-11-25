@@ -31,6 +31,49 @@ export const users = pgTable("users", {
   lastLoginAt: timestamp("last_login_at"),
 });
 
+/**
+ * Sunucu taraflı oturum kaydı (w-auth / f-kimlik-rbac).
+ *
+ * Çerez yalnızca `sid` (rastgele kimlik) ve uid taşır; bu tablodaki satır
+ * iptal edilirse (`revoked_at`) imzalı çerez teknik olarak geçerli olsa bile
+ * istek reddedilir. Böylece "açık oturumları listele / bu cihazı kapat /
+ * tümünü kapat" gerçek anlamda çalışır.
+ *
+ * `id_hash`: oturum kimliğinin SHA-256'sı saklanır (veritabanı sızarsa çerez
+ * kimlikleri doğrudan kullanılamaz).
+ */
+export const userSessions = pgTable(
+  "user_sessions",
+  {
+    id: serial("id").primaryKey(),
+    idHash: text("id_hash").notNull().unique(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    lastSeenAt: timestamp("last_seen_at").notNull().defaultNow(),
+    expiresAt: timestamp("expires_at").notNull(),
+    revokedAt: timestamp("revoked_at"),
+    ip: text("ip").notNull().default(""),
+    userAgent: text("user_agent").notNull().default(""),
+  },
+  (t) => [index("user_sessions_user_idx").on(t.userId), index("user_sessions_exp_idx").on(t.expiresAt)]
+);
+
+/** Giriş denemeleri — kaba kuvvet kilidi (lockout) ve denetim için. */
+export const loginAttempts = pgTable(
+  "login_attempts",
+  {
+    id: serial("id").primaryKey(),
+    username: text("username").notNull().default(""),
+    ip: text("ip").notNull().default(""),
+    ok: boolean("ok").notNull().default(false),
+    at: timestamp("at").notNull().defaultNow(),
+    reason: text("reason").notNull().default(""),
+  },
+  (t) => [index("login_attempts_user_idx").on(t.username, t.at)]
+);
+
 export const auditLogs = pgTable(
   "audit_logs",
   {

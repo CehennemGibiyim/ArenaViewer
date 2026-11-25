@@ -8,6 +8,7 @@ import { buildFusionLayer, type FusionParams } from "@/lib/fusion";
 import { jumpToPatient, refLinesFor, registerPanel, unregisterPanel, usePanelRegistry } from "@/lib/panelRegistry";
 import { planeOf, toPatient } from "@/lib/planes";
 import { buildWindowLUT, windowToRGBA } from "@/lib/window";
+import { GpuWindower, needsGpu } from "@/lib/gpuWindow";
 import { HEAT_ALPHA_MAX, heatPixel, heatVisible } from "@/lib/heat";
 import { fmtConfShort } from "@/lib/format";
 
@@ -83,12 +84,39 @@ interface ViewportProps {
   onHover?: (v: number | null) => void;
 }
 
-/** Taban katmanı tuvalini üretir (True Color kopyası veya WL/WW LUT uygulamasi). */
-function buildBaseCanvas(series: SeriesData, idx: number, wl: number, ww: number, invert: boolean): HTMLCanvasElement | null {
+/**
+ * Taban katmanı tuvalini üretir (True Color kopyası veya WL/WW LUT uygulaması).
+ *
+ * Büyük gri görüntülerde (≥1 MP) GPU yolu denenir: doku bir kez yüklenir,
+ * WL/WW/invert yalnız uniform olarak değişir (v-perf). GPU yoksa ya da bağlam
+ * kaybolduysa CPU LUT yolu aynen kullanılır — davranış değişmez.
+ */
+function buildBaseCanvas(
+  series: SeriesData,
+  idx: number,
+  wl: number,
+  ww: number,
+  invert: boolean,
+  gpu?: GpuWindower | null
+): HTMLCanvasElement | null {
   const sl = series.slices[idx];
   if (!sl) return null;
   const W = series.width, H = series.height;
   const isColor = !!series.isColor && !!series.rgbaSlices && !!series.rgbaSlices[idx];
+  if (gpu && !isColor) {
+    const g = gpu.render({
+      key: `${series.id}|${idx}`,
+      pixels: sl,
+      width: W,
+      height: H,
+      wl,
+      ww,
+      invert,
+      isInt16: sl instanceof Int16Array,
+      isUint16: sl instanceof Uint16Array,
+    });
+    if (g) return g;
+  }
   const c = document.createElement("canvas");
   c.width = W; c.height = H;
   const octx = c.getContext("2d");
@@ -99,6 +127,27 @@ function buildBaseCanvas(series: SeriesData, idx: number, wl: number, ww: number
   else { const wlut = buildWindowLUT(wl, ww, invert); windowToRGBA(sl, wlut.lut, wlut.lo, u32); }
   octx.putImageData(img, 0, 0);
   return c;
+}
+
+/**
+ * GPU pencereleyici örneği (bileşen başına bir tane). Yalnızca tarayıcıda oluşturulur;
+ * `needsGpu` false dönerse hiç kurulmaz (küçük görüntüler CPU'da daha hızlı).
+ */
+function ensureGpu(ref: { current: GpuWindower | null }, series: SeriesData | null): GpuWindower | null {
+  if (!series || typeof document === "undefined") return null;
+  if (ref.current) return ref.current;
+  // WebGL2 desteğini ucuz bir bağlamla sınar; başarısızsa null kalır (CPU yolu).
+  let webgl2 = false;
+  try {
+    const probe = document.createElement("canvas").getContext("webgl2");
+    webgl2 = !!probe;
+    // Sondaj bağlamını bırak: çok sayıda panel açılırsa tarayıcı bağlam sınırına takılmasın.
+    (probe as WebGL2RenderingContext | null)?.getExtension("WEBGL_lose_context")?.loseContext();
+  } catch { webgl2 = false; }
+  if (!needsGpu({ webgl2, isColor: !!series.isColor, width: series.width, height: series.height, sliceCount: series.slices.length })) return null;
+  const w = new GpuWindower();
+  ref.current = w.available ? w : null;
+  return ref.current;
 }
 
 /** Önbellek boyutu sınırı: en eski eklenen kayıtları siler. */
@@ -128,6 +177,15 @@ export default function Viewport(props: ViewportProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   // Taban katmanı küçük önbelleği: aktif kesit + komşular (kademeli/önceden pencereleme, v-perf).
   const BASE_CACHE_MAX = 6;
+  // GPU pencereleyici (v-perf): büyük gri görüntülerde doku bir kez yüklenir.
+  const gpuRef = useRef<GpuWindower | null>(null);
+
+  // GPU dokusu seri değişince ve bileşen kalkınca bırakılır: 4096² int16 doku
+  // ≈32 MB; seri değişiminde tutmak bellek sızıntısı olurdu.
+  useEffect(() => {
+    const g = gpuRef.current;
+    return () => { g?.dispose(); };
+  }, [series?.id]);
   const PREFETCH_PIXELS_MAX = 2_000_000; // taban tabanlı ön-işleme bellek kapısı (~2 MP ≈ 8 MB)
   const baseCache = useRef(new Map<string, { key: string; canvas: HTMLCanvasElement }>());
   const ovRef = useRef<{ key: string; canvas: HTMLCanvasElement | null }>({ key: "", canvas: null });
@@ -209,6 +267,9 @@ export default function Viewport(props: ViewportProps) {
   // yalnızca toplam taban katmanı ~8 MB altı (≈2 MP) serilerde çalışır.
   useEffect(() => {
     if (!series || series.isColor) return;
+    // GPU yolu varsa ön-işleme gereksiz: WL/WW değişimi yalnız uniform güncellemesi.
+    const gpu = ensureGpu(gpuRef, series);
+    if (gpu) return;
     if (series.width * series.height > PREFETCH_PIXELS_MAX) return;
     const rWl = Math.round(wl), rWw = Math.round(ww);
     const keys = [slice + 1, slice + 2, slice - 1, slice - 2]
@@ -255,8 +316,17 @@ export default function Viewport(props: ViewportProps) {
     const isColor = series.isColor && series.rgbaSlices && series.rgbaSlices[sliceIdx];
     const key = `${series.id}|${slice}|${Math.round(wl)}|${Math.round(ww)}|${invert}|${isColor ? "color" : "mono"}`;
 
-    let cachedBase = baseCache.current.get(key);
-    if (!cachedBase) {
+    // GPU yolu (v-perf): büyük gri serilerde taban katmanı GPU'da pencerelenir.
+    // Doku kesit başına bir kez yüklenir; WL/WW/invert yalnız uniform değiştirir.
+    // GPU yoksa/başarısızsa aşağıdaki CPU yolu aynen çalışır (davranış değişmez).
+    const gpu = ensureGpu(gpuRef, series);
+    let gpuBase: HTMLCanvasElement | null = null;
+    if (gpu) {
+      gpuBase = buildBaseCanvas(series, sliceIdx, wl, ww, invert, gpu);
+    }
+
+    let cachedBase = gpuBase ? null : baseCache.current.get(key);
+    if (!cachedBase && !gpuBase) {
       const c = buildBaseCanvas(series, sliceIdx, wl, ww, invert);
       if (c) { cachedBase = { key, canvas: c }; baseCache.current.set(key, cachedBase); trimBaseCache(baseCache.current, BASE_CACHE_MAX); }
     }
@@ -359,7 +429,10 @@ export default function Viewport(props: ViewportProps) {
       ctx.restore();
     };
 
-    drawLayer(baseCache.current.get(key)?.canvas ?? null);
+    // Taban katmanı: GPU varsa GPU tuvali; yoksa CPU LUT tuvali.
+    // Not: `drawImage` kaynak tuvali o an kopyalar — GPU tuvali sonraki karede
+    // yeniden kullanılsa da bu karedeki çizim doğru kalır.
+    drawLayer(gpuBase ?? baseCache.current.get(key)?.canvas ?? null);
     if (fusCanvas) drawLayer(fusCanvas);
     if (ovCanvas) drawLayer(ovCanvas);
     if (heatCanvas) drawLayer(heatCanvas);

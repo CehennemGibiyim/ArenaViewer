@@ -17,8 +17,12 @@ import {
   cookieValue,
   CSRF_COOKIE,
   CSRF_HEADER,
+  hstsHeader,
+  httpsUrlFor,
   isStateChanging,
   newCsrfToken,
+  tlsPolicy,
+  tlsViolation,
   RateLimiter,
   ruleFor,
   summarizeCspReport,
@@ -166,6 +170,9 @@ async function main() {
   assert.ok(proxy.includes("Retry-After") && proxy.includes("429"), "hız sınırı 429 + Retry-After");
   assert.ok(proxy.includes("res.cookies.set(CSRF_COOKIE"), "CSRF çerezi kurulur");
   assert.ok(proxy.includes('AV_RATE_LIMIT === "off"'), "test/ölçüm için kapatma anahtarı");
+  assert.ok(proxy.includes("tlsViolation(") && proxy.includes("httpsUrlFor("), "proxy TLS zorunluluğunu uygular");
+  assert.ok(proxy.includes("Strict-Transport-Security") && proxy.includes("hstsHeader("), "proxy HSTS başlığını yazar");
+  assert.ok(proxy.includes("426") && proxy.includes("tlsRequired"), "TLS'siz API isteği 426 ile reddedilir");
   // CSP nonce'u belge başlığına geçirilir (Next.js bunu okuyup inline betiğe ekler).
   assert.ok(proxy.includes('"x-csp-nonce"'), "nonce başlığı iletilir");
 
@@ -222,3 +229,40 @@ main().catch((e) => {
   console.error("FAIL", e instanceof Error ? e.message : e);
   process.exit(1);
 });
+
+// ── TLS / HSTS politikası (t-privacy) ──────────────────────────────────────
+{
+  assert.equal(tlsPolicy({}).mode, "off", "varsayılan kapalı: mevcut kurulum sessizce kilitlenmez");
+  assert.equal(tlsPolicy({ REQUIRE_TLS: "1" }).mode, "forward");
+  assert.equal(tlsPolicy({ REQUIRE_TLS: "direct" }).mode, "direct");
+  assert.equal(tlsPolicy({ REQUIRE_TLS: "0" }).mode, "off");
+
+  assert.equal(tlsPolicy({ REQUIRE_TLS: "1" }).mode, "forward");
+  assert.equal(tlsPolicy({ REQUIRE_TLS: "direct" }).mode, "direct");
+  assert.equal(tlsPolicy({ REQUIRE_TLS: "0" }).mode, "off");
+
+  const forward = tlsPolicy({ REQUIRE_TLS: "1" });
+  assert.equal(tlsViolation({ forwardedProto: "https", pathname: "/api/patients" }, forward), false);
+  assert.equal(tlsViolation({ forwardedProto: "http", pathname: "/api/patients" }, forward), true, "http API reddedilmeli");
+  assert.equal(tlsViolation({ forwardedProto: null, pathname: "/" }, forward), true, "bildirilmemiş protokol TLS sayılmaz");
+  assert.equal(tlsViolation({ forwardedProto: null, pathname: "/api/health" }, forward), false, "sağlık ucu muaf");
+  assert.equal(tlsViolation({ forwardedProto: null, pathname: "/api/health/ready" }, forward), false);
+  assert.equal(tlsViolation({ forwardedProto: null, pathname: "/_next/static/a.js" }, forward), false);
+  assert.equal(tlsViolation({ forwardedProto: null, pathname: "/wasm/jpx.wasm" }, forward), false);
+  assert.equal(tlsViolation({ forwardedProto: null, pathname: "/sw.js" }, forward), false);
+
+  const direct = tlsPolicy({ REQUIRE_TLS: "direct" });
+  assert.equal(tlsViolation({ protocol: "https:", pathname: "/api/x" }, direct), false);
+  assert.equal(tlsViolation({ protocol: "http:", pathname: "/api/x" }, direct), true);
+  // direct modda ters vekil başlığı yoksa URL protokolü belirleyici.
+  assert.equal(tlsViolation({ protocol: "http:", forwardedProto: "https", pathname: "/api/x" }, direct), false);
+
+  assert.equal(hstsHeader(tlsPolicy({})), null, "TLS kapalıyken HSTS yazılmaz");
+  assert.equal(hstsHeader(tlsPolicy({ REQUIRE_TLS: "1" })), "max-age=31536000; includeSubDomains");
+  assert.match(hstsHeader(tlsPolicy({ REQUIRE_TLS: "1", HSTS_MAX_AGE: "600", HSTS_PRELOAD: "1" }))!, /max-age=600; includeSubDomains; preload/);
+  assert.equal(hstsHeader(tlsPolicy({ REQUIRE_TLS: "1", HSTS_MAX_AGE: "abc" })), "max-age=31536000; includeSubDomains", "geçersiz ömür varsayılana döner");
+  assert.equal(httpsUrlFor("http://hastane.local/api/x?a=1", "hastane.local"), "https://hastane.local/api/x?a=1");
+  assert.equal(httpsUrlFor("http://hastane.local:3000/x"), "https://hastane.local/x", "port düşürülür");
+  assert.equal(httpsUrlFor("bozuk-url"), null);
+  console.log("PASS TLS/HSTS: zorunluluk modları, muaf yollar, HSTS başlığı ve https yönlendirmesi.");
+}
