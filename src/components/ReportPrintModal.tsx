@@ -2,6 +2,8 @@
 
 import { buildReportSr, type EvidenceRef } from "@/lib/dicomSr";
 import { processDictation } from "@/lib/dictate";
+import { applyLearned, interpretDictation, parseSliceJump, suggestCorrections, type LearnedCorrection } from "@/lib/dictationAssist";
+import { cachedLexicon, learnCorrection, loadLexicon } from "@/lib/dictationLexicon";
 import { appropriatenessFor, isValidIcd10, suggestIcd10 } from "@/lib/icd10";
 import { SIGNATURE_METHODS, signatureNote, type SignatureMethod, type SignatureRecord } from "@/lib/esign";
 import { reportPlaceholders } from "@/lib/templateMacro";
@@ -86,29 +88,58 @@ type SpeechCtor = new () => SpeechRec;
  * sayı sözcükleri, noktalama ("virgül", "iki nokta üst üste"), ölçü birimleri
  * ("milimetre" → mm) ve tipik ASR bozuklukları ("akciger" → akciğer).
  */
-function MicButton({ onText, onClear }: { onText: (t: string) => void; onClear?: () => void }) {
+function MicButton({ onText, onClear, onView }: {
+  onText: (t: string) => void;
+  onClear?: () => void;
+  /** Sesli görüntüleme komutları (kesit ileri/geri, zoom, kontrast…). */
+  onView?: (cmd: string, sliceJump?: number) => void;
+  /** Düzenleme bitince (r-dictate): dikte/hekim farkından sözlük önerisi üretilir. */
+  onBlur?: () => void;
+}) {
   const [on, setOn] = useState(false);
   const [hint, setHint] = useState("");
   const rec = useRef<SpeechRec | null>(null);
+  /** Kurum sözlüğü (hekim onayıyla öğrenilen düzeltmeler). */
+  const learnedRef = useRef<LearnedCorrection[]>([]);
   const stop = () => { rec.current?.stop(); };
   const toggle = () => {
     if (on) { stop(); return; }
     const w = window as unknown as { SpeechRecognition?: SpeechCtor; webkitSpeechRecognition?: SpeechCtor };
     const C = w.SpeechRecognition ?? w.webkitSpeechRecognition;
     if (!C) { alert("Bu tarayıcı konuşma tanımayı desteklemiyor (Chrome/Edge önerilir)."); return; }
+    // Kurum sözlüğü arka planda tazelenir; ilk konuşmada önbellek kullanılır.
+    void loadLexicon().then((l) => { learnedRef.current = l; });
     const r = new C();
     r.lang = "tr-TR"; r.continuous = true; r.interimResults = false;
     r.onresult = (e) => {
       let s = "";
       for (let i = e.resultIndex; i < e.results.length; i++) if (e.results[i].isFinal) s += e.results[i][0].transcript;
       if (!s.trim()) return;
+      // Görüntüleme komutu tam eşleşiyorsa metne yazılmaz (komut motoru metni yutmaz).
+      const jump = parseSliceJump(s);
+      const action = interpretDictation(s);
+      if (action.kind === "view") {
+        onView?.(action.command);
+        setHint(` komut: ${action.command}`);
+        return;
+      }
+      if (jump !== null && onView) {
+        onView("kesit", jump);
+        setHint(` kesit ${jump}`);
+        return;
+      }
       const d = processDictation(s);
       if (d.commands.includes("temizle")) {
         onClear?.();
         setHint(" alan temizlendi");
       } else {
-        onText(d.text + " ");
-        setHint(d.commands.length > 0 ? ` komut: ${d.commands.join(", ")}` : "");
+        // Kurum sözlüğü: hekim onayıyla öğrenilmiş otomatik düzeltmeler.
+        const learned = applyLearned(d.text, learnedRef.current);
+        onText(learned.text + " ");
+        setHint(
+          learned.applied.length ? ` sözlük: ${learned.applied.join(", ")}`
+            : d.commands.length > 0 ? ` komut: ${d.commands.join(", ")}` : "",
+        );
       }
     };
     r.onend = () => { setOn(false); setHint(""); };
@@ -128,7 +159,7 @@ function MicButton({ onText, onClear }: { onText: (t: string) => void; onClear?:
 }
 
 /** Rapor metin alanı. Modül seviyesinde tanımlıdır; render sırasında bileşen oluşturulmaz. */
-function ReportField({ name, rows, value, editing, onChange, onMic, onClear, onGotoSlice, onClose }: {
+function ReportField({ name, rows, value, editing, onChange, onMic, onClear, onGotoSlice, onClose, onView, onBlur }: {
   name: string;
   rows: number;
   value: string;
@@ -139,6 +170,10 @@ function ReportField({ name, rows, value, editing, onChange, onMic, onClear, onG
   onClear?: () => void;
   onGotoSlice?: (sliceNumber: number) => void;
   onClose: () => void;
+  /** Sesli komut yönlendirmesi (r-dictate). */
+  onView?: (cmd: string, sliceJump?: number) => void;
+  /** Düzenleme bitince (r-dictate): dikte/hekim farkından sözlük önerisi üretilir. */
+  onBlur?: () => void;
 }) {
   const linkify = (text: string) =>
     text.split(/(Kesit \d+)/g).map((part, i) => {
@@ -149,8 +184,8 @@ function ReportField({ name, rows, value, editing, onChange, onMic, onClear, onG
     });
   return (
     <div>
-      <div className="flex items-center font-bold uppercase text-slate-900">{name}{editing && <MicButton onText={onMic} onClear={onClear} />}</div>
-      {editing ? <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={rows} className="mt-1 w-full rounded border border-slate-300 p-2 text-xs" /> : <p className="mt-0.5 whitespace-pre-wrap">{linkify(value)}</p>}
+      <div className="flex items-center font-bold uppercase text-slate-900">{name}{editing && <MicButton onText={onMic} onClear={onClear} onView={onView} />}</div>
+      {editing ? <textarea value={value} onChange={(e) => onChange(e.target.value)} onBlur={onBlur} rows={rows} className="mt-1 w-full rounded border border-slate-300 p-2 text-xs" /> : <p className="mt-0.5 whitespace-pre-wrap">{linkify(value)}</p>}
     </div>
   );
 }
@@ -216,6 +251,50 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
     [report.clinicalInfo, report.modality, report.bodyPart],
   );
 
+  // ── Kurum sözlüğü (r-dictate): hekim onaylı öğrenme ──
+  /** Dikte edilen ve hekimin düzelttiği metin (alan başına) — öneri üretmek için. */
+  const dictatedRef = useRef<Record<string, string>>({});
+  /** Hekime sorulan öneriler: alan başına tek öneri. */
+  const [suggest, setSuggest] = useState<{ field: string; from: string; to: string } | null>(null);
+  const [learnMsg, setLearnMsg] = useState("");
+  /** Dikte çıktısını yaz ve ham hâlini sakla (sonradan düzeltme farkı için). */
+  const dictatedAppend = (k: "technique" | "findingsText" | "impression" | "recommendation") => (t: string) => {
+    const before = report[k];
+    append(k)(t);
+    dictatedRef.current[k] = `${before}${before ? " " : ""}${t}`.trim();
+  };
+  /** Alan düzenlemesi bittiğinde (bulanıklaşma) olası düzeltmeyi öner. */
+  const offerCorrection = (k: "technique" | "findingsText" | "impression" | "recommendation") => {
+    const before = dictatedRef.current[k];
+    if (!before) return;
+    const diff = suggestCorrections(before, report[k]);
+    if (!diff.length) { dictatedRef.current[k] = ""; return; }
+    setSuggest({ field: k, ...diff[0] });
+  };
+  const acceptCorrection = async () => {
+    if (!suggest) return;
+    await learnCorrection("accept", suggest.from, suggest.to);
+    // İkinci kabulden sonra otomatik; metne hemen uygulanır ve bilgi verilir.
+    setReport((r) => ({ ...r, [suggest.field]: applyLearned(String(r[suggest.field as keyof ReportData] ?? ""), cachedLexicon()).text }));
+    setLearnMsg(`"${suggest.from}" → "${suggest.to}" sözlüğe eklendi (2. kabulden sonra otomatik uygulanır).`);
+    setSuggest(null);
+    dictatedRef.current[suggest.field] = "";
+  };
+  const rejectCorrection = async () => {
+    if (!suggest) return;
+    await learnCorrection("reject", suggest.from);
+    setLearnMsg(`"${suggest.from}" için düzeltme önerisi reddedildi.`);
+    setSuggest(null);
+    dictatedRef.current[suggest.field] = "";
+  };
+  /** Sesli görüntüleme komutları rapor penceresinde yalnız kesit gezinmesini yapar. */
+  const handleViewCommand = useCallback((cmd: string, jump?: number) => {
+    if (!onGotoSlice) return;
+    if (cmd === "kesit" && jump) { onGotoSlice(jump); onClose(); return; }
+    if (cmd === "ileri") setLearnMsg("Komut 'ileri': kesit gezinmesi için görüntüleyici kullanın.");
+    else if (cmd === "geri") setLearnMsg("Komut 'geri': kesit gezinmesi için görüntüleyici kullanın.");
+    else setLearnMsg(`Komut algılandı: ${cmd}`);
+  }, [onGotoSlice, onClose]);
   const loadSignatures = useCallback(async (id: number) => {
     try {
       const r = await apiFetch(`/api/reports/${id}/signature`);
@@ -610,6 +689,20 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
             <button onClick={addMissed} className="rounded border border-amber-400/40 px-2 py-1 font-bold text-amber-200 hover:bg-amber-400/10">＋ AI&apos;nın kaçırdığı bulgu</button>
             <span className="text-slate-500">Taslak izlenim yalnızca doğruladığınız bulgulara dayanır; hasta kimliği dışarı gönderilmez.</span>
           </div>
+          {(suggest || learnMsg) && (
+            <div className={`shrink-0 border-b px-4 py-1.5 text-[10.5px] print:hidden ${
+              suggest ? "border-cyan-500/30 bg-cyan-500/10 text-cyan-100" : "border-[#1e2735] bg-[#0b0f16] text-slate-300"}`}>
+              {suggest ? (
+                <span className="flex flex-wrap items-center gap-2">
+                  <span>Sözlük önerisi: <b>{suggest.from}</b> → <b>{suggest.to}</b> (bu düzeltmeyi kurum sözlüğüne ekleyelim mi? 2. kabulden sonra otomatik uygulanır)</span>
+                  <button type="button" onClick={() => void acceptCorrection()} className="cursor-pointer rounded border border-emerald-400/50 bg-emerald-500/20 px-2 py-0.5 font-bold text-emerald-200">✓ Ekle</button>
+                  <button type="button" onClick={() => void rejectCorrection()} className="cursor-pointer rounded border border-rose-400/40 bg-rose-500/15 px-2 py-0.5 font-bold text-rose-200">✕ Vazgeç</button>
+                </span>
+              ) : (
+                <span className="flex items-center justify-between"><span>{learnMsg}</span><button type="button" onClick={() => setLearnMsg("")} className="cursor-pointer text-slate-500">kapat</button></span>
+              )}
+            </div>
+          )}
           {draftNote && (
             <div className={`shrink-0 border-b px-4 py-1.5 text-[10.5px] print:hidden ${
               draftNote.includes("reddedildi") ? "border-rose-500/30 bg-rose-500/10 text-rose-200" : "border-violet-500/25 bg-violet-500/5 text-violet-200"}`}>
@@ -669,10 +762,10 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                   <div className="mt-3 grid grid-cols-1 items-start gap-5 md:grid-cols-12">
                     <div className="flex flex-col gap-3 text-[11.5px] leading-relaxed text-slate-800 md:col-span-8">
                       {report.clinicalInfo && <div><div className="font-bold uppercase text-slate-900">Klinik bilgi</div><p className="mt-0.5 whitespace-pre-wrap">{report.clinicalInfo}</p></div>}
-                      <ReportField name="Teknik" rows={3} value={report.technique} editing={editing} onChange={(v) => set("technique", v)} onMic={append("technique")} onClear={() => set("technique", "")} onGotoSlice={onGotoSlice} onClose={onClose} />
-                      <ReportField name="Kesit bazlı bulgular" rows={8} value={report.findingsText} editing={editing} onChange={(v) => set("findingsText", v)} onMic={append("findingsText")} onClear={() => set("findingsText", "")} onGotoSlice={onGotoSlice} onClose={onClose} />
-                      <ReportField name="Sonuç/İzlenim" rows={3} value={report.impression} editing={editing} onChange={(v) => set("impression", v)} onMic={append("impression")} onClear={() => set("impression", "")} onGotoSlice={onGotoSlice} onClose={onClose} />
-                      <ReportField name="Öneri" rows={2} value={report.recommendation} editing={editing} onChange={(v) => set("recommendation", v)} onMic={append("recommendation")} onClear={() => set("recommendation", "")} onGotoSlice={onGotoSlice} onClose={onClose} />
+                      <ReportField name="Teknik" rows={3} value={report.technique} editing={editing} onChange={(v) => set("technique", v)} onMic={dictatedAppend("technique")} onClear={() => set("technique", "")} onGotoSlice={onGotoSlice} onClose={onClose} onView={handleViewCommand} onBlur={() => offerCorrection("technique")} />
+                      <ReportField name="Kesit bazlı bulgular" rows={8} value={report.findingsText} editing={editing} onChange={(v) => set("findingsText", v)} onMic={dictatedAppend("findingsText")} onClear={() => set("findingsText", "")} onGotoSlice={onGotoSlice} onClose={onClose} onView={handleViewCommand} onBlur={() => offerCorrection("findingsText")} />
+                      <ReportField name="Sonuç/İzlenim" rows={3} value={report.impression} editing={editing} onChange={(v) => set("impression", v)} onMic={dictatedAppend("impression")} onClear={() => set("impression", "")} onGotoSlice={onGotoSlice} onClose={onClose} onView={handleViewCommand} onBlur={() => offerCorrection("impression")} />
+                      <ReportField name="Öneri" rows={2} value={report.recommendation} editing={editing} onChange={(v) => set("recommendation", v)} onMic={dictatedAppend("recommendation")} onClear={() => set("recommendation", "")} onGotoSlice={onGotoSlice} onClose={onClose} onView={handleViewCommand} onBlur={() => offerCorrection("recommendation")} />
 
                       {editing && (
                         <div className="rounded border border-slate-300 bg-slate-50 p-2">

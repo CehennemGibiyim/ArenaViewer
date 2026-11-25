@@ -323,6 +323,20 @@ DATA_ENCRYPTION_KEYS=<eski>,<yeni>   # 2) .env'e yaz, servisi yeniden başlat
 - v1 (kimliksiz) kayıtlar halkadaki anahtarlarla okunur ve ilk rotasyonda v2'ye taşınır.
 - Rotasyon ilerlemesi `GET /api/admin/status` içindeki `staleKey` alanında görünür.
 
+## Sesle dikte ve sesli komutlar
+
+Rapor alanlarındaki 🎤 düğmesi Web Speech API (tr-TR) kullanır; metin `dictate.ts` katmanından geçer
+(sayı sözcükleri, noktalama, ölçü birimleri, tıbbi sözlük). Üstüne iki katman eklendi:
+
+- **Kurum sözlüğü (hekim onaylı öğrenme):** Dikte edilen metni düzeltip alandan çıktığınızda `X → Y`
+  önerisi sorulur. "Ekle" derseniz sunucudaki sözlüğe girer ve **2. kabulden sonra** tüm hekimlerin
+  diktesinde otomatik uygulanır; "Vazgeç" sayacı düşürür, sıfırda öneri silinir. Yönetim → Güvenlik →
+  *Dikte sözlüğü* panelinden görüntülenip çıkarılabilir (`/api/admin/dictation`, denetim:
+  `report.dictation_lexicon`). Yalnız kelime çifti saklanır, hasta verisi yok.
+- **Sesli komutlar:** `ileri`, `geri`, `ilk/son kesit`, `kesit 42`, `yakınlaştır`, `uzaklaştır`, `sığdır`,
+  `kontrast artır`, `ters çevir`, `pencere daralt`, `geri al`, `kaydet`, `temizle`. Bir parça
+  **tamamen** komutsa komut sayılır; "kırık ileri deplase" gibi cümleler metin olarak yazılır.
+
 ## LLM rapor taslağı ve doğrulama
 
 `LLM_API_URL` + `LLM_API_KEY` (OpenAI uyumlu) tanımlıysa "✨ Taslak izlenim üret" düğmesi LLM kullanır;
@@ -464,6 +478,7 @@ npm run test:volumeperf             # büyük çalışma performansı (transcode
 npm run test:interval               # interval değişim özeti (a-prior)
 npm run test:confidence             # kalibre güven skoru + Wilson aralığı (a-uncert)
 npm run test:genai                  # LLM taslak doğrulama katmanı (r-genai)
+npm run test:dictation              # dikte sözlüğü + sesli komutlar (r-dictate)
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)

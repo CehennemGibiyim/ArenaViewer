@@ -14,6 +14,7 @@
 import type { AnalyzeBody } from "@/lib/analyze";
 import type { Finding, FindingApprovalStatus, SavedReport } from "@/lib/types";
 import { ruleDraft, verifiedFindings, type DraftFinding } from "@/lib/genaiDraft";
+import { AUTO_APPLY_AT, recordCorrection, type LearnedCorrection } from "@/lib/dictationAssist";
 
 const OPERATOR = { fullName: "Demo Radyolog", title: "Uzm. Dr.", regNo: "" };
 const K_REPORTS = "atik-demo-reports";
@@ -181,6 +182,26 @@ async function route(method: string, url: URL, init?: RequestInit): Promise<Resp
       save(K_STATE + b.studyUid + "|" + b.seriesKey, { annotations: b.annotations ?? [], keyImages: b.keyImages ?? [] });
       return json({ ok: true });
     }
+  }
+
+  // Kurum dikte sözlüğü (r-dictate): sunucu yoksa yerel saklama; aynı sözleşme.
+  if (p === "/api/admin/dictation") {
+    const K_LEX = "atik-demo-dictation-lexicon";
+    const list = load<LearnedCorrection[]>(K_LEX, []);
+    if (method === "GET") {
+      return json({ corrections: list, autoApplyAt: AUTO_APPLY_AT, autoApplied: list.filter((c) => c.accepts >= AUTO_APPLY_AT).map((c) => c.from) });
+    }
+    const b = await body<{ action?: string; from?: string; to?: string }>();
+    if (!b?.action || !b.from) return fail("action ve from gerekli");
+    let next = list;
+    if (b.action === "accept") {
+      if (!b.to?.trim()) return fail("to gerekli");
+      next = recordCorrection(list, b.from, b.to, true);
+    } else if (b.action === "reject") next = recordCorrection(list, b.from, "", false);
+    else if (b.action === "remove") next = list.filter((c) => c.from !== b.from!.toLocaleLowerCase("tr-TR").trim());
+    else return fail("Bilinmeyen action");
+    save(K_LEX, next);
+    return json({ corrections: next, autoApplyAt: AUTO_APPLY_AT });
   }
 
   if (p === "/api/templates") {

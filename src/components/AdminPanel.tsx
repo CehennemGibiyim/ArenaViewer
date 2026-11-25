@@ -7,6 +7,8 @@ import { AUTH_LABELS, PACS_PRESETS, type PacsAuthType, type PacsConfig } from "@
 import { wilsonInterval } from "@/lib/confidenceInterval";
 
 type Tab = "profile" | "users" | "audit" | "ai" | "stats" | "security" | "integration" | "compliance";
+/** Kurum dikte sözlüğü satırı (r-dictate). */
+interface LexRow { from: string; to: string; accepts: number; rejects: number; lastAccepted: string }
 interface AuditRow { id: number; ts: string; username: string; action: string; entityType: string; entityId: string; details: string; hash: string }
 interface UserRow { id: number; username: string; fullName: string; title: string; regNo: string; role: string; active: boolean; twoFactorEnabled: boolean; lastLoginAt: string | null }
 interface CalibRow { engine: string; category: string; n: number; bins: { binLo: number; binHi: number; n: number; meanPred: number | null; empirical: number | null }[]; ece: number | null }
@@ -95,6 +97,8 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
   const [pacs, setPacs] = useState<PacsForm | null>(null);
   const [pacsHint, setPacsHint] = useState("");
   // Anahtar halkası (g-kms): kimlikler + rotasyon durumu; `newKey` yalnız bir kez gösterilir.
+  const [lexicon, setLexicon] = useState<LexRow[] | null>(null);
+  const [lexBusy, setLexBusy] = useState(false);
   const [keyring, setKeyring] = useState<{ current: string; keys: { kid: string; since: string; current: boolean }[]; rotation: { summary: string; pending: number } } | null>(null);
   const [newKey, setNewKey] = useState<{ key: string; kid: string; dataEncryptionKeys: string } | null>(null);
   const [rotateBusy, setRotateBusy] = useState(false);
@@ -125,6 +129,18 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
     const r = await api<{ users: UserRow[] }>("/api/users");
     if (r.ok) setUserList(r.data.users);
   }, []);
+  /** Kurum dikte sözlüğünü yükler (r-dictate). */
+  const loadLexicon = useCallback(async () => {
+    const r = await api<{ corrections: LexRow[] }>("/api/admin/dictation");
+    if (r.ok) setLexicon(r.data.corrections ?? []);
+  }, []);
+  const lexAction = async (action: "accept" | "reject" | "remove", row: LexRow) => {
+    setLexBusy(true);
+    const r = await api<{ corrections: LexRow[] }>("/api/admin/dictation", json("POST", { action, from: row.from, to: row.to }));
+    setLexBusy(false);
+    if (r.ok) { setLexicon(r.data.corrections ?? []); flash(action === "remove" ? `"${row.from}" sözlükten çıkarıldı` : action === "accept" ? `"${row.from}" onaylandı` : `"${row.from}" önerisi reddedildi`); }
+    else flash("Sözlük güncellenemedi");
+  };
   const loadKeyring = useCallback(async () => {
     const r = await api<{ current: string; keys: { kid: string; since: string; current: boolean }[]; rotation: { summary: string; pending: number } }>("/api/admin/keyring");
     if (r.ok) setKeyring(r.data);
@@ -143,9 +159,9 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
       if (tab === "ai") { const r = await api<{ rows: PerfRow[]; note: string }>("/api/ai/performance"); if (r.ok) setPerf(r.data); }
       if (tab === "stats") await loadStats();
       if (["security", "integration", "compliance"].includes(tab)) await loadSettings();
-      if (tab === "security") await loadKeyring();
+      if (tab === "security") { await loadKeyring(); await loadLexicon(); }
     })();
-  }, [tab, loadProfile, loadAudit, loadSiem, loadStats, loadSettings, loadUsers, loadMfa, loadKeyring]);
+  }, [tab, loadProfile, loadAudit, loadSiem, loadStats, loadSettings, loadUsers, loadMfa, loadKeyring, loadLexicon]);
 
   const saveSettings = async (patch: Record<string, unknown>) => {
     const r = await api<{ error?: string }>("/api/settings", json("PUT", patch));
@@ -620,6 +636,36 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
                   if (r.ok) setNewKey({ ...newKey, dataEncryptionKeys: r.data.dataEncryptionKeys });
                 }}>Eski anahtarları çıkar</button>
               </div>
+            </div>
+            <div className={card}>
+              <h2 className="text-sm font-bold text-slate-100">Dikte sözlüğü (Türkçe)</h2>
+              <p className="mt-2 text-xs leading-relaxed text-slate-300">
+                Tarayıcı konuşma tanıması tıbbi terimlerde hata yapar. Hekim bir düzeltmeyi kabul ettiğinde kelime çifti
+                burada birikir; <b>2. kabulden sonra</b> tüm hekimlerin diktesinde otomatik uygulanır. Yalnız kelime çifti
+                saklanır (hasta verisi yok) ve her değişiklik denetim kaydına yazılır.
+              </p>
+              {!lexicon && <p className="mt-2 text-[11px] text-slate-500">Sözlük yükleniyor…</p>}
+              {lexicon?.length === 0 && <p className="mt-2 text-[11px] text-slate-500">Henüz öğrenilmiş düzeltme yok. Raporda bir dikte hatasını düzeltip &quot;Ekle&quot;yi seçin.</p>}
+              {!!lexicon?.length && (
+                <div className="mt-2 max-h-52 overflow-y-auto">
+                  <table className="w-full text-[11px]">
+                    <thead className="text-left text-slate-500"><tr>{["Yanlış", "Doğru", "Kabul", "Otomatik", ""].map((h) => <th key={h} className="border-b border-[#1a2230] px-2 py-1 font-semibold">{h}</th>)}</tr></thead>
+                    <tbody>
+                      {lexicon.map((c) => (
+                        <tr key={c.from} className="hover:bg-[#101722]">
+                          <td className="border-b border-[#141b26] px-2 py-1 font-mono text-rose-300">{c.from}</td>
+                          <td className="border-b border-[#141b26] px-2 py-1 font-mono text-emerald-300">{c.to}</td>
+                          <td className="border-b border-[#141b26] px-2 py-1">{c.accepts}{c.rejects > 0 ? ` (${c.rejects} ret)` : ""}</td>
+                          <td className="border-b border-[#141b26] px-2 py-1">{c.accepts >= 2 ? <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-black text-emerald-300">AÇIK</span> : <span className="text-slate-500">2. kabulde</span>}</td>
+                          <td className="border-b border-[#141b26] px-2 py-1 text-right">
+                            <button disabled={lexBusy} onClick={() => void lexAction("remove", c)} className="cursor-pointer text-[10px] text-rose-300 hover:underline disabled:opacity-40">çıkar</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
             <div className={card}>
               <h2 className="text-sm font-bold text-slate-100">Saklama politikası</h2>
