@@ -21,6 +21,7 @@ import HangingProtocolEditorModal from "./HangingProtocolEditorModal";
 import SegEditor from "./SegEditor";
 import LungQuantPanel from "./LungQuantPanel";
 import NuclearPanel from "./NuclearPanel";
+import TicPanel from "./TicPanel";
 import { HIGH_CONTRAST_CLASS, HIGH_CONTRAST_STORAGE_KEY, SKIP_LINK_LABEL } from "@/lib/a11y";
 import { canMirror, metaOf, MIRROR_CHANNEL, MIRROR_PATH, type MirrorMessage, type MirrorState } from "@/lib/mirror";
 import ViewerErrorBoundary from "./ViewerErrorBoundary";
@@ -195,6 +196,8 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   const [highContrast, setHighContrast] = useState(false);
   // Nükleer tıp analizi (a-nm)
   const [nuclearOpen, setNuclearOpen] = useState(false);
+  // ROI tabanlı TIC (v-fusion)
+  const [ticOpen, setTicOpen] = useState(false);
   // Akciğer kantitasyonu (a-lungquant)
   const [lungQuantOpen, setLungQuantOpen] = useState(false);
   const [mskProtocolId, setMskProtocolId] = useState<string | null>(null);
@@ -335,7 +338,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   useEffect(() => {
     const close = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      setMpr(false); setHangingModalOpen(false); setWorklistOpen(false); setPngImage(null); setReportOpen(false); setLungQuantOpen(false); setNuclearOpen(false);
+      setMpr(false); setHangingModalOpen(false); setWorklistOpen(false); setPngImage(null); setReportOpen(false); setLungQuantOpen(false); setNuclearOpen(false); setTicOpen(false);
     };
     window.addEventListener("keydown", close);
     return () => window.removeEventListener("keydown", close);
@@ -1639,6 +1642,9 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         {series && series.slices.length > 0 && (series.modality === "PT" || series.modality === "NM" || series.suv) && (
           <Btn on={nuclearOpen} title="Nükleer tıp: eşik tabanlı MTV/SUVpeak ve TIC (zaman-aktivite) sınıflandırması" onClick={() => setNuclearOpen((v) => !v)}>🧪 Nükleer</Btn>
         )}
+        {series && series.slices.length > 0 && all.length > 1 && (
+          <Btn on={ticOpen} title="ROI tabanlı TIC: aynı bölgeyi dinamik serilerde ölç, wash-out/plato/progresif sınıfla" onClick={() => setTicOpen((v) => !v)}>📈 TIC</Btn>
+        )}
         {series && series.modality === "CT" && series.slices.length > 1 && (
           <Btn on={lungQuantOpen} title="Akciğer kantitasyonu: LAA-950, ortalama HU, PD15, hacim ve kesit dağılımı (kural tabanlı)" onClick={() => setLungQuantOpen((v) => !v)}>🫁 Akciğer</Btn>
         )}
@@ -1787,6 +1793,16 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
       <WorklistModal open={worklistOpen} onClose={() => setWorklistOpen(false)} user={user} onOpenStudy={(s) => void openStored(s)} onOpenPacs={(s) => void openPacs(s)} />
       {mpr && series && <div className="fixed inset-0 z-50 bg-[#070a0f]"><ViewerErrorBoundary resetKey={series.id} label="MPR" onClose={() => setMpr(false)}><VolumeView series={series} wl={wl} ww={ww} invert={invert} initialTab={mprInitialTab} onClose={() => setMpr(false)} /></ViewerErrorBoundary></div>}
       {noduleOpen && series && <NoduleTracker patientId={series.patientId} patientName={series.patientName} studyDate={series.studyDate} measurements={noduleMeasurements} onClose={() => setNoduleOpen(false)} />}
+      {series && ticOpen && (
+        <TicPanel
+          series={series}
+          all={all}
+          slice={slice}
+          annotations={annotations}
+          onClose={() => setTicOpen(false)}
+          onAddToFindings={(text) => { pushFeed(text, "finding"); toast("TIC özeti akışa yazıldı ve kopyalandı."); }}
+        />
+      )}
       {series && nuclearOpen && (
         <NuclearPanel
           series={series}

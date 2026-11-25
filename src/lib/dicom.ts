@@ -713,6 +713,7 @@ export async function loadMedicalFiles(
       pixelSpacing,
       sliceThickness: thickness,
       sliceSpacing: spacing,
+      seriesTime: list.find((x) => typeof x.seriesTimeS === "number")?.seriesTimeS ?? null,
       slicePositions: positions,
       ipp: list.every((s) => s.ipp) ? list.map((s) => s.ipp!) : undefined,
       sopUids: list.every((s) => s.sopUid) ? list.map((s) => s.sopUid!) : undefined,

@@ -6,7 +6,9 @@ set -euo pipefail
 # `output: "export"` derlemesi sayfa verisi toplarken src/db/index.ts'in
 # DATABASE_URL zorunluluğu yüzünden patlar (Pages işi bu yüzden kırılıyordu).
 # Statik demoda olmayan sayfalar: /giris /yonetim /tercihler /paylas/*
-rm -rf src/app/api src/app/yonetim src/app/giris src/proxy.ts src/app/tercihler src/app/paylas
+# /ayna (ikinci ekran) sunucu oturum kapısı kullandığı için veritabanı ister;
+# statik demoda oturumsuz istemci sürümü ayrıca yazılır (aşağıda).
+rm -rf src/app/api src/app/yonetim src/app/giris src/proxy.ts src/app/tercihler src/app/paylas src/app/ayna
 # API entegrasyon testleri silinen sunucu uçlarını içe aktarabilir. Statik
 # kopyanın TypeScript denetiminden testleri çıkar; gerçek CI testleri korunur.
 node -e 'const fs = require("fs"); const p = JSON.parse(fs.readFileSync("tsconfig.json", "utf8")); p.exclude = [...new Set([...(p.exclude || []), "tests"])]; fs.writeFileSync("tsconfig.json", JSON.stringify(p, null, 2) + "\n");'
@@ -27,6 +29,34 @@ export default function Home() {
   );
 }
 TSX
+# İkinci ekran (/ayna): sunucu sürümü oturum kapısıyla korunur; statik demoda
+# kimlik doğrulama olmadığı için **demo** etiketiyle doğrudan istemci sürümü verilir.
+mkdir -p src/app/ayna
+cat > src/app/ayna/page.tsx <<'TSX'
+import Link from "next/link";
+import MirrorView from "@/components/MirrorView";
+
+// Statik demo: oturum kapısı yok — yalnızca aynı tarayıcıdaki sekmeler arasında
+// BroadcastChannel ile kesit yayını. Hasta verisi sunucuya gitmez.
+export const metadata = { title: "İkinci ekran (demo) · ArenaViewer" };
+
+export default function MirrorPage() {
+  return (
+    <div className="min-h-screen bg-[#070a0f] text-slate-200">
+      <div className="flex items-center gap-3 border-b border-[#1a2230] bg-[#0b0f16] px-4 py-2">
+        <Link href="/" className="rounded border border-cyan-400/40 bg-cyan-500/10 px-2 py-1 text-[11px] font-bold text-cyan-300">
+          ← Görüntüleyiciye dön
+        </Link>
+        <span className="font-mono text-[11px] text-amber-300">
+          STATİK DEMO — oturum doğrulaması yok; tam sürümde bu sayfa girişle korunur.
+        </span>
+      </div>
+      <MirrorView />
+    </div>
+  );
+}
+TSX
+
 cat > src/app/yonetim/page.tsx <<'TSX'
 import Link from "next/link";
 
