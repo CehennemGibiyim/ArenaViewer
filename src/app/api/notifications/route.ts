@@ -7,6 +7,7 @@ import { authorize } from "@/lib/server/auth";
 import { closeLoopUpdate, setFollowupStatus, sweepCloseLoop } from "@/lib/server/closeLoop";
 import { ESCALATION_ROLES, loopStatus } from "@/lib/closeLoopRules";
 import { followupCsv, matchReturnedResult, summarizeFollowups, type FollowupTask } from "@/lib/followupQueue";
+import { channelHealth, deliverAndRecord, recentDeliveries } from "@/lib/server/notifyDelivery";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +62,15 @@ export async function GET(req: NextRequest) {
       ordered: sum.ordered.slice(0, 100).map((t) => ({ id: t.id, message: t.message.slice(0, 160), dueDate: t.dueDate, severity: t.severity, modality: t.modality, bodyRegion: t.bodyRegion, status: t.status })),
     });
   }
+  if (sp.get("delivery") === "1") {
+    // Kanal sağlığı + son teslimatlar (a-notify): yönetici hasta güvenliği denetimi.
+    const channel = sp.get("channel");
+    if (channel) {
+      const rows = await recentDeliveries(Number(sp.get("limit") ?? "50") || 50, Number(channel) || undefined);
+      return NextResponse.json({ rows });
+    }
+    return NextResponse.json({ channels: channelHealth(), recent: await recentDeliveries(20) });
+  }
   if (sp.get("escalation") === "1") {
     const rowsAll = await db.select().from(notifications).orderBy(desc(notifications.id)).limit(500);
     const st = rowsAll
@@ -105,8 +115,30 @@ export async function PATCH(req: NextRequest) {
     const role = (b as { escalationRole?: string }).escalationRole ?? "ikinci-hekim";
     const contact = (b as { escalationContact?: string }).escalationContact ?? "";
     const res = await sweepCloseLoop({ target: { role, contact }, actor: a.user });
-    await audit(a.user, "notify.sweep", "notification", 0, { escalated: res.escalated, overdue: res.overdue });
-    return NextResponse.json(res);
+    // Eskalasyon dış kanallara da iletilir (a-notify): hekim uygulamayı açmıyorsa
+    // SMS/push/çağrı devreye girer; kanal başına kanıt kaydedilir ve tekrar
+    // gönderim idempotency anahtarıyla engellenir.
+    const escalations: { id: number; delivery: string; sent: string[] }[] = [];
+    if (res.escalated > 0) {
+      const rowsEsc = await db.select().from(notifications).where(eq(notifications.escalated, true)).orderBy(desc(notifications.id)).limit(50);
+      for (const r of rowsEsc) {
+        if (!r.escalatedAt || Date.now() - new Date(r.escalatedAt).getTime() > 10 * 60_000) continue;
+        const d = await deliverAndRecord({
+          event: "escalation",
+          severity: "kritik",
+          studyUid: r.studyUid,
+          message: `ESKALASYON (${role}${contact ? ` / ${contact}` : ""}): ${r.message.split("\n---\n")[0].slice(0, 400)}`,
+          notificationId: r.id,
+          at: new Date().toISOString(),
+        });
+        escalations.push({ id: r.id, delivery: d.auditText, sent: d.sent });
+      }
+    }
+    await audit(a.user, "notify.sweep", "notification", 0, {
+      escalated: res.escalated, overdue: res.overdue,
+      delivered: escalations.reduce((n, e) => n + e.sent.length, 0),
+    });
+    return NextResponse.json({ ...res, escalations });
   }
 
   // HBYS/RIS iadesi: sonucu açık göreve bağla ve kapat (eşleşme otomatik ya da elle).

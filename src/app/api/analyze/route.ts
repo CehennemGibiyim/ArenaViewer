@@ -5,6 +5,7 @@ import { notifications, studies } from "@/db/schema";
 import { authorize } from "@/lib/server/auth";
 import { audit } from "@/lib/server/audit";
 import { getSetting } from "@/lib/server/settings";
+import { deliverAndRecord } from "@/lib/server/notifyDelivery";
 import { buildAnalysis, type AnalyzeBody } from "@/lib/analyze";
 
 export const dynamic = "force-dynamic";
@@ -42,10 +43,22 @@ export async function POST(req: NextRequest) {
     }
     if (engine === "cv-heuristic" && top && (worst === "kritik" || worst === "yuksek")) {
       const message = `${meta.modality} · ${meta.seriesDescription}: ${top.label} (Kesit ${top.keySliceNumber}) — aday bulgu, radyolog teyidi gerekir`;
-      await db.insert(notifications).values({ kind: "finding", severity: worst, studyUid: body.studyUid ?? "", message });
+      const ins = await db.insert(notifications).values({ kind: "finding", severity: worst, studyUid: body.studyUid ?? "", message }).returning({ id: notifications.id });
+      const notificationId = ins[0]?.id ?? null;
+      // Çok kanallı teslimat (a-notify): webhook / e-posta / SMS / push.
+      // Kanal seçimi önem düzeyine göre; kanal başına kanıt kaydedilir.
+      const delivery = await deliverAndRecord({
+        event: "critical_finding",
+        severity: worst,
+        studyUid: body.studyUid ?? "",
+        message,
+        notificationId,
+        at: new Date().toISOString(),
+      });
+      // Eski tek-webhook ayarı da (varsa) geriye dönük uyum için kullanılır.
       const hook = await getSetting("criticalWebhookUrl");
-      let hookStatus = "yok";
-      if (hook) {
+      let hookStatus = delivery.sent.includes("webhook") ? "200" : "yok";
+      if (hook && !delivery.sent.includes("webhook") && !delivery.channels.some((c) => c.kind === "webhook" && c.enabled)) {
         try {
           const r = await fetch(hook, {
             method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(8000),
@@ -56,7 +69,10 @@ export async function POST(req: NextRequest) {
           hookStatus = "hata";
         }
       }
-      await audit(user, "notify.critical", "study", body.studyUid ?? "", { severity: worst, webhook: hookStatus });
+      await audit(user, "notify.critical", "study", body.studyUid ?? "", {
+        severity: worst, webhook: hookStatus,
+        channels: delivery.auditText, sent: delivery.sent.length, failed: delivery.failed.length,
+      });
     }
     await audit(user, "ai.analyze", "study", body.studyUid ?? "", { engine, findings: findings.length, worst, slices: meta.sliceCount });
   } catch (e) {

@@ -323,6 +323,28 @@ DATA_ENCRYPTION_KEYS=<eski>,<yeni>   # 2) .env'e yaz, servisi yeniden başlat
 - v1 (kimliksiz) kayıtlar halkadaki anahtarlarla okunur ve ilk rotasyonda v2'ye taşınır.
 - Rotasyon ilerlemesi `GET /api/admin/status` içindeki `staleKey` alanında görünür.
 
+## Kritik bulgu bildirimi (çok kanallı)
+
+Kritik/yüksek aday bulguda uygulama içi bildirime ek olarak dış kanallar devreye girer.
+Kanal zinciri önem düzeyine göre kurulur: **kritik** → webhook + e-posta + SMS + push,
+**yüksek** → push hariç, **orta/düşük** → webhook + e-posta.
+
+| Değişken | Kanal |
+|---|---|
+| `CRITICAL_WEBHOOK_URL` | webhook (JSON POST) |
+| `NOTIFY_EMAIL_URL` + `NOTIFY_EMAIL_TO` | e-posta köprüsü (virgülle alıcılar) |
+| `NOTIFY_SMS_URL` + `NOTIFY_SMS_TO` | SMS köprüsü (160 karaktere kırpılır) |
+| `NOTIFY_PUSH_URL` + `NOTIFY_PUSH_TO` | mobil push köprüsü (boşlukla cihazlar) |
+
+- **Geçici hata** (5xx, 408, 429, ağ, zaman aşımı) 3 kez geri çekilmeli (200 → 800 ms) denenir;
+  **kalıcı hata** (4xx) tekrar denenmez. Her deneme `notify_delivery` tablosuna yazılır
+  (kanal, durum, HTTP kodu, gecikme, hata) — hasta güvenliği denetiminde sorgulanabilir.
+- **Idempotency:** aynı bildirim kimliği için iletilmiş kanal ikinci kez gönderilmez
+  (`Idempotency-Key` başlığı da gönderilir).
+- Analiz ucu kritik bulguda ve eskalasyon taramasında (`action=sweep`) otomatik iletir;
+  `/api/notifications?delivery=1` kanal sağlığını ve son teslimatları verir
+  (Yönetim → Entegrasyon → *Kritik bulgu bildirimi*).
+
 ## Sesle dikte ve sesli komutlar
 
 Rapor alanlarındaki 🎤 düğmesi Web Speech API (tr-TR) kullanır; metin `dictate.ts` katmanından geçer
@@ -479,6 +501,7 @@ npm run test:interval               # interval değişim özeti (a-prior)
 npm run test:confidence             # kalibre güven skoru + Wilson aralığı (a-uncert)
 npm run test:genai                  # LLM taslak doğrulama katmanı (r-genai)
 npm run test:dictation              # dikte sözlüğü + sesli komutlar (r-dictate)
+npm run test:notifych               # çok kanallı bildirim teslimatı (a-notify)
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)

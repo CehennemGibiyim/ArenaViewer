@@ -97,6 +97,8 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
   const [pacs, setPacs] = useState<PacsForm | null>(null);
   const [pacsHint, setPacsHint] = useState("");
   // Anahtar halkası (g-kms): kimlikler + rotasyon durumu; `newKey` yalnız bir kez gösterilir.
+  /** Bildirim kanalları ve son teslimatlar (a-notify). */
+  const [notify, setNotify] = useState<{ channels: { kind: string; enabled: boolean; targets: number; host: string }[]; recent: { id: number; channel: string; status: string; httpStatus: number | null; latencyMs: number; notificationId: number | null }[] } | null>(null);
   const [lexicon, setLexicon] = useState<LexRow[] | null>(null);
   const [lexBusy, setLexBusy] = useState(false);
   const [keyring, setKeyring] = useState<{ current: string; keys: { kid: string; since: string; current: boolean }[]; rotation: { summary: string; pending: number } } | null>(null);
@@ -129,6 +131,11 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
     const r = await api<{ users: UserRow[] }>("/api/users");
     if (r.ok) setUserList(r.data.users);
   }, []);
+  /** Bildirim kanal sağlığı + son teslimatlar (a-notify). */
+  const loadNotify = useCallback(async () => {
+    const r = await api<{ channels: { kind: string; enabled: boolean; targets: number; host: string }[]; recent: { id: number; channel: string; status: string; httpStatus: number | null; latencyMs: number; notificationId: number | null }[] }>("/api/notifications?delivery=1");
+    if (r.ok) setNotify(r.data);
+  }, []);
   /** Kurum dikte sözlüğünü yükler (r-dictate). */
   const loadLexicon = useCallback(async () => {
     const r = await api<{ corrections: LexRow[] }>("/api/admin/dictation");
@@ -160,8 +167,9 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
       if (tab === "stats") await loadStats();
       if (["security", "integration", "compliance"].includes(tab)) await loadSettings();
       if (tab === "security") { await loadKeyring(); await loadLexicon(); }
+      if (tab === "integration") void loadNotify();
     })();
-  }, [tab, loadProfile, loadAudit, loadSiem, loadStats, loadSettings, loadUsers, loadMfa, loadKeyring, loadLexicon]);
+  }, [tab, loadProfile, loadAudit, loadSiem, loadStats, loadSettings, loadUsers, loadMfa, loadKeyring, loadLexicon, loadNotify]);
 
   const saveSettings = async (patch: Record<string, unknown>) => {
     const r = await api<{ error?: string }>("/api/settings", json("PUT", patch));
@@ -768,10 +776,46 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
               </p>
             </div>
             <div className={card}>
-              <h2 className="text-sm font-bold text-slate-100">Kritik bulgu bildirimi (webhook)</h2>
-              <input id="hook" defaultValue={settings.criticalWebhookUrl} placeholder="https://… (POST JSON)" className={`${input} mt-3 w-full`} />
-              <p className="mt-2 text-[11px] text-slate-500">Kritik/yüksek aday bulguda uygulama içi bildirim + bu adrese POST. E-posta/SMS/çağrı cihazı sağlayıcıları, webhook&apos;u dinleyen bir köprü ile bağlanır. Alındı bilgisi denetim kaydına yazılır.</p>
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-bold text-slate-100">Kritik bulgu bildirimi (çok kanallı)</h2>
+                <button className="cursor-pointer text-[10px] text-cyan-400" onClick={() => void loadNotify()}>⟳ yenile</button>
+              </div>
+              <input id="hook" defaultValue={settings.criticalWebhookUrl} placeholder="https://… (POST JSON webhook)" className={`${input} mt-3 w-full`} />
+              <p className="mt-2 text-[11px] text-slate-500">
+                Kritik/yüksek aday bulguda uygulama içi bildirim + seçili dış kanallar. Kanal zinciri önem düzeyine göre
+                kurulur (kritik → tümü, yüksek → push hariç, orta/düşük → webhook + e-posta). Her deneme kanal başına
+                kaydedilir; geçici hata (5xx/429/zaman aşımı) 3 kez geri çekilmeli denenir, kalıcı hata (4xx) denenmez.
+                Aynı bildirim idempotency anahtarıyla ikinci kez gönderilmez.
+              </p>
               <button className={`${btn} mt-3 bg-cyan-500 text-slate-950`} onClick={() => void saveSettings({ criticalWebhookUrl: (document.getElementById("hook") as HTMLInputElement).value })}>Kaydet</button>
+              <div className="mt-3 space-y-1 text-[11px]">
+                {(notify?.channels ?? []).map((c) => (
+                  <div key={c.kind} className="flex items-center justify-between gap-2 rounded border border-[#1a2230] bg-[#0b1018] px-2 py-1">
+                    <span className="font-mono text-slate-200">{c.kind}{c.host ? ` · ${c.host}` : ""}</span>
+                    <span className={c.enabled ? "text-emerald-300" : "text-slate-500"}>{c.enabled ? `etkin${c.targets ? ` · ${c.targets} alıcı` : ""}` : "yapılandırılmadı"}</span>
+                  </div>
+                ))}
+                {!notify && <span className="text-slate-500">Kanal durumu yükleniyor…</span>}
+              </div>
+              <p className="mt-2 text-[10px] text-slate-500">SMS/e-posta/push sağlayıcısı ortam değişkeniyle bağlanır: <code>NOTIFY_SMS_URL</code>+<code>NOTIFY_SMS_TO</code>, <code>NOTIFY_EMAIL_URL</code>+<code>NOTIFY_EMAIL_TO</code>, <code>NOTIFY_PUSH_URL</code>+<code>NOTIFY_PUSH_TO</code>, <code>CRITICAL_WEBHOOK_URL</code>. Sır koda gömülmez.</p>
+              {!!notify?.recent?.length && (
+                <div className="mt-2 max-h-40 overflow-y-auto">
+                  <table className="w-full text-[10.5px]">
+                    <thead className="text-left text-slate-500"><tr>{["Kanal", "Durum", "HTTP", "ms", "Bildirim"].map((h) => <th key={h} className="border-b border-[#1a2230] px-1.5 py-1 font-semibold">{h}</th>)}</tr></thead>
+                    <tbody>
+                      {notify.recent.map((r) => (
+                        <tr key={r.id}>
+                          <td className="border-b border-[#141b26] px-1.5 py-1 font-mono">{r.channel}</td>
+                          <td className={`border-b border-[#141b26] px-1.5 py-1 font-semibold ${r.status === "gonderildi" ? "text-emerald-300" : r.status === "gecici-hata" ? "text-amber-300" : "text-rose-300"}`}>{r.status}</td>
+                          <td className="border-b border-[#141b26] px-1.5 py-1">{r.httpStatus ?? "—"}</td>
+                          <td className="border-b border-[#141b26] px-1.5 py-1">{r.latencyMs}</td>
+                          <td className="border-b border-[#141b26] px-1.5 py-1">{r.notificationId ?? "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
             <div className={card}>
               <h2 className="text-sm font-bold text-slate-100">HBYS / RIS istem alımı</h2>
