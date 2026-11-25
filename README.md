@@ -529,6 +529,8 @@ npm run test:fusion-rigid           # füzyon katı hizalaması: NCC kestirimi, 
 npm run test:gap-sources            # kıyaslama tablosu: her satırın kaynağı + dosya yollarının varlığı
 npm run test:gap-drift              # yamalar taban metni budamaz; bilinen yanlış iddialar geri gelemez
 npm run test:fusion-deform          # elastik kayıt: düğüm alanı, düzleştirme, sentetik geri kazanım
+npm run test:fusion-mi              # çok modaliteli MI hizalaması: NMI, monoton olmayan eşleme, öteleme
+npm run test:fusion-z               # kesitler arası z kayması: konum eşleme, parabolik incelme, katman
 npm run test:photometric            # fotometri: MONO1/2, RGB/planar, YBR 4:2:2, palet LUT
 npm run test:photometric-e2e        # sentetik DICOM ile renkli/paletli/çok kareli içe aktarma
 npm run test:tic-roi                # ROI tabanlı TIC: faz eşleme, zaman ekseni, wash-out/plato/progresif

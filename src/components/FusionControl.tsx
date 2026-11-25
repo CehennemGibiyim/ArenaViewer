@@ -6,6 +6,8 @@ import { CMAPS, type CmapName } from "@/lib/fusion";
 import { sameFrame, resampleOnto } from "@/lib/planes";
 import { applyRigid, estimateRigid, isIdentityRigid, normalizeRigid, rigidNote, rigidTrusted, type RigidParams } from "@/lib/fusionRigid";
 import { deformNote, estimateDeform, isIdentityField, type DeformField } from "@/lib/fusionDeform";
+import { estimateTranslationMI, metricFor, miNote, miTrusted } from "@/lib/fusionMi";
+import { estimateSliceShift, zShiftNote } from "@/lib/fusionZ";
 
 export interface FusionConfig {
   seriesId: string;
@@ -16,6 +18,8 @@ export interface FusionConfig {
   rigid?: RigidParams;
   /** Elastik (deforme) alan — katı hizalamadan sonra uygulanır. */
   deform?: DeformField | null;
+  /** Kesitler arası (z) kayma, mm (fusionZ::estimateSliceShift). */
+  zMm?: number;
 }
 
 interface Props {
@@ -32,6 +36,7 @@ export default function FusionControl({ all, primary, cfg, onChange, slice = 0 }
   const [open, setOpen] = useState(false);
   const [align, setAlign] = useState<{ busy: boolean; note: string }>({ busy: false, note: "" });
   const [deform, setDeform] = useState<{ busy: boolean; note: string }>({ busy: false, note: "" });
+  const [zState, setZState] = useState<{ busy: boolean; note: string }>({ busy: false, note: "" });
   const candidates = all.filter((s) => primary && s.id !== primary.id && (!s.specialType || s.specialType === "image") && !s.isColor && s.slices.length > 0 && !!s.ipp && !!s.orientation && sameFrame(primary, s));
   const active = !!cfg;
   const set = (patch: Partial<FusionConfig>) => cfg && onChange({ ...cfg, ...patch });
@@ -40,6 +45,7 @@ export default function FusionControl({ all, primary, cfg, onChange, slice = 0 }
     if (!s) { onChange(null); return; }
     setAlign({ busy: false, note: "" });
     setDeform({ busy: false, note: "" });
+    setZState({ busy: false, note: "" });
     onChange({ seriesId: id, alpha: 0.5, cmap: s.modality === "PT" || s.modality === "NM" ? "hot" : "rainbow", loPct: s.modality === "PT" ? 15 : 20, hiPct: s.modality === "PT" ? 80 : 100 });
   };
   const setRigid = (patch: Partial<RigidParams>) => {
@@ -72,9 +78,18 @@ export default function FusionControl({ all, primary, cfg, onChange, slice = 0 }
       setAlign({ busy: false, note: "Hizalama için konum bilgisi (IPP/IOP) eksik." });
       return;
     }
-    const est = estimateRigid(ref, mov, primary.width, primary.height, { maxShift: 25, maxRotDeg: 12 });
-    onChange({ ...cfg, rigid: est.rigid, deform: null });
-    setAlign({ busy: false, note: rigidNote(est, rigidTrusted(est)) });
+    // Metrik modaliteye göre seçilir: aynı modalite → NCC (dönme/ölçek dahil),
+    // farklı modalite → MI (yalnız öteleme, çünkü yoğunluk ilişkisi doğrusal değil).
+    const metric = metricFor(primary.modality, other.modality);
+    if (metric === "mi") {
+      const mi = estimateTranslationMI(ref, mov, primary.width, primary.height, { maxShift: 25 });
+      onChange({ ...cfg, rigid: mi.rigid, deform: null });
+      setAlign({ busy: false, note: miNote(mi, miTrusted(mi)) });
+    } else {
+      const est = estimateRigid(ref, mov, primary.width, primary.height, { maxShift: 25, maxRotDeg: 12 });
+      onChange({ ...cfg, rigid: est.rigid, deform: null });
+      setAlign({ busy: false, note: rigidNote(est, rigidTrusted(est)) });
+    }
     setDeform({ busy: false, note: "" });
   };
   // Elastik (deforme) hizalama: katı hizalama sonrası yoğun yer değiştirme alanı.
@@ -95,6 +110,18 @@ export default function FusionControl({ all, primary, cfg, onChange, slice = 0 }
     const est = estimateDeform(ref, mov, primary.width, primary.height, { maxDisp: 12, grid: 7, search: 3 });
     onChange({ ...cfg, deform: est.improved ? est.field : null });
     setDeform({ busy: false, note: deformNote(est) });
+  };
+  // Kesitler arası (z) kayma: iki serinin kesitlerini konuma göre eşleyip NCC ile
+  // en iyi z ötelemesini arar (in-plane hizalama bunu düzeltemez).
+  const autoZ = async () => {
+    if (!cfg || !primary) return;
+    const other = all.find((x) => x.id === cfg.seriesId);
+    if (!other) return;
+    setZState({ busy: true, note: "Hesaplanıyor…" });
+    await new Promise((r) => setTimeout(r, 16));
+    const est = estimateSliceShift(primary, other, { maxShiftMm: 30 });
+    onChange({ ...cfg, zMm: est.improved ? est.dzMm : 0 });
+    setZState({ busy: false, note: zShiftNote(est) });
   };
   return (
     <div className="relative shrink-0">
@@ -161,6 +188,40 @@ export default function FusionControl({ all, primary, cfg, onChange, slice = 0 }
                   </div>
                   <div className="space-y-1 rounded border border-[#1e2735] px-2 py-1">
                     <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-slate-300">Kesit kayması (z)</span>
+                      <span className="font-mono text-[10px] text-slate-500">
+                        {Math.abs(cfg.zMm ?? 0) >= 0.01 ? `${(cfg.zMm ?? 0).toFixed(1)} mm` : "kapalı"}
+                      </span>
+                    </div>
+                    <label className="flex items-center justify-between gap-2">Kayma {(cfg.zMm ?? 0).toFixed(1)} mm
+                      <input
+                        type="range" min={-30} max={30} step={0.5} value={cfg.zMm ?? 0}
+                        onChange={(e) => { onChange({ ...cfg, zMm: Number(e.target.value) }); setZState({ busy: false, note: "" }); }}
+                        className="w-28" aria-label="Füzyon kesit kayması (z, mm)"
+                      />
+                    </label>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => void autoZ()}
+                        disabled={zState.busy}
+                        title="Kesitleri hasta konumuna göre eşleyip en iyi z kaymasını NCC ile ara"
+                        className="cursor-pointer rounded border border-violet-400/40 bg-violet-400/10 px-2 py-0.5 text-[10px] font-semibold text-violet-200 disabled:opacity-50"
+                      >
+                        {zState.busy ? "Hesaplanıyor…" : "Otomatik (z)"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { onChange({ ...cfg, zMm: 0 }); setZState({ busy: false, note: "" }); }}
+                        className="cursor-pointer rounded border border-[#2d3b4e] bg-[#111823] px-2 py-0.5 text-[10px] text-slate-300"
+                      >
+                        Sıfırla
+                      </button>
+                    </div>
+                    {zState.note && <p className="text-[10px] leading-snug text-violet-200/80">{zState.note}</p>}
+                  </div>
+                  <div className="space-y-1 rounded border border-[#1e2735] px-2 py-1">
+                    <div className="flex items-center justify-between gap-2">
                       <span className="font-semibold text-slate-300">Elastik (deforme)</span>
                       <span className="font-mono text-[10px] text-slate-500">
                         {cfg.deform && !isIdentityField(cfg.deform) ? `${cfg.deform.gw}×${cfg.deform.gh} ızgara` : "kapalı"}
@@ -186,7 +247,7 @@ export default function FusionControl({ all, primary, cfg, onChange, slice = 0 }
                     </div>
                     {deform.note && <p className="text-[10px] leading-snug text-teal-200/80">{deform.note}</p>}
                   </div>
-                  <p className="text-[10px] leading-relaxed text-slate-500">Eşikler, bindirilen serinin maksimumunun (%99,99) yüzdesidir. Otomatik katı hizalama kesit içi öteleme/dönme/ölçek kestirir; elastik hizalama ardından 7×7 düğümlü yer değiştirme alanı ekler (en çok 12 px, Gauss düzleştirmeli). Kesitler arası (z) kayma ve 3B hacim kaydı yoktur; farklı modalitelerde (BT↔MR) NCC güvenilmez, kazanç yoksa alan sıfırlanır. Sonuç tanı aracı değildir, görsel doğrulama gerekir.</p>
+                  <p className="text-[10px] leading-relaxed text-slate-500">Eşikler, bindirilen serinin maksimumunun (%99,99) yüzdesidir. Aynı modalitede otomatik hizalama NCC ile kesit içi öteleme/dönme/ölçek kestirir; farklı modalitede (ör. BT↔MR) **MI (karşılıklı bilgi)** kullanılır ve yalnız öteleme aranır. Elastik hizalama ardından 7×7 düğümlü alan ekler (en çok 12 px); kesit kayması (z) ayrı kestirilir. 3B hacim kaydı, eğim/eğrilik ve kesit aralığı değişimi YOKTUR; kazanç yoksa alan/kayma uygulanmaz. Sonuç tanı aracı değildir, görsel doğrulama gerekir.</p>
                 </>
               )}
             </div>
