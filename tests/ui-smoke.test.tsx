@@ -15,6 +15,7 @@ import NoduleTracker from "../src/components/NoduleTracker";
 import MeasureHistoryPanel from "../src/components/MeasureHistoryPanel";
 import LungQuantPanel from "../src/components/LungQuantPanel";
 import NuclearPanel from "../src/components/NuclearPanel";
+import TicPanel from "../src/components/TicPanel";
 import PatientLetterModal from "../src/components/PatientLetterModal";
 import type { SeriesData } from "../src/lib/types";
 
@@ -86,6 +87,14 @@ for (const marker of ["Nükleer tıp · MTV / SUV / TIC", "SUV çarpanı yok", "
 }
 assert.ok(nuc.includes('role="dialog"') && nuc.includes('aria-modal="true"'), "nükleer panel diyalog semantiği taşır");
 console.log("PASS nükleer tıp: panel SUV çarpanı olmadan uyarıyla render edilir.");
+
+// v-fusion: ROI tabanlı TIC paneli — ROI yokken yol gösteren boş durum render edilir.
+const tic = renderToStaticMarkup(<TicPanel series={chest} all={[chest]} slice={0} annotations={[]} onClose={() => {}} />);
+for (const marker of ["TIC · ROI zaman-yoğunluk eğrisi", "Bu kesitte ROI bulunamadı", "dikdörtgen", "elips", "poligon", "Series/Acquisition Time"]) {
+  assert.ok(tic.includes(marker), `TIC panelinde "${marker}" bulunmalı`);
+}
+assert.ok(tic.includes('role="dialog"') && tic.includes('aria-modal="true"'), "TIC paneli diyalog semantiği taşır (i-a11y)");
+console.log("PASS ROI TIC: panel ROI yokken yol gösteren durumla render edilir.");
 
 // d-patient-letter: hasta mektubu paneli SSR'da render edilir (dil/düzey seçicileri + taslak kilidi).
 const letterSource = {

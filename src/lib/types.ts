@@ -314,6 +314,8 @@ export interface SeriesData {
   pixelSpacing: number;
   sliceThickness: number;
   sliceSpacing?: number;
+  /** Seri/Acquisition Time (gün başlangıcından saniye) — TIC zaman ekseni için. */
+  seriesTime?: number | null;
   slicePositions?: number[];
   /** Kesit başına ImagePositionPatient [x,y,z] (mm), kesit sırasıyla. */
   ipp?: number[][];

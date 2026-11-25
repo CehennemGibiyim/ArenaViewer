@@ -57,6 +57,12 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   dosyaların varlığını dosya sisteminden doğrular; doğrulanmamış kaynaklar tabloda
   ⚠ ile işaretlenir. Adresler `npm run verify:sources` ile (ağ erişimiyle) yeniden
   kontrol edilebilir.
+- **ROI tabanlı TIC (`v-fusion`):** araç çubuğu → **📈 TIC**. Çizilen ROI (dikdörtgen/
+  elips/poligon) aynı çerçevedeki dinamik serilerin konumla eşlenen kesitlerine
+  uygulanır; zaman ekseni Series/Acquisition Time farkıdır. Eğri **wash-out (Tip 3) /
+  plato (Tip 2) / progresif (Tip 1)** olarak sınıflanır, faz tablosu + CSV + özet satırı
+  üretilir. Zaman etiketi yoksa yalnız faz sırası gösterilir ve sınıflama yapılmaz.
+  `test:tic-roi` (37 assert).
 - **Füzyon katı hizalaması:** PET/BT bindirmesinde kesit içi **öteleme + dönme +
   ölçek**; «Otomatik hizala (NCC)» kabadan inceye tarama yapar, kaydırıcılarla elle
   ince ayar yapılır. Deformable kayıt ve TIC eğrileri henüz yoktur; sonuç tanı
@@ -515,6 +521,7 @@ npm run test:fusion-rigid           # füzyon katı hizalaması: NCC kestirimi, 
 npm run test:gap-sources            # kıyaslama tablosu: her satırın kaynağı + dosya yollarının varlığı
 npm run test:photometric            # fotometri: MONO1/2, RGB/planar, YBR 4:2:2, palet LUT
 npm run test:photometric-e2e        # sentetik DICOM ile renkli/paletli/çok kareli içe aktarma
+npm run test:tic-roi                # ROI tabanlı TIC: faz eşleme, zaman ekseni, wash-out/plato/progresif
 npm run verify:sources              # (ağ gerekir) kaynak adreslerini yeniden doğrula
 npm run test:closeloop              # kapanış döngüsü süre/eskalasyon kuralları
 npm run test:followup               # takip görev kovaları + iade eşleme
