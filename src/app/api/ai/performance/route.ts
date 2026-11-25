@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 interface Row {
   engine: string;
   model: string;
+  cardVersion: string;
   category: string;
   shown: number;
   approved: number;
@@ -27,19 +28,25 @@ export async function GET(req: NextRequest) {
   // Aynı çalışma için tekrarlanan raporlar sonucu şişirmesin: son rapor (taslak dahil).
   const rs = await db.selectDistinctOn([reports.studyId], {
     f: reports.findingsJson, ap: reports.findingsApproval, e: reports.engine,
-    model: reports.aiModel, status: reports.status,
+    model: reports.aiModel, card: reports.modelCard, status: reports.status,
   }).from(reports).orderBy(asc(reports.studyId), desc(reports.id));
   const map = new Map<string, Row>();
   let draftReports = 0;
   for (const r of rs) {
     if (r.status !== "onaylandi") draftReports++;
+    // Kart bir istemci beyanıdır; çalıştırılan ağırlık dosyasının doğrulanmış sürümü değildir.
+    let cardVersion = "Bilinmiyor";
+    try {
+      const card = JSON.parse(r.card) as { version?: unknown } | null;
+      if (card && typeof card.version === "string" && card.version.trim()) cardVersion = card.version.trim().slice(0, 128);
+    } catch { /* Eski/bozuk kartlar bilinmiyor olarak ayrılır. */ }
     const findings = Array.isArray(r.f) ? r.f as Finding[] : [];
     const ap = r.ap && typeof r.ap === "object" && !Array.isArray(r.ap) ? r.ap as Record<string, FindingApprovalStatus> : {};
     for (const f of findings) {
       if (!f || typeof f !== "object" || f.category === "Sistem" || f.category === "ROI") continue;
       const engine = r.e || "Bilinmiyor", model = r.model || "Belirtilmemiş", category = f.category || "Belirtilmemiş";
-      const key = JSON.stringify([engine, model, category]);
-      const row = map.get(key) ?? { engine, model, category, shown: 0, approved: 0, rejected: 0, edited: 0, pending: 0, manualAdded: 0, approvalShare: null };
+      const key = JSON.stringify([engine, model, cardVersion, category]);
+      const row = map.get(key) ?? { engine, model, cardVersion, category, shown: 0, approved: 0, rejected: 0, edited: 0, pending: 0, manualAdded: 0, approvalShare: null };
       if (f.source === "manual") { row.manualAdded++; map.set(key, row); continue; }
       row.shown++;
       const status = ap[f.id] ?? "bekliyor";
@@ -57,6 +64,6 @@ export async function GET(req: NextRequest) {
     draftReports,
     // Eski API alanı korunur; hekim kararları gerçek etiket olmadığı için ECE hesaplanmaz.
     calibration: [],
-    note: "Yalnız her çalışmanın son raporu (taslaklar dahil) sayılır. Onay payı, yalnız onay ve ret verilen adaylar arasındaki iş akışı oranıdır; düzenlenen ve bekleyenler paydada yoktur. Klinik PPV, duyarlılık, özgüllük veya kalibrasyon değildir. Hekim eklemeleri doğrulanmış yanlış negatif sayısı değildir. Tekrarlanan analizler, seçilim yanlılığı ve model sürümü eksikliği sonuçları etkileyebilir.",
+    note: "Yalnız her çalışmanın son raporu (taslaklar dahil) sayılır. Onay payı, yalnız onay ve ret verilen adaylar arasındaki iş akışı oranıdır; düzenlenen ve bekleyenler paydada yoktur. Klinik PPV, duyarlılık, özgüllük veya kalibrasyon değildir. Hekim eklemeleri doğrulanmış yanlış negatif sayısı değildir. Kart sürümü raporda beyan edilen bilgidir, kullanılan ağırlığın kimliği doğrulanmamıştır. Tekrarlanan analizler ve seçilim yanlılığı sonuçları etkileyebilir.",
   }, { headers: { "Cache-Control": "no-store" } });
 }

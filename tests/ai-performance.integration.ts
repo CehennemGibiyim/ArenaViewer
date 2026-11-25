@@ -30,7 +30,7 @@ async function main() {
     const base = { engine: `test-${token}`, aiModel: "model-A" };
     await db.insert(reports).values([
       { studyId: studyIds[0], ...base, status: "onaylandi", findingsJson: [finding("old")], findingsApproval: { old: "reddedildi" } },
-      { studyId: studyIds[0], ...base, status: "taslak", findingsJson: [finding("a"), finding("b"), finding("c"), finding("d"), finding("m", "Hekim", "manual"), finding("system", "Sistem"), null], findingsApproval: { a: "onaylandi", b: "reddedildi", c: "duzenlendi" } },
+      { studyId: studyIds[0], ...base, status: "taslak", modelCard: JSON.stringify({version: "v1"}), findingsJson: [finding("a"), finding("b"), finding("c"), finding("d"), finding("m", "Hekim", "manual"), finding("system", "Sistem"), null], findingsApproval: { a: "onaylandi", b: "reddedildi", c: "duzenlendi" } },
       { studyId: studyIds[1], ...base, status: "onaylandi", aiModel: "model-B", findingsJson: [finding("e")], findingsApproval: { e: "onaylandi" } },
     ]);
     const response = await GET(request(userIds[0]));
@@ -38,6 +38,8 @@ async function main() {
     const data = await response.json();
     const rows = data.rows.filter((r: { engine: string }) => r.engine === base.engine);
     const a = rows.find((r: { model: string; category: string }) => r.model === "model-A" && r.category === "Nodul");
+    assert.equal(a.cardVersion, "v1");
+    assert.equal(rows.find((r: { model: string }) => r.model === "model-B").cardVersion, "Bilinmiyor");
     assert.deepEqual([a.shown, a.approved, a.rejected, a.edited, a.pending, a.approvalShare], [4, 1, 1, 1, 1, .5]);
     assert.equal(rows.find((r: { category: string }) => r.category === "Hekim").manualAdded, 1);
     assert.equal(rows.find((r: { model: string }) => r.model === "model-B").approvalShare, 1);

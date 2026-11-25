@@ -8,7 +8,7 @@ import { AUTH_LABELS, PACS_PRESETS, type PacsAuthType, type PacsConfig } from "@
 type Tab = "profile" | "users" | "audit" | "ai" | "stats" | "security" | "integration" | "compliance";
 interface AuditRow { id: number; ts: string; username: string; action: string; entityType: string; entityId: string; details: string; hash: string }
 interface UserRow { id: number; username: string; fullName: string; title: string; regNo: string; role: string; active: boolean; twoFactorEnabled: boolean; lastLoginAt: string | null }
-interface PerfRow { engine: string; model: string; category: string; shown: number; approved: number; rejected: number; edited: number; pending: number; manualAdded: number; approvalShare: number | null }
+interface PerfRow { engine: string; model: string; cardVersion: string; category: string; shown: number; approved: number; rejected: number; edited: number; pending: number; manualAdded: number; approvalShare: number | null }
 interface WorkflowStats {
   total: number; byStatus: Record<string, number>; byModality: Record<string, number>;
   approved: number; medianHours: number | null; p90Hours: number | null; meanHours: number | null;
@@ -447,12 +447,12 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
             {perf && <p className="text-xs text-slate-400">Son raporu bulunan çalışma: {perf.reportCount} · Son raporu taslak olan: {perf.draftReports}</p>}
             <div className={`${card} overflow-x-auto p-0`}>
               <table className="w-full text-[11.5px]">
-                <thead className="text-left text-slate-500"><tr>{["Motor", "Model (kayıtlı ad)", "Kategori", "Aday", "Onaylanan", "Reddedilen", "Düzenlenen", "Bekleyen", "Onay payı (onay / onay + ret)", "Hekim eklemesi"].map((h) => <th key={h} className="border-b border-[#1a2230] px-3 py-2 font-semibold">{h}</th>)}</tr></thead>
+                <thead className="text-left text-slate-500"><tr>{["Motor", "Model (kayıtlı ad)", "Kart sürümü (beyan)", "Kategori", "Aday", "Onaylanan", "Reddedilen", "Düzenlenen", "Bekleyen", "Onay payı (onay / onay + ret)", "Hekim eklemesi"].map((h) => <th key={h} className="border-b border-[#1a2230] px-3 py-2 font-semibold">{h}</th>)}</tr></thead>
                 <tbody>
-                  {perf && perf.rows.length === 0 && <tr><td colSpan={10} className="px-3 py-6 text-center text-slate-500">Henüz hekim geri bildirimi yok. Raporlarda bulguları Onayla/Reddet olarak işaretledikçe dolar.</td></tr>}
+                  {perf && perf.rows.length === 0 && <tr><td colSpan={11} className="px-3 py-6 text-center text-slate-500">Henüz hekim geri bildirimi yok. Raporlarda bulguları Onayla/Reddet olarak işaretledikçe dolar.</td></tr>}
                   {(perf?.rows ?? []).map((r) => (
-                    <tr key={JSON.stringify([r.engine, r.model, r.category])} className="hover:bg-[#101722]">
-                      <td className="border-b border-[#141b26] px-3 py-2 font-mono text-cyan-300">{r.engine}</td><td className="border-b border-[#141b26] px-3 py-2">{r.model}</td><td className="border-b border-[#141b26] px-3 py-2">{r.category}</td>
+                    <tr key={JSON.stringify([r.engine, r.model, r.cardVersion, r.category])} className="hover:bg-[#101722]">
+                      <td className="border-b border-[#141b26] px-3 py-2 font-mono text-cyan-300">{r.engine}</td><td className="border-b border-[#141b26] px-3 py-2">{r.model}</td><td className="border-b border-[#141b26] px-3 py-2">{r.cardVersion}</td><td className="border-b border-[#141b26] px-3 py-2">{r.category}</td>
                       <td className="border-b border-[#141b26] px-3 py-2">{r.shown}</td><td className="border-b border-[#141b26] px-3 py-2 text-emerald-300">{r.approved}</td><td className="border-b border-[#141b26] px-3 py-2 text-rose-300">{r.rejected}</td><td className="border-b border-[#141b26] px-3 py-2 text-amber-300">{r.edited}</td><td className="border-b border-[#141b26] px-3 py-2">{r.pending}</td>
                       <td className="border-b border-[#141b26] px-3 py-2 font-bold">{r.approvalShare === null ? "—" : `%${Math.round(r.approvalShare * 100)}`}</td><td className="border-b border-[#141b26] px-3 py-2">{r.manualAdded}</td>
                     </tr>
