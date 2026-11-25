@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { reports, studies } from "@/db/schema";
 import { authorize } from "@/lib/server/auth";
-import { summarizeStats } from "@/lib/workflowStats";
+import { summarizeStats, tatAlerts, tatTarget, weeklyTrend } from "@/lib/workflowStats";
 
 export const dynamic = "force-dynamic";
 
@@ -25,8 +25,19 @@ export async function GET(req: NextRequest) {
     .from(reports)
     .innerJoin(studies, eq(reports.studyId, studies.id));
 
+  const stats = summarizeStats(rows);
+  // Hedef TAT: yönetici ayarı yoksa 24 saat (f-tat). ?targetHours= ile sorgulanabilir.
+  const targetParam = Number(req.nextUrl.searchParams.get("targetHours") ?? "");
+  const targetHours = Number.isFinite(targetParam) && targetParam > 0 ? Math.min(720, targetParam) : 24;
+  const modality = (req.nextUrl.searchParams.get("modality") ?? "").trim();
+  const weekly = weeklyTrend(rows, 8, new Date(), modality || undefined);
+  const target = tatTarget(stats.medianHours, targetHours);
   return NextResponse.json({
-    stats: summarizeStats(rows),
-    note: "TAT = onaylanma − oluşturulma; eksik/negatif ölçümler dışlanır.",
+    stats,
+    weekly,
+    target,
+    alerts: tatAlerts(weekly, target, stats.staleDrafts.count),
+    trendModality: modality,
+    note: "TAT = onaylanma − oluşturulma; eksik/negatif ölçümler dışlanır. Haftalık trend onaylanma tarihine göredir.",
   });
 }

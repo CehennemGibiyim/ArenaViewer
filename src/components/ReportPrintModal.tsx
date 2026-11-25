@@ -9,6 +9,7 @@ import { pickStyleSample } from "@/lib/styleProfile";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fmtConf } from "@/lib/format";
 import StructuredScorePanel from "@/components/StructuredScorePanel";
+import PatientLetterModal from "@/components/PatientLetterModal";
 import { PEER_RESULTS, RESULT_LABELS, type PeerResult } from "@/lib/peerReview";
 import { SHARE_TTL_HOURS, shareState } from "@/lib/share";
 import { MACRO_GROUPS, macroById, macrosByGroup, type MacroGroup } from "@/lib/macros";
@@ -161,6 +162,8 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
   const [editing, setEditing] = useState(false);
   const [dialog, setDialog] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Hasta mektubu (d-patient-letter)
+  const [letterOpen, setLetterOpen] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
@@ -514,6 +517,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
             {report.id && <button type="button" onClick={() => { setSigOpen((v) => !v); setSigMsg(""); if (!sigOpen) void loadSignatures(report.id!); }} title="Elektronik imza kaydı (NES değildir; içerik SHA-256 ile mühürlenir)" className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${sigOpen ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-200" : "cursor-pointer border-[#2d3b4e] bg-[#141b24] text-slate-200 hover:bg-[#1a2330]"}`}>✍ İmza kaydı</button>}
             {report.id && <button type="button" onClick={() => void downloadFhir(report.id!)} disabled={!approved} title={approved ? "FHIR DiagnosticReport indir" : "Sadece radyoloji uzmanı onayı sonrası alınabilir"} className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${approved ? "cursor-pointer border-[#2d3b4e] bg-[#141b24] text-slate-200 hover:bg-[#1a2330]" : "cursor-not-allowed border-[#2d3b4e] bg-[#141b24]/50 text-slate-500 opacity-60"}`}>FHIR ⬇</button>}
             {report.id && <button type="button" onClick={() => void sendToPacs(report.id!)} disabled={!approved || busy} title={approved ? "Raporu DICOM SR olarak yapılandırılmış PACS'e gönder (STOW-RS)" : "Sadece radyoloji uzmanı onayı sonrası gönderilebilir"} className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${approved ? "cursor-pointer border-violet-400/50 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20" : "cursor-not-allowed border-[#2d3b4e] bg-[#141b24]/50 text-slate-500 opacity-60"}`}>PACS’e gönder ⇧</button>}
+            <button onClick={() => setLetterOpen(true)} title="Hasta dostu sonuç mektubu (TR/EN/DE, sade dil)" className="cursor-pointer rounded-lg border border-emerald-400/50 px-3 py-1.5 text-xs font-bold text-emerald-200 hover:bg-emerald-400/10">💬 Hasta mektubu</button>
             <button onClick={approved ? printReport : undefined} disabled={!approved} title={approved ? "Yazdır / PDF olarak kaydet" : "Sadece radyoloji uzmanı onayı sonrası alınabilir"} className={`rounded-lg px-3.5 py-1.5 text-xs font-bold ${approved ? "cursor-pointer bg-cyan-500 text-slate-950 hover:bg-cyan-400" : "cursor-not-allowed bg-slate-600 text-slate-400 opacity-60"}`}>🖨 Yazdır / PDF</button>
             <button onClick={onClose} className="cursor-pointer rounded-lg border border-[#2d3b4e] bg-[#141b24] p-1.5 text-xs text-slate-400 hover:text-slate-100">✕</button>
           </div>
@@ -888,6 +892,24 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
             {pending > 0 && <div className="mt-2 text-[11px] text-amber-300">{pending} bulgu gözden geçirilmedi.</div>}
           </div>
         </div>
+      )}
+      {letterOpen && (
+        <PatientLetterModal
+          source={{
+            patientName: report.patientName,
+            studyDate: report.studyDate,
+            modality: report.modality,
+            bodyPart: report.bodyPart,
+            findingsText: report.findingsText,
+            impression: report.impression,
+            recommendation: report.recommendation,
+            institution: report.institution,
+            approvedBy: report.approvedBy,
+            doctorTitle: report.doctorTitle,
+            approved: report.status === "onaylandi",
+          }}
+          onClose={() => setLetterOpen(false)}
+        />
       )}
     </div>
   );

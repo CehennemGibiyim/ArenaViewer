@@ -31,6 +31,49 @@ export const users = pgTable("users", {
   lastLoginAt: timestamp("last_login_at"),
 });
 
+/**
+ * Sunucu taraflı oturum kaydı (w-auth / f-kimlik-rbac).
+ *
+ * Çerez yalnızca `sid` (rastgele kimlik) ve uid taşır; bu tablodaki satır
+ * iptal edilirse (`revoked_at`) imzalı çerez teknik olarak geçerli olsa bile
+ * istek reddedilir. Böylece "açık oturumları listele / bu cihazı kapat /
+ * tümünü kapat" gerçek anlamda çalışır.
+ *
+ * `id_hash`: oturum kimliğinin SHA-256'sı saklanır (veritabanı sızarsa çerez
+ * kimlikleri doğrudan kullanılamaz).
+ */
+export const userSessions = pgTable(
+  "user_sessions",
+  {
+    id: serial("id").primaryKey(),
+    idHash: text("id_hash").notNull().unique(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    lastSeenAt: timestamp("last_seen_at").notNull().defaultNow(),
+    expiresAt: timestamp("expires_at").notNull(),
+    revokedAt: timestamp("revoked_at"),
+    ip: text("ip").notNull().default(""),
+    userAgent: text("user_agent").notNull().default(""),
+  },
+  (t) => [index("user_sessions_user_idx").on(t.userId), index("user_sessions_exp_idx").on(t.expiresAt)]
+);
+
+/** Giriş denemeleri — kaba kuvvet kilidi (lockout) ve denetim için. */
+export const loginAttempts = pgTable(
+  "login_attempts",
+  {
+    id: serial("id").primaryKey(),
+    username: text("username").notNull().default(""),
+    ip: text("ip").notNull().default(""),
+    ok: boolean("ok").notNull().default(false),
+    at: timestamp("at").notNull().defaultNow(),
+    reason: text("reason").notNull().default(""),
+  },
+  (t) => [index("login_attempts_user_idx").on(t.username, t.at)]
+);
+
 export const auditLogs = pgTable(
   "audit_logs",
   {
@@ -197,6 +240,63 @@ export const studyState = pgTable(
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (t) => [uniqueIndex("study_state_uq").on(t.studyUid, t.seriesKey)]
+);
+
+/**
+ * Model kayıt defteri (a-modelops): her model sürümü için aşama (aday/aktif/emekli)
+ * ve A/B trafik oranı. Aşama değişiklikleri denetim izine yazılır; kayıt defteri
+ * yalnız yönetici tarafından değiştirilir.
+ */
+export const aiModelRegistry = pgTable(
+  "ai_model_registry",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    version: text("version").notNull(),
+    modality: text("modality").notNull().default(""),
+    task: text("task").notNull().default(""),
+    /** aday | aktif | emekli */
+    stage: text("stage").notNull().default("aday"),
+    /** A/B trafik payı (0–100) */
+    trafficPercent: real("traffic_percent").notNull().default(0),
+    fingerprint: text("fingerprint").notNull().default(""),
+    notes: text("notes").notNull().default(""),
+    createdBy: integer("created_by"),
+    updatedBy: integer("updated_by"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("ai_model_registry_uq").on(t.name, t.version),
+    index("ai_model_registry_task_idx").on(t.task, t.stage),
+  ]
+);
+
+/**
+ * Ölçüm geçmişi (c-measure-history): hasta + tarih + lezyon başına tek ölçüm.
+ * Nodül takibi panelinin tarayıcı kaydına ek olarak sunucuda kalıcı ve paylaşımlı
+ * geçmiş tutulur; aynı üçlü yeniden gönderilirse satır güncellenir.
+ */
+export const measurementHistory = pgTable(
+  "measurement_history",
+  {
+    id: serial("id").primaryKey(),
+    patientId: text("patient_id").notNull(),
+    patientName: text("patient_name").notNull().default(""),
+    studyDate: text("study_date").notNull(),
+    label: text("label").notNull(),
+    anatomy: text("anatomy").notNull().default(""),
+    kind: text("kind").notNull().default(""),
+    longMm: real("long_mm").notNull(),
+    hu: real("hu"),
+    suv: real("suv"),
+    createdBy: integer("created_by"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("measurement_history_uq").on(t.patientId, t.studyDate, t.label),
+    index("measurement_history_patient_idx").on(t.patientId, t.studyDate),
+  ]
 );
 
 export const storedFiles = pgTable("stored_files", {

@@ -300,38 +300,64 @@ export function parsePresentationState(ds: DicomDataSet): DicomGSPS | null {
 
 // ───────────── 6. Palette Color Lookup Table (LUT) ─────────────
 
+/**
+ * Palet tanımlayıcısını (numEntries, firstMapped, bitsPerEntry) okur.
+ *
+ * Tanımlayıcı **US (bazen SS)** VR'ındadır; `ds.string()` metin olmayan VR'da
+ * yalnız ilk baytı döndürdüğü için ikili okuma gerekir. Eski metin biçimi de
+ * (test/üretici hatası) desteklenir.
+ */
+function readLutDescriptor(ds: DicomDataSet, tag: string): [number, number, number] | null {
+  const el = ds.elements[tag];
+  if (!el) return null;
+  const s = ds.string(tag);
+  if (s && s.includes("\\")) {
+    const p = s.split("\\").map((x) => Number(x.trim()));
+    if (p.length >= 3 && p.slice(0, 3).every((n) => Number.isFinite(n))) return [p[0], p[1], p[2]];
+  }
+  if (el.length >= 6) {
+    const buf = ds.byteArray.buffer as ArrayBuffer;
+    const dv = new DataView(buf, ds.byteArray.byteOffset + el.dataOffset, Math.min(el.length, 6));
+    const signed = el.vr === "SS";
+    const rd = (o: number) => (signed ? dv.getInt16(o, true) : dv.getUint16(o, true));
+    return [rd(0), rd(2), rd(4)];
+  }
+  return null;
+}
+
 export function parsePaletteColorLUT(ds: DicomDataSet): PaletteColorLUT | null {
-  const rDesc = ds.string("x00281101");
-  const gDesc = ds.string("x00281102");
-  const bDesc = ds.string("x00281103");
   const rData = ds.elements["x00281201"];
   const gData = ds.elements["x00281202"];
   const bData = ds.elements["x00281203"];
+  const desc = readLutDescriptor(ds, "x00281101");
+  if (!desc || !rData || !gData || !bData) return null;
 
-  if (!rDesc || !gDesc || !bDesc || !rData || !gData || !bData) return null;
-
-  const [numEntriesRaw, firstMappedRaw, bitsRaw] = rDesc.split("\\").map(Number);
+  const [numEntriesRaw, firstMappedRaw, bitsRaw] = desc;
   const numEntries = numEntriesRaw === 0 ? 65536 : numEntriesRaw || 256;
   const firstMapped = firstMappedRaw || 0;
-  const bits = bitsRaw || 8;
+  const bits = bitsRaw === 16 ? 16 : 8;
 
   const buf = ds.byteArray.buffer as ArrayBuffer;
   const rOffset = ds.byteArray.byteOffset + rData.dataOffset;
   const gOffset = ds.byteArray.byteOffset + gData.dataOffset;
   const bOffset = ds.byteArray.byteOffset + bData.dataOffset;
 
-  const r: Uint8Array | Uint16Array =
-    bits === 16
-      ? new Uint16Array(buf, rOffset, Math.min(numEntries, Math.floor(rData.length / 2)))
-      : new Uint8Array(buf, rOffset, Math.min(numEntries, rData.length));
-  const g: Uint8Array | Uint16Array =
-    bits === 16
-      ? new Uint16Array(buf, gOffset, Math.min(numEntries, Math.floor(gData.length / 2)))
-      : new Uint8Array(buf, gOffset, Math.min(numEntries, gData.length));
-  const b: Uint8Array | Uint16Array =
-    bits === 16
-      ? new Uint16Array(buf, bOffset, Math.min(numEntries, Math.floor(bData.length / 2)))
-      : new Uint8Array(buf, bOffset, Math.min(numEntries, bData.length));
+  // LUT Data çoğunlukla OW (16-bit kap) olarak yazılır; 8-bit girdiler bu kabın
+  // ALT baytındadır (PS3.3 C.7.6.3.1.6). Kabı VR/uzunluktan çıkarıyoruz.
+  const wide = (d: { vr?: string; length: number }) => bits === 16 || d.length >= numEntries * 2;
+  const readChannel = (offset: number, el: { vr?: string; length: number }): Uint8Array | Uint16Array => {
+    if (wide(el)) {
+      const words = new Uint16Array(buf, offset, Math.min(numEntries, Math.floor(el.length / 2)));
+      if (bits === 16) return words;
+      const bytes = new Uint8Array(numEntries);
+      for (let i = 0; i < Math.min(numEntries, words.length); i++) bytes[i] = words[i] & 0xff;
+      return bytes;
+    }
+    return new Uint8Array(buf, offset, Math.min(numEntries, el.length));
+  };
+  const r = readChannel(rOffset, rData);
+  const g = readChannel(gOffset, gData);
+  const b = readChannel(bOffset, bData);
 
   return {
     numEntries,

@@ -18,6 +18,16 @@ import {
   SOP_PREFIX_ECG,
   SOP_PREFIX_SR,
 } from "./dicomSpecial";
+import {
+  colorToRgba,
+  deplanarize,
+  isColorPhotometric,
+  isSubsampled,
+  isYbr,
+  monochrome1Invert,
+  paletteToRgba,
+  upsampleSubsampled,
+} from "./photometric";
 
 const TAG_NAMES: Record<string, string> = {
   x00020010: "Transfer Syntax UID", x00080008: "Image Type", x00080016: "SOP Class UID",
@@ -106,25 +116,30 @@ function readNative(ds: DicomDataSet, info: PixelInfo, bigEndian: boolean): RawF
   const buf = ds.byteArray.buffer as ArrayBuffer;
   const base = ds.byteArray.byteOffset + el.dataOffset;
   const limit = ds.byteArray.byteOffset + ds.byteArray.byteLength;
-  const per = info.rows * info.cols * info.samples;
+  const pixels = info.rows * info.cols;
+  const per = pixels * info.samples;
   const bytesPer = info.bitsAllocated >> 3;
+  // Native 4:2:2 / 4:2:0: piksel başına 2 (422) veya 1,5 (420) bayt, 8 bit.
+  const subsampled = bytesPer === 1 && info.samples === 3 && isSubsampled(info.photometric);
+  const sub420 = subsampled && /_420$/.test(info.photometric);
+  const bytesPerFrame = subsampled
+    ? sub420
+      ? Math.ceil(pixels / 4) * 6
+      : Math.ceil(pixels / 2) * 4
+    : per * bytesPer;
   const out: RawFrame[] = [];
 
   for (let f = 0; f < info.frames; f++) {
-    const offset = base + f * per * bytesPer;
-    if (offset + per * bytesPer > limit) break;
+    const offset = base + f * bytesPerFrame;
+    if (offset + bytesPerFrame > limit) break;
+    if (subsampled) {
+      const packed = new Uint8Array(buf.slice(offset, offset + bytesPerFrame));
+      out.push(upsampleSubsampled(packed, pixels, sub420));
+      continue;
+    }
     if (bytesPer === 1) {
-      let arr = new Uint8Array(buf.slice(offset, offset + per));
-      if (info.samples === 3 && info.planar) {
-        const px = info.rows * info.cols;
-        const inter = new Uint8Array(per);
-        for (let i = 0; i < px; i++) {
-          inter[i * 3] = arr[i];
-          inter[i * 3 + 1] = arr[px + i];
-          inter[i * 3 + 2] = arr[2 * px + i];
-        }
-        arr = inter;
-      }
+      let arr: Uint8Array | Uint16Array | Float32Array = new Uint8Array(buf.slice(offset, offset + per));
+      if (info.samples === 3 && info.planar) arr = deplanarize(arr, pixels, 3) as Uint8Array;
       out.push(arr);
     } else {
       const copy = new Uint8Array(buf.slice(offset, offset + per * 2));
@@ -135,7 +150,8 @@ function readNative(ds: DicomDataSet, info: PixelInfo, bigEndian: boolean): RawF
           copy[i + 1] = t;
         }
       }
-      out.push(info.pixelRep === 1 ? new Int16Array(copy.buffer) : new Uint16Array(copy.buffer));
+      const typed = info.pixelRep === 1 ? new Int16Array(copy.buffer) : new Uint16Array(copy.buffer);
+      out.push(info.samples === 3 && info.planar ? (deplanarize(typed, pixels, 3, new Uint16Array(per)) as Uint16Array) : typed);
     }
   }
   return out;
@@ -143,47 +159,16 @@ function readNative(ds: DicomDataSet, info: PixelInfo, bigEndian: boolean): RawF
 
 /** Palette Color LUT ile 32-bit RGBA tamponu oluşturur. */
 function applyPaletteColor(raw: RawFrame, lut: PaletteColorLUT, n: number): Uint32Array {
-  const rgba = new Uint32Array(n);
-  const { r, g, b, firstMapped, numEntries } = lut;
-
-  for (let i = 0; i < n; i++) {
-    const idx = raw[i];
-    const mappedIdx = Math.max(0, Math.min(numEntries - 1, idx - firstMapped));
-    const red = r[mappedIdx] || 0;
-    const green = g[mappedIdx] || 0;
-    const blue = b[mappedIdx] || 0;
-
-    // Convert to 8-bit if 16-bit LUT
-    const r8 = lut.bits === 16 ? red >> 8 : red;
-    const g8 = lut.bits === 16 ? green >> 8 : green;
-    const b8 = lut.bits === 16 ? blue >> 8 : blue;
-
-    rgba[i] = 0xff000000 | (b8 << 16) | (g8 << 8) | r8;
-  }
-
-  return rgba;
+  return paletteToRgba(raw as ArrayLike<number>, lut);
 }
 
 /** True Color RGB tamponunu 32-bit RGBA tamponuna çevirir. */
-function buildColorRgba(raw: RawFrame, n: number, ybrRaw: boolean): Uint32Array {
-  const rgba = new Uint32Array(n);
-  for (let i = 0; i < n; i++) {
-    const r = raw[i * 3];
-    const g = raw[i * 3 + 1];
-    const b = raw[i * 3 + 2];
-
-    let r8 = r, g8 = g, b8 = b;
-    if (ybrRaw) {
-      // YCbCr to RGB conversion if needed
-      const y = r, cb = g - 128, cr = b - 128;
-      r8 = Math.max(0, Math.min(255, y + 1.402 * cr));
-      g8 = Math.max(0, Math.min(255, y - 0.344136 * cb - 0.714136 * cr));
-      b8 = Math.max(0, Math.min(255, y + 1.772 * cb));
-    }
-
-    rgba[i] = 0xff000000 | (b8 << 16) | (g8 << 8) | r8;
-  }
-  return rgba;
+function buildColorRgba(raw: RawFrame, n: number, ybrRaw: boolean, opts?: { photometric?: string; bitsStored?: number }): Uint32Array {
+  return colorToRgba(raw as ArrayLike<number>, n, {
+    photometric: opts?.photometric ?? "RGB",
+    bitsStored: opts?.bitsStored ?? 8,
+    convertYbr: ybrRaw,
+  });
 }
 
 /** Gri tonlamaya çevir, bit maskesi/işaret uygula, Rescale Slope/Intercept uygula, kompakt tipe paketle. */
@@ -202,7 +187,7 @@ function toPixels(
   if (paletteLut && info.photometric === "PALETTE COLOR") {
     rgba = applyPaletteColor(raw, paletteLut, n);
   } else if (info.samples >= 3) {
-    rgba = buildColorRgba(raw, n, ybrRaw);
+    rgba = buildColorRgba(raw, n, ybrRaw, { photometric: info.photometric, bitsStored: info.bitsStored });
   }
 
   const out = new Float32Array(n);
@@ -686,16 +671,10 @@ export async function loadMedicalFiles(
     // MONOCHROME1 → MONOCHROME2
     let invK: number | null = null;
     if (!isColor && list[0].photometric === "MONOCHROME1") {
-      let mn = Infinity;
-      let mx = -Infinity;
-      for (const s of slices) for (let i = 0; i < s.length; i++) { if (s[i] < mn) mn = s[i]; if (s[i] > mx) mx = s[i]; }
-      const k = mx + mn;
-      invK = k;
-      slices = slices.map((s) => {
-        const o = s instanceof Float32Array ? new Float32Array(s.length) : new Int16Array(s.length);
-        for (let i = 0; i < s.length; i++) o[i] = k - s[i];
-        return o;
-      });
+      // Tüm kesitlerde tek sabit (max+min) ile ters çevirme; tip korunur.
+      const inv = monochrome1Invert(slices);
+      invK = inv.k;
+      slices = inv.frames;
     }
 
     let defaultWL = wl !== undefined ? (invK !== null ? invK - wl : wl) : 0;
@@ -747,6 +726,7 @@ export async function loadMedicalFiles(
       defaultWW,
       unit: isColor ? "RGB" : modality === "CT" ? "HU" : modality === "PT" ? (first.string("x00541001")?.trim() || "SI") : "SI",
       photometric: list[0].photometric,
+      paletteLut: list[0].photometric === "PALETTE COLOR" ? parsePaletteColorLUT(first) ?? undefined : undefined,
       isColor,
       rgbaSlices,
       overlays: allOverlays.length > 0 ? allOverlays : undefined,

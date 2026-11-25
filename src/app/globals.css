@@ -31,6 +31,63 @@ input[type="range"]::-webkit-slider-thumb {
   box-shadow: 0 0 8px rgba(34, 211, 238, 0.6);
 }
 
+
+/* ── Erişilebilirlik (i-a11y) ─────────────────────────────────────────────── */
+
+/* Klavye odağı her yerde görünür (fare odağında çerçeve çizilmez). */
+:focus-visible {
+  outline: 2px solid #67e8f9;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* "İçeriğe geç" bağlantısı: odaklanana kadar gizli. */
+.skip-link {
+  position: fixed;
+  top: 4px;
+  left: 4px;
+  z-index: 200;
+  transform: translateY(-200%);
+  background: #0b1018;
+  color: #e2e8f0;
+  border: 1px solid #67e8f9;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  transition: transform 120ms ease-out;
+}
+.skip-link:focus-visible,
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+/* Yüksek kontrast teması: ikincil/etiket metinleri AA normal metin eşiğine çıkar. */
+.hc .text-slate-500 { color: #cbd5e1 !important; }
+.hc .text-slate-600 { color: #cbd5e1 !important; }
+.hc .text-slate-400 { color: #e2e8f0 !important; }
+.hc .text-slate-300 { color: #f1f5f9 !important; }
+.hc .text-slate-100,
+.hc .text-slate-200 { color: #ffffff !important; }
+.hc .text-amber-300\/80,
+.hc .text-amber-300 { color: #fde68a !important; }
+.hc .text-cyan-200,
+.hc .text-cyan-300 { color: #a5f3fc !important; }
+.hc [class*="opacity-4"],
+.hc [class*="opacity-5"] { opacity: 1 !important; }
+
+/* Hareket azaltma tercihi: geçiş/animasyonları kapat. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 details > summary::-webkit-details-marker { display: none; }
 
 /* Yazdırma: yalnızca A4 rapor kâğıdı. Kâğıt, ReportPrintModal.printReport ile body'ye eklenen

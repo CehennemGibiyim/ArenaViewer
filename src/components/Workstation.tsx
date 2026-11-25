@@ -18,6 +18,11 @@ import SRViewer from "./SRViewer";
 import PDFViewer from "./PDFViewer";
 import ECGViewer from "./ECGViewer";
 import HangingProtocolEditorModal from "./HangingProtocolEditorModal";
+import SegEditor from "./SegEditor";
+import LungQuantPanel from "./LungQuantPanel";
+import NuclearPanel from "./NuclearPanel";
+import { HIGH_CONTRAST_CLASS, HIGH_CONTRAST_STORAGE_KEY, SKIP_LINK_LABEL } from "@/lib/a11y";
+import { canMirror, metaOf, MIRROR_CHANNEL, MIRROR_PATH, type MirrorMessage, type MirrorState } from "@/lib/mirror";
 import ViewerErrorBoundary from "./ViewerErrorBoundary";
 import FileSelectControl from "./FileSelectControl";
 import { APP_BUILD } from "./ClientRecovery";
@@ -186,6 +191,12 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [tool, setTool] = useState<ToolName>("wl");
   /** MSK ölçüm yardımcısı: seçili protokol, toplanan nokta sayısı ve sonuçlar. */
+  // Yüksek kontrast teması (i-a11y) — cihazda saklanır
+  const [highContrast, setHighContrast] = useState(false);
+  // Nükleer tıp analizi (a-nm)
+  const [nuclearOpen, setNuclearOpen] = useState(false);
+  // Akciğer kantitasyonu (a-lungquant)
+  const [lungQuantOpen, setLungQuantOpen] = useState(false);
   const [mskProtocolId, setMskProtocolId] = useState<string | null>(null);
   const [mskPointCount, setMskPointCount] = useState(0);
   const [mskResults, setMskResults] = useState<MskMetric[] | null>(null);
@@ -193,6 +204,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   const [fusionCfg, setFusionCfg] = useState<FusionConfig | null>(null);
   const [refLinesOn, setRefLinesOn] = useState(true);
   const [noduleOpen, setNoduleOpen] = useState(false);
+  const [segOpen, setSegOpen] = useState(false);
   const [rotation, setRotation] = useState<Rot>(0);
   const [flipH, setFlipH] = useState(false);
   const [flipV, setFlipV] = useState(false);
@@ -295,6 +307,24 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   const resolved = series ? resolveProtocol(series, protocol) : "none";
   const reportStatus: "taslak" | "onaylandi" = activeReport && series && activeReport.studyUid === series.studyUid ? activeReport.status : "taslak";
 
+  useEffect(() => {
+    // Tercihi cihazdan oku ve <html>'e uygula. Durum yalnız mikro görevde
+    // güncellenir (React Compiler: efekt gövdesinde eşzamanlı setState yok).
+    let on = false;
+    try { on = localStorage.getItem(HIGH_CONTRAST_STORAGE_KEY) === "1"; } catch { /* depolama kapalı */ }
+    document.documentElement.classList.toggle(HIGH_CONTRAST_CLASS, on);
+    if (on) queueMicrotask(() => setHighContrast(true));
+  }, []);
+
+  const toggleHighContrast = useCallback(() => {
+    setHighContrast((prev) => {
+      const next = !prev;
+      document.documentElement.classList.toggle(HIGH_CONTRAST_CLASS, next);
+      try { localStorage.setItem(HIGH_CONTRAST_STORAGE_KEY, next ? "1" : "0"); } catch { /* yoksay */ }
+      return next;
+    });
+  }, []);
+
   const toast = useCallback((m: string, ms = 5000) => {
     setToastMsg(m);
     if (ms) setTimeout(() => setToastMsg((c) => (c === m ? "" : c)), ms);
@@ -305,7 +335,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   useEffect(() => {
     const close = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      setMpr(false); setHangingModalOpen(false); setWorklistOpen(false); setPngImage(null); setReportOpen(false);
+      setMpr(false); setHangingModalOpen(false); setWorklistOpen(false); setPngImage(null); setReportOpen(false); setLungQuantOpen(false); setNuclearOpen(false);
     };
     window.addEventListener("keydown", close);
     return () => window.removeEventListener("keydown", close);
@@ -827,6 +857,78 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
       else toast("Bu önizleme tam ekran izni vermiyor. Uygulamayı yeni sekmede açabilirsiniz.");
     } catch { toast("Tarayıcı tam ekran iznini engelledi. Yeni sekmede tekrar deneyebilirsiniz."); }
   };
+
+  // ───── İkinci ekran (v-multimon) ─────
+  // Ana pencere seriyi ve görünüm durumunu BroadcastChannel ile yayınlar; alıcı
+  // `/ayna` penceresidir. Veri sunucuya gitmez, yalnız aynı kökenli pencereler görür.
+  const mirrorChRef = useRef<BroadcastChannel | null>(null);
+  const [mirrorOn, setMirrorOn] = useState(false);
+
+  const toggleMirror = () => {
+    if (mirrorChRef.current) {
+      mirrorChRef.current.postMessage({ type: "bye" } satisfies MirrorMessage);
+      mirrorChRef.current.close();
+      mirrorChRef.current = null;
+      setMirrorOn(false);
+      toast("İkinci ekran yayını durduruldu.");
+      return;
+    }
+    const guard = canMirror(series);
+    if (!guard.ok) { toast(guard.reason ?? "Yayın yapılamıyor."); return; }
+    const w = window.open(MIRROR_PATH, "atikviewer-mirror", "width=1280,height=900");
+    if (!w) { toast("Tarayıcı açılır pencereyi engelledi; /ayna adresini yeni pencerede açın.", 7000); return; }
+    try {
+      mirrorChRef.current = new BroadcastChannel(MIRROR_CHANNEL);
+      setMirrorOn(true);
+      toast("İkinci ekran açıldı — pencereyi başka bir monitöre sürükleyebilirsiniz.", 6000);
+    } catch {
+      toast("Bu tarayıcı çoklu pencere yayınını desteklemiyor.");
+    }
+  };
+
+  // Seri değişiminde yalnız künye (piksel yok), ardından görüntülenen kesit.
+  useEffect(() => {
+    const bc = mirrorChRef.current;
+    if (!bc || !mirrorOn || !series) return;
+    const guard = canMirror(series);
+    if (!guard.ok) {
+      void (async () => { if (guard.reason) toast(guard.reason, 7000); })();
+      return;
+    }
+    const state: MirrorState = { slice, wl, ww, invert, zoom, pan, label: `${series.modality} · ${series.description}` };
+    bc.postMessage({ type: "series", series: metaOf(series), state } satisfies MirrorMessage);
+    // Kesit pikselleri ayrı efektten gider (aynı karede iki kez gönderilmesin).
+  }, [series, mirrorOn, wl, ww, zoom, pan, slice, invert, toast]);
+
+  // Kesit değişince yalnız o kesidin pikselleri gider (tüm seri değil).
+  const mirrorSliceRef = useRef<string>("");
+  useEffect(() => {
+    const bc = mirrorChRef.current;
+    if (!bc || !mirrorOn || !series) return;
+    const idx = Math.max(0, Math.min(slice, series.slices.length - 1));
+    const key = `${series.id}|${idx}`;
+    if (mirrorSliceRef.current === key) return;
+    const sl = series.slices[idx];
+    if (!sl) return;
+    mirrorSliceRef.current = key;
+    bc.postMessage({
+      type: "slice", index: idx, pixels: sl,
+      rgba: series.isColor ? series.rgbaSlices?.[idx] : undefined,
+    } satisfies MirrorMessage);
+  }, [slice, series, mirrorOn]);
+
+  // Görünüm değişimleri: yalnız küçük durum nesnesi gider.
+  useEffect(() => {
+    const bc = mirrorChRef.current;
+    if (!bc || !mirrorOn) return;
+    const state: MirrorState = {
+      slice, wl, ww, invert, zoom, pan,
+      label: series ? `${series.modality} · ${series.description}` : undefined,
+    };
+    bc.postMessage({ type: "state", state } satisfies MirrorMessage);
+  }, [slice, wl, ww, invert, zoom, pan, mirrorOn, series]);
+
+  useEffect(() => () => { mirrorChRef.current?.close(); }, []);
 
   // ───── AI Analizi ─────
   /**
@@ -1434,6 +1536,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
       {toastMsg && <div data-testid="action-feedback" role="status" aria-live="polite" className="pointer-events-none fixed bottom-9 left-1/2 z-[80] w-max max-w-[min(640px,92vw)] -translate-x-1/2 rounded-lg border border-cyan-400/40 bg-[#0b1018]/95 px-4 py-2 text-center text-xs font-semibold leading-relaxed text-cyan-100 shadow-xl">{toastMsg}</div>}
 
       {/* ── Üst Çubuk 1 ── */}
+      <a href="#viewer-main" className="skip-link">{SKIP_LINK_LABEL}</a>
       <header aria-label="Ana işlemler" className="relative z-20 flex shrink-0 flex-wrap items-center gap-1.5 border-b border-[#1a2230] bg-[#0b0f16] px-2 py-1.5 print:hidden">
         <div className="mr-1 flex shrink-0 items-center gap-2">
           {/* Yerel AI tarama animasyonu (GIF); next/image ek ağ katmanı sağlamaz.
@@ -1503,8 +1606,14 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         <Btn onClick={exportPng} title="Geçerli kesiti PNG kaydet">PNG</Btn>
         <Btn onClick={exportAnon} title="Anonimleştirilmiş DICOM (ZIP)">Anonim DICOM</Btn>
         <Btn onClick={() => { if (!series || !isImageSeries) { toast("Önce bir görüntü serisi açın."); return; } setNoduleOpen(true); }} title="Nodül takibi: zaman serisi, Lung-RADS özeti, hacim ikilenme süresi">Nodül takibi</Btn>
+        <Btn onClick={() => { if (!series || !isImageSeries) { toast("Segmentasyon için bir görüntü serisi açın."); return; } setSegOpen(true); }} title="Segmentasyon editörü: fırça/silgi, eşik dolgusu, bölge büyütme, hacim (mL), DICOM SEG/RTSTRUCT">🧩 Segmentasyon</Btn>
         <ExportMenu series={isImageSeries ? series : null} wl={wl} ww={ww} invert={invert} slice={slice} rotation={rotation} flipH={flipH} flipV={flipV} keyImages={keyImages} annotations={annotations} pxMm={pxMm} bodyPart={series?.bodyPart ?? ""} toast={toast} />
         <Btn onClick={() => void toggleFullscreen()} title="Tam ekran">⛶</Btn>
+        <Btn
+          onClick={toggleMirror}
+          title={mirrorOn ? "İkinci ekran yayınını durdur" : "Aktif seriyi ikinci pencerede/ekranda canlı yayınla (WL/WW, kesit, zoom)"}
+          className={mirrorOn ? "border-emerald-400/60 text-emerald-200" : undefined}
+        >🖥 {mirrorOn ? "Yayın açık" : "İkinci ekran"}</Btn>
         <div className="ml-auto flex min-w-0 flex-wrap items-center gap-2">
           <span className="rounded border border-amber-400/40 bg-amber-400/10 px-2 py-1 text-[9px] font-bold tracking-wide text-amber-300">KLİNİK KARAR İÇİN KULLANILAMAZ</span>
           <Link href="/paketler" prefetch={false} title="Windows · Linux · macOS kurulum paketleri ve dosya yolları" className="rounded-lg border border-emerald-400/50 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-bold text-emerald-200 hover:bg-emerald-500/20">📦 Kurulum</Link>
@@ -1527,7 +1636,14 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         {series && series.modality !== "US" && series.slices.length > 0 && (
           <Btn on={tool === "msk"} tone="violet" title="MSK ölçüm protokolleri: adlandırılmış noktalar, ölçümler ve aralık yorumu (ölçüm yardımcısı)" onClick={() => mskSelect(tool === "msk" ? null : (mskProtocolId ?? "wrist-pa"))}>🦴 MSK</Btn>
         )}
+        {series && series.slices.length > 0 && (series.modality === "PT" || series.modality === "NM" || series.suv) && (
+          <Btn on={nuclearOpen} title="Nükleer tıp: eşik tabanlı MTV/SUVpeak ve TIC (zaman-aktivite) sınıflandırması" onClick={() => setNuclearOpen((v) => !v)}>🧪 Nükleer</Btn>
+        )}
+        {series && series.modality === "CT" && series.slices.length > 1 && (
+          <Btn on={lungQuantOpen} title="Akciğer kantitasyonu: LAA-950, ortalama HU, PD15, hacim ve kesit dağılımı (kural tabanlı)" onClick={() => setLungQuantOpen((v) => !v)}>🫁 Akciğer</Btn>
+        )}
         <div className="mx-1 h-5 w-px shrink-0 bg-[#1e2735]" />
+        <Btn on={highContrast} tone="amber" title="Yüksek kontrast teması (ikincil metinleri AA eşiğine çıkarır)" onClick={toggleHighContrast}>◐ Kontrast</Btn>
         <Btn on={invert} tone="amber" onClick={() => setInvert((v) => !v)}>Ters</Btn>
         <Btn onClick={() => setRotation((r) => ((r + 90) % 360) as Rot)} title="R">⟳ Döndür</Btn>
         <Btn on={flipH} onClick={() => setFlipH((v) => !v)} title="H">⇆</Btn>
@@ -1553,7 +1669,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         </select>
         <Btn onClick={savePreset}>＋ Ön ayar</Btn>
         <div className="mx-1 h-5 w-px shrink-0 bg-[#1e2735]" />
-        <FusionControl all={all} primary={isImageSeries ? series : null} cfg={fusionCfg} onChange={setFusionCfg} />
+        <FusionControl all={all} primary={isImageSeries ? series : null} cfg={fusionCfg} onChange={setFusionCfg} slice={slice} />
         <Btn on={refLinesOn} tone="violet" onClick={() => { setRefLinesOn((v) => { setRefLines(!v); return !v; }); }} title="Çapraz referans çizgileri: diğer panellerin kesit düzlemlerini bu görüntüde çizgi olarak göster">Ref. çizgi</Btn>
         <Btn tone="amber" onClick={captureKey} title="Anahtar kesit ekle (K)">★ Anahtar kesit{keyImages.length ? ` (${keyImages.length})` : ""}</Btn>
         {pxOverride[series?.id ?? ""] && <span className="shrink-0 rounded border border-emerald-400/30 px-1.5 py-0.5 text-[10px] text-emerald-300">kalibre</span>}
@@ -1589,7 +1705,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         </aside>}
 
         {/* Orta: Ana Görüntüleme & Çoklu Izgara / Özel Nesneler */}
-        <main aria-label="Görüntüleme alanı" className="relative min-w-0 flex-1">
+        <main id="viewer-main" tabIndex={-1} aria-label="Görüntüleme alanı" className="relative min-w-0 flex-1 outline-none">
           <ViewerErrorBoundary resetKey={series?.id ?? "empty"}>
           {series?.specialType === "sr" && series.srData ? (
             <SRViewer sr={series.srData} onJumpToSlice={(s) => setSlice(s - 1)} />
@@ -1671,6 +1787,32 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
       <WorklistModal open={worklistOpen} onClose={() => setWorklistOpen(false)} user={user} onOpenStudy={(s) => void openStored(s)} onOpenPacs={(s) => void openPacs(s)} />
       {mpr && series && <div className="fixed inset-0 z-50 bg-[#070a0f]"><ViewerErrorBoundary resetKey={series.id} label="MPR" onClose={() => setMpr(false)}><VolumeView series={series} wl={wl} ww={ww} invert={invert} initialTab={mprInitialTab} onClose={() => setMpr(false)} /></ViewerErrorBoundary></div>}
       {noduleOpen && series && <NoduleTracker patientId={series.patientId} patientName={series.patientName} studyDate={series.studyDate} measurements={noduleMeasurements} onClose={() => setNoduleOpen(false)} />}
+      {series && nuclearOpen && (
+        <NuclearPanel
+          series={series}
+          onClose={() => setNuclearOpen(false)}
+          onAddToFindings={(text) => { pushFeed(text, "finding"); void navigator.clipboard?.writeText(text).catch(() => {}); toast("Nükleer tıp özeti akışa yazıldı ve kopyalandı."); }}
+        />
+      )}
+      {series && lungQuantOpen && (
+        <LungQuantPanel
+          series={series}
+          onClose={() => setLungQuantOpen(false)}
+          onAddToFindings={(text) => { pushFeed(text, "finding"); void navigator.clipboard?.writeText(text).catch(() => {}); toast("Akciğer kantitasyonu akışa yazıldı ve kopyalandı."); }}
+        />
+      )}
+      {segOpen && series && (
+        <SegEditor
+          series={series}
+          slice={slice}
+          wl={wl}
+          ww={ww}
+          invert={invert}
+          pxMm={pxMm}
+          onClose={() => setSegOpen(false)}
+          toast={toast}
+        />
+      )}
       {pngImage && <ExportImageDialog image={pngImage} onClose={closePng} />}
       {importReport && <ImportReportDialog report={importReport} onClose={closeImportReport} />}
       {hangingModalOpen && <HangingProtocolEditorModal

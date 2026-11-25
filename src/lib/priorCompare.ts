@@ -8,7 +8,13 @@
  */
 import type { Finding, SavedReport } from "./types";
 
-export const PRIOR_COMPARE_NOTE = "Kayıt (registration) yapılmadan, yalnızca ölçüm karşılaştırması.";
+/**
+ * Ölçüm farkı metninin sınırı. Görsel hizalama (registration) artık karşılaştırma
+ * panelinde 🎯 Hizala ile yapılabilir (src/lib/registration.ts), ancak ölçüm
+ * karşılaştırması hizalamaya bağlı değildir: iki tetkikin ölçümleri doğrudan
+ * karşılaştırılır, ROI eşlemesi otomatik yapılmaz.
+ */
+export const PRIOR_COMPARE_NOTE = "Ölçüm karşılaştırması hizalamadan bağımsızdır; görsel hizalama için karşılaştırma panelindeki «Hizala» kullanılır.";
 
 /** Önceki raporlarda, bu bulguyla aynı kategoriden nicelli bulgu. */
 export function priorFinding(f: Finding, priors: SavedReport[]): { report: SavedReport; finding: Finding } | null {

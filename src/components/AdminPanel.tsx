@@ -1,13 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { UserInfo } from "@/lib/types";
 import { AUTH_LABELS, PACS_PRESETS, type PacsAuthType, type PacsConfig } from "@/lib/pacsPresets";
 
-type Tab = "profile" | "users" | "audit" | "ai" | "stats" | "security" | "integration" | "compliance";
+type Tab = "profile" | "sessions" | "users" | "audit" | "ai" | "stats" | "security" | "integration" | "compliance";
 interface AuditRow { id: number; ts: string; username: string; action: string; entityType: string; entityId: string; details: string; hash: string }
 interface UserRow { id: number; username: string; fullName: string; title: string; regNo: string; role: string; active: boolean; twoFactorEnabled: boolean; lastLoginAt: string | null }
+interface SessionRow { id: string; userId: number; username: string; fullName: string; role: string; createdAt: string; lastSeenAt: string; expiresAt: string; revokedAt: string | null; ip: string; client: string; state: "aktif" | "suresi-dolmus" | "iptal-edilmis"; current: boolean }
+interface RegistryRow { id?: number; name: string; version: string; modality: string; task: string; stage: "aday" | "aktif" | "emekli"; trafficPercent: number; fingerprint: string; notes: string; updatedAt?: string }
+interface RegistryState { entries: RegistryRow[]; summary: Record<string, number>; issues: string[] }
 interface PerfRow { engine: string; category: string; shown: number; approved: number; rejected: number; edited: number; pending: number; manualAdded: number; ppv: number | null }
 interface WorkflowStats {
   total: number; byStatus: Record<string, number>; byModality: Record<string, number>;
@@ -15,10 +18,25 @@ interface WorkflowStats {
   pendingDrafts: number; staleDrafts: { olderDays: number; count: number };
   perRadiologist: { name: string; approved: number; medianHours: number | null; p90Hours: number | null }[];
 }
+interface WeekBucket { weekStart: string; label: string; approved: number; medianHours: number | null; p90Hours: number | null }
+interface PeerScoreBucket { score: 1 | 2 | 3; label: string; count: number; pct: number }
+interface PeerStats {
+  total: number; agreementRate: number | null;
+  byScore: PeerScoreBucket[];
+  byDiscrepancy: { type: string; count: number }[];
+  byReviewer: { name: string; count: number; disagreements: number; disagreementRate: number | null }[];
+  needsFollowUp: { id: number; reportId: number; reviewedByName: string; note: string; createdAt: string }[];
+  note: string;
+}
+interface PeerTarget { ratePct: number; expected: number; reviewed: number; remaining: number; met: boolean; note: string }
+interface TatTarget { status: "hedef-icinde" | "sinirda" | "hedef-disi" | "bilinmiyor"; targetHours: number; ratio: number | null; note: string }
 interface Status { keySource: string; plaintext: { studies: number; reports: number }; totals: Record<string, number>; retentionDraftDays: number }
 type Settings = {
   retentionDraftDays: number;
   criticalWebhookUrl: string;
+  /** Kritik bulgu kanalları: e-posta/SMS/çağrı/webhook (JSON dizi metni). */
+  notifyChannels?: string;
+  notifyChannelErrors?: string[];
   pacsBaseUrl: string;
   pacs: PacsForm;
   /** MWL ek uçları: ayrı DICOMweb MWL kökü ve/veya DIMSE C-FIND köprüsü. */
@@ -60,7 +78,17 @@ const btn = "cursor-pointer rounded-lg px-3 py-1.5 text-xs font-bold";
 export default function AdminPanel({ user }: { user: UserInfo }) {
   const [tab, setTab] = useState<Tab>("profile");
   const [msg, setMsg] = useState("");
+  // Model kayıt defteri (a-modelops)
+  const [registry, setRegistry] = useState<RegistryState | null>(null);
+  const [regForm, setRegForm] = useState({ name: "", version: "", modality: "CT", task: "nodule", stage: "aday" as RegistryRow["stage"], trafficPercent: "0", notes: "" });
+  const [regBusy, setRegBusy] = useState(false);
+  const [notifyTesting, setNotifyTesting] = useState(false);
+  const [notifyTest, setNotifyTest] = useState<{ results: { id: string; kind: string; ok: boolean; status: number | null; ms: number; error?: string }[] } | null>(null);
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(""), 4000); };
+  const loadRegistry = useCallback(async () => {
+    const r = await api<RegistryState>("/api/ai/registry");
+    if (r.ok) setRegistry(r.data);
+  }, []);
 
   // hekim profili (rapor imzasında görünecek ad)
   const [prof, setProf] = useState({ fullName: user.fullName, title: user.title, regNo: user.regNo });
@@ -81,9 +109,36 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
   // iş akışı istatistikleri (F4)
   const [stats, setStats] = useState<WorkflowStats | null>(null);
   const [statsNote, setStatsNote] = useState("");
-  const loadStats = useCallback(async () => {
-    const r = await api<{ stats: WorkflowStats; note: string }>("/api/reports/stats");
-    if (r.ok && r.data.stats) { setStats(r.data.stats); setStatsNote(r.data.note); }
+  // Haftalık TAT trendi ve hedef eşiği (f-tat)
+  const [weekly, setWeekly] = useState<WeekBucket[]>([]);
+  const [tatTargetState, setTatTargetState] = useState<TatTarget | null>(null);
+  const [tatAlertList, setTatAlertList] = useState<string[]>([]);
+  const [targetHours, setTargetHours] = useState("24");
+  const [trendModality, setTrendModality] = useState("");
+  // İkinci okuma gözetim panosu (d-peer)
+  const [peer, setPeer] = useState<{ stats: PeerStats; target: PeerTarget; samplePct: number; approvedReports: number; queue: number[]; note: string } | null>(null);
+  const [peerPct, setPeerPct] = useState("5");
+  const targetHoursRef = useRef("24");
+  const trendModalityRef = useRef("");
+  useEffect(() => { targetHoursRef.current = targetHours; }, [targetHours]);
+  useEffect(() => { trendModalityRef.current = trendModality; }, [trendModality]);
+  const loadStats = useCallback(async (target = "24", modality = "") => {
+    const params = new URLSearchParams();
+    if (Number(target) > 0) params.set("targetHours", target);
+    if (modality) params.set("modality", modality);
+    const q = params.toString() ? `?${params.toString()}` : "";
+    const r = await api<{ stats: WorkflowStats; note: string; weekly?: WeekBucket[]; target?: TatTarget; alerts?: string[] }>(`/api/reports/stats${q}`);
+    if (r.ok && r.data.stats) {
+      setStats(r.data.stats);
+      setStatsNote(r.data.note);
+      setWeekly(r.data.weekly ?? []);
+      setTatTargetState(r.data.target ?? null);
+      setTatAlertList(r.data.alerts ?? []);
+    }
+  }, []);
+  const loadPeer = useCallback(async () => {
+    const r = await api<{ stats: PeerStats; target: PeerTarget; samplePct: number; approvedReports: number; queue: number[]; note: string }>("/api/reports/peer-stats");
+    if (r.ok) { setPeer(r.data); setPeerPct(String(r.data.samplePct ?? 5)); }
   }, []);
   // güvenlik / ayarlar
   const [status, setStatus] = useState<Status | null>(null);
@@ -128,6 +183,25 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
     if (r.ok) setKeyring(r.data);
   }, []);
 
+  // oturum yönetimi (w-auth): açık oturumlar, bu cihaz işareti, iptal
+  const [sessRows, setSessRows] = useState<SessionRow[]>([]);
+  const [sessAll, setSessAll] = useState(false);
+  const [sessMsg, setSessMsg] = useState("");
+  const [sessSupported, setSessSupported] = useState(true);
+  const loadSessions = useCallback(async () => {
+    const r = await api<{ supported: boolean; sessions: SessionRow[]; note?: string }>(`/api/auth/sessions?history=1&scope=${sessAll ? "all" : "own"}`);
+    if (r.ok) {
+      setSessRows(r.data.sessions ?? []);
+      setSessSupported(r.data.supported !== false);
+      if (r.data.note) setSessMsg(r.data.note);
+    }
+  }, [sessAll]);
+  const sessionAction = async (body: Record<string, unknown>) => {
+    const r = await api<{ ok?: boolean; revoked?: number; deleted?: number; error?: string }>("/api/auth/sessions", json("POST", body));
+    setSessMsg(r.ok ? `İşlem tamam: ${r.data.revoked ?? r.data.deleted ?? 0} oturum kapatıldı.` : r.data.error ?? "Hata");
+    void loadSessions();
+  };
+
   const loadMfa = useCallback(async () => {
     const r = await api<{ enabled: boolean; secret?: string; qr?: string }>("/api/profile/totp");
     if (r.ok) setMfa({ enabled: r.data.enabled });
@@ -136,14 +210,19 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
   useEffect(() => {
     void (async () => {
       if (tab === "profile") { await loadProfile(); await loadMfa(); }
+      if (tab === "sessions") await loadSessions();
       if (tab === "users") await loadUsers();
       if (tab === "audit") { await loadAudit(); await loadSiem(); }
-      if (tab === "ai") { const r = await api<{ rows: PerfRow[]; note: string }>("/api/ai/performance"); if (r.ok) setPerf(r.data); }
-      if (tab === "stats") await loadStats();
+      if (tab === "ai") {
+        const r = await api<{ rows: PerfRow[]; note: string }>("/api/ai/performance");
+        if (r.ok) setPerf(r.data);
+        await loadRegistry();
+      }
+      if (tab === "stats") { await loadStats(targetHoursRef.current, trendModalityRef.current); await loadPeer(); }
       if (["security", "integration", "compliance"].includes(tab)) await loadSettings();
       if (tab === "security") await loadKeyring();
     })();
-  }, [tab, loadProfile, loadAudit, loadSiem, loadStats, loadSettings, loadUsers, loadMfa, loadKeyring]);
+  }, [tab, loadProfile, loadAudit, loadSiem, loadStats, loadSettings, loadUsers, loadMfa, loadKeyring, loadSessions, loadRegistry, loadPeer]);
 
   const saveSettings = async (patch: Record<string, unknown>) => {
     const r = await api<{ error?: string }>("/api/settings", json("PUT", patch));
@@ -251,7 +330,26 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
     flash(`CSV indirildi (${audit.length} kayıt${aq ? ", filtreli" : ""}). Tüm geçmiş için arama kutusunu boş bırakıp yenileyin.`);
   };
 
-  const tabs: [Tab, string][] = [["profile", "Profil & MFA"], ["users", "Kullanıcılar"], ["audit", "Denetim kaydı"], ["ai", "AI performans"], ["stats", "İş akışı"], ["security", "Güvenlik & saklama"], ["integration", "Entegrasyon"], ["compliance", "Uyum"]];
+  const tabs: [Tab, string][] = [["profile", "Profil & MFA"], ["sessions", "Oturumlar"], ["users", "Kullanıcılar"], ["audit", "Denetim kaydı"], ["ai", "AI performans"], ["stats", "İş akışı"], ["security", "Güvenlik & saklama"], ["integration", "Entegrasyon"], ["compliance", "Uyum"]];
+
+  const savePeerPct = async () => {
+    const n = Number(peerPct);
+    if (!Number.isFinite(n)) { flash("Örneklem oranı sayı olmalı."); return; }
+    await saveSettings({ peerReviewSamplePct: Math.max(0, Math.min(100, Math.round(n))) });
+    await loadPeer();
+  };
+
+  const saveModel = async () => {
+    setRegBusy(true);
+    const r = await api<RegistryState & { error?: string }>("/api/ai/registry", json("POST", {
+      ...regForm,
+      trafficPercent: Number(regForm.trafficPercent.replace(",", ".")),
+    }));
+    setRegBusy(false);
+    if (!r.ok) { flash(r.data?.error ?? "Model kaydı başarısız."); return; }
+    setRegistry({ entries: r.data.entries ?? [], summary: r.data.summary ?? {}, issues: r.data.issues ?? [] });
+    flash(`${regForm.name} ${regForm.version} kaydedildi (${regForm.stage}).`);
+  };
 
   return (
     <div className="h-screen w-screen overflow-y-auto bg-[#070a0f] text-slate-200">
@@ -331,6 +429,73 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
               )}
               <p className="mt-3 text-[11px] text-slate-500">Rapor onayı hâlâ kimlik kanıtı değildir; içerik SHA-256 ile mühürlenir, denetim zinciri değişikliği saptar.</p>
             </div>
+          </div>
+        )}
+
+        {tab === "sessions" && (
+          <div className="mt-4 space-y-3">
+            <div className={`${card} flex flex-wrap items-center gap-2`}>
+              <h2 className="text-sm font-bold text-slate-100">Açık oturumlar</h2>
+              <p className="w-full text-[11px] leading-relaxed text-slate-400">
+                Her giriş sunucuda bir oturum kaydı oluşturur; buradan kapatılan oturumun çerezi
+                süresi dolmamış olsa bile <b>anında geçersiz</b> olur. Liste yalnız IP, istemci ve zaman gösterir — oturum anahtarı hiçbir zaman dışarı verilmez.
+              </p>
+              <label className="flex items-center gap-1 text-[11px] text-slate-400">
+                <input type="checkbox" checked={sessAll} onChange={(e) => setSessAll(e.target.checked)} disabled={user.role !== "yonetici"} /> tüm kullanıcıların oturumları (yönetici)
+              </label>
+              <button className={`${btn} ml-auto border border-slate-500/40 text-slate-300`} onClick={() => void loadSessions()}>↻ Yenile</button>
+            </div>
+            {sessMsg && <div className="rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-200">{sessMsg}</div>}
+            {!sessSupported && (
+              <div className="rounded-lg border border-amber-400/30 bg-amber-400/5 p-3 text-xs text-amber-200">
+                Sunucu tarafı oturum kaydı etkin değil. Şemayı uygulayın: <code>npx drizzle-kit push</code>. O zamana kadar oturumlar yalnız imzalı çerezle taşınır.
+              </div>
+            )}
+            {sessSupported && sessRows.length === 0 && <p className="text-xs text-slate-500">Kayıtlı oturum yok.</p>}
+            {sessSupported && sessRows.length > 0 && (
+              <div className="overflow-x-auto rounded-xl border border-[#1a2230]">
+                <table className="w-full text-left text-[11px]">
+                  <thead className="bg-[#0e141d] text-slate-400">
+                    <tr>
+                      <th className="px-2 py-1.5">Kullanıcı</th><th className="px-2 py-1.5">İstemci</th><th className="px-2 py-1.5">IP</th>
+                      <th className="px-2 py-1.5">Başlangıç</th><th className="px-2 py-1.5">Son görülme</th><th className="px-2 py-1.5">Bitiş</th>
+                      <th className="px-2 py-1.5">Durum</th><th className="px-2 py-1.5" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sessRows.map((r) => (
+                      <tr key={r.id} className={`border-t border-[#161d28] ${r.current ? "bg-cyan-400/5" : ""}`}>
+                        <td className="px-2 py-1.5">{r.fullName}<div className="text-[10px] text-slate-500">{r.username} · {r.role}</div></td>
+                        <td className="px-2 py-1.5 text-slate-400">{r.client}</td>
+                        <td className="px-2 py-1.5 font-mono text-[10px] text-slate-500">{r.ip || "—"}</td>
+                        <td className="px-2 py-1.5 text-slate-400">{new Date(r.createdAt).toLocaleString("tr-TR")}</td>
+                        <td className="px-2 py-1.5 text-slate-400">{new Date(r.lastSeenAt).toLocaleString("tr-TR")}</td>
+                        <td className="px-2 py-1.5 text-slate-400">{new Date(r.expiresAt).toLocaleString("tr-TR")}</td>
+                        <td className="px-2 py-1.5">
+                          <span className={r.state === "aktif" ? "text-emerald-300" : r.state === "iptal-edilmis" ? "text-rose-300" : "text-slate-500"}>
+                            {r.state === "aktif" ? "aktif" : r.state === "iptal-edilmis" ? "iptal edildi" : "süresi doldu"}
+                          </span>
+                          {r.current && <span className="ml-1 rounded bg-cyan-400/20 px-1 text-[9px] text-cyan-200">bu cihaz</span>}
+                        </td>
+                        <td className="px-2 py-1.5 text-right">
+                          {r.state === "aktif" && (
+                            <button className={`${btn} border border-rose-400/40 px-2 py-0.5 text-rose-300 hover:bg-rose-400/10`} onClick={() => void sessionAction({ action: "revoke", id: Number(r.id) })}>
+                              {r.current ? "Bu cihazı kapat" : "Kapat"}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {sessSupported && (
+              <div className="flex flex-wrap gap-2">
+                <button className={`${btn} border border-amber-400/40 text-amber-300 hover:bg-amber-400/10`} onClick={() => void sessionAction({ action: "revoke-others" })}>Bu cihaz dışındaki tüm oturumlarımı kapat</button>
+                <button className={`${btn} border border-slate-500/40 text-slate-300`} onClick={() => void sessionAction({ action: "purge-expired" })}>Süresi dolmuş kayıtları temizle (90 gün)</button>
+              </div>
+            )}
           </div>
         )}
 
@@ -461,9 +626,174 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
           </div>
         )}
 
+        {tab === "ai" && (
+          <div className="mt-4 space-y-3">
+            <div className={`${card} space-y-2`}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <b className="text-xs text-slate-200">Model kayıt defteri</b>
+                <span className="text-[10.5px] text-slate-500">
+                  {registry ? `aday ${registry.summary.aday ?? 0} · aktif ${registry.summary.aktif ?? 0} · emekli ${registry.summary.emekli ?? 0}` : "yükleniyor…"}
+                </span>
+              </div>
+              {(registry?.issues ?? []).length > 0 && (
+                <ul className="rounded border border-amber-400/40 bg-amber-400/10 px-2 py-1 text-[10.5px] text-amber-200">
+                  {(registry?.issues ?? []).slice(0, 5).map((i) => <li key={i}>• {i}</li>)}
+                </ul>
+              )}
+              <div className="overflow-x-auto">
+                <table className="w-full text-[11.5px]">
+                  <thead className="text-left text-slate-500"><tr>{["Model", "Sürüm", "Modalite", "Görev", "Aşama", "Trafik", "Parmak izi", "Güncelleme"].map((h) => <th key={h} className="border-b border-[#1a2230] px-2 py-1.5 font-semibold">{h}</th>)}</tr></thead>
+                  <tbody>
+                    {(registry?.entries ?? []).length === 0 && <tr><td colSpan={8} className="px-2 py-4 text-center text-slate-500">Henüz model kaydı yok. Aşağıdaki formla ilk sürümü ekleyin.</td></tr>}
+                    {(registry?.entries ?? []).map((r) => (
+                      <tr key={`${r.name}@${r.version}`} className="hover:bg-[#101722]">
+                        <td className="border-b border-[#141b26] px-2 py-1.5 font-mono text-cyan-300">{r.name}</td>
+                        <td className="border-b border-[#141b26] px-2 py-1.5">{r.version}</td>
+                        <td className="border-b border-[#141b26] px-2 py-1.5">{r.modality || "—"}</td>
+                        <td className="border-b border-[#141b26] px-2 py-1.5">{r.task || "—"}</td>
+                        <td className={`border-b border-[#141b26] px-2 py-1.5 font-bold ${r.stage === "aktif" ? "text-emerald-300" : r.stage === "emekli" ? "text-slate-500" : "text-amber-300"}`}>{r.stage}</td>
+                        <td className="border-b border-[#141b26] px-2 py-1.5">%{r.trafficPercent}</td>
+                        <td className="max-w-[140px] truncate border-b border-[#141b26] px-2 py-1.5 font-mono text-[10px] text-slate-500" title={r.fingerprint}>{r.fingerprint || "—"}</td>
+                        <td className="border-b border-[#141b26] px-2 py-1.5 text-[10px] text-slate-500">{r.updatedAt ? new Date(r.updatedAt).toLocaleString("tr-TR") : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="grid gap-1.5 md:grid-cols-6">
+                <input className={input} placeholder="model adı" value={regForm.name} onChange={(e) => setRegForm((f) => ({ ...f, name: e.target.value }))} />
+                <input className={input} placeholder="sürüm" value={regForm.version} onChange={(e) => setRegForm((f) => ({ ...f, version: e.target.value }))} />
+                <input className={input} placeholder="modalite (CT)" value={regForm.modality} onChange={(e) => setRegForm((f) => ({ ...f, modality: e.target.value }))} />
+                <input className={input} placeholder="görev (nodule)" value={regForm.task} onChange={(e) => setRegForm((f) => ({ ...f, task: e.target.value }))} />
+                <select className={input} value={regForm.stage} onChange={(e) => setRegForm((f) => ({ ...f, stage: e.target.value as RegistryRow["stage"] }))}>
+                  {["aday", "aktif", "emekli"].map((st) => <option key={st} value={st}>{st}</option>)}
+                </select>
+                <div className="flex items-center gap-1">
+                  <input className={`${input} w-full`} placeholder="trafik %" value={regForm.trafficPercent} onChange={(e) => setRegForm((f) => ({ ...f, trafficPercent: e.target.value }))} />
+                  <button disabled={regBusy || !regForm.name.trim() || !regForm.version.trim()} onClick={() => void saveModel()} className={`${btn} shrink-0 bg-cyan-400/15 text-cyan-200 ring-1 ring-cyan-400/40 disabled:opacity-40`}>Kaydet</button>
+                </div>
+              </div>
+              <div className="text-[10px] leading-relaxed text-slate-500">
+                Aynı ad + sürüm üzerine yazılır; aşama değişiklikleri denetim izine ({`model.activate`} / {`model.register`}) yazılır.
+                A/B ataması tohum (ör. çalışma UID&apos;si) ile deterministiktir; aynı çalışma her zaman aynı modele düşer.
+                Kayıt defteri çıkarım yolunu kendiliğinden değiştirmez — dağıtım planıdır.
+              </div>
+            </div>
+          </div>
+        )}
+
         {tab === "stats" && (
           <div className="mt-4 space-y-3">
             <div className="rounded-lg border border-cyan-400/25 bg-cyan-400/5 p-3 text-xs text-cyan-200">{statsNote}</div>
+            <div className={`${card} space-y-2`}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <b className="text-xs text-slate-200">Haftalık TAT trendi</b>
+                <div className="flex items-center gap-1 text-[11px] text-slate-400">
+                  <span>Hedef (saat)</span>
+                  <input value={targetHours} onChange={(e) => setTargetHours(e.target.value)} className={`${input} w-16`} aria-label="Hedef TAT (saat)" />
+                  <select value={trendModality} onChange={(e) => setTrendModality(e.target.value)} aria-label="Modalite süzgeci" className={`${input} w-24`}>
+                    <option value="">tümü</option>
+                    {Object.keys(stats?.byModality ?? {}).sort().map((m) => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                  <button onClick={() => void loadStats(targetHours, trendModality)} className={`${btn} bg-cyan-400/15 text-cyan-200 ring-1 ring-cyan-400/40`}>Uygula</button>
+                  {tatTargetState && (
+                    <span className={`ml-2 rounded px-1.5 py-0.5 text-[10px] font-black ${tatTargetState.status === "hedef-icinde" ? "bg-emerald-500/20 text-emerald-200" : tatTargetState.status === "sinirda" ? "bg-amber-500/20 text-amber-200" : tatTargetState.status === "hedef-disi" ? "bg-rose-500/20 text-rose-200" : "bg-slate-500/20 text-slate-300"}`}>
+                      {tatTargetState.status === "hedef-icinde" ? "HEDEF İÇİNDE" : tatTargetState.status === "sinirda" ? "SINIRDA" : tatTargetState.status === "hedef-disi" ? "HEDEF DIŞI" : "VERİ YOK"}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <svg viewBox="0 0 620 120" className="w-full" role="img" aria-label="Haftalık TAT trendi">
+                {(() => {
+                  const max = Math.max(1, ...weekly.map((w) => w.medianHours ?? 0), Number(targetHours) || 24);
+                  const bw = 620 / Math.max(1, weekly.length);
+                  const targetY = 100 - ((Number(targetHours) || 24) / max) * 90;
+                  return (
+                    <>
+                      {weekly.map((w, i) => {
+                        const h = ((w.medianHours ?? 0) / max) * 90;
+                        const over = w.medianHours !== null && w.medianHours > (Number(targetHours) || 24);
+                        return (
+                          <g key={w.weekStart}>
+                            <rect x={i * bw + 4} y={100 - h} width={Math.max(2, bw - 8)} height={Math.max(0.5, h)} fill={over ? "#fb7185" : "#22d3ee"} opacity="0.75">
+                              <title>{`${w.label}: medyan ${w.medianHours ?? "—"} sa · ${w.approved} rapor`}</title>
+                            </rect>
+                            <text x={i * bw + bw / 2} y={114} textAnchor="middle" fontSize="9" fill="#64748b">{w.label}</text>
+                          </g>
+                        );
+                      })}
+                      <line x1="0" y1={targetY} x2="620" y2={targetY} stroke="#fbbf24" strokeWidth="1" strokeDasharray="4 3" />
+                    </>
+                  );
+                })()}
+              </svg>
+              <div className="text-[10px] text-slate-500">Çubuklar onaylanan raporların haftalık medyan TAT değeri; kesikli çizgi hedef ({targetHours} sa). Boş haftalar ölçüm yok demektir.</div>
+              {tatAlertList.length > 0 && (
+                <ul className="rounded border border-amber-400/40 bg-amber-400/10 px-2 py-1 text-[10.5px] text-amber-200">
+                  {tatAlertList.map((a) => <li key={a}>• {a}</li>)}
+                </ul>
+              )}
+            </div>
+            <div className={`${card} space-y-2`}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <b className="text-xs text-slate-200">İkinci okuma (RADPEER)</b>
+                <div className="flex items-center gap-1 text-[11px] text-slate-400">
+                  <span>Örneklem %</span>
+                  <input value={peerPct} onChange={(e) => setPeerPct(e.target.value)} className={`${input} w-16`} aria-label="İkinci okuma örneklem oranı" />
+                  <button onClick={() => void savePeerPct()} className={`${btn} bg-cyan-400/15 text-cyan-200 ring-1 ring-cyan-400/40`}>Kaydet</button>
+                  {peer && (
+                    <span className={`ml-2 rounded px-1.5 py-0.5 text-[10px] font-black ${peer.target.met ? "bg-emerald-500/20 text-emerald-200" : "bg-amber-500/20 text-amber-200"}`}>
+                      {peer.target.met ? "HEDEF TAMAM" : `${peer.target.remaining} RAPOR KALDI`}
+                    </span>
+                  )}
+                </div>
+              </div>
+              {!peer && <div className="text-[11px] text-slate-500">Yükleniyor…</div>}
+              {peer && (
+                <>
+                  <div className="text-[10.5px] text-slate-500">
+                    {peer.stats.note} · onaylı rapor {peer.approvedReports} · hedef {peer.target.expected} okuma ({peer.target.reviewed} yapıldı)
+                  </div>
+                  <div className="grid gap-2 md:grid-cols-3">
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-slate-500">RADPEER dağılımı</div>
+                      {peer.stats.byScore.map((b) => (
+                        <div key={b.score} className="mt-1">
+                          <div className="flex justify-between text-[10.5px] text-slate-400"><span>{b.label}</span><span className="font-mono">{b.count} (%{b.pct})</span></div>
+                          <div className="mt-0.5 h-1.5 rounded bg-[#141b24]">
+                            <div className={`h-1.5 rounded ${b.score === 3 ? "bg-rose-400" : b.score === 2 ? "bg-amber-400" : "bg-emerald-400"}`} style={{ width: `${Math.min(100, b.pct)}%` }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-slate-500">Uyuşmazlık türleri</div>
+                      {peer.stats.byDiscrepancy.length === 0 && <div className="mt-1 text-[10.5px] text-slate-500">Anlamlı fark kaydı yok.</div>}
+                      {peer.stats.byDiscrepancy.map((d) => <div key={d.type} className="mt-1 flex justify-between text-[10.5px] text-slate-400"><span>{d.type}</span><span className="font-mono">{d.count}</span></div>)}
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-slate-500">Hekim başına</div>
+                      {peer.stats.byReviewer.length === 0 && <div className="mt-1 text-[10.5px] text-slate-500">Kayıt yok.</div>}
+                      {peer.stats.byReviewer.slice(0, 5).map((r) => (
+                        <div key={r.name} className="mt-1 flex justify-between text-[10.5px] text-slate-400">
+                          <span className="truncate">{r.name}</span>
+                          <span className="font-mono">{r.count} okuma · {r.disagreements} uyumsuz{r.disagreementRate !== null ? ` (%${Math.round(r.disagreementRate * 100)})` : ""}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {peer.stats.needsFollowUp.length > 0 && (
+                    <div className="rounded border border-rose-400/40 bg-rose-400/10 px-2 py-1 text-[10.5px] text-rose-200">
+                      Takip gerektiren {peer.stats.needsFollowUp.length} uyumsuz okuma: {peer.stats.needsFollowUp.map((r) => `#${r.reportId} (${r.reviewedByName || "isimsiz"})`).join(", ")}
+                    </div>
+                  )}
+                  {peer.queue.length > 0 && (
+                    <div className="text-[10px] text-slate-500">Örneklem kuyruğu (ilk 50): {peer.queue.slice(0, 12).join(", ")}{peer.queue.length > 12 ? "…" : ""}</div>
+                  )}
+                  <div className="text-[10px] text-slate-500">{peer.note}</div>
+                </>
+              )}
+            </div>
             {!stats && <div className={`${card}`}>Yükleniyor…</div>}
             {stats && (
               <>
@@ -682,16 +1012,44 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
               </p>
             </div>
             <div className={card}>
-              <h2 className="text-sm font-bold text-slate-100">Kritik bulgu bildirimi (webhook)</h2>
-              <input id="hook" defaultValue={settings.criticalWebhookUrl} placeholder="https://… (POST JSON)" className={`${input} mt-3 w-full`} />
-              <p className="mt-2 text-[11px] text-slate-500">Kritik/yüksek aday bulguda uygulama içi bildirim + bu adrese POST. E-posta/SMS/çağrı cihazı sağlayıcıları, webhook&apos;u dinleyen bir köprü ile bağlanır. Alındı bilgisi denetim kaydına yazılır.</p>
-              <button className={`${btn} mt-3 bg-cyan-500 text-slate-950`} onClick={() => void saveSettings({ criticalWebhookUrl: (document.getElementById("hook") as HTMLInputElement).value })}>Kaydet</button>
+              <h2 className="text-sm font-bold text-slate-100">Kritik bulgu bildirimi (e-posta · SMS · çağrı · webhook)</h2>
+              <input id="hook" defaultValue={settings.criticalWebhookUrl} placeholder="https://… (eski tek webhook, POST JSON)" className={`${input} mt-3 w-full`} />
+              <p className="mt-2 text-[11px] text-slate-500">Kritik/yüksek aday bulguda uygulama içi bildirim + aşağıdaki kanallara POST. Aynı olay tüm kanallara <b>kimliksiz</b> gider (önem, çalışma UID, modalite, kısa mesaj) — hasta adı/numarası gönderilmez. Kurumun SMTP relay&apos;i, SMS/pager ağ geçidi veya mobil-push köprüsü tek bir HTTP uç noktası olarak tanımlanır.</p>
+              <textarea id="chans" defaultValue={settings.notifyChannels} rows={8} spellCheck={false}
+                placeholder={'[\n  {"kind":"email","url":"https://mail.kurum.local/notify","to":"radyolog@kurum.local","minSeverity":"yuksek"},\n  {"kind":"sms","url":"https://sms.kurum.local/send","to":"+90555…"},\n  {"kind":"pager","url":"https://pager.kurum.local/push","to":"0042","minSeverity":"kritik"},\n  {"kind":"webhook","url":"https://bridge.kurum.local/push","minSeverity":"orta"}\n]'}
+                className={`${input} mt-3 w-full font-mono text-[11px]`} />
+              <p className="mt-1 text-[10.5px] text-slate-500">Varsayılan eşikler: webhook/e-posta <b>yüksek</b>, SMS/çağrı <b>kritik</b>. <code>enabled:false</code> ile kanalı kapatabilirsiniz. Geçersiz kayıt listeyi bozmaz; hata mesajı gösterilir.</p>
+              {!!settings.notifyChannelErrors?.length && (
+                <ul className="mt-2 space-y-0.5 text-[11px] text-amber-300">{settings.notifyChannelErrors.map((e, i) => <li key={i}>⚠ {e}</li>)}</ul>
+              )}
+              {notifyTest && (
+                <ul className="mt-2 space-y-0.5 text-[11px]">
+                  {notifyTest.results.length === 0 && <li className="text-slate-400">Tanımlı kanal yok — test gönderilmedi.</li>}
+                  {notifyTest.results.map((r) => (
+                    <li key={r.id} className={r.ok ? "text-emerald-300" : "text-rose-300"}>
+                      {r.ok ? "✓" : "✕"} {r.id} ({r.kind}) {r.status !== null ? `· HTTP ${r.status}` : "· ağ"} · {r.ms} ms{r.error ? ` — ${r.error}` : ""}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="mt-3 flex gap-2">
+                <button className={`${btn} bg-cyan-500 text-slate-950`} onClick={() => void saveSettings({ criticalWebhookUrl: (document.getElementById("hook") as HTMLInputElement).value, notifyChannels: (document.getElementById("chans") as HTMLTextAreaElement).value })}>Kaydet</button>
+                <button className={`${btn} border border-cyan-400/40 text-cyan-200 hover:bg-cyan-400/10`} disabled={notifyTesting}
+                  onClick={async () => {
+                    setNotifyTesting(true); setNotifyTest(null);
+                    const r = await api<{ error?: string; results: { id: string; kind: string; ok: boolean; status: number | null; ms: number; error?: string }[] }>("/api/notifications/test", { method: "POST" });
+                    setNotifyTesting(false);
+                    if (!r.ok) { flash(r.data.error ?? "Test gönderilemedi"); setNotifyTest({ results: [] }); return; }
+                    setNotifyTest({ results: r.data.results });
+                    flash(r.data.results.every((x) => x.ok) ? "Test iletildi" : "Bazı kanallar başarısız");
+                  }}>{notifyTesting ? "Gönderiliyor…" : "Test gönder"}</button>
+              </div>
             </div>
             <div className={card}>
               <h2 className="text-sm font-bold text-slate-100">HBYS / RIS istem alımı</h2>
               <p className="mt-2 text-xs text-slate-300">Durum: {settings.env.his ? <b className="text-emerald-300">etkin (HIS_API_KEY tanımlı)</b> : <b className="text-amber-300">kapalı — HIS_API_KEY tanımlayın</b>}</p>
               <pre className="mt-2 overflow-x-auto rounded bg-[#080c12] p-2 text-[10.5px] text-slate-300">{`POST /api/his/orders\nx-api-key: <HIS_API_KEY>\n{"patientName":"…","patientId":"…","accessionNumber":"A123",\n "modality":"CT","bodyPart":"BEYİN","description":"Beyin BT"}`}</pre>
-              <p className="mt-2 text-[11px] text-slate-500">HL7 v2 (MLLP) alıcısı yoktur; Mirth gibi bir arabirim motoruyla bu uca köprülenir. Rapor çıktısı: <code>/api/reports/&#123;id&#125;/fhir</code> (FHIR R4 DiagnosticReport).</p>
+              <p className="mt-2 text-[11px] text-slate-500">HL7 v2 (MLLP) alıcısı ayrı süreçle çalışır: <code>npm run hl7:mllp</code> (ORM^O01/ORU^R01 → ACK + sipariş). Modality Worklist: <code>npm run mwl:cfind</code> köprüsü ve Çalışma listesi → İş listesi (MWL). Rapor çıktısı: <code>/api/reports/&#123;id&#125;/fhir</code> (FHIR R4 DiagnosticReport).</p>
             </div>
             <div className={card}>
               <h2 className="text-sm font-bold text-slate-100">Üretken yapay zeka (taslak izlenim)</h2>

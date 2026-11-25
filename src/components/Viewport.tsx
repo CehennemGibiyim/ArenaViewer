@@ -5,9 +5,13 @@ import { snapPoint } from "@/lib/msk";
 import type { Annotation, Finding, SeriesData, ToolName } from "@/lib/types";
 import { annotationSummary, dist, ellipseTest, pointInPolygon, perpendicular, regionStats, type Pt } from "@/lib/geometry";
 import { buildFusionLayer, type FusionParams } from "@/lib/fusion";
+import { isIdentityRigid, rigidKey } from "@/lib/fusionRigid";
+import { photometricLabel } from "@/lib/photometric";
 import { jumpToPatient, refLinesFor, registerPanel, unregisterPanel, usePanelRegistry } from "@/lib/panelRegistry";
 import { planeOf, toPatient } from "@/lib/planes";
 import { buildWindowLUT, windowToRGBA } from "@/lib/window";
+import { GpuWindower, needsGpu } from "@/lib/gpuWindow";
+import { applyGesture, gestureStep, pinchOf, type Pinch } from "@/lib/gestures";
 import { HEAT_ALPHA_MAX, heatPixel, heatVisible } from "@/lib/heat";
 import { fmtConfShort } from "@/lib/format";
 
@@ -67,6 +71,12 @@ interface ViewportProps {
   label?: string;
   /** Çapraz referans çizgileri için panel kimliği (aynı çerçevedeki diğer panellerin düzlemleri çizilir). */
   panelId?: string;
+  /**
+   * Kayıt (registration) düzeltmesi: görüntüyü **görüntü pikseli** biriminde
+   * öteler (a-prior hizalaması). Ölçüm/annotasyon koordinatları değişmez —
+   * yalnız görüntüleme kaydırılır.
+   */
+  alignPx?: { dx: number; dy: number } | null;
   /** PET-BT vb. füzyon katmanı (bu seri üzerine bindirilir). */
   fusion?: FusionParams | null;
   onSlice: (s: number) => void;
@@ -83,12 +93,39 @@ interface ViewportProps {
   onHover?: (v: number | null) => void;
 }
 
-/** Taban katmanı tuvalini üretir (True Color kopyası veya WL/WW LUT uygulamasi). */
-function buildBaseCanvas(series: SeriesData, idx: number, wl: number, ww: number, invert: boolean): HTMLCanvasElement | null {
+/**
+ * Taban katmanı tuvalini üretir (True Color kopyası veya WL/WW LUT uygulaması).
+ *
+ * Büyük gri görüntülerde (≥1 MP) GPU yolu denenir: doku bir kez yüklenir,
+ * WL/WW/invert yalnız uniform olarak değişir (v-perf). GPU yoksa ya da bağlam
+ * kaybolduysa CPU LUT yolu aynen kullanılır — davranış değişmez.
+ */
+function buildBaseCanvas(
+  series: SeriesData,
+  idx: number,
+  wl: number,
+  ww: number,
+  invert: boolean,
+  gpu?: GpuWindower | null
+): HTMLCanvasElement | null {
   const sl = series.slices[idx];
   if (!sl) return null;
   const W = series.width, H = series.height;
   const isColor = !!series.isColor && !!series.rgbaSlices && !!series.rgbaSlices[idx];
+  if (gpu && !isColor) {
+    const g = gpu.render({
+      key: `${series.id}|${idx}`,
+      pixels: sl,
+      width: W,
+      height: H,
+      wl,
+      ww,
+      invert,
+      isInt16: sl instanceof Int16Array,
+      isUint16: sl instanceof Uint16Array,
+    });
+    if (g) return g;
+  }
   const c = document.createElement("canvas");
   c.width = W; c.height = H;
   const octx = c.getContext("2d");
@@ -99,6 +136,27 @@ function buildBaseCanvas(series: SeriesData, idx: number, wl: number, ww: number
   else { const wlut = buildWindowLUT(wl, ww, invert); windowToRGBA(sl, wlut.lut, wlut.lo, u32); }
   octx.putImageData(img, 0, 0);
   return c;
+}
+
+/**
+ * GPU pencereleyici örneği (bileşen başına bir tane). Yalnızca tarayıcıda oluşturulur;
+ * `needsGpu` false dönerse hiç kurulmaz (küçük görüntüler CPU'da daha hızlı).
+ */
+function ensureGpu(ref: { current: GpuWindower | null }, series: SeriesData | null): GpuWindower | null {
+  if (!series || typeof document === "undefined") return null;
+  if (ref.current) return ref.current;
+  // WebGL2 desteğini ucuz bir bağlamla sınar; başarısızsa null kalır (CPU yolu).
+  let webgl2 = false;
+  try {
+    const probe = document.createElement("canvas").getContext("webgl2");
+    webgl2 = !!probe;
+    // Sondaj bağlamını bırak: çok sayıda panel açılırsa tarayıcı bağlam sınırına takılmasın.
+    (probe as WebGL2RenderingContext | null)?.getExtension("WEBGL_lose_context")?.loseContext();
+  } catch { webgl2 = false; }
+  if (!needsGpu({ webgl2, isColor: !!series.isColor, width: series.width, height: series.height, sliceCount: series.slices.length })) return null;
+  const w = new GpuWindower();
+  ref.current = w.available ? w : null;
+  return ref.current;
 }
 
 /** Önbellek boyutu sınırı: en eski eklenen kayıtları siler. */
@@ -120,7 +178,7 @@ export default function Viewport(props: ViewportProps) {
     findings = EMPTY_FINDINGS, revealedIds = EMPTY_SET, activeFindingId = null, overlay = null,
     showDicomOverlays = true, annotations = EMPTY_ANN, readOnly = false, label, panelId, fusion = null,
     onSlice, onWL, onZoom, onPan, onAddAnnotation, onCalibrate, onHover,
-    mskPointCount = 0, onMskPoints, snapRadius = 0,
+    mskPointCount = 0, onMskPoints, snapRadius = 0, alignPx = null,
   } = props;
 
   const slice = series ? Math.max(0, Math.min(requestedSlice, series.slices.length - 1)) : 0;
@@ -128,17 +186,46 @@ export default function Viewport(props: ViewportProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   // Taban katmanı küçük önbelleği: aktif kesit + komşular (kademeli/önceden pencereleme, v-perf).
   const BASE_CACHE_MAX = 6;
+  // GPU pencereleyici (v-perf): büyük gri görüntülerde doku bir kez yüklenir.
+  const gpuRef = useRef<GpuWindower | null>(null);
+
+  // GPU dokusu seri değişince ve bileşen kalkınca bırakılır: 4096² int16 doku
+  // ≈32 MB; seri değişiminde tutmak bellek sızıntısı olurdu.
+  useEffect(() => {
+    const g = gpuRef.current;
+    return () => { g?.dispose(); };
+  }, [series?.id]);
+
   const PREFETCH_PIXELS_MAX = 2_000_000; // taban tabanlı ön-işleme bellek kapısı (~2 MP ≈ 8 MB)
   const baseCache = useRef(new Map<string, { key: string; canvas: HTMLCanvasElement }>());
   const ovRef = useRef<{ key: string; canvas: HTMLCanvasElement | null }>({ key: "", canvas: null });
   const dragRef = useRef<{ button: number; sx: number; sy: number; wl: number; ww: number; zoom: number; pan: { x: number; y: number } } | null>(null);
+  // Dokunmatik jest durumu (v-multimon): aktif temas noktaları + son kıstırma.
+  const touchesRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinchRef = useRef<Pinch | null>(null);
   const [draft, setDraft] = useState<Draft>(null);
   const [size, setSize] = useState({ w: 800, h: 600 });
+  const [isFullscreen, setFullscreen] = useState(false);
   const [renderTick, setTick] = useState(0);
   const fusRef = useRef<{ key: string; canvas: HTMLCanvasElement | null }>({ key: "", canvas: null });
   const heatRef = useRef<Map<string, { key: string; canvas: HTMLCanvasElement }>>(new Map());
   const registryVersion = usePanelRegistry();
   const suvFactor = series?.suv?.factor ?? null;
+
+  // Tam ekran durumu yalnız bu panel için (v-multimon): Esc/başka panel tam ekranı
+  // devralırsa düğme doğru etiketi göstersin.
+  useEffect(() => {
+    const onChange = () => setFullscreen(!!wrapRef.current && document.fullscreenElement === wrapRef.current);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    const el = wrapRef.current;
+    if (!el) return;
+    if (document.fullscreenElement === el) void document.exitFullscreen().catch(() => {});
+    else if (el.requestFullscreen) void el.requestFullscreen().catch(() => {});
+  };
 
   // Bu panelin hangi seri/kesiti gösterdiğini kayda geçir (referans çizgileri ve 3B imleç için).
   // onSlice her render'da yeniden oluşabilen bir arrow fonksiyon olduğundan geri çağırma
@@ -173,8 +260,12 @@ export default function Viewport(props: ViewportProps) {
   const getTransform = useCallback(() => {
     const { dispW, dispH } = dims();
     const scale = Math.min(size.w / dispW, size.h / dispH) * 0.92 * zoom;
-    return { scale, ox: size.w / 2 - (dispW / 2) * scale + pan.x, oy: size.h / 2 - (dispH / 2) * scale + pan.y, dispW, dispH };
-  }, [dims, size, zoom, pan]);
+    // Hizalama düzeltmesi (a-prior) yalnız görüntü katmanını kaydırır; pan/zoom
+    // kullanıcıya aittir ve üstüne eklenir.
+    const ax = alignPx ? alignPx.dx * scale : 0;
+    const ay = alignPx ? alignPx.dy * scale : 0;
+    return { scale, ox: size.w / 2 - (dispW / 2) * scale + pan.x + ax, oy: size.h / 2 - (dispH / 2) * scale + pan.y + ay, dispW, dispH };
+  }, [dims, size, zoom, pan, alignPx]);
 
   // Görüntü koordinatı -> Ekran koordinatı
   const imgToDisp = useCallback((p: Pt): Pt => {
@@ -209,6 +300,9 @@ export default function Viewport(props: ViewportProps) {
   // yalnızca toplam taban katmanı ~8 MB altı (≈2 MP) serilerde çalışır.
   useEffect(() => {
     if (!series || series.isColor) return;
+    // GPU yolu varsa ön-işleme gereksiz: WL/WW değişimi yalnız uniform güncellemesi.
+    const gpu = ensureGpu(gpuRef, series);
+    if (gpu) return;
     if (series.width * series.height > PREFETCH_PIXELS_MAX) return;
     const rWl = Math.round(wl), rWw = Math.round(ww);
     const keys = [slice + 1, slice + 2, slice - 1, slice - 2]
@@ -255,8 +349,17 @@ export default function Viewport(props: ViewportProps) {
     const isColor = series.isColor && series.rgbaSlices && series.rgbaSlices[sliceIdx];
     const key = `${series.id}|${slice}|${Math.round(wl)}|${Math.round(ww)}|${invert}|${isColor ? "color" : "mono"}`;
 
-    let cachedBase = baseCache.current.get(key);
-    if (!cachedBase) {
+    // GPU yolu (v-perf): büyük gri serilerde taban katmanı GPU'da pencerelenir.
+    // Doku kesit başına bir kez yüklenir; WL/WW/invert yalnız uniform değiştirir.
+    // GPU yoksa/başarısızsa aşağıdaki CPU yolu aynen çalışır (davranış değişmez).
+    const gpu = ensureGpu(gpuRef, series);
+    let gpuBase: HTMLCanvasElement | null = null;
+    if (gpu) {
+      gpuBase = buildBaseCanvas(series, sliceIdx, wl, ww, invert, gpu);
+    }
+
+    let cachedBase = gpuBase ? null : baseCache.current.get(key);
+    if (!cachedBase && !gpuBase) {
       const c = buildBaseCanvas(series, sliceIdx, wl, ww, invert);
       if (c) { cachedBase = { key, canvas: c }; baseCache.current.set(key, cachedBase); trimBaseCache(baseCache.current, BASE_CACHE_MAX); }
     }
@@ -328,7 +431,7 @@ export default function Viewport(props: ViewportProps) {
     let fusCanvas: HTMLCanvasElement | null = null;
     let fusNote = "";
     if (fusion && !series.isColor) {
-      const fkey = `${series.id}|${slice}|${fusion.series.id}|${fusion.alpha}|${fusion.cmap}|${fusion.loPct}|${fusion.hiPct}`;
+      const fkey = `${series.id}|${slice}|${fusion.series.id}|${fusion.alpha}|${fusion.cmap}|${fusion.loPct}|${fusion.hiPct}|${rigidKey(fusion.rigid)}`;
       if (fusRef.current.key !== fkey) {
         const layer = buildFusionLayer(series, slice, fusion);
         if (layer) {
@@ -342,7 +445,8 @@ export default function Viewport(props: ViewportProps) {
         } else fusRef.current = { key: fkey, canvas: null };
       }
       fusCanvas = fusRef.current.canvas;
-      fusNote = fusCanvas ? `FÜZYON · ${fusion.series.modality} ${fusion.series.description} · %${Math.round(fusion.alpha * 100)}` : "Füzyon: konum bilgisi (IPP/IOP/FrameOfReference) uyuşmuyor";
+      const rig = isIdentityRigid(fusion.rigid) ? "" : ` · rijit dx ${(fusion.rigid?.dx ?? 0).toFixed(1)} dy ${(fusion.rigid?.dy ?? 0).toFixed(1)} ${(fusion.rigid?.rotDeg ?? 0).toFixed(1)}°`;
+      fusNote = fusCanvas ? `FÜZYON · ${fusion.series.modality} ${fusion.series.description} · %${Math.round(fusion.alpha * 100)}${rig}` : "Füzyon: konum bilgisi (IPP/IOP/FrameOfReference) uyuşmuyor";
     }
 
     const { scale, ox, oy, dispW, dispH } = getTransform();
@@ -359,7 +463,10 @@ export default function Viewport(props: ViewportProps) {
       ctx.restore();
     };
 
-    drawLayer(baseCache.current.get(key)?.canvas ?? null);
+    // Taban katmanı: GPU varsa GPU tuvali; yoksa CPU LUT tuvali.
+    // Not: `drawImage` kaynak tuvali o an kopyalar — GPU tuvali sonraki karede
+    // yeniden kullanılsa da bu karedeki çizim doğru kalır.
+    drawLayer(gpuBase ?? baseCache.current.get(key)?.canvas ?? null);
     if (fusCanvas) drawLayer(fusCanvas);
     if (ovCanvas) drawLayer(ovCanvas);
     if (heatCanvas) drawLayer(heatCanvas);
@@ -543,6 +650,17 @@ export default function Viewport(props: ViewportProps) {
         ctx.restore();
       }
     }
+    // 6c. Fotometri rozeti: renkli/tahribatsız serilerde hangi yorumla çözüldüğü
+    if (series.photometric) {
+      const pl = photometricLabel(series.photometric, series.isColor ? 3 : 1);
+      const multi = series.isColor && series.slices.length > 1 ? ` · ${series.slices.length} kare` : "";
+      ctx.save();
+      ctx.font = "600 10px ui-monospace, monospace";
+      ctx.fillStyle = "#7f8ea3";
+      ctx.textAlign = "right";
+      ctx.fillText(`${pl}${multi}`, size.w - 8, size.h - 8);
+      ctx.restore();
+    }
     if (fusNote) {
       ctx.save(); ctx.font = "700 10.5px ui-monospace, monospace"; ctx.fillStyle = fusCanvas ? "#fbbf24" : "#f87171";
       ctx.fillText(fusNote, 10, size.h - 26); ctx.restore();
@@ -616,13 +734,23 @@ export default function Viewport(props: ViewportProps) {
     const { cx, cy } = local(e);
     const p = canvasToImg(cx, cy);
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    // Dokunmatik: iki parmak jest moduna geçer (kıstırma + kaydırma).
+    if (e.pointerType === "touch") {
+      touchesRef.current.set(e.pointerId, { x: cx, y: cy });
+      if (touchesRef.current.size >= 2) {
+        pinchRef.current = pinchOf(Array.from(touchesRef.current.values()));
+        dragRef.current = null;
+        setDraft(null);
+        return;
+      }
+    }
     // 3B imleç: tıklanan noktanın hasta koordinatında aynı çerçevedeki diğer panelleri günceller.
     if (e.button === 0 && tool === "xref") {
       const pl = planeOf(series, slice);
       if (pl && panelId) jumpToPatient(panelId, toPatient(pl, p.x, p.y));
       return;
     }
-    if (e.button === 0 && annTool) {
+    if (e.button === 0 && annTool && e.pointerType !== "touch") {
       if (DRAG_TOOLS.includes(tool)) setDraft({ mode: "drag", tool, a: p, b: p });
       else if (tool === "msk") {
         const need = Math.max(1, mskPointCount || 3);
@@ -649,7 +777,8 @@ export default function Viewport(props: ViewportProps) {
       }
       return;
     }
-    dragRef.current = { button: e.button, sx: cx, sy: cy, wl, ww, zoom, pan: { ...pan } };
+    // Dokunmatikte tek parmak kaydırır (araç `wl` olsa bile); farede davranış aynı.
+    dragRef.current = { button: e.pointerType === "touch" ? 1 : e.button, sx: cx, sy: cy, wl, ww, zoom, pan: { ...pan } };
   };
 
   const toScreen = (p: Pt) => {
@@ -664,6 +793,18 @@ export default function Viewport(props: ViewportProps) {
     const p = canvasToImg(cx, cy);
     const inside = p.x >= 0 && p.y >= 0 && p.x < series.width && p.y < series.height;
     onHover?.(inside ? series.slices[slice][Math.floor(p.y) * series.width + Math.floor(p.x)] : null);
+    if (e.pointerType === "touch" && touchesRef.current.has(e.pointerId)) {
+      touchesRef.current.set(e.pointerId, { x: cx, y: cy });
+      if (touchesRef.current.size >= 2) {
+        const next = pinchOf(Array.from(touchesRef.current.values()));
+        const step = gestureStep(pinchRef.current, next);
+        pinchRef.current = next;
+        const st = applyGesture({ zoom, pan }, step);
+        if (step.zoom !== 1) onZoom(st.zoom);
+        if (step.dx || step.dy) onPan(st.pan);
+        return;
+      }
+    }
     if (draft?.mode === "multi") setDraft({ ...draft, cursor: p });
     else if (draft?.mode === "drag") setDraft({ ...draft, b: p });
     const d = dragRef.current;
@@ -675,7 +816,12 @@ export default function Viewport(props: ViewportProps) {
     else if (eff === "zoom") onZoom(Math.min(12, Math.max(0.15, d.zoom * Math.exp(-dy / 180))));
   };
 
-  const onUp = () => {
+  const onUp = (e?: React.PointerEvent) => {
+    if (e) {
+      touchesRef.current.delete(e.pointerId);
+      if (touchesRef.current.size < 2) pinchRef.current = null;
+      if (touchesRef.current.size > 0) { dragRef.current = null; return; }
+    }
     dragRef.current = null;
     if (!series || draft?.mode !== "drag") return;
     const { a, b, tool: t } = draft;
@@ -718,12 +864,20 @@ export default function Viewport(props: ViewportProps) {
         onPointerDown={onDown}
         onPointerMove={onMove}
         onPointerUp={onUp}
+        onPointerCancel={onUp}
         onPointerLeave={() => onHover?.(null)}
         onDoubleClick={() => { if (draft?.mode === "multi" && draft.tool === "polygon") finishPolygon(draft.pts.slice(0, -1).length >= 3 ? draft.pts.slice(0, -1) : draft.pts); }}
         onWheel={onWheel}
         onContextMenu={(e) => e.preventDefault()}
       />
       {label && <div className="pointer-events-none absolute left-2 top-2 rounded bg-black/60 px-2 py-0.5 font-mono text-[10px] text-violet-200">{label}</div>}
+      <button
+        type="button"
+        onClick={toggleFullscreen}
+        title={isFullscreen ? "Tam ekrandan çık (Esc)" : "Bu paneli tam ekran yap"}
+        aria-label={isFullscreen ? "Tam ekrandan çık" : "Paneli tam ekran yap"}
+        className="absolute right-2 top-2 z-10 rounded border border-[#243044] bg-black/60 px-1.5 py-0.5 text-[11px] text-slate-300 hover:border-cyan-400/60 hover:text-cyan-200"
+      >{isFullscreen ? "⤡" : "⛶"}</button>
       {current.length > 0 && (
         <div className="pointer-events-none absolute left-1/2 top-12 flex -translate-x-1/2 flex-col items-center gap-1">
           {current.map((cf) => (

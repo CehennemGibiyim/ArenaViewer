@@ -9,7 +9,6 @@ import {
   COMPETITOR_SITES,
   GAP_ITEMS,
   ROADMAP,
-  SOURCES,
   type CategoryId,
   type CompetitorType,
   type GapEffort,
@@ -17,6 +16,7 @@ import {
   type GapPriority,
   type GapStatus,
 } from "@/lib/gapAnalysis";
+import { GAP_SOURCES, SOURCES_UPDATED, competitorLink, itemSources, sourceSummary } from "@/lib/gapSources";
 
 const STATUS_META: Record<GapStatus, { label: string; cls: string }> = {
   var: { label: "VAR", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/40" },
@@ -67,6 +67,11 @@ export default function GapAnalysis() {
   const itemById = useMemo(() => new Map(GAP_ITEMS.map((i) => [i.id, i])), []);
 
   const progress = useMemo(() => gapProgress(GAP_ITEMS), []);
+  const srcStats = useMemo(() => sourceSummary(GAP_ITEMS), []);
+  const usedSources = useMemo(
+    () => Object.values(GAP_SOURCES).filter((s) => s.kind !== "kod").sort((a, b) => a.label.localeCompare(b.label, "tr")),
+    []
+  );
   const overall = progress.indexPercent;
   const counts = useMemo(
     () => ({
@@ -99,12 +104,15 @@ export default function GapAnalysis() {
       `Durum endeksi: %${overall} (var ${counts.var} · kısmi ${counts.kismi} · yok ${counts.yok}); tamamlanan madde oranı: %${progress.completedPercent}`,
       "Endeks: var=1, kısmi=0,5, yok=0; kısmi işin gerçek yüzdesi ölçülmez.",
       "",
-      "| Özellik | Durum | Öncelik | Efor | Piyasada | Aksiyon |",
-      "| --- | --- | --- | --- | --- | --- |",
-      ...GAP_ITEMS.map(
-        (i) =>
-          `| ${i.title} | ${STATUS_META[i.status].label} | ${i.priority} | ${i.effort} | ${i.market.join(", ")} | ${i.action} |`
-      ),
+      `Kaynaklar: ${srcStats.usedSources} kaynak kaydı, ${srcStats.codeRefs} depo dosyası referansı (varlığı testle doğrulanır), ${srcStats.unverified} doğrulanmamış kayıt. Son gözden geçirme: ${SOURCES_UPDATED}.`,
+      "",
+      "| Özellik | Durum | Öncelik | Efor | Piyasada | Kaynak | Aksiyon |",
+      "| --- | --- | --- | --- | --- | --- | --- |",
+      ...GAP_ITEMS.map((i) => {
+        const r = itemSources(i);
+        const srcs = [...r.external.map((x) => x.url ?? `${x.label} (doğrulanmadı)`), ...r.code.map((c) => `\`${c}\``)].join("<br>");
+        return `| ${i.title} | ${STATUS_META[i.status].label} | ${i.priority} | ${i.effort} | ${i.market.join(", ")} | ${srcs} | ${i.action} |`;
+      }),
     ];
     try {
       await navigator.clipboard.writeText(lines.join("\n"));
@@ -191,7 +199,8 @@ export default function GapAnalysis() {
         <p className="mt-3 text-xs leading-relaxed text-slate-400">
           Tamamlanan madde oranı: <strong className="text-slate-200">%{progress.completedPercent}</strong> ({progress.var}/{progress.total}).
           Kısmi maddelerin gerçek tamamlanma oranı ayrı ölçülmediğinden %50 tamamlandı sayılmaz; yukarıdaki endekste yalnızca sabit ağırlık olarak kullanılır.
-          Durumlar elle güncellenir, otomatik test veya canlı dağıtım doğrulaması değildir.
+          Durumlar elle işaretlenir (bir özellik ancak gerçek kod varsa VAR sayılır) ve sayfa bu kaynaktan üretilir; satırlardaki dosya yolları{" "}
+          <code className="font-mono text-[10.5px] text-cyan-300">test:gap-sources</code> ile dosya sisteminden doğrulanır.
         </p>
 
         {/* Kategori çubukları */}
@@ -284,6 +293,7 @@ export default function GapAnalysis() {
             )}
             {filtered.map((i) => {
               const cat = CATEGORIES.find((c) => c.id === i.category);
+              const src = itemSources(i);
               return (
                 <article key={i.id} className="rounded-lg border border-[#1e2735] bg-[#0b1018] p-3.5">
                   <div className="flex flex-wrap items-start justify-between gap-2">
@@ -327,6 +337,44 @@ export default function GapAnalysis() {
                       <div className="text-[10px] font-bold uppercase tracking-widest text-cyan-400">Önerilen aksiyon</div>
                       <p className="mt-0.5 text-slate-300">{i.action}</p>
                     </div>
+
+                  <div className="mt-2 rounded-md border border-[#1a2332] bg-[#080c12] p-2.5 text-[11px] leading-relaxed">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Kaynaklar</div>
+                    <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                      {src.external.map((x) => (
+                        <li key={x.key} className="min-w-0">
+                          {x.url ? (
+                            <a
+                              href={x.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`font-semibold hover:underline ${x.checkedAt ? "text-cyan-400" : "text-amber-300"}`}
+                              title={`${x.basis} · ${x.checkedAt ? `doğrulandı ${x.checkedAt} (${x.checkMethod === "get" ? "doğrudan erişim" : "arama"})` : "doğrulanmadı"}`}
+                            >
+                              {x.checkedAt ? "✓" : "⚠"} {x.label}
+                            </a>
+                          ) : (
+                            <span className="font-semibold text-amber-300" title={x.note ?? x.basis}>⚠ {x.label}</span>
+                          )}
+                        </li>
+                      ))}
+                      {src.unmapped.map((p) => (
+                        <li key={p} className="font-mono text-[10px] text-rose-300" title="Bu ürün adı için kaynak kaydı yok">
+                          ⚠ kaynaksız: {p}
+                        </li>
+                      ))}
+                    </ul>
+                    {src.code.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Depo:</span>
+                        {src.code.map((c) => (
+                          <code key={c} className="rounded bg-[#0d141d] px-1 py-0.5 font-mono text-[10px] text-slate-400">
+                            {c}
+                          </code>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   </div>
                 </article>
               );
@@ -386,9 +434,10 @@ export default function GapAnalysis() {
                   </span>
                 </div>
                 <p className="mt-0.5 text-[11px] text-slate-500">{c.focus}</p>
-                {COMPETITOR_SITES[c.name] && (
-                  <a href={COMPETITOR_SITES[c.name]} target="_blank" rel="noreferrer" className="mt-0.5 inline-block text-[11px] font-semibold text-cyan-400 hover:text-cyan-300 hover:underline">
-                    ↗ Resmî site
+                {competitorLink(c.name) && (
+                  <a href={competitorLink(c.name)!.url} target="_blank" rel="noreferrer" className="mt-0.5 inline-block text-[11px] font-semibold text-cyan-400 hover:text-cyan-300 hover:underline">
+                    {competitorLink(c.name)!.official ? "↗ Resmî site" : "↗ Doğrulanmış kaynak"}
+                    {!competitorLink(c.name)!.checkedAt && <span className="ml-1 text-amber-300">⚠</span>}
                   </a>
                 )}
                 <ul className="mt-2 list-disc space-y-0.5 pl-4 text-[11.5px] text-slate-300">
@@ -404,23 +453,59 @@ export default function GapAnalysis() {
           </div>
         </section>
 
-        {/* Kaynaklar */}
+        {/* Kaynaklar ve doğrulama */}
         <section className="mt-8 mb-10 rounded-xl border border-[#1e2735] bg-[#0b1018] p-4">
-          <h2 className="text-sm font-black tracking-wide text-slate-100">Kaynaklar ve notlar</h2>
-          <p className="mt-1 text-[11.5px] leading-relaxed text-slate-500">
-            Piyasa bilgileri üretici sitelerinden ve üçüncü taraf derlemelerden alınmıştır; rakamlar ve kapsamlar
-            üretici iddiasıdır, sürüme ve bölgeye göre değişebilir. Bu sayfa hukuki veya regülasyon danışmanlığı yerine
-            geçmez.
-          </p>
-          <ul className="mt-2 grid gap-1 md:grid-cols-2">
-            {SOURCES.map((s) => (
-              <li key={s.url} className="truncate text-[11.5px]">
-                <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">
-                  {s.title}
-                </a>
-              </li>
-            ))}
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-sm font-black tracking-wide text-slate-100">Kaynaklar, doğrulama ve veri politikası</h2>
+            <span className="font-mono text-[11px] text-slate-500">son gözden geçirme: {SOURCES_UPDATED}</span>
+          </div>
+          <ul className="mt-2 grid gap-1.5 text-[11.5px] leading-relaxed text-slate-300 md:grid-cols-2">
+            <li>
+              <b className="text-slate-100">Sahte veri yok.</b> Her satırdaki &quot;bizde şu an&quot; ifadesi depodaki dosya
+              yollarına bağlıdır; bu yolların gerçekten var olduğu <code className="font-mono text-[10.5px] text-cyan-300">npm run test:gap-sources</code>{" "}
+              ile dosya sisteminden doğrulanır ({srcStats.codeRefs} referans).
+            </li>
+            <li>
+              <b className="text-slate-100">Her piyasa iddiasının kaynağı var.</b> {srcStats.usedSources} kaynak kaydı,{" "}
+              {srcStats.externalLinks} dış bağlantı; doğrulanmamış {srcStats.unverified} kayıt tabloda <span className="text-amber-300">⚠</span> ile
+              işaretlenir ve hakkında ayrıntılı iddia kurulmaz.
+            </li>
+            <li>
+              <b className="text-slate-100">Rakip iddiaları üretici beyanıdır.</b> Ürün yetenekleri üretici sitesi/dokümantasyonundan
+              alınır; sürüme, modüle ve bölgeye göre değişir. Bağımsız klinik doğrulama sayılmaz, hukuki/regülasyon görüşü değildir.
+            </li>
+            <li>
+              <b className="text-slate-100">Tablo kodla senkron.</b> Durumlar ve yüzdeler{" "}
+              <code className="font-mono text-[10.5px] text-cyan-300">src/lib/gapAnalysis.ts</code> +{" "}
+              <code className="font-mono text-[10.5px] text-cyan-300">gapProgress</code> üzerinden hesaplanır; sayfada sabit
+              yüzde tutulmaz, özellik tamamlandıkça tablo kendiliğinden güncellenir.
+            </li>
           </ul>
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            {usedSources.map((x) => (
+              <div key={x.key} className="rounded-md border border-[#1a2332] bg-[#080c12] px-2.5 py-1.5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <div className="min-w-0">
+                    {x.url ? (
+                      <a href={x.url} target="_blank" rel="noopener noreferrer" className="truncate text-[11.5px] font-semibold text-cyan-400 hover:underline">
+                        {x.label}
+                      </a>
+                    ) : (
+                      <span className="text-[11.5px] font-semibold text-amber-300">{x.label} ⚠</span>
+                    )}
+                    <span className="ml-1.5 rounded border border-[#2d3b4e] px-1 py-0.5 font-mono text-[9px] text-slate-400">
+                      {x.kind === "uretici" ? "üretici" : x.kind === "dokumantasyon" ? "dokümantasyon" : x.kind === "standart" ? "standart" : "ikincil"}
+                    </span>
+                  </div>
+                  <span className={`shrink-0 font-mono text-[10px] ${x.checkedAt ? "text-emerald-300" : "text-amber-300"}`}>
+                    {x.checkedAt ? `✓ ${x.checkedAt}` : "⚠ doğrulanmadı"}
+                  </span>
+                </div>
+                <div className="truncate text-[10.5px] text-slate-500" title={x.basis}>{x.basis}</div>
+                {x.note && <div className="mt-0.5 text-[10px] leading-snug text-amber-200/70">{x.note}</div>}
+              </div>
+            ))}
+          </div>
         </section>
       </main>
     </div>

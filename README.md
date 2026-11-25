@@ -11,6 +11,11 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
 
 - **DICOM görüntüleyici:** klasör/dosya/ZIP içe aktarma, sürükle-bırak, pencere/seviye
   (WL/WW + BT hazır ayarları), yakınlaştırma, kaydırma, döndürme, ters çevirme, cine
+- **GPU pencereleme (büyük görüntüler):** ≥1 MP gri kesitlerde doku bir kez WebGL2'ye
+  yüklenir (Int16→R16I, Uint16→R16UI, Float32→R32F — kayıpsız), WL/WW/invert yalnız
+  uniform güncellemesi olur; shader CPU LUT'u ile **birebir** aynı gri seviyeyi verir
+  (`tests/gpu-window.test.ts`). Bağlam kaybı, doku sınırı aşımı veya renkli seride
+  sessizce CPU yoluna döner — davranış değişmez (`src/lib/gpuWindow.ts`).
 - **Gerçek codec desteği:** JPEG, JPEG Lossless, 12-bit JPEG Extended, JPEG 2000,
   HTJ2K, JPEG-LS, RLE, Deflated, Big Endian (WASM + JS çözücüler)
 - **Fotometrik yorumlar:** MONOCHROME1/2, RGB, YBR, PALETTE COLOR; DICOM Overlay
@@ -20,6 +25,13 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   oblik (eğimli) MPR ve WebGL 3B hacim. Kesit konumu kaydı (IPP) varsa koronal/sagital
   gerçek hasta geometrisinden, ölçek kayması olmadan örneklenir (`src/lib/mpr.ts` +
   `VolumeView`). Kaynak seri salt okunur tutulur.
+- **Önceki tetkik karşılaştırması + görsel hizalama:** Geçmiş çalışma ikinci panele
+  anatomik senkronla (IPP/kesit konumu) açılır; bulgu kartında çap/hacim farkı
+  yazılır. Karşılaştırma panelindeki 🎯 **Hizala**, iki kesidi normalize çapraz
+  korelasyonla **öteleme + izotropik ölçek** olarak hizalar; Δx/Δy/ölçek/skor
+  gösterilir, skor < 0,55 ise sonuç "güvenilir değil" sayılır ve uygulanmaz.
+  Hizalama yalnız görüntü katmanını kaydırır — ölçüm koordinatları değişmez
+  (`src/lib/registration.ts`). Döndürme/deformable/3B kayıt yoktur.
 - **Takip görevleri:** Onaylı raporun önerisi göreve dönüşür; sonuç tarihine göre
   **geciken / bugün / yaklaşan (14 gün) / ileri / tarihsiz** kovaları, öncelik
   sıralaması, görev tarihçesi CSV'si ve HBYS/RIS **iade eşleme** (rapor kimliği →
@@ -28,14 +40,67 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   alınma / 30 dk eskalasyon), süresi dolan bildirim için **ikinci hekim / sorumlu
   uzman / kurum nöbeti** eskalasyonu ve 15 dk'lık hatırlatma; her adım denetim
   izine yazılır. 🔔 panelinde süre etiketi ve "⏱ Süre taraması" düğmesi.
+- **Akciğer kantitasyonu:** Araç çubuğu → 🫁 Akciğer (CT): LAA-950 (emfizem
+  oranı), ortalama HU, PD15, tahmini hacim ve **kesit dağılım profili**. Gövde
+  dışı hava dışlanır; lob/fissür ayrımı yoktur, DSBG ile birlikte değerlendirilir.
+- **Fotometrik yorum (`f-pixel`):** `src/lib/photometric.ts` — MONOCHROME1 ters
+  çevirme (tek sabit, tip korunur), RGB 8/16-bit, **Planar Configuration 1**,
+  YBR_FULL, **native 4:2:2 / 4:2:0** açma, **PALETTE COLOR** (ikili US tanımlayıcı,
+  8/16-bit LUT, `firstMapped`), çok kareli renkli seriler; çıktı 32-bit RGBA
+  (`rgbaSlices`) ve görüntüleyicide fotometri rozeti. 40 birim + 24 uçtan uca
+  DICOM testi (`test:photometric`, `test:photometric-e2e`).
+- **Kıyaslama tablosu ve kaynak politikası (`/kiyaslama`):** tablodaki durumlar
+  `src/lib/gapAnalysis.ts` + `gapProgress` üzerinden **kodla senkron** hesaplanır
+  (sayfada sabit yüzde yok). Her satırın dayanağı `src/lib/gapSources.ts` kayıt
+  defterinde: piyasa iddiaları üretici sitesi/dokümantasyon/standarda, "bizde şu an"
+  ifadeleri ise **gerçek dosya yollarına** bağlıdır. `npm run test:gap-sources`
+  dosyaların varlığını dosya sisteminden doğrular; doğrulanmamış kaynaklar tabloda
+  ⚠ ile işaretlenir. Adresler `npm run verify:sources` ile (ağ erişimiyle) yeniden
+  kontrol edilebilir.
+- **Füzyon katı hizalaması:** PET/BT bindirmesinde kesit içi **öteleme + dönme +
+  ölçek**; «Otomatik hizala (NCC)» kabadan inceye tarama yapar, kaydırıcılarla elle
+  ince ayar yapılır. Deformable kayıt ve TIC eğrileri henüz yoktur; sonuç tanı
+  aracı değildir, görsel doğrulama gerekir.
+- **İkinci okuma (RADPEER):** rapor ekranındaki uyum kaydına ek olarak Yönetim →
+  İş akışı'nda **RADPEER panosu**: deterministik **örneklem** (oran ayarlanabilir,
+  varsayılan %5), hedef takibi (beklenen/kalan), uyum oranı, puan dağılımı,
+  uyuşmazlık türleri, hekim başına uyumsuzluk ve takip listesi.
+- **Hasta mektubu:** Rapor ekranı → 💬 Hasta mektubu: onaylı rapordan **TR/EN/DE**
+  dillerinde, **sade/standart** okuma düzeyinde özet; sade düzeyde tıbbi terimler
+  günlük karşılıklarına çevrilir, yazdırma/PDF ve panoya kopyalama var. Onaysız
+  raporda mektup TASLAK olarak kilitlenir.
+- **Nükleer tıp:** Araç çubuğu → 🧪 Nükleer (PT/NM ya da SUV çarpanı olan seri):
+  eşik tabanlı **MTV/SUVpeak/SUVmean** (mutlak SUV veya maksimumun %41'i) ve
+  zaman-aktivite noktalarından **TIC** sınıflandırması (wash-out/plato/progresif).
+- **İş akışı panosu:** Yönetim → İş akışı: **haftalık TAT trendi** (modalite
+  süzgeçli), ayarlanabilir **hedef TAT** eşiği ve otomatik uyarılar (hedefi aşan
+  hafta, %25'ten fazla yavaşlama, bayat taslak).
+- **Erişilebilirlik:** görünür klavye odağı, «İçeriğe geç» bağlantısı, diyaloglarda
+  `role="dialog"`/`aria-modal` + Escape, `aria-live` geri bildirim, **yüksek
+  kontrast** teması (◐ Kontrast; tercih cihazda saklanır) ve `prefers-reduced-motion`
+  desteği. WCAG kontrast matematiği testlidir (`npm run test:a11y`).
+- **Model kayıt defteri:** Yönetim → AI: model sürümleri (aday/aktif/emekli),
+  trafik payı, parmak izi; `/api/ai/registry` deterministik **A/B ataması**
+  (tohum → kova) ve aşama değişikliğinde denetim kaydı.
 - **RECIST 1.1 (tam):** Hedef lezyon seçim denetimi (≥10 mm; lenf nodu kısa eksen
   ≥15 mm; organ başına ≤2, toplam ≤5), non-hedef bileşkesi ve **genel yanıt
   tablosu** (yeni lezyon → PD; hedef CR + non-hedef CR → CR). Nodül takibi
-  panelinden işaretlenir; CSV'ye genel değerlendirme eklenir.
-- **Segmentasyon + SEG/RTSTRUCT:** Fırça/silgi, eşik dolgusu ve tohumdan bölge
-  büyütme ile maske düzenleme; hacim (mL) hesabı. DICOM **SEG** (1 bit/piksel,
-  segment başına renk/etiket/algoritma) ve **RTSTRUCT** (CLOSED_PLANAR konturlar)
-  dışa aktarımı; ekran işaretlerinden otomatik maske üretimi. AI aday örtüsü
+  panelinden işaretlenir; CSV'ye genel değerlendirme eklenir. **Çalışmalar arası
+  eşleştirme:** en yeni iki çalışma tarihi otomatik karşılaştırılır (anatomi +
+  lezyon adı imzası); eşleşen lezyonlarda Δ mm / Δ%, yeni ve saptanmayan
+  lezyonlar, **lenf nodu kısa eksen tablosu** (normal/takip/patolojik) gösterilir
+  ve CSV'ye eklenir. **Sunucu ölçüm geçmişi:** girilen ölçümler `measurement_history`
+  tablosuna (`/api/measurements`, hasta + tarih + lezyon tekil) yazılır; «☁ Sunucu
+  geçmişi» paneli lezyon bazlı trend grafiği (SVG), Δ mm/% ve HU değişimini gösterir.
+- **Segmentasyon editörü + SEG/RTSTRUCT:** Araç çubuğu → 🧩 Segmentasyon:
+  **fırça/silgi** (1–40 px), **eşik dolgusu** (HU aralığı), **tohumdan bölge
+  büyütme**, kesit gezinme ve «sonraki kesite kopyala». Maske seri kimliğiyle
+  tarayıcıda saklanır; **hacim mL/mm³** canlı hesaplanır (piksel aralığı × kesit
+  kalınlığı); maskeden **otomatik uzun/kısa eksen** (mm, RECIST çap adayı) okunur.
+  RTSTRUCT için **gerçek kenar izleme** (Moore): her bağlı bileşen sıralı kontur
+  olarak yazılır, içbükeylikler korunur. DICOM **SEG** (1 bit/piksel, renk/etiket/algoritma) ve **RTSTRUCT**
+  (CLOSED_PLANAR konturlar) dışa aktarımı; Dışa aktar menüsündeki işaret tabanlı
+  SEG çıktısı elle çizilen maskeyle **birleştirilir**. AI aday örtüsü
   düzenlenebilir maske değildir; SEG/RTSTRUCT hekim düzenlemesine açıktır.
 - **Yapılandırılmış ölçüm SR (TID 1500):** Ekran ölçümleri (uzunluk, elipsoid,
   ROI, çokgen) DICOM **Comprehensive SR** olarak yazılır: 125007 Measurement
@@ -47,6 +112,14 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   bölge özeti (core: rCBF<%30, penumbra: Tmax≥6 sn) ve mismatch oranı. Panelden
   `ad | zaman | değer` biçiminde eğri yapıştırılır. Değerler **rölatiftir**;
   mutlak mL/100 g/dk için dansite kalibrasyonu gerekir, klinik karar aracı değildir.
+- **Kritik bulgu bildirimi (çok kanallı):** kritik/yüksek aday bulgu uygulama içi
+  bildirime ek olarak **e-posta / SMS / çağrı cihazı / webhook** kanallarına gider.
+  Kanallar Yönetim → Entegrasyon'da JSON olarak tanımlanır (kurumun SMTP relay'i,
+  SMS/pager ağ geçidi veya push köprüsü tek HTTP uç noktası); kanal başına önem
+  eşiği ve `enabled` anahtarı vardır, "Test gönder" HTTP durum kodlarını listeler.
+  Yük **kimliksizdir** (önem, çalışma UID, modalite, kısa mesaj — hasta adı
+  gönderilmez). Bir kanalın hatası diğerlerini engellemez, sonuç denetim kaydına
+  kanal bazında yazılır (`src/lib/notifyChannels.ts`).
 - **Denetim → SIEM:** Her denetim olayı aynı işlemde `audit_delivery` kuyruğuna
   CEF olarak yazılır. `AUDIT_SIEM_URL` (+ isteğe bağlı `AUDIT_SIEM_SECRET`) tanımlıysa
   HMAC-SHA256 imzalı POST ile gönderilir; hata olursa üstel geri çekilmeyle
@@ -56,6 +129,12 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   ile yalnız görünen kareler indirilir; istemcide LRU önbellek (240 kare) ve ±2
   ön getirme penceresi vardır. Büyük çalışmalarda tüm instance indirmek yerine
   kademeli getirme sağlar.
+- **İkinci ekran ve dokunmatik jestler:** Her panelin kendi ⛶ tam ekran düğmesi
+  vardır. Araç çubuğu → 🖥 İkinci ekran, aktif seriyi `/ayna` penceresine canlı
+  yayınlar (BroadcastChannel; yalnız görüntülenen kesit + WL/WW/zoom gönderilir,
+  veri sunucuya gitmez, alıcı salt izlemedir) — pencereyi başka bir monitöre
+  sürükleyin. Dokunmatikte iki parmak kıstırma = zoom, iki parmak = kaydırma,
+  tek parmak = kaydırma (`src/lib/gestures.ts`).
 - **Anonim seri gönderimi:** Seriyi PACS'e **kimliksiz** göndermek için anonim
   DICOM baytları tarayıcıda sıfırdan üretilir (özel etiket / orijinal UID / ad
   taşınmaz); sunucu örnek sayısı, toplam boyut ve DICM imzasını yeniden denetler.
@@ -362,6 +441,11 @@ ayarı. S3 istemcisi AWS SigV4 kullanır (AWS/MinIO/R2/Wasabi uyumlu).
 | `AUTH_MODE` | Hayır | Boş/demo: ACCESS_TOKEN varsa onunla, yoksa tek operatör. `hesap`: kullanıcı adı/parola (+MFA) zorunlu, rol denetimi aktif |
 | `SESSION_SECRET` | Hesap modunda | Oturum çerezini imzalayan gizli anahtar (tanımsızsa `DATA_ENCRYPTION_KEY` kullanılır) |
 | `REQUIRE_TOTP_FOR_ROLES` | Hayır | MFA zorunluluğu olan roller (varsayılan `yonetici`). Bu rollerdeki hesaplar authenticator kodu olmadan giremez |
+| `SESSION_MAX_AGE_SECONDS` | Hayır | Oturum ömrü (varsayılan `28800` = 8 saat, sınır 3600–604800). Sunucu tarafındaki kayıt bu süreden bağımsız iptal edilebilir |
+| `LOGIN_LOCK_WINDOW_MIN` / `LOGIN_LOCK_MAX_FAILURES` / `LOGIN_LOCK_MINUTES` | Hayır | Kaba kuvvet kilidi: pencere içinde N hatalı giriş → M dakika kilit (varsayılan 15 / 5 / 15) |
+| `REQUIRE_TLS` | Hayır | `0` (kapalı, varsayılan) · `1`/`true`/`forward` (ters vekil `x-forwarded-proto` bildirir) · `direct` (TLS'i uygulama sonlandırır). TLS'siz sayfa istekleri https'e yönlenir, TLS'siz API istekleri `426` alır; `/api/health` ve statik varlıklar muaf |
+| `HSTS_MAX_AGE` / `HSTS_SUBDOMAINS` / `HSTS_PRELOAD` | Hayır | HSTS başlığı (varsayılan `31536000` / `1` / `0`). Yalnız TLS'li yanıtlarda yazılır; önce tüm alt alan adlarının https olduğundan emin olun |
+| `TRUST_PROXY` | Hayır | `1` ise istemci IP'si `x-forwarded-for` başlığından okunur (giriş kilidi ve denetim kaydı). Yalnız güvenilir ters vekil arkasında açın |
 | `LLM_API_URL` / `LLM_API_KEY` / `LLM_MODEL` | Hayır | Taslak izlenim LLM'i (yoksa kural tabanlı yedek). Ücretsiz yerel yol: [docs/OLLAMA.md](docs/OLLAMA.md) |
 | `AI_WORKER_URL` | Hayır | Yerel derin AI worker adresi (varsayılan `http://127.0.0.1:8787`) |
 
@@ -401,6 +485,12 @@ npm run test:msk                     # MSK protokol hesapları + nokta yapışma
 npm run test:esign                   # imza kaydı + NES sınır etiketi
 npm run test:xref                    # 3B imleç: en yakın kesit + panel güncellemeleri
 npm run test:perf                   # pencere/seviye doğruluğu + önbellek ön-işleme
+npm run test:gpu                    # GPU pencereleme kararı + shader≡CPU eşdeğerliği
+npm run test:gestures               # dokunmatik jest matematiği (pinch/pan)
+npm run test:mirror                 # ikinci ekran yayını + gerçek BroadcastChannel turu
+npm run test:ui-smoke               # ikinci ekran + segmentasyon editörü render duman testi
+npm run test:registration           # önceki/şimdiki tetkik hizalaması (NCC, öteleme+ölçek)
+npm run test:notify-channels        # e-posta/SMS/çağrı kanalları: ayrıştırma, eşik, PHI'siz yük
 npm run bench:window                # WL/WW dönüşümü kıyaslaması (eski vs LUT)
 npm run test:pr                     # GSPS/PR dışa aktarma + parse doğrulama
 npm run test:notify                 # masaüstü bildirimi + izin akışı
@@ -414,6 +504,18 @@ npm run test:ctp                    # CTP cSVD dekonvolüsyonu + otomatik AIF
 npm run test:sr1500                 # TID 1500 yapılandırılmış ölçüm SR (+köprü)
 npm run test:seg                    # segmentasyon maskesi + DICOM SEG/RTSTRUCT
 npm run test:recistfull             # RECIST hedef seçimi + non-hedef + genel yanıt
+npm run test:tracking               # lezyon eşleştirme + nodül takibi köprüsü
+npm run test:measure-history        # sunucu ölçüm geçmişi serileri + trend + CSV
+npm run test:lungquant              # LAA-950, PD15, kesit profili, örnekleme
+npm run test:model-registry         # model kayıt defteri + A/B ataması
+npm run test:a11y                   # WCAG kontrastı + tema sabitleri
+npm run test:nuclear                # MTV/SUV örnekleme + TIC sınıflandırması
+npm run test:patient-letter         # hasta mektubu: TR/EN/DE, okuma düzeyi, taslak kilidi
+npm run test:fusion-rigid           # füzyon katı hizalaması: NCC kestirimi, dönme/ölçek, katman kaydırma
+npm run test:gap-sources            # kıyaslama tablosu: her satırın kaynağı + dosya yollarının varlığı
+npm run test:photometric            # fotometri: MONO1/2, RGB/planar, YBR 4:2:2, palet LUT
+npm run test:photometric-e2e        # sentetik DICOM ile renkli/paletli/çok kareli içe aktarma
+npm run verify:sources              # (ağ gerekir) kaynak adreslerini yeniden doğrula
 npm run test:closeloop              # kapanış döngüsü süre/eskalasyon kuralları
 npm run test:followup               # takip görev kovaları + iade eşleme
 npm run test:stowanon               # anonim seri → PACS (plan + sunucu doğrulaması)
@@ -515,6 +617,19 @@ docs/             Yayınlama ve işletim kılavuzları
   bu rollere sahip hesaplara TOTP/MFA şart koşar; Yönetim → Profil & MFA ekranından
   authenticator uygulamasıyla kurulur. Hesap MFA kurmadan giriş yapamaz, denetim
   kaydına `auth.login`/`profile.totp.*` olarak yazılır.
+- **Sunucu taraflı oturumlar (F3):** çerez yalnız rastgele bir oturum kimliği taşır,
+  kaydı veritabanındadır (SHA-256 özeti). Yönetim → **Oturumlar** sekmesinden açık
+  oturumlar görülür, tek tek ya da “bu cihaz dışındakiler” topluca kapatılır; iptal
+  edilen çerez süresi dolmamış olsa bile reddedilir. Ömür `SESSION_MAX_AGE_SECONDS`
+  (varsayılan 8 saat). Çıkış oturumu sunucuda da iptal eder.
+- **Hesap kilidi (F4):** `LOGIN_LOCK_WINDOW_MIN` içinde `LOGIN_LOCK_MAX_FAILURES`
+  hatalı giriş olursa hesap `LOGIN_LOCK_MINUTES` boyunca kilitlenir (`429` +
+  `Retry-After`); sayaç başarılı girişte sıfırlanır ve olay denetim kaydına yazılır.
+- **TLS/HSTS (G2):** `REQUIRE_TLS` açıkken TLS'siz sayfa istekleri https'e yönlendirilir,
+  TLS'siz API istekleri `426` ile reddedilir (`/api/health` muaf); HSTS başlığı TLS'li
+  yanıtlarda yazılır. Ters vekil arkasında `TRUST_PROXY=1` vererek kilidin doğru IP'yi
+  görmesini sağlayın. Sertifika sonlandırma kurumun ağında yapılır — uygulama kendi
+  sertifikasını üretmez.
 - Onay akışı hâlâ kişisel kimlik kanıtı değildir: rapora oturumdaki hekim adı
   yazılır ve içerik SHA-256 ile mühürlenir; mühür yalnızca sonradan değişikliği
   saptar. Gerçek hasta verisi için ağ düzeyinde erişim kısıtı ve kurumsal kimlik

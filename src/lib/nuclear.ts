@@ -128,3 +128,85 @@ export function metabolicTumorVolume(suvVoxels: number[], voxelMl: number, thres
         : `MTV ${mtv.toFixed(1)} mL (≥${threshold} SUV, ${above.length} voxel), SUVpeak ${peak.toFixed(1)}. Eşik ve segmentasyon protokole göredir.`,
   };
 }
+
+// ─────────────── Seriden SUV örnekleme ───────────────
+
+export interface SuvSampleOptions {
+  /** Piksel → SUV çarpanı (seri SuvInfo.factor). */
+  factor: number;
+  /** Piksel örnekleme adımı (varsayılan 2). */
+  pixelStride?: number;
+  /** En fazla kaç kesit (varsayılan 64). */
+  maxSlices?: number;
+}
+
+export interface SuvSample {
+  /** Örneklenen SUV değerleri (Bq/mL × factor). */
+  values: number[];
+  /** Örnek başına hacim (mL) — MTV için örnekleme ölçeklenmiş. */
+  voxelMl: number;
+  sampledVoxels: number;
+  sliceStep: number;
+  pixelStride: number;
+}
+
+/**
+ * PET serisinden SUV örnekleri çıkarır (a-nm).
+ *
+ * Piksel değerleri `factor` ile SUV'a çevrilir (SuvInfo.factor = SUVbw/piksel).
+ * Örnekleme nedeniyle elde edilen hacim **yaklaşıktır**; negatif/NaN pikseller
+ * atılır. Mutlak kalibrasyon (doz/decay/att düzeltmesi) seri meta verisine bağlıdır.
+ */
+export function sampleSuvVoxels(
+  getSlice: (z: number) => ArrayLike<number> | undefined,
+  width: number,
+  height: number,
+  sliceCount: number,
+  voxelMm3: number,
+  opts: SuvSampleOptions,
+): SuvSample {
+  const stride = Math.max(1, Math.round(opts.pixelStride ?? 2));
+  const maxSlices = Math.max(1, Math.round(opts.maxSlices ?? 64));
+  const step = Math.max(1, Math.ceil(Math.max(1, sliceCount) / maxSlices));
+  const factor = Number.isFinite(opts.factor) ? opts.factor : 0;
+  const values: number[] = [];
+  if (factor <= 0 || width <= 0 || height <= 0) {
+    return { values, voxelMl: (voxelMm3 * stride * stride * step) / 1000, sampledVoxels: 0, sliceStep: step, pixelStride: stride };
+  }
+  for (let z = 0; z < sliceCount; z += step) {
+    const data = getSlice(z);
+    if (!data || data.length < width * height) continue;
+    for (let y = 0; y < height; y += stride) {
+      const row = y * width;
+      for (let x = 0; x < width; x += stride) {
+        const p = data[row + x];
+        if (!Number.isFinite(p) || p <= 0) continue;
+        values.push(p * factor);
+      }
+    }
+  }
+  return {
+    values,
+    voxelMl: (voxelMm3 * stride * stride * step) / 1000,
+    sampledVoxels: values.length,
+    sliceStep: step,
+    pixelStride: stride,
+  };
+}
+
+/** Eşik modu: mutlak SUV ya da maksimumun yüzdesi (ör. %41). */
+export function resolveSuvThreshold(values: readonly number[], mode: "mutlak" | "yuzde", input: number): number {
+  if (mode === "yuzde") {
+    const peak = values.length ? Math.max(...values) : 0;
+    const pct = Number.isFinite(input) ? Math.min(100, Math.max(1, input)) : 41;
+    return Number(((peak * pct) / 100).toFixed(2));
+  }
+  return Number.isFinite(input) && input > 0 ? input : 2.5;
+}
+
+/** Eşik üstü voxellerin ortalama SUV'u (SUVmean); yoksa null. */
+export function suvMeanAbove(values: readonly number[], threshold: number): number | null {
+  const above = values.filter((v) => v >= threshold);
+  if (!above.length) return null;
+  return Number((above.reduce((a, b) => a + b, 0) / above.length).toFixed(2));
+}

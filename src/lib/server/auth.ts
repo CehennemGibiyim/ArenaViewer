@@ -4,7 +4,8 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import type { Role, UserInfo } from "@/lib/types";
-import { sessionUserId } from "./session";
+import { sessionFromRequest } from "./session";
+import { checkSession } from "./sessionStore";
 
 /**
  * KİMLİK DOĞRULAMA KATMANI.
@@ -103,9 +104,25 @@ export async function getCurrentUser(sessionUid?: number | null): Promise<UserIn
   }
 }
 
-/** İstekteki oturum çerezinden kullanıcıyı döndürür. */
+/**
+ * İstekteki oturum çerezinden kullanıcıyı döndürür.
+ *
+ * Sunucu taraflı oturum kaydı varsa **iptal/süre sonu** da denetlenir: yönetici
+ * bir oturumu kapattığında imzalı çerez hâlâ geçerli olsa bile istek reddedilir.
+ */
 export async function currentUser(req: NextRequest): Promise<UserInfo | null> {
-  return getCurrentUser(sessionUserId(req));
+  const payload = sessionFromRequest(req);
+  if (!payload) return getCurrentUser(null);
+  if (payload.sid) {
+    const check = await checkSession(payload.sid, payload.uid);
+    if (!check.ok) return null;
+  }
+  return getCurrentUser(payload.uid);
+}
+
+/** İsteğin oturum kimliği (iptal etmek / "bu cihaz" işareti için). */
+export function requestSessionId(req: NextRequest): string | null {
+  return sessionFromRequest(req)?.sid ?? null;
 }
 
 export async function updateOperator(p: { fullName?: string; title?: string; regNo?: string }): Promise<UserInfo> {
