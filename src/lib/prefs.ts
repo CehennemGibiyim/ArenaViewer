@@ -26,6 +26,8 @@ export interface UserPrefs {
   theme: "koyu";
   /** Çalışma listesinde son raporlanan çalışmayı otomatik seç */
   autoSelectLatest: boolean;
+  /** Favori şablon kimlikleri (en fazla 40; ilk sıradaki en yeni). */
+  favoriteTemplates: number[];
 }
 
 export const DEFAULT_PREFS: UserPrefs = {
@@ -34,6 +36,7 @@ export const DEFAULT_PREFS: UserPrefs = {
   autoHangingProtocol: true,
   theme: "koyu",
   autoSelectLatest: false,
+  favoriteTemplates: [],
 };
 
 const isStr = (v: unknown): v is string => typeof v === "string";
@@ -48,6 +51,10 @@ export function sanitizePrefs(input: unknown): Partial<UserPrefs> {
   if (typeof o.autoHangingProtocol === "boolean") out.autoHangingProtocol = o.autoHangingProtocol;
   if (typeof o.autoSelectLatest === "boolean") out.autoSelectLatest = o.autoSelectLatest;
   if (o.theme === "koyu") out.theme = "koyu";
+  if (Array.isArray(o.favoriteTemplates)) {
+    const ids = o.favoriteTemplates.filter((x): x is number => typeof x === "number" && Number.isFinite(x) && x > 0);
+    out.favoriteTemplates = [...new Set(ids)].slice(0, 40);
+  }
   return out;
 }
 

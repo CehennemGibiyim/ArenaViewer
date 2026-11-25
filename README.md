@@ -359,6 +359,24 @@ Rapor alanlarındaki 🎤 düğmesi Web Speech API (tr-TR) kullanır; metin `dic
   `kontrast artır`, `ters çevir`, `pencere daralt`, `geri al`, `kaydet`, `temizle`. Bir parça
   **tamamen** komutsa komut sayılır; "kırık ileri deplase" gibi cümleler metin olarak yazılır.
 
+## Şablon kütüphanesi
+
+42 hazır şablon (BT/MR/US/MG/NM/CR) + kurum şablonları; rapor ekranındaki seçici **kişisel sıralıdır**:
+
+| Sinyal | Puan | Not |
+|---|---|---|
+| Favori | +1000 | Kullanıcı tercihinde saklanır (`favoriteTemplates`, en fazla 40) |
+| Sık kullanılan | +10/kullanım (≤200) | 30 günden eski kayıtlar düşer |
+| Bölge eşleşmesi | +50 | "BEYİN" ↔ "Beyin BT" gibi Türkçe içerme/kelime örtüşmesi |
+| Modalite | +20 / −30 | Yanlış modalite önerilmez; **arama** bilinçli olarak tüm kütüphaneyi açar |
+| Tazelik | ≤ +15 | Son kullanıma göre azalan |
+
+- Seçicide `★` favori, `↻` sık kullanılan şablonu işaretler; `★ favori` düğmesi görünen ilk şablonu
+  favorilere ekler/çıkarır.
+- **RadReport izlenebilirliği:** 24 tohum şablona `RPT…` katalog kodu atanır (`radreport_code`) ve
+  seçicide gösterilir. Kod yoksa şablon "kuruma özgü" sayılır — RSNA standardına uyduğu iddia edilmez;
+  birebir eşleme lisans/kurum işidir.
+
 ## LLM rapor taslağı ve doğrulama
 
 `LLM_API_URL` + `LLM_API_KEY` (OpenAI uyumlu) tanımlıysa "✨ Taslak izlenim üret" düğmesi LLM kullanır;
@@ -502,6 +520,7 @@ npm run test:confidence             # kalibre güven skoru + Wilson aralığı (
 npm run test:genai                  # LLM taslak doğrulama katmanı (r-genai)
 npm run test:dictation              # dikte sözlüğü + sesli komutlar (r-dictate)
 npm run test:notifych               # çok kanallı bildirim teslimatı (a-notify)
+npm run test:templaterank           # şablon sıralama + RadReport kodu (r-template)
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)

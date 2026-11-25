@@ -543,4 +543,6 @@ export interface TemplateRow {
   findings: string;
   impression: string;
   recommendation: string;
+  /** RadReport/kurum katalog kodu (r-template); boş = kuruma özgü. */
+  radreportCode?: string;
 }

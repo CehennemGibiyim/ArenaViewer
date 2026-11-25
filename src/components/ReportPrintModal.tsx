@@ -9,6 +9,7 @@ import { SIGNATURE_METHODS, signatureNote, type SignatureMethod, type SignatureR
 import { reportPlaceholders } from "@/lib/templateMacro";
 import { pickStyleSample } from "@/lib/styleProfile";
 import { draftBadge, type DraftSource } from "@/lib/genaiDraft";
+import { EMPTY_USAGE, rankTemplates, recordUsage, standardLabel, toggleFavorite, type TemplateUsage } from "@/lib/templateRank";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fmtConf } from "@/lib/format";
 import StructuredScorePanel from "@/components/StructuredScorePanel";
@@ -212,6 +213,11 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
   const [sigMsg, setSigMsg] = useState("");
   const [sigRecords, setSigRecords] = useState<SignatureRecord[]>([]);
   const [tplQuery, setTplQuery] = useState("");
+  /** Favori şablonlar ve kişisel kullanım sayaçları (r-template). */
+  const [favorites, setFavorites] = useState<number[]>([]);
+  /** Tercih yüklendikten sonraki favori değişiklikleri sunucuya yazılır. */
+  const favLoadedRef = useRef(false);
+  const [usage, setUsage] = useState<TemplateUsage>(EMPTY_USAGE);
   const [versions, setVersions] = useState<ReportVersion[]>([]);
   const [addenda, setAddenda] = useState<ReportAddendum[]>([]);
   const [addText, setAddText] = useState("");
@@ -336,6 +342,14 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
   useEffect(() => {
     if (!open) return;
     apiFetch("/api/templates").then((r) => (r.ok ? r.json() : [])).then((t: TemplateRow[]) => setTemplates(t)).catch(() => {});
+    // Favori şablonlar kullanıcı tercihlerinden okunur (r-template).
+    apiFetch("/api/profile/preferences")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { prefs?: { favoriteTemplates?: number[] } } | null) => {
+          if (Array.isArray(d?.prefs?.favoriteTemplates)) setFavorites(d!.prefs!.favoriteTemplates!);
+        favLoadedRef.current = true;
+      })
+      .catch(() => {});
   }, [open]);
   useEffect(() => {
     void (async () => {
@@ -346,12 +360,14 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
 
   const card = useMemo<ModelCard | null>(() => { try { return report.modelCard ? (JSON.parse(report.modelCard) as ModelCard) : null; } catch { return null; } }, [report.modelCard]);
 
-  const tplNormalized = tplQuery.trim().toLocaleLowerCase("tr-TR");
-  const tplFiltered = templates.filter((t) => {
-    if (t.modality && t.modality !== report.modality) return false;
-    if (!tplNormalized) return true;
-    return [t.name, t.bodyPart, t.indication, t.protocol].join(" ").toLocaleLowerCase("tr-TR").includes(tplNormalized);
-  });
+  // Kişisel sıralama: favori → sık kullanılan → bölge → modalite (templateRank).
+  const tplFiltered = rankTemplates(templates, {
+    modality: report.modality,
+    bodyPart: report.bodyPart,
+    favorites,
+    usage,
+    query: tplQuery,
+  }).map((r) => ({ ...r.t, favorite: r.favorite, uses: r.uses, reason: r.reason }));
 
   if (!open) return null;
   const approved = report.status === "onaylandi";
@@ -378,6 +394,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
   const applyTemplate = (id: string) => {
     const t = templates.find((x) => String(x.id) === id);
     if (!t) return;
+    setUsage((u) => recordUsage(u, t.id));
     setReport((r) => ({ ...r, technique: t.technique || r.technique, findingsText: t.findings || r.findingsText, impression: t.impression || r.impression, recommendation: t.recommendation || r.recommendation }));
   };
   const saveTemplate = async () => {
@@ -385,6 +402,16 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
     if (!name) return;
     const r = await apiFetch("/api/templates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, modality: report.modality, bodyPart: report.bodyPart, technique: report.technique, findings: report.findingsText, impression: report.impression, recommendation: report.recommendation }) });
     if (r.ok) apiFetch("/api/templates").then((x) => x.json()).then((t: TemplateRow[]) => setTemplates(t));
+  };
+  /** Favori değişince sunucuya yaz (yalnız tercih yüklendikten sonra). */
+  const persistFavorites = (next: number[]) => {
+    setFavorites(next);
+    if (!favLoadedRef.current) return;
+    void apiFetch("/api/profile/preferences", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ favoriteTemplates: next }),
+    }).catch(() => {});
   };
   const draftImpression = async () => {
     setBusy(true); setError(""); setDraftNote("");
@@ -661,10 +688,16 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
               <option value="" disabled>Şablon uygula…</option>
               {tplFiltered.map((t) => (
                 <option key={t.id} value={t.id}>
-                  {t.name}{t.indication ? ` — ${t.indication}` : ""}{t.protocol ? ` · ${t.protocol}` : ""}
+                  {t.favorite ? "★ " : t.uses >= 3 ? "↻ " : ""}{t.name}{t.indication ? ` — ${t.indication}` : ""}{t.radreportCode ? ` [${t.radreportCode}]` : ""}
                 </option>
               ))}
             </select>
+            <button
+              type="button"
+              title="Görünen ilk şablonu favorilere ekle/çıkar"
+              className="rounded border border-amber-400/40 px-2 py-1 font-bold text-amber-200 hover:bg-amber-400/10"
+              onClick={() => { const first = tplFiltered[0]; if (first) persistFavorites(toggleFavorite(favorites, first.id)); }}
+            >★ favori</button>
             <select
               defaultValue=""
               onChange={(e) => {

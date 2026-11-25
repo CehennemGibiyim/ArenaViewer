@@ -5,6 +5,7 @@ import { reportTemplates } from "@/db/schema";
 import { audit } from "@/lib/server/audit";
 import { authorize } from "@/lib/server/auth";
 import { SEED } from "@/lib/templates";
+import { RADREPORT_SEED, isStandardCode } from "@/lib/templateRank";
 
 export const dynamic = "force-dynamic";
 
@@ -17,13 +18,25 @@ export async function GET(req: NextRequest) {
   const existing = await db.select({ name: reportTemplates.name }).from(reportTemplates);
   const names = new Set(existing.map((x) => x.name));
   const missing = SEED.filter((s) => !names.has(s.name));
-  if (missing.length > 0) await db.insert(reportTemplates).values(missing);
+  if (missing.length > 0) {
+    // Tohum şablonlar RadReport kodlarıyla eklenir (r-template): kütüphane
+    // izlenebilir olsun; kod yoksa boş kalır ve "kuruma özgü" sayılır.
+    await db.insert(reportTemplates).values(missing.map((m) => ({ ...m, radreportCode: RADREPORT_SEED[m.name] ?? "" })));
+  }
 
   const sp = req.nextUrl.searchParams;
   const modality = (sp.get("modality") ?? "").trim().toUpperCase();
   const q = (sp.get("q") ?? "").trim().toLocaleLowerCase("tr-TR");
 
   let rows = await db.select().from(reportTemplates).orderBy(asc(reportTemplates.id));
+  // Kodsuz tohum satırları (önceki sürümde eklenmiş) kodu sonradan kazanır.
+  for (const r of rows) {
+    const kod = RADREPORT_SEED[r.name];
+    if (kod && !isStandardCode(r.radreportCode ?? "") && (r.radreportCode ?? "") !== kod) {
+      await db.update(reportTemplates).set({ radreportCode: kod }).where(eq(reportTemplates.id, r.id));
+      r.radreportCode = kod;
+    }
+  }
   rows = rows.filter((r) => !modality || r.modality.toUpperCase() === modality);
   if (q) {
     rows = rows.filter((r) =>
@@ -50,6 +63,7 @@ export async function POST(req: NextRequest) {
     findings: clean(b.findings),
     impression: clean(b.impression),
     recommendation: clean(b.recommendation),
+    radreportCode: clean(b.radreportCode, 24).toUpperCase(),
     createdBy: a.user.id,
   }).returning({ id: reportTemplates.id });
   await audit(a.user, "template.create", "template", ins[0].id, { name: clean(b.name, 120) });
@@ -65,7 +79,8 @@ export async function PATCH(req: NextRequest) {
   if (!cur) return NextResponse.json({ error: "Bulunamadı" }, { status: 404 });
 
   const set: Record<string, string> = {};
-  for (const k of ["name", "modality", "bodyPart", "indication", "protocol", "technique", "findings", "impression", "recommendation"] as const) {
+  for (const k of ["name", "modality", "bodyPart", "indication", "protocol", "technique", "findings", "impression", "recommendation", "radreportCode"] as const) {
+    if (k === "radreportCode" && typeof b[k] === "string") { set[k] = (b[k] as string).trim().toUpperCase().slice(0, 24); continue; }
     if (typeof b[k] === "string") set[k] = b[k].trim().slice(0, k === "name" ? 120 : k === "bodyPart" ? 120 : k === "protocol" ? 500 : k === "modality" ? 16 : 2000);
   }
   if (Object.keys(set).length === 0) return NextResponse.json({ error: "Değişiklik yok" }, { status: 400 });

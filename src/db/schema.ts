@@ -259,6 +259,8 @@ export const reportTemplates = pgTable("report_templates", {
   findings: text("findings").notNull().default(""),
   impression: text("impression").notNull().default(""),
   recommendation: text("recommendation").notNull().default(""),
+  /** RadReport/kurum katalog kodu (r-template): izlenebilirlik, zorunlu değil. */
+  radreportCode: text("radreport_code").notNull().default(""),
   createdBy: integer("created_by"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
