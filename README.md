@@ -359,6 +359,21 @@ Rapor alanlarındaki 🎤 düğmesi Web Speech API (tr-TR) kullanır; metin `dic
   `kontrast artır`, `ters çevir`, `pencere daralt`, `geri al`, `kaydet`, `temizle`. Bir parça
   **tamamen** komutsa komut sayılır; "kırık ileri deplase" gibi cümleler metin olarak yazılır.
 
+## Kritik sonuç kapanış kanıtı (d-close-loop)
+
+`src/lib/closeLoopEvidence.ts`, `/api/notifications/comm`, `comm_log` tablosu.
+
+- **Kanıt paketi** (`GET /api/notifications/comm?notificationId=N`): oluşturma → hatırlatma →
+  eskalasyon → alınma → iletim → dış iletişim adımları, her adımın gecikmesi ve politika
+  hedefiyle karşılaştırması. Eksik adım **uydurulmaz**, "YOK" olarak yazılır ve `gaps`
+  listesinde gerekçelenir (ör. "Eskalasyon süresi 30 dk aşıldı ama kayıt yok").
+- **Kapanabilirlik:** yalnızca `alındı` **ve** (`iletim kanıtı` veya `ulaşılan dış iletişim`)
+  varsa `closable=true`. "Aradım, ulaşamadım" kaydı döngüyü kapatmaz.
+- **Dış iletişim defteri** (`POST`): telefon/e-posta/SMS/yüz yüze/PACS mesajı; kime, ulaşıldı mı,
+  not. Kayıtlar **yalnız eklenir** (denetim izi bozulmaz), CSV'ye çıkar, her ekleme
+  `notify.comm_log` olarak denetlenir. Olmayan bildirime kayıt yazılmaz.
+- Bildirim zilinde ☎ **İletişim** ve 🧾 **Kanıt** düğmeleri.
+
 ## 3B lezyon eşleştirme (c-recist-full)
 
 `src/lib/lesionMatch3d.ts` — hacimsel koordinatlarla çalışan eşleştirme (metin tabanlı
@@ -645,6 +660,7 @@ npm run test:stroke                 # inme hattı: zaman çizelgesi + kod inme (
 npm run test:sr1500reg              # TID 1500 ölçüm defteri + kod sözlüğü (c-sr-tid1500)
 npm run test:segedit                # kontur izleme + segment düzenleme (c-seg-rtstruct)
 npm run test:lesion3d               # 3B lezyon eşleştirme + rijit hizalama (c-recist-full)
+npm run test:closeloopev            # kapanış kanıt paketi + dış iletişim defteri (d-close-loop)
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)

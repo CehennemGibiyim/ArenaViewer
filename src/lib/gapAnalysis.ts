@@ -587,10 +587,9 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "d-close-loop", category: "report", title: "Kritik sonuç kapanış döngüsü: ACK + iletim kanıtı + eskalasyon kaydı",
-    status: "kismi", priority: "P1", effort: "M",
+    status: "var", priority: "P1", effort: "M",
     market: ["Aidoc", "Viz.ai"],
-    ours: "ACK + iletildi kanıtı (relayedTo/relayedAt) + eskalasyon kaydı. **Yeni:** `closeLoopRules.ts` — önem derecesine göre SÜRE politikası (kritik 15 dk alınma/30 dk eskalasyon, yüksek 60/120, diğer 240), durum makinesi (yeni/gecikmis/eskalasyon-gerekli/eskale-edildi/alinmis/iletildi), 15 dk'lık hatırlatma aralığı ve ikinci hekim/sorumlu uzman/kurum nöbeti hedefli eskalasyon mesajı. `/api/notifications?escalation=1` gecikmişleri listeler; PATCH `action=sweep` süresi dolanları eskale eder (denetim: notify.escalate/notify.sweep). Bildirim zilinde süre etiketi + 'Süre taraması' ve hedef seçimi var. KALAN: hatırlatmanın e-posta/SMS ile dışarı gönderimi (sağlayıcı kurumda) ve HBYS denetim satırı eşlemesi.",
-    action: "Dış iletişim sağlayıcısı (e-posta/SMS/çağrı) ve HBYS denetim birleştirme (kurum entegrasyonu).",
+    ours: "**Bu sürümde eklendi:** süre politikası ve durum makinesi (`closeLoopRules.ts`: kritik 15/30, yüksek 60/120, diğer 240 dk; yeni/gecikmis/eskalasyon-gerekli/eskale-edildi/alinmis/iletildi) + eskalasyon (`sweep`, ikinci hekim/sorumlu uzman/kurum nöbeti) üzerine **kanıt paketi ve dış iletişim defteri** (`closeLoopEvidence.ts`, `/api/notifications/comm`, `comm_log` tablosu). Kanıt paketi bir bildirimin yaşam çevrimini tek belgede toplar (oluşturma → hatırlatma → eskalasyon → alınma → iletim → dış iletişim), her adımın gecikmesini politika hedefiyle karşılaştırır ve **eksik adımı uydurmaz** (YOK olarak yazar). Döngü ancak **alınma + (iletim kanıtı veya ulaşılan dış iletişim)** varsa `closable` olur; yalnız ulaşılamadı kaydı kapatmaz. Dış iletişim defteri telefon/e-posta/SMS/yüz yüze/PACS mesajı kayıtlarını kimi aradığımız ve ulaşıp ulaşmadığımız bilgisiyle satır satır tutar; kayıtlar yalnız eklenir (denetim izi bozulmaz), CSV'ye çıkar ve her ekleme `notify.comm_log` olarak denetime yazılır. Bildirim zilinde ☎ İletişim ve 🧾 Kanıt düğmeleri vardır. KALAN: sağlayıcı üzerinden otomatik e-posta/SMS gönderimi ve HBYS denetim satırı eşlemesi (kurum entegrasyonu).",    action: "Otomatik kanal gönderimi (sağlayıcı) ve HBYS denetim satırı eşlemesi; kanıt paketinin HBYS'ye aktarımı.",
   },
   {
     id: "d-followup", category: "report", title: "Takip önerilerini çalışma listesine taşıma",

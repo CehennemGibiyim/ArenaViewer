@@ -248,6 +248,23 @@ export const notifications = pgTable("notifications", {
  * görüntüleme düzeni) alanları şablon kütüphanesinin bölge+endikasyon ekseninde
  * gruplanmasını sağlar; eski satırlar boş dize alır.
  */
+/**
+ * Dış iletişim defteri (d-close-loop): telefon/e-posta/SMS/yüz yüze iletim
+ * kayıtları. Bildirim tablosundaki `relayedTo` yalnız kanal özetini tutar;
+ * "kimi aradık, ulaştık mı" bilgisi burada satır satır saklanır. Kayıtlar
+ * değiştirilemez (uygulama yalnız ekler; düzeltme yeni satırla yapılır).
+ */
+export const commLog = pgTable("comm_log", {
+  id: serial("id").primaryKey(),
+  notificationId: integer("notification_id").notNull(),
+  at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  channel: text("channel").notNull(),
+  toWhom: text("to_whom").notNull().default(""),
+  reached: boolean("reached").notNull().default(false),
+  note: text("note").notNull().default(""),
+  byName: text("by_name").notNull().default(""),
+});
+
 export const reportTemplates = pgTable("report_templates", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),

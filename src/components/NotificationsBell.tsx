@@ -17,6 +17,8 @@ export default function NotificationsBell() {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"bildirim" | "takip">("bildirim");
   const [sweepMsg, setSweepMsg] = useState("");
+  /** Kanıt paketi ve dış iletişim defteri (d-close-loop). */
+  const [evidence, setEvidence] = useState<{ id: number; text: string; closable: boolean; gaps: string[] } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -55,6 +57,30 @@ export default function NotificationsBell() {
     const role = choice.trim() === "2" ? "sorumlu-uzman" : choice.trim() === "3" ? "kurum-nobet" : "ikinci-hekim";
     const contact = window.prompt("Kişi/iletişim (isteğe bağlı; ör. Dr. A. Yılmaz — 212 555)", "") ?? "";
     void patch(id, { action: "escalate", relayedTo: `eskalasyon:${role}${contact.trim() ? `:${contact.trim()}` : ""}` });
+  };
+  /** Kanıt paketini getirir: oluşturma → hatırlatma → eskalasyon → alınma → iletim. */
+  const showEvidence = async (id: number) => {
+    const r = await apiFetch(`/api/notifications/comm?notificationId=${id}`);
+    const d = (await r.json().catch(() => ({}))) as { evidence?: { text: string; closable: boolean; gaps: string[] }; error?: string };
+    if (!r.ok || !d.evidence) { setEvidence({ id, text: d.error ?? "Kanıt paketi alınamadı", closable: false, gaps: [] }); return; }
+    setEvidence({ id, text: d.evidence.text, closable: d.evidence.closable, gaps: d.evidence.gaps });
+  };
+  /** Dış iletişim kaydı: kimi aradık, ulaştık mı (silinemez, yalnız eklenir). */
+  const logComm = async (id: number) => {
+    const ch = window.prompt("Kanal:\n1) Telefon\n2) E-posta\n3) SMS\n4) Yüz yüze\n5) PACS/HBYS mesajı\n6) Diğer\n\nNumara (boş = telefon):", "1");
+    if (ch === null) return;
+    const channel = ({ "2": "eposta", "3": "sms", "4": "yuz-yuze", "5": "pacs-mesaj", "6": "diger" } as Record<string, string>)[ch.trim()] ?? "telefon";
+    const toWhom = window.prompt("Kime iletildi? (rol/kişi — zorunlu)", "");
+    if (!toWhom?.trim()) return;
+    const reachedRaw = window.prompt("Ulaşıldı mı? (e/h)", "e") ?? "h";
+    const reached = reachedRaw.trim().toLocaleLowerCase("tr-TR").startsWith("e");
+    const note = window.prompt("Not (isteğe bağlı)", "") ?? "";
+    const r = await apiFetch("/api/notifications/comm", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notificationId: id, channel, toWhom: toWhom.trim(), reached, note }),
+    });
+    if (!r.ok) setSweepMsg("Dış iletişim kaydı eklenemedi (alanları denetleyin).");
+    void showEvidence(id);
   };
   /** HBYS/RIS iadesindeki sonucu açık takip görevine bağlar (otomatik veya elle). */
   const recordOutcome = async (id?: number) => {
@@ -128,6 +154,8 @@ export default function NotificationsBell() {
                     {!n.ackAt && <button onClick={() => void ack(n.id)} className="cursor-pointer rounded bg-cyan-500 px-2.5 py-1 text-[10.5px] font-bold text-slate-950 hover:bg-cyan-400">Alındı</button>}
                     <button onClick={() => relay(n.id)} title="Bildirimin iletildiğini kaydet" className="cursor-pointer rounded border border-slate-500/40 px-2 py-1 text-[10px] font-semibold text-slate-300 hover:bg-slate-500/10">İletildi…</button>
                     <button onClick={() => escalate(n.id)} title="Eskalasyonu kaydet" className="cursor-pointer rounded border border-amber-500/40 px-2 py-1 text-[10px] font-semibold text-amber-300 hover:bg-amber-500/10">⚑ Eskalasyon</button>
+                    <button onClick={() => void logComm(n.id)} title="Telefon/e-posta/SMS ile iletimi kaydet (silinemez)" className="cursor-pointer rounded border border-cyan-500/40 px-2 py-1 text-[10px] font-semibold text-cyan-300 hover:bg-cyan-500/10">☎ İletişim</button>
+                    <button onClick={() => void showEvidence(n.id)} title="Kapanış döngüsü kanıt paketi" className="cursor-pointer rounded border border-slate-500/40 px-2 py-1 text-[10px] font-semibold text-slate-300 hover:bg-slate-500/10">🧾 Kanıt</button>
                     <span className={`ml-auto text-[9.5px] ${n.escalated ? "text-amber-300" : "text-slate-500"}`}>
                       {n.escalated ? "⚑ Eskalasyonlu" : "kapanış:"}
                     </span>
@@ -135,6 +163,16 @@ export default function NotificationsBell() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {evidence && (
+            <div className={`border-t border-[#1e2735] p-3 text-[10.5px] ${evidence.closable ? "bg-emerald-500/5" : "bg-rose-500/5"}`}>
+              <div className="mb-1 flex items-center justify-between">
+                <span className="font-bold text-slate-200">Kanıt paketi — bildirim #{evidence.id}</span>
+                <button onClick={() => setEvidence(null)} className="cursor-pointer text-slate-500 hover:text-slate-300">✕</button>
+              </div>
+              <pre className="max-h-40 overflow-auto whitespace-pre-wrap text-slate-300">{evidence.text}</pre>
             </div>
           )}
 
