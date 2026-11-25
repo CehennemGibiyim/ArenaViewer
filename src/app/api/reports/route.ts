@@ -8,6 +8,7 @@ import { createFollowupFromReport } from "@/lib/server/closeLoop";
 import { authRequired } from "@/lib/server/auth";
 import { encryptText } from "@/lib/server/crypto";
 import { mapReport, upsertStudy, type StudyMeta } from "@/lib/server/studyRepo";
+import { reportHistoryQueryLimit, selectReportHistory } from "@/lib/reportHistory";
 import type { Finding, FindingApprovalStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -17,13 +18,16 @@ export async function GET(req: NextRequest) {
   const a = await authorize(req);
   if ("error" in a) return a.error;
   const sp = req.nextUrl.searchParams;
-  const rows = await db.select({ r: reports, s: studies }).from(reports).innerJoin(studies, eq(reports.studyId, studies.id)).orderBy(desc(reports.id)).limit(300);
-  let out = rows.map((x) => ({ ...mapReport(x.r, x.s), keyImageDataUrl: "" }));
   const pid = sp.get("patientId");
   const uid = sp.get("studyUid");
-  if (pid) out = out.filter((r) => r.patientId === pid);
-  if (uid) out = out.filter((r) => r.studyUid === uid);
-  return NextResponse.json(out.slice(0, 100));
+  const filter = { patientId: pid, studyUid: uid };
+  const query = db.select({ r: reports, s: studies }).from(reports).innerJoin(studies, eq(reports.studyId, studies.id));
+  const filteredQuery = uid ? query.where(eq(studies.studyUid, uid)) : query;
+  const orderedQuery = filteredQuery.orderBy(desc(reports.id));
+  const limit = reportHistoryQueryLimit(filter);
+  const rows = limit === null ? await orderedQuery : await orderedQuery.limit(limit);
+  const history = rows.map((x) => ({ ...mapReport(x.r, x.s), keyImageDataUrl: "" }));
+  return NextResponse.json(selectReportHistory(history, filter));
 }
 
 interface SaveBody {

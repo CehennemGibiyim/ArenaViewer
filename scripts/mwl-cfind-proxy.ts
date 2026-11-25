@@ -81,7 +81,8 @@ function findscuArgs(q: FindArgs): string[] {
 
 function run(cmd: string, args: string[], input?: string): Promise<{ stdout: Buffer; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { stdio: ["pipe", "pipe", "pipe"] });
+    const nodeScript = process.platform === "win32" && /\.(?:cjs|mjs|js)$/i.test(cmd);
+    const child = spawn(nodeScript ? process.execPath : cmd, nodeScript ? [cmd, ...args] : args, { stdio: ["pipe", "pipe", "pipe"] });
     const out: Buffer[] = [];
     let err = "";
     const timer = setTimeout(() => {

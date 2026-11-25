@@ -18,6 +18,7 @@ Bu klasör, Windows · Linux · macOS üzerinde çalışan kurulum paketlerinin
 | `windows/Kurulum.bat` | **Tek komutla kurulum** (Git, Node.js, Python, AI paketleri ve modelleri indirir) |
 | `windows/Kurulum.ps1` | Kurulumun PowerShell çekirdeği (idempotent, hata ayıklamalı) |
 | `windows/Baslat.bat` | AI worker + görüntüleyici + tarayıcıyı başlatır |
+| `windows/Guncelle.ps1` | Kurulu Windows sürümünde Release'i doğrular ve otomatik günceller |
 | `windows/Baslat.ps1` | Başlatıcının PowerShell çekirdeği |
 | `windows/Dur.bat` / `Dur.ps1` | Çalışan süreçleri kapatır |
 | `windows/Veritabani.ps1` | PostgreSQL kurulumu ve veritabanı oluşturma |
@@ -29,7 +30,7 @@ Bu klasör, Windows · Linux · macOS üzerinde çalışan kurulum paketlerinin
 # Üretim (CI'da .github/workflows/release.yml otomatik yapar)
 winget install JRSoftware.InnoSetup
 powershell -ExecutionPolicy Bypass -File windows\Paket.ps1
-# Çıktı: dist\ATIKVIEWER-0.1.0-Setup.exe, dist\ATIKVIEWER-0.1.0-portable.zip
+# Çıktı: dist\ATIKVIEWER-0.2.0-Setup.exe, dist\ATIKVIEWER-0.2.0-portable.zip, SHA256SUMS
 ```
 
 ### Linux
@@ -43,8 +44,8 @@ powershell -ExecutionPolicy Bypass -File windows\Paket.ps1
 
 ```bash
 bash packaging/linux/install.sh        # kurulu değilse kaynak klonlar ve kurar
-bash packaging/linux/build-deb.sh      # dist/ATIKVIEWER-0.1.0-amd64.deb
-sudo dpkg -i dist/ATIKVIEWER-0.1.0-amd64.deb
+bash packaging/linux/build-deb.sh      # dist/ATIKVIEWER-0.2.0-amd64.deb
+sudo dpkg -i dist/ATIKVIEWER-0.2.0-amd64.deb
 atikviewer                             # http://127.0.0.1:3000
 ```
 
@@ -57,7 +58,7 @@ atikviewer                             # http://127.0.0.1:3000
 
 ```bash
 bash packaging/macos/install.sh
-bash packaging/macos/build-dmg.sh     # dist/ATIKVIEWER-0.1.0-macOS.dmg
+bash packaging/macos/build-dmg.sh     # dist/ATIKVIEWER-0.2.0-macOS.dmg
 ```
 
 ### Çapraz platform
@@ -72,7 +73,7 @@ bash packaging/macos/build-dmg.sh     # dist/ATIKVIEWER-0.1.0-macOS.dmg
 | `render.yaml` | Tek tıkla bulut dağıtımı |
 
 ```bash
-bash packaging/universal/build-source-zip.sh   # → dist/ATIKVIEWER-0.1.0-kurulum.zip
+bash packaging/universal/build-source-zip.sh   # → dist/ATIKVIEWER-0.2.0-kurulum.zip
 bash packaging/universal/verify.sh             # → dist/ATIKVIEWER-dogrulama-<tarih>.log
 ```
 

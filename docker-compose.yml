@@ -56,9 +56,9 @@ services:
 
   # Gerçek PACS (Orthanc, DICOMweb) — okuma/yazma uçtan uca doğrulama için.
   # Kullanım: docker compose --profile pacs up -d  → http://localhost:8042
-  # (anonim erişim). Test: npm run test:pacs-e2e
+  # Geliştirme/test hesabı: orthanc / orthanc. Üretimde bu servisi kullanmayın.
   orthanc:
-    image: jodogne/orthanc:latest
+    image: jodogne/orthanc-plugins:latest
     profiles: ["pacs"]
     restart: unless-stopped
     environment:

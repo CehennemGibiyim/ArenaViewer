@@ -2,7 +2,7 @@
 ; =====================================================
 ; Derleme (depo kökünden):
 ;   windows\Paket.ps1                 -> dist\ATIKVIEWER-<sürüm>-Setup.exe
-;   ISCC.exe /DAppVersion=0.1.0 windows\atikviewer.iss
+;   ISCC.exe /DAppVersion=0.2.0 windows\atikviewer.iss
 ;
 ; Paket, uygulamanın kendisini kurar; Node.js / Python / AI modelleri gibi
 ; ağır bağımlılıklar kurulum sonunda windows\Kurulum.bat ile (idempotent olarak)
@@ -14,7 +14,7 @@
 #define AppUrl "https://github.com/CehennemGibiyim/ArenaViewer"
 
 #ifndef AppVersion
-  #define AppVersion "0.1.0"
+  #define AppVersion "0.2.0"
 #endif
 
 [Setup]

@@ -3,6 +3,7 @@ import path from "node:path";
 import type { Metadata } from "next";
 import Link from "next/link";
 import AiWorkerStatus from "@/components/AiWorkerStatus";
+import { APP_VERSION } from "@/lib/version";
 
 export const metadata: Metadata = {
   title: "ATIKVIEWER — Kurulum Paketleri (Windows · Linux · macOS)",
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
     "ATIKVIEWER çapraz platform kurulum paketleri, dosya yolları, ücretsiz yerel yapay zekâ kurulumu ve doğrulama betikleri.",
 };
 
-const VERSION = "0.1.0";
+const VERSION = APP_VERSION;
 const ZIP_FILE = `ATIKVIEWER-${VERSION}-kurulum.zip`;
 const ZIP = `/downloads/${ZIP_FILE}`;
 // Arşiv CI/release akışında üretilip GitHub Releases'e eklenir; yerel derlemede
@@ -35,7 +36,7 @@ const BLOCKS: Block[] = [
     id: "windows",
     os: "Windows 10 / 11",
     icon: "🪟",
-    blurb: "Tek komutla kurulum; Inno Setup ile kurulum EXE'si ve taşınabilir ZIP üretilir.",
+    blurb: "Tek komutla kurulum; sürümlü Setup.exe ve taşınabilir ZIP üretilir, kurulu sürüm açılışta otomatik güncellenir.",
     commands: [
       ":: Kurulum (önerilen — Node, Python, AI modellerini kendisi kurar)",
       "windows\\Kurulum.bat",
@@ -44,13 +45,14 @@ const BLOCKS: Block[] = [
       "windows\\Baslat.bat",
       "windows\\Dur.bat",
       "",
-      ":: Kurulum paketi üret (dist\\ATIKVIEWER-0.1.0-Setup.exe)",
+      `:: Kurulum paketi üret (dist\\ATIKVIEWER-${VERSION}-Setup.exe)`,
       "powershell -ExecutionPolicy Bypass -File windows\\Paket.ps1",
     ],
     rows: [
       { path: "windows/Kurulum.bat", desc: "Tek komutla kurulum (idempotent)" },
       { path: "windows/Kurulum.ps1", desc: "Kurulumun PowerShell çekirdeği" },
       { path: "windows/Baslat.bat · Baslat.ps1", desc: "AI worker + görüntüleyici + tarayıcı" },
+      { path: "windows/Guncelle.ps1", desc: "Sürüm denetimi, SHA-256 doğrulama ve otomatik güncelleme" },
       { path: "windows/Dur.bat · Dur.ps1", desc: "Süreçleri kapatır" },
       { path: "windows/Veritabani.ps1", desc: "PostgreSQL kurulumu ve veritabanı" },
       { path: "windows/atikviewer.iss", desc: "Inno Setup 6 kurulum EXE betiği" },
@@ -67,9 +69,9 @@ const BLOCKS: Block[] = [
       "# Kurulum (kaynak yoksa depoyu klonlar)",
       "bash packaging/linux/install.sh",
       "",
-      "# Kurulum paketi üret → dist/ATIKVIEWER-0.1.0-amd64.deb",
+      `# Kurulum paketi üret → dist/ATIKVIEWER-${VERSION}-amd64.deb`,
       "bash packaging/linux/build-deb.sh",
-      "sudo dpkg -i dist/ATIKVIEWER-0.1.0-amd64.deb",
+      `sudo dpkg -i dist/ATIKVIEWER-${VERSION}-amd64.deb`,
       "",
       "# Otomatik başlatma",
       "cp packaging/linux/atikviewer-user.service ~/.config/systemd/user/",
@@ -91,7 +93,7 @@ const BLOCKS: Block[] = [
       "# Kurulum",
       "bash packaging/macos/install.sh",
       "",
-      "# DMG üret → dist/ATIKVIEWER-0.1.0-macOS.dmg",
+      `# DMG üret → dist/ATIKVIEWER-${VERSION}-macOS.dmg`,
       "bash packaging/macos/build-dmg.sh",
       "",
       "# DMG içindeki Install.command'a çift tıklayın",

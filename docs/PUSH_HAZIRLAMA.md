@@ -9,9 +9,9 @@ her adımın beklenen çıktısı vardır; hata olursa adım durur.
 
 | Nerede | Ne |
 |---|---|
-| `src/lib/version.ts` | `export const APP_VERSION = "0.1.0";` |
-| `package.json` | `"version": "0.1.0"` |
-| Git etiketi | `v0.1.0` |
+| `src/lib/version.ts` | `export const APP_VERSION = "0.2.0";` |
+| `package.json` | `"version": "0.2.0"` |
+| Git etiketi | `v0.2.0` |
 
 ## 1. Yerel doğrulama (push ÖNCESİ — hepsi geçmeli)
 
@@ -28,42 +28,36 @@ bash packaging/universal/build-source-zip.sh            # kurulum ZIP'i
 ```bash
 git status                                   # değişen dosyaları gözden geçir
 git add -A
-git commit -m "Çapraz platform kurulum paketleri (Linux/macOS/ZIP), RECIST 1.1, /paketler sayfası"
+git commit -m "Fix report history and add versioned auto-updates"
 ```
 
 İyi bir commit mesajı şu üçü içerir: **ne değişti**, **neden**, **nasıl doğrulandı**.
 
-## 3. Push
+## 3. Push dalı
 
 ```bash
-git remote add origin https://github.com/CehennemGibiyim/ArenaViewer.git   # yoksa
-git branch -M main
-git push -u origin main
+git push -u origin HEAD
 ```
 
-Kimlik doğrulama gerekirse (önerilen, parola yerine):
-
-```bash
-# GitHub → Settings → Developer settings → Personal access tokens (classic)
-# kapsam: repo
-git remote set-url origin https://<TOKEN>@github.com/CehennemGibiyim/ArenaViewer.git
-```
+Dal CI denetimlerinden geçtikten ve ana dala birleştirildikten sonra sürüm
+etiketini oluşturun. Etiketi birleştirilmemiş özellik dalından çıkarmayın.
 
 ## 4. Sürüm etiketi ve kurulum paketleri (CI otomatik üretir)
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
 `.github/workflows/release.yml` tetiklenir ve **GitHub Releases** sayfasına yükler:
 
-- `ATIKVIEWER-0.1.0-Setup.exe` — Windows kurulumu (Inno Setup)
-- `ATIKVIEWER-0.1.0-portable.zip` — Windows taşınabilir
-- `ATIKVIEWER-0.1.0-amd64.deb` — Debian/Ubuntu
-- `ATIKVIEWER-0.1.0-linux.tar.gz` — Linux taşınabilir
-- `ATIKVIEWER-0.1.0-macOS.dmg` — macOS
-- `ATIKVIEWER-0.1.0-kurulum.zip` — tüm kurulum dosyaları (yollarıyla)
+- `ATIKVIEWER-0.2.0-Setup.exe` — Windows kurulumu (Inno Setup)
+- `ATIKVIEWER-0.2.0-portable.zip` — Windows taşınabilir
+- `ATIKVIEWER-0.2.0-amd64.deb` — Debian/Ubuntu
+- `ATIKVIEWER-0.2.0-linux.tar.gz` — Linux taşınabilir
+- `ATIKVIEWER-0.2.0-macOS.dmg` — macOS
+- `ATIKVIEWER-0.2.0-kurulum.zip` — tüm kurulum dosyaları (yollarıyla)
+- `SHA256SUMS` — Windows Setup ve portable dosyalarının doğrulama özetleri
 
 ## 5. Yayın sonrası denetim
 

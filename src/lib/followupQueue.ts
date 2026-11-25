@@ -46,7 +46,9 @@ export function parseDue(dueDate: string): number | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
   const t = new Date(`${s}T00:00:00`).getTime();
   // 2026-11-32 gibi taşan tarihler JS'te kayar; geri kontrolle eleyin.
-  return Number.isFinite(t) && new Date(t).toISOString().slice(0, 10) === s ? t : null;
+  const d = new Date(t);
+  const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return Number.isFinite(t) && localDate === s ? t : null;
 }
 
 /** Görevin sonuç tarihine göre kovası. */

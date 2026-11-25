@@ -9,6 +9,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { parseDicom } from "dicom-parser";
 import {
@@ -19,7 +20,7 @@ import {
   type RawFrame,
 } from "../src/lib/codecs";
 
-const HERE = path.dirname(new URL(import.meta.url).pathname);
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIX = path.join(HERE, "fixtures", "codecs");
 const PUB_CODECS = path.join(process.cwd(), "public", "codecs");
 const PUB_WASM = path.join(process.cwd(), "public", "wasm");

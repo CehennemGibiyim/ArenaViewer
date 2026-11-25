@@ -2,7 +2,7 @@
  * Gerçek PACS (Orthanc) ile uçtan uca DICOMweb testi.
  *
  * Çalıştırma (CI veya yerel):
- *   ORTHANC_URL=http://localhost:8042 ORTHANC_USER=atik ORTHANC_PASS=atik123 \
+ *   ORTHANC_URL=http://localhost:8042 ORTHANC_USER=orthanc ORTHANC_PASS=orthanc \
  *     npx tsx tests/pacs.orthanc.e2e.ts
  *
  * ORTHANC_URL tanımlı değilse test ATLANIR (boş CI'da hata vermez).
@@ -14,8 +14,8 @@
 import { randomInt } from "node:crypto";
 
 const BASE = (process.env.ORTHANC_URL ?? "").replace(/\/$/, "");
-const USER = process.env.ORTHANC_USER ?? "atik";
-const PASS = process.env.ORTHANC_PASS ?? "atik123";
+const USER = process.env.ORTHANC_USER ?? "orthanc";
+const PASS = process.env.ORTHANC_PASS ?? "orthanc";
 
 if (!BASE) {
   console.log("ATLANDI: ORTHANC_URL tanımlı değil — gerçek PACS e2e testi çalıştırılmadı.");
