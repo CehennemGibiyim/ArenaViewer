@@ -9,6 +9,7 @@ import { jumpToPatient, refLinesFor, registerPanel, unregisterPanel, usePanelReg
 import { planeOf, toPatient } from "@/lib/planes";
 import { buildWindowLUT, windowToRGBA } from "@/lib/window";
 import { GpuWindower, needsGpu } from "@/lib/gpuWindow";
+import { applyGesture, gestureStep, pinchOf, type Pinch } from "@/lib/gestures";
 import { HEAT_ALPHA_MAX, heatPixel, heatVisible } from "@/lib/heat";
 import { fmtConfShort } from "@/lib/format";
 
@@ -186,17 +187,37 @@ export default function Viewport(props: ViewportProps) {
     const g = gpuRef.current;
     return () => { g?.dispose(); };
   }, [series?.id]);
+
   const PREFETCH_PIXELS_MAX = 2_000_000; // taban tabanlı ön-işleme bellek kapısı (~2 MP ≈ 8 MB)
   const baseCache = useRef(new Map<string, { key: string; canvas: HTMLCanvasElement }>());
   const ovRef = useRef<{ key: string; canvas: HTMLCanvasElement | null }>({ key: "", canvas: null });
   const dragRef = useRef<{ button: number; sx: number; sy: number; wl: number; ww: number; zoom: number; pan: { x: number; y: number } } | null>(null);
+  // Dokunmatik jest durumu (v-multimon): aktif temas noktaları + son kıstırma.
+  const touchesRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinchRef = useRef<Pinch | null>(null);
   const [draft, setDraft] = useState<Draft>(null);
   const [size, setSize] = useState({ w: 800, h: 600 });
+  const [isFullscreen, setFullscreen] = useState(false);
   const [renderTick, setTick] = useState(0);
   const fusRef = useRef<{ key: string; canvas: HTMLCanvasElement | null }>({ key: "", canvas: null });
   const heatRef = useRef<Map<string, { key: string; canvas: HTMLCanvasElement }>>(new Map());
   const registryVersion = usePanelRegistry();
   const suvFactor = series?.suv?.factor ?? null;
+
+  // Tam ekran durumu yalnız bu panel için (v-multimon): Esc/başka panel tam ekranı
+  // devralırsa düğme doğru etiketi göstersin.
+  useEffect(() => {
+    const onChange = () => setFullscreen(!!wrapRef.current && document.fullscreenElement === wrapRef.current);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    const el = wrapRef.current;
+    if (!el) return;
+    if (document.fullscreenElement === el) void document.exitFullscreen().catch(() => {});
+    else if (el.requestFullscreen) void el.requestFullscreen().catch(() => {});
+  };
 
   // Bu panelin hangi seri/kesiti gösterdiğini kayda geçir (referans çizgileri ve 3B imleç için).
   // onSlice her render'da yeniden oluşabilen bir arrow fonksiyon olduğundan geri çağırma
@@ -689,13 +710,23 @@ export default function Viewport(props: ViewportProps) {
     const { cx, cy } = local(e);
     const p = canvasToImg(cx, cy);
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    // Dokunmatik: iki parmak jest moduna geçer (kıstırma + kaydırma).
+    if (e.pointerType === "touch") {
+      touchesRef.current.set(e.pointerId, { x: cx, y: cy });
+      if (touchesRef.current.size >= 2) {
+        pinchRef.current = pinchOf(Array.from(touchesRef.current.values()));
+        dragRef.current = null;
+        setDraft(null);
+        return;
+      }
+    }
     // 3B imleç: tıklanan noktanın hasta koordinatında aynı çerçevedeki diğer panelleri günceller.
     if (e.button === 0 && tool === "xref") {
       const pl = planeOf(series, slice);
       if (pl && panelId) jumpToPatient(panelId, toPatient(pl, p.x, p.y));
       return;
     }
-    if (e.button === 0 && annTool) {
+    if (e.button === 0 && annTool && e.pointerType !== "touch") {
       if (DRAG_TOOLS.includes(tool)) setDraft({ mode: "drag", tool, a: p, b: p });
       else if (tool === "msk") {
         const need = Math.max(1, mskPointCount || 3);
@@ -722,7 +753,8 @@ export default function Viewport(props: ViewportProps) {
       }
       return;
     }
-    dragRef.current = { button: e.button, sx: cx, sy: cy, wl, ww, zoom, pan: { ...pan } };
+    // Dokunmatikte tek parmak kaydırır (araç `wl` olsa bile); farede davranış aynı.
+    dragRef.current = { button: e.pointerType === "touch" ? 1 : e.button, sx: cx, sy: cy, wl, ww, zoom, pan: { ...pan } };
   };
 
   const toScreen = (p: Pt) => {
@@ -737,6 +769,18 @@ export default function Viewport(props: ViewportProps) {
     const p = canvasToImg(cx, cy);
     const inside = p.x >= 0 && p.y >= 0 && p.x < series.width && p.y < series.height;
     onHover?.(inside ? series.slices[slice][Math.floor(p.y) * series.width + Math.floor(p.x)] : null);
+    if (e.pointerType === "touch" && touchesRef.current.has(e.pointerId)) {
+      touchesRef.current.set(e.pointerId, { x: cx, y: cy });
+      if (touchesRef.current.size >= 2) {
+        const next = pinchOf(Array.from(touchesRef.current.values()));
+        const step = gestureStep(pinchRef.current, next);
+        pinchRef.current = next;
+        const st = applyGesture({ zoom, pan }, step);
+        if (step.zoom !== 1) onZoom(st.zoom);
+        if (step.dx || step.dy) onPan(st.pan);
+        return;
+      }
+    }
     if (draft?.mode === "multi") setDraft({ ...draft, cursor: p });
     else if (draft?.mode === "drag") setDraft({ ...draft, b: p });
     const d = dragRef.current;
@@ -748,7 +792,12 @@ export default function Viewport(props: ViewportProps) {
     else if (eff === "zoom") onZoom(Math.min(12, Math.max(0.15, d.zoom * Math.exp(-dy / 180))));
   };
 
-  const onUp = () => {
+  const onUp = (e?: React.PointerEvent) => {
+    if (e) {
+      touchesRef.current.delete(e.pointerId);
+      if (touchesRef.current.size < 2) pinchRef.current = null;
+      if (touchesRef.current.size > 0) { dragRef.current = null; return; }
+    }
     dragRef.current = null;
     if (!series || draft?.mode !== "drag") return;
     const { a, b, tool: t } = draft;
@@ -791,12 +840,20 @@ export default function Viewport(props: ViewportProps) {
         onPointerDown={onDown}
         onPointerMove={onMove}
         onPointerUp={onUp}
+        onPointerCancel={onUp}
         onPointerLeave={() => onHover?.(null)}
         onDoubleClick={() => { if (draft?.mode === "multi" && draft.tool === "polygon") finishPolygon(draft.pts.slice(0, -1).length >= 3 ? draft.pts.slice(0, -1) : draft.pts); }}
         onWheel={onWheel}
         onContextMenu={(e) => e.preventDefault()}
       />
       {label && <div className="pointer-events-none absolute left-2 top-2 rounded bg-black/60 px-2 py-0.5 font-mono text-[10px] text-violet-200">{label}</div>}
+      <button
+        type="button"
+        onClick={toggleFullscreen}
+        title={isFullscreen ? "Tam ekrandan çık (Esc)" : "Bu paneli tam ekran yap"}
+        aria-label={isFullscreen ? "Tam ekrandan çık" : "Paneli tam ekran yap"}
+        className="absolute right-2 top-2 z-10 rounded border border-[#243044] bg-black/60 px-1.5 py-0.5 text-[11px] text-slate-300 hover:border-cyan-400/60 hover:text-cyan-200"
+      >{isFullscreen ? "⤡" : "⛶"}</button>
       {current.length > 0 && (
         <div className="pointer-events-none absolute left-1/2 top-12 flex -translate-x-1/2 flex-col items-center gap-1">
           {current.map((cf) => (

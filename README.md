@@ -37,10 +37,13 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   ≥15 mm; organ başına ≤2, toplam ≤5), non-hedef bileşkesi ve **genel yanıt
   tablosu** (yeni lezyon → PD; hedef CR + non-hedef CR → CR). Nodül takibi
   panelinden işaretlenir; CSV'ye genel değerlendirme eklenir.
-- **Segmentasyon + SEG/RTSTRUCT:** Fırça/silgi, eşik dolgusu ve tohumdan bölge
-  büyütme ile maske düzenleme; hacim (mL) hesabı. DICOM **SEG** (1 bit/piksel,
-  segment başına renk/etiket/algoritma) ve **RTSTRUCT** (CLOSED_PLANAR konturlar)
-  dışa aktarımı; ekran işaretlerinden otomatik maske üretimi. AI aday örtüsü
+- **Segmentasyon editörü + SEG/RTSTRUCT:** Araç çubuğu → 🧩 Segmentasyon:
+  **fırça/silgi** (1–40 px), **eşik dolgusu** (HU aralığı), **tohumdan bölge
+  büyütme**, kesit gezinme ve «sonraki kesite kopyala». Maske seri kimliğiyle
+  tarayıcıda saklanır; **hacim mL/mm³** canlı hesaplanır (piksel aralığı × kesit
+  kalınlığı). DICOM **SEG** (1 bit/piksel, renk/etiket/algoritma) ve **RTSTRUCT**
+  (CLOSED_PLANAR konturlar) dışa aktarımı; Dışa aktar menüsündeki işaret tabanlı
+  SEG çıktısı elle çizilen maskeyle **birleştirilir**. AI aday örtüsü
   düzenlenebilir maske değildir; SEG/RTSTRUCT hekim düzenlemesine açıktır.
 - **Yapılandırılmış ölçüm SR (TID 1500):** Ekran ölçümleri (uzunluk, elipsoid,
   ROI, çokgen) DICOM **Comprehensive SR** olarak yazılır: 125007 Measurement
@@ -69,6 +72,12 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   ile yalnız görünen kareler indirilir; istemcide LRU önbellek (240 kare) ve ±2
   ön getirme penceresi vardır. Büyük çalışmalarda tüm instance indirmek yerine
   kademeli getirme sağlar.
+- **İkinci ekran ve dokunmatik jestler:** Her panelin kendi ⛶ tam ekran düğmesi
+  vardır. Araç çubuğu → 🖥 İkinci ekran, aktif seriyi `/ayna` penceresine canlı
+  yayınlar (BroadcastChannel; yalnız görüntülenen kesit + WL/WW/zoom gönderilir,
+  veri sunucuya gitmez, alıcı salt izlemedir) — pencereyi başka bir monitöre
+  sürükleyin. Dokunmatikte iki parmak kıstırma = zoom, iki parmak = kaydırma,
+  tek parmak = kaydırma (`src/lib/gestures.ts`).
 - **Anonim seri gönderimi:** Seriyi PACS'e **kimliksiz** göndermek için anonim
   DICOM baytları tarayıcıda sıfırdan üretilir (özel etiket / orijinal UID / ad
   taşınmaz); sunucu örnek sayısı, toplam boyut ve DICM imzasını yeniden denetler.
@@ -420,6 +429,9 @@ npm run test:esign                   # imza kaydı + NES sınır etiketi
 npm run test:xref                    # 3B imleç: en yakın kesit + panel güncellemeleri
 npm run test:perf                   # pencere/seviye doğruluğu + önbellek ön-işleme
 npm run test:gpu                    # GPU pencereleme kararı + shader≡CPU eşdeğerliği
+npm run test:gestures               # dokunmatik jest matematiği (pinch/pan)
+npm run test:mirror                 # ikinci ekran yayını + gerçek BroadcastChannel turu
+npm run test:ui-smoke               # ikinci ekran + segmentasyon editörü render duman testi
 npm run test:notify-channels        # e-posta/SMS/çağrı kanalları: ayrıştırma, eşik, PHI'siz yük
 npm run bench:window                # WL/WW dönüşümü kıyaslaması (eski vs LUT)
 npm run test:pr                     # GSPS/PR dışa aktarma + parse doğrulama

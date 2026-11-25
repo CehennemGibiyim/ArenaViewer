@@ -5,7 +5,7 @@
  */
 import { parseDicom } from "dicom-parser";
 import { buildRtStruct, buildSegDocument, contourPoints, maskContour, packBinaryFrames, unpackBinaryFrame, SOP_RTSTRUCT, SOP_SEG } from "../src/lib/dicomSeg";
-import { copySlice, emptyMask, getPixel, growRegion, makeSegmentDef, maskFromJson, maskToJson, paint, prune, thresholdFill, volume } from "../src/lib/segmentation";
+import { copySlice, emptyMask, getPixel, growRegion, makeSegmentDef, maskFromJson, maskPixelCount, maskToJson, paint, prune, thresholdFill, unionMasks, volume } from "../src/lib/segmentation";
 
 let failed = 0;
 const ok = (cond: boolean, msg: string) => {
@@ -119,3 +119,25 @@ ok(!!drt.string("x30060010") || rtText.includes("1.2.840.10008.5.1.4.1.1.481.5")
 
 if (failed) { console.error(`${failed} segmentasyon testi başarısız`); process.exit(1); }
 console.log("Tüm c-seg-rtstruct (segmentasyon + SEG/RTSTRUCT) testleri geçti.");
+
+// ── elle maske + işaret maskesi birleşimi (m-seg) ──
+// Yarıçap 0,5 → yalnız merkez piksel (tek piksel sayımı için).
+const a = emptyMask(10, 10);
+paint(a, 0, 2, 2, 0.5);
+const b = emptyMask(10, 10);
+paint(b, 0, 7, 7, 0.5);
+paint(b, 1, 5, 5, 0.5);
+const u = unionMasks(a, b);
+ok(!!u, "aynı boyutlu maskeler birleşir");
+ok(!!u && getPixel(u, 0, 2, 2) === 1, "birleşimde ilk maskenin pikseli korunur");
+ok(!!u && getPixel(u, 0, 7, 7) === 1, "birleşimde ikinci maskenin pikseli eklenir");
+ok(!!u && getPixel(u, 1, 5, 5) === 1, "ikinci maskenin diğer kesiti taşınır");
+ok(!!u && u.slices.size === 2, "kesit sayısı birleşim kümesi");
+ok(getPixel(a, 0, 7, 7) === 0, "girdi maskesi değişmez");
+ok(unionMasks(emptyMask(10, 10), emptyMask(11, 10)) === null, "boyut uyuşmazsa null (sessiz bozulma yok)");
+ok(maskPixelCount(u!) === 3, "piksel sayımı birleşimle tutarlı");
+
+// hacim: birleşik maskede 3 piksel × (0,5×0,5 mm²) × 2 mm = 1,5 mm³
+const uv = volume(u!, { px: 0.5, py: 0.5, sliceThickness: 2 });
+ok(Math.abs(uv.mm3 - 1.5) < 1e-9, "birleşik maske hacmi mm³");
+ok(Math.abs(uv.ml - 0.0015) < 1e-12, "hacim mL'ye çevrilir");

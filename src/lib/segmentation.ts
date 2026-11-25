@@ -117,6 +117,31 @@ export function prune(m: SegMask): void {
   for (const [i, s] of [...m.slices]) if (!s.some((v) => v)) m.slices.delete(i);
 }
 
+/**
+ * İki maskeyi birleştirir (elle çizilen + işaretlerden üretilen). Sonuç yeni
+ * bir maskedir; girdiler değişmez. Boyut uyuşmazsa `null` döner (sessiz
+ * bozulma yerine açık hata).
+ */
+export function unionMasks(a: SegMask, b: SegMask): SegMask | null {
+  if (a.width !== b.width || a.height !== b.height) return null;
+  const out = emptyMask(a.width, a.height);
+  for (const src of [a, b]) {
+    for (const [idx, bytes] of src.slices) {
+      let dst = out.slices.get(idx);
+      if (!dst) { dst = new Uint8Array(bytes.length); out.slices.set(idx, dst); }
+      for (let i = 0; i < bytes.length; i++) if (bytes[i]) dst[i] = 1;
+    }
+  }
+  return out;
+}
+
+/** Maskedeki toplam işaretli piksel sayısı (hacim öncesi hızlı özet). */
+export function maskPixelCount(m: SegMask): number {
+  let n = 0;
+  for (const s of m.slices.values()) for (let i = 0; i < s.length; i++) if (s[i]) n++;
+  return n;
+}
+
 export interface VolumeResult {
   /** Segment hacmi (mm³) */
   mm3: number;

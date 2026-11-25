@@ -10,7 +10,7 @@ import { buildAnonymizedDicom } from "@/lib/dicomWrite";
 import { annotationsToMeasurements, exportCoverage, siteCode } from "@/lib/measurementExport";
 import { buildMeasurementReportSr } from "@/lib/sr1500";
 import { buildRtStruct, buildSegDocument } from "@/lib/dicomSeg";
-import { emptyMask, makeSegmentDef, paint, prune } from "@/lib/segmentation";
+import { emptyMask, makeSegmentDef, maskFromJson, paint, prune, unionMasks, type SegMask } from "@/lib/segmentation";
 import { apiFetch } from "@/lib/csrfClient";
 
 interface Props {
@@ -156,8 +156,18 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
     }
     const w = series.width, h = series.height;
     const shapes = annotations.filter((a) => ["ellipse", "rect", "polygon", "length", "ellipsoid"].includes(a.kind));
-    if (!shapes.length) { toast("Önce görüntü üzerinde en az bir şekil/ölçüm işaretleyin.", 6000); return; }
-    const mask = emptyMask(w, h);
+    // Segmentasyon editöründe elle çizilen maske de dışa aktarıma katılır
+    // (tarayıcıda `segmask:<seriesId>` altında saklanır).
+    let manual: SegMask | null = null;
+    try {
+      const raw = localStorage.getItem(`segmask:${series.id}`);
+      if (raw) {
+        const parsed = maskFromJson(JSON.parse(raw));
+        if (parsed.width === w && parsed.height === h && parsed.slices.size) manual = parsed;
+      }
+    } catch { /* bozuk kayıt: yok say */ }
+    if (!shapes.length && !manual) { toast("Önce görüntü üzerinde bir şekil işaretleyin ya da Segmentasyon editöründe alan çizin.", 6000); return; }
+    let mask = emptyMask(w, h);
     const brush = (cx: number, cy: number, r: number) => paint(mask, 0, Math.round(cx), Math.round(cy), r);
     for (const a of shapes) {
       const p = a.points;
@@ -176,6 +186,12 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
       }
     }
     prune(mask);
+    if (manual) {
+      const merged = unionMasks(mask, manual);
+      if (merged) mask = merged;
+      else toast("Elle çizilen maske boyutu seriyle uyuşmadı; yalnız işaretlerden üretilen maske kullanıldı.", 7000);
+    }
+    prune(mask);
     if (!mask.slices.size) { toast("İşaretlerden maske üretilemedi (kesit/koordinat eksik).", 6000); return; }
     const geo = {
       pxMm: pxMm > 0 ? pxMm : 1,
@@ -190,6 +206,7 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
       frameOfReferenceUid: series.frameOfRef, geometry: geo, width: w, height: h,
     };
     const def = makeSegmentDef(1, bodyPart ? `${bodyPart} işaretli alan` : "İşaretli alan", "MANUAL");
+    // Elle çizilen maske varsa segment adı onu da kapsar.
     const bytes = kind === "seg"
       ? buildSegDocument({ ...base, segments: [{ def, mask }] })
       : buildRtStruct({ ...base, rois: [{ def, mask }] });
