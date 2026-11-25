@@ -359,6 +359,22 @@ Rapor alanlarındaki 🎤 düğmesi Web Speech API (tr-TR) kullanır; metin `dic
   `kontrast artır`, `ters çevir`, `pencere daralt`, `geri al`, `kaydet`, `temizle`. Bir parça
   **tamamen** komutsa komut sayılır; "kırık ileri deplase" gibi cümleler metin olarak yazılır.
 
+## 3B lezyon eşleştirme (c-recist-full)
+
+`src/lib/lesionMatch3d.ts` — hacimsel koordinatlarla çalışan eşleştirme (metin tabanlı
+`lesionTracking.ts`'in yanında):
+
+- **Rijit hizalama:** Horn kuaterniyon yöntemi (kapalı form, yansıma üretmez). Bilinen
+  dönme+ötelenme 0 mm artıkla geri kazanılır (test).
+- **Eşleştirme:** karşılıklı en yakın komşu. Karşılıklı olmayan, anatomi etiketi uyuşmayan
+  veya eşik yakınındaki eşleşmeler **belirsiz** → otomatik kabul edilmez.
+- **Sınıflar:** eşleşti / belirsiz / yeni / kayboldu + uzun çap ve hacim oranı, CSV.
+- **Hizalama kapısı:** artık hata > 10 mm veya ölçek farkı > %15 ise hizalama **uygulanmaz**
+  (lezyon kümeleri karşılıklı değilse yanlış eşleştirme üretir); 3'ten az lezyonda hizalama
+  yapılmaz. Her iki durumda gerekçe raporlanır.
+
+Sınır: voksel tabanlı registrasyon yoktur; bu modül merkez noktaları hizalar.
+
 ## Segmentasyon konturları — SEG / RTSTRUCT (c-seg-rtstruct)
 
 RTSTRUCT konturları artık satır taraması yerine **kenar takibi** ile çıkarılır
@@ -628,6 +644,7 @@ npm run test:validation             # alt grup doğrulama + kabul eşiği (t-val
 npm run test:stroke                 # inme hattı: zaman çizelgesi + kod inme (a-stroke)
 npm run test:sr1500reg              # TID 1500 ölçüm defteri + kod sözlüğü (c-sr-tid1500)
 npm run test:segedit                # kontur izleme + segment düzenleme (c-seg-rtstruct)
+npm run test:lesion3d               # 3B lezyon eşleştirme + rijit hizalama (c-recist-full)
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)

@@ -574,10 +574,9 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "c-recist-full", category: "measure", title: "RECIST tamamlayıcıları: lenf nodu, non-hedef lezyon, otomatik lezyon eşleştirme",
-    status: "kismi", priority: "P1", effort: "M",
+    status: "var", priority: "P1", effort: "M",
     market: ["3D Slicer", "RadiAnt"],
-    ours: "**Eklendi:** `lesionTracking.ts` (anatomi+konum eşleştirme, lenf nodu kısa eksen tablosu, non-hedef durumu) ve **yeni** `recistFull.ts`: hedef seçim denetimi (hedef ≥10 mm, lenf nodu kısa eksen ≥15 mm, organ başına ≤2, toplam ≤5), non-hedef bileşkesi (CR / non-CR-non-PD / PD) ve RECIST 1.1 genel yanıt tablosu (yeni lezyon → PD; hedef CR + non-hedef CR → CR). Nodül takibi panelinde hedef işaretleme, non-hedef seçimi ve GENEL YANIT kutusu; CSV'ye genel değerlendirme eklenir. Seçim SİLİNMEZ, ihlaller uyarı olarak gösterilir. KALAN: ölçümlerin görüntüden otomatik çıkarılması ve 3B lezyon eşleştirme.",
-    action: "Otomatik lezyon ölçümü (segmentasyondan) ve 3B kayıt (registration) ile eşleştirme.",
+    ours: "**Bu sürümde eklendi:** `lesionTracking.ts` (anatomi+konum metniyle eşleştirme, lenf nodu kısa eksen tablosu, non-hedef durumu), `recistFull.ts` (hedef seçim denetimi: hedef ≥10 mm, lenf nodu kısa eksen ≥15 mm, organ başına ≤2 / toplam ≤5; non-hedef bileşkesi; RECIST 1.1 genel yanıt tablosu) ve **3B lezyon eşleştirme** (`lesionMatch3d.ts`): Horn kuaterniyon yöntemiyle **rijit hizalama** (kapalı form, yansıma üretmez; bilinen dönme+ötelenme 0 mm artıkla geri kazanılıyor — testli), ardından **karşılıklı en yakın komşu** eşleştirmesi. Karşılıklı olmayan veya eşik yakınındaki eşleşmeler **belirsiz** sayılır (sessizce kabul edilmez), eşik dışı ise kayboldu, karşılıksız izlem ise yeni olarak raporlanır; uzun çap ve hacim oranı yazılır, anatomi uyuşmazlığı seçime bağlı olarak belirsizliğe çevrilir. **Hizalama kapısı**: artık hata >10 mm veya ölçek farkı >%15 ise (lezyon kümeleri karşılıklı değil, ör. kayboldu+yeni) hizalama **uygulanmaz**, ham koordinatla eşleştirme yapılır ve gerekçe raporlanır; 3'ten az lezyonda hizalama yapılmaz (sahte eşleşme önlenir). CSV çıktısı vardır. KALAN: görüntü tabanlı (voksel) registrasyon ve segmentasyondan otomatik ölçüm çıkarımı.",    action: "Voksel tabanlı registrasyon ve segmentasyondan otomatik ölçüm çıkarımı.",
   },
   {
     id: "c-measure-history", category: "measure", title: "Ölçüm geçmişi ve trend grafikleri (çap/HU/SUV zaman serisi)",
