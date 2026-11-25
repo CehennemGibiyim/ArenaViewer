@@ -176,6 +176,45 @@ async function main() {
   ok((auditMap["measurement-history-save"] ?? 0) >= 1, "denetim: ölçüm geçmişi kaydı iz bıraktı");
   ok((auditMap["report.peer_review"] ?? 0) >= 1, "denetim: ikinci okuma iz bıraktı");
 
+  // ═══════════ 5) OTURUM LİSTESİ + HESAP KİLİDİ (w-auth) ═══════════
+  const sessList = await api("/api/sessions");
+  ok(sessList.status === 200 && Array.isArray(sessList.json?.sessions), "oturum listesi HTTP üzerinden okunuyor");
+  ok((await api("/api/sessions?id=kisa", "DELETE")).status === 400, "geçersiz oturum kimliği 400 ile reddediliyor");
+
+  const lockUser = `e2e.lock-${Date.now().toString(36)}`;
+  const lockPass = "E2e-lock-2026";
+  const created = await api("/api/users", "POST", { username: lockUser, fullName: "E2E Kilit", role: "radyolog", password: lockPass });
+  ok(created.status === 200 && created.json?.ok === true, "kilit testi için geçici kullanıcı oluşturuldu");
+  const login = (password: string) =>
+    fetch(`${BASE}/api/auth/login`, {
+      method: "POST",
+      headers: { cookie, "content-type": "application/json", "x-csrf-token": csrf },
+      body: JSON.stringify({ username: lockUser, password }),
+    }).then(async (r) => ({ status: r.status, json: (await r.json().catch(() => null)) as any }));
+  // Varsayılan eşik 5; kurulum env ile değiştirmiş olabilir → kilit görünene kadar dene.
+  let last = await login("yanlis-parola");
+  for (let i = 0; i < 9 && last.status !== 423; i++) last = await login("yanlis-parola");
+  ok(last.status === 423 && last.json?.locked === true && (last.json?.retryAfterMinutes ?? 0) >= 1, "art arda hatalı giriş hesabı kilitliyor (423 + kalan süre)");
+  ok((await login(lockPass)).status === 423, "kilitliyken doğru parola da reddediliyor");
+
+  const userList = await api("/api/users");
+  const lockRow = userList.json?.users?.find((x: any) => x.username === lockUser);
+  ok(!!lockRow && lockRow.locked === true && lockRow.failedLoginCount >= 1, "yönetici listesinde hesap 'kilitli' ve sayaç görünüyor");
+  ok(!JSON.stringify(lockRow).includes("passwordHash"), "kullanıcı listesi parola hash'i sızdırmıyor");
+
+  const unlock = await api("/api/users", "PATCH", { id: lockRow.id, unlock: true });
+  ok(unlock.status === 200, "kilidi aç isteği kabul edildi (200)");
+  ok((await login(lockPass)).status === 200, "kilit açıldıktan sonra giriş başarılı");
+  const unlockedRow = await db.query("select failed_login_count::int n, locked_until from users where username=$1", [lockUser]);
+  ok(unlockedRow.rows[0].n === 0 && unlockedRow.rows[0].locked_until === null, "DB: kilit açma sayacı ve kilidi temizledi");
+  const unlockAudit = await db.query("select count(*)::int n from audit_logs where action='user.unlock' and entity_id=$1", [String(lockRow.id)]);
+  ok(unlockAudit.rows[0].n >= 1, "denetim: kilit açma ayrı olay olarak yazıldı");
+  const sessionRows = await db.query("select count(*)::int n from sessions where user_id=$1", [lockRow.id]);
+  ok(sessionRows.rows[0].n >= 1, "DB: başarılı giriş sunucu tarafı oturum kaydı açtı");
+
+  await db.query("delete from sessions where user_id=$1", [lockRow.id]);
+  await db.query("delete from users where id=$1", [lockRow.id]);
+
   await db.end();
   console.log(`\nTüm DB'li uçtan uca API testleri geçti (${passed} kontrol).`);
 }

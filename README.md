@@ -411,6 +411,8 @@ ayarı. S3 istemcisi AWS SigV4 kullanır (AWS/MinIO/R2/Wasabi uyumlu).
 | `AUTH_MODE` | Hayır | Boş/demo: ACCESS_TOKEN varsa onunla, yoksa tek operatör. `hesap`: kullanıcı adı/parola (+MFA) zorunlu, rol denetimi aktif |
 | `SESSION_SECRET` | Hesap modunda | Oturum çerezini imzalayan gizli anahtar (tanımsızsa `DATA_ENCRYPTION_KEY` kullanılır) |
 | `REQUIRE_TOTP_FOR_ROLES` | Hayır | MFA zorunluluğu olan roller (varsayılan `yonetici`). Bu rollerdeki hesaplar authenticator kodu olmadan giremez |
+| `AUTH_LOCK_MAX_FAILURES` | Hayır | Art arda kaç hatalı denemede hesap kilitlenir (varsayılan 5) |
+| `AUTH_LOCK_MINUTES` | Hayır | Kilit süresi, dakika (varsayılan 15) |
 | `LLM_API_URL` / `LLM_API_KEY` / `LLM_MODEL` | Hayır | Taslak izlenim LLM'i (yoksa kural tabanlı yedek). Ücretsiz yerel yol: [docs/OLLAMA.md](docs/OLLAMA.md) |
 | `AI_WORKER_URL` | Hayır | Yerel derin AI worker adresi (varsayılan `http://127.0.0.1:8787`) |
 
@@ -456,7 +458,7 @@ npm run test:radpeer                # RADPEER örneklem + uyuşmazlık istatisti
 npm run test:model-registry         # model kayıt defteri + deterministik A/B
 npm run test:db-api                 # (PostgreSQL + sunucu) ölçüm geçmişi, RADPEER, model uçları
 npm run test:seg-ui                 # (tarayıcı) segment editörü: fırça/eşik/geri al + AI tohumlama + mL hacim
-npm run test:panels-ui              # (tarayıcı+DB) 📈 Trend, ⚖ Peer, /yonetim model kayıt defteri
+npm run test:panels-ui              # (tarayıcı+DB) 📈 Trend, ⚖ Peer, model kayıt defteri, Oturumlar, hesap kilidi
 npm run test:pr                     # GSPS/PR dışa aktarma + parse doğrulama
 npm run test:notify                 # masaüstü bildirimi + izin akışı
 npm run test:prior                  # önceki tetkik ölçüm karşılaştırması
@@ -489,7 +491,7 @@ npm run test:folder                 # klasör içe aktarma + yükleme raporu
 npm run test:review                 # görüntü inceleme ölçümleri
 npm run test:report-flow            # rapor onay + derin AI akışı
 npm run test:seg-ui                 # segment editörü: fırça/eşik/geri al + AI tohumlama + mL hacim
-npm run test:panels-ui              # 📈 Trend, ⚖ Peer ve model kayıt defteri panelleri
+npm run test:panels-ui              # 📈 Trend, ⚖ Peer, model kayıt defteri, Oturumlar ve hesap kilidi panelleri
 ```
 
 > `tests/menu-interactions.cjs` hem klasik `webkitdirectory` yolunu hem de Chromium'un
@@ -508,7 +510,7 @@ npm run db:local                    # initdb (gerekirse) + postgres + veritaban�
 export DATABASE_URL=postgres://atik@127.0.0.1:5432/atik
 npm run db:push                     # drizzle şemasını uygula
 AV_RATE_LIMIT=off npm start &       # testte hız sınırı kapalı (CSRF açık kalır)
-npm run test:db-api                 # 38 kontrol: ölçüm geçmişi, RADPEER, model uçları
+npm run test:db-api                 # 50 kontrol: ölçüm geçmişi, RADPEER, model uçları
 npm run db:local:stop
 ```
 
@@ -610,6 +612,14 @@ docs/             Yayınlama ve işletim kılavuzları
   silme ve ayarlar yalnız yönetici). İlk yönetici `/giris` sayfasındaki kurulum
   formuyla oluşturulur; sonraki hesaplar Yönetim → Kullanıcılar bölümünden eklenir.
   Oturum imzalı bir çerezle taşınır (`SESSION_SECRET`/`DATA_ENCRYPTION_KEY` anahtarı).
+- **Aktif oturumlar ve hesap kilidi (w-auth):** her giriş sunucuda bir `sessions`
+  satırı açar; Yönetim → **Oturumlar** sekmesi kullanıcı/IP/tarayıcı/son görülme
+  bilgisiyle listeler ve tek tek ya da "diğer oturumları kapat" ile iptal eder —
+  iptal edilen çerez hesap modunda 401 alır (çıkış da kaydı iptal eder). Art arda
+  `AUTH_LOCK_MAX_FAILURES` (5) hatalı denemede hesap `AUTH_LOCK_MINUTES` (15) dk
+  kilitlenir; kilitliyken doğru parola da reddedilir (423 + kalan süre) ve yönetici
+  Kullanıcılar sekmesindeki **Kilidi aç** ile sıfırlar. Her iki olay denetim
+  kaydına yazılır (`auth.session.revoke`, `auth.login.locked`, `user.unlock`).
 - **İki faktörlü doğrulama (F2):** `REQUIRE_TOTP_FOR_ROLES` (varsayılan `yonetici`)
   bu rollere sahip hesaplara TOTP/MFA şart koşar; Yönetim → Profil & MFA ekranından
   authenticator uygulamasıyla kurulur. Hesap MFA kurmadan giriş yapamaz, denetim

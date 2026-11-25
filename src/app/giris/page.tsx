@@ -4,6 +4,7 @@ import SetupForm from "@/components/SetupForm";
 import { accessEnabled } from "@/lib/server/access";
 import { authRequired } from "@/lib/server/auth";
 import { hasAnyActiveUser } from "@/lib/server/accounts";
+import { lockoutPolicy } from "@/lib/server/lockout";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "ATIKVIEWER — Giriş" };
@@ -35,7 +36,7 @@ export default async function GirisPage() {
           {needsSetup ? (
             <SetupForm accessEnabled={accessEnabled()} />
           ) : (
-            <LoginForm mode={{ accessEnabled: accessEnabled(), authRequired: authRequired() }} />
+            <LoginForm mode={{ accessEnabled: accessEnabled(), authRequired: authRequired(), lockout: lockoutPolicy() }} />
           )}
         </Suspense>
       </div>

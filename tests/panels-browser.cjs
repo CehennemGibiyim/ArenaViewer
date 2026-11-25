@@ -1,4 +1,5 @@
-/* Yeni panellerin tarayıcı testi: 📈 Trend, ⚖ Peer, /yonetim → Model kayıt defteri.
+/* Yeni panellerin tarayıcı testi: 📈 Trend, ⚖ Peer, /yonetim → Model kayıt defteri,
+ * Oturumlar ve Kullanıcılar (hesap kilidi).
  *
  * Neden ayrı: bu üç panelin verisi sunucudan gelir; API testleri (test:db-api)
  * uçları doğrular, ancak panelin bu veriyi gösterdiği yalnız gerçek DOM ile
@@ -13,7 +14,8 @@
  *
  * Test kendi ölçüm geçmişi satırlarını 'L7084261 SD' (örnek hasta) için yazar ve
  * başlamadan önce temizler; model kayıt defterinde `e2e.` satırlarını bekler
- * (yoksa panelin boş durumu doğrulanır).
+ * (yoksa panelin boş durumu doğrulanır). Kilit testi için `e2e.locked` adlı geçici
+ * bir kullanıcıyı kilitleyip arayüzden kilidi açar, sonucu veritabanından doğrular.
  */
 const assert = require("node:assert/strict");
 const { chromium } = require("playwright");
@@ -33,6 +35,15 @@ async function main() {
             ($1,'P.STUDY.1','2026-01-10','PS1','MR','Elipsoid hacim · E2E Nodül','volume',0.9,'mL',3),
             ($1,'P.STUDY.2','2026-03-10','PS2','MR','Uzunluk · E2E Nodül','length',18,'mm',4)`,
     [PATIENT]
+  );
+
+  // Kilit testi için geçici kullanıcı: sayaç 5, kilit 10 dk ileri.
+  const LOCKED = "e2e.locked";
+  await db.query("delete from users where username=$1", [LOCKED]);
+  await db.query(
+    `insert into users (username, password_hash, full_name, role, active, failed_login_count, locked_until)
+     values ($1,'-','E2E Kilitli', 'radyolog', true, 5, now() + interval '10 minutes')`,
+    [LOCKED]
   );
 
   const launch = {
@@ -99,9 +110,43 @@ async function main() {
       console.log("PASS /yonetim → Model kayıt defteri: kayıt yokken boş durum açıkça gösteriliyor.");
     }
 
+    // ── /yonetim → Oturumlar (w-auth) ──
+    await page.getByRole("button", { name: "Oturumlar" }).click();
+    const sessionsPanel = page.getByTestId("sessions-panel");
+    await sessionsPanel.waitFor();
+    await sessionsPanel.getByText(/Etkin oturum yok|Sonlandır/).first().waitFor({ timeout: 15000 });
+    const sessionsText = await sessionsPanel.innerText();
+    assert.match(sessionsText, /Oturum kaydı sunucuda tutulur/, "kaydın sunucuda tutulduğu açıkça yazılı");
+    assert.match(sessionsText, /Diğer oturumları kapat/, "toplu kapatma düğmesi var");
+    // Demo modunda hesap girişi olmadığı için liste boş olmalı; varsa satırlar sonlandırılabilir olmalı.
+    if (/Etkin oturum yok/.test(sessionsText)) {
+      assert.match(sessionsText, /demo modunda işlemler operatör profiline atfedilir/i, "boş durumun nedeni yazılı");
+    } else {
+      assert.ok(await sessionsPanel.getByRole("button", { name: "Sonlandır" }).first().isVisible(), "oturum satırında Sonlandır düğmesi var");
+    }
+    console.log("PASS /yonetim → Oturumlar: sunucu tarafı oturum listesi ve boş durum açıklaması göründü.");
+
+    // ── /yonetim → Kullanıcılar: hesap kilidi + kilidi aç ──
+    await page.getByRole("button", { name: "Kullanıcılar" }).click();
+    await page.getByText(LOCKED).first().waitFor({ timeout: 15000 });
+    const lockedRow = page.locator("tr", { hasText: LOCKED }).first();
+    // Tam eşleşme: satırdaki "E2E Kilitli" adı ile "kilitli" rozeti karışmasın.
+    await lockedRow.getByText("kilitli", { exact: true }).waitFor();
+    await lockedRow.getByRole("button", { name: "Kilidi aç" }).click();
+    await page.waitForFunction((name) => {
+      const tr = [...document.querySelectorAll("tr")].find((r) => r.textContent?.includes(name));
+      if (!tr) return false;
+      return ![...tr.querySelectorAll("span,td")].some((el) => el.textContent?.trim() === "kilitli");
+    }, LOCKED, { timeout: 15000 });
+    const after = await db.query("select failed_login_count, locked_until from users where username=$1", [LOCKED]);
+    assert.equal(after.rows[0].failed_login_count, 0, "kilit açılınca sayaç sıfırlanmalı");
+    assert.equal(after.rows[0].locked_until, null, "kilit bitişi temizlenmeli");
+    console.log("PASS /yonetim → Kullanıcılar: kilitli hesap işaretlendi, 'Kilidi aç' sayacı ve kilidi veritabanında temizledi.");
+
     assert.deepEqual(errors, [], `sayfa hatası olmamalı: ${errors.join(" | ")}`);
     console.log("PASS Panel testleri: tarayıcıda JavaScript hatası yok.");
   } finally {
+    await db.query("delete from users where username=$1", [LOCKED]).catch(() => {});
     await db.end();
     await browser.close();
   }

@@ -22,6 +22,11 @@ const safeUser = (u: typeof users.$inferSelect) => ({
   active: u.active,
   twoFactorEnabled: u.twoFactorEnabled,
   lastLoginAt: u.lastLoginAt,
+  /** Hesap kilitleme durumu (w-auth): sayaç + kilit bitişi. */
+  failedLoginCount: u.failedLoginCount,
+  lockedUntil: u.lockedUntil,
+  /** Sunucu tarafında hesaplanır (istemci saatine güvenilmez). */
+  locked: !!u.lockedUntil && u.lockedUntil.getTime() > Date.now(),
 });
 
 export async function GET(req: NextRequest) {
@@ -78,6 +83,8 @@ export async function PATCH(req: NextRequest) {
     title?: string;
     regNo?: string;
     password?: string;
+    /** Hesap kilidini elle açar (art arda hatalı giriş sayacı da sıfırlanır). */
+    unlock?: boolean;
   } | null;
   if (!b?.id) return NextResponse.json({ error: "id gerekli" }, { status: 400 });
   const cur = (await db.select().from(users).where(eq(users.id, b.id)).limit(1))[0];
@@ -94,6 +101,10 @@ export async function PATCH(req: NextRequest) {
     if (!strength.ok) return NextResponse.json({ error: strength.reason }, { status: 400 });
     set.passwordHash = makePasswordHash(b.password);
   }
+  if (b.unlock === true) {
+    set.failedLoginCount = 0;
+    set.lockedUntil = null;
+  }
   if (Object.keys(set).length === 0) return NextResponse.json({ error: "Değişiklik yok" }, { status: 400 });
 
   // Son yöneticiyi pasif yapma/kaldırma: hesap modunda kilitlenmeyi önler.
@@ -107,6 +118,11 @@ export async function PATCH(req: NextRequest) {
   }
 
   await db.update(users).set(set).where(eq(users.id, cur.id));
-  await audit(a.user, "user.update", "user", cur.id, { fields: Object.keys(set) });
+  if (b.unlock === true) {
+    // Kilit açma ayrı bir denetim olayıdır: kim, hangi hesabı, ne zaman açtı.
+    await audit(a.user, "user.unlock", "user", cur.id, { wasLocked: !!cur.lockedUntil, failedLoginCount: cur.failedLoginCount });
+  } else {
+    await audit(a.user, "user.update", "user", cur.id, { fields: Object.keys(set) });
+  }
   return NextResponse.json({ ok: true });
 }

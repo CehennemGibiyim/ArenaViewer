@@ -29,7 +29,35 @@ export const users = pgTable("users", {
   twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   lastLoginAt: timestamp("last_login_at"),
+  /** Art arda başarısız giriş sayısı (başarılı girişte sıfırlanır). */
+  failedLoginCount: integer("failed_login_count").notNull().default(0),
+  /** Hesap kilidinin bitişi; null = kilitli değil. */
+  lockedUntil: timestamp("locked_until"),
 });
+
+/**
+ * Sunucu tarafı oturum kaydı — "aktif oturum listesi / iptali" için.
+ *
+ * Oturum kimliği imzalı çerezde taşınır; burada yalnız sunucunun bildiği kayıt
+ * tutulur. Çerez geçerli olsa bile kayıt iptal edilmişse (revoked_at) istek
+ * kimliksiz sayılır. Böylece "oturumu kapat" gerçekten sunucuda etki eder.
+ */
+export const sessions = pgTable(
+  "sessions",
+  {
+    /** 32 karakterlik rastgele hex (çerezde imzalı taşınır). */
+    id: text("id").primaryKey(),
+    userId: integer("user_id").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    lastSeenAt: timestamp("last_seen_at").notNull().defaultNow(),
+    expiresAt: timestamp("expires_at").notNull(),
+    revokedAt: timestamp("revoked_at"),
+    revokedBy: integer("revoked_by"),
+    ip: text("ip").notNull().default(""),
+    userAgent: text("user_agent").notNull().default(""),
+  },
+  (t) => [index("sessions_user_idx").on(t.userId)],
+);
 
 export const auditLogs = pgTable(
   "audit_logs",

@@ -39,9 +39,17 @@ SBOM imzalama ve kurumsal HSM gibi kalan işler nedeniyle G3 kısmi kalır.
 Son başarılı giriş zamanı yalnız parola ve gereken MFA doğrulandıktan ve oturum
 imzalanabildikten sonra güncellenir. Yanlış parola/MFA, MFA kurulmamış hesap ve
 imzalama anahtarı yokluğu zaman damgasını değiştirmez. PostgreSQL destekli CI
-entegrasyon testi bu durumları ve oturum çerezini denetler. Bu değişiklik hesap
-kilitleme, oturum iptali veya kurumsal kimlik entegrasyonunu sağlamaz; P0 madde
-kısmi kalır ve demo modu gerçek kullanıcı kimliği doğrulamaz.
+entegrasyon testi bu durumları ve oturum çerezini denetler.
+
+**Eklenen (bu sürüm):** her giriş sunucuda `sessions` satırı açar; `/api/sessions`
+listesi (yönetici tüm kullanıcıların, diğer rolleri kendi oturumlarının) ve iptali
+destekler — iptal edilen çerez hesap modunda 401 alır, çıkış da kaydı iptal eder
+(Yönetim → Oturumlar). Ayrıca art arda hatalı girişte hesap kilitlenir
+(`AUTH_LOCK_MAX_FAILURES`, varsayılan 5 / `AUTH_LOCK_MINUTES`, varsayılan 15 dk);
+kilitliyken doğru parola da reddedilir ve yanıt 423 + kalan süreyi bildirir,
+yönetici Kullanıcılar sekmesinden kilidi açar. Kurumsal kimlik (SSO/OIDC/SAML/LDAP)
+ve hekim çoklu üyelikleri hâlâ yoktur; P0 madde bu nedenle kısmi kalır ve demo modu
+gerçek kullanıcı kimliği doğrulamaz.
 
 ## 0.0c Ölçüm geçmişi, RADPEER ve model kayıt defteri
 
@@ -284,7 +292,7 @@ açıktır; bu nedenle `w-pacs` kısmi kalır.
 
 | ID | Özellik | P | Çaba | Bizde şu an | Fikir |
 |---|---|---|---|---|---|
-| F1 | **Kimlik:** kullanıcı adı/parola + MFA + oturum zaman aşımı (SSO sırasıyla) | P0 | L | ACCESS_TOKEN tek kapıydı; parola/oturum/MFA yoktu | **Bu sürümde minimum uygulandı:** `AUTH_MODE=hesap` ile scrypt parola, imzalı oturum çerezi (8 saat), TOTP/MFA (`otplib`), `REQUIRE_TOTP_FOR_ROLES`. Kalan: SSO/OIDC/LDAP/SAML entegrasyonu. |
+| F1 | **Kimlik:** kullanıcı adı/parola + MFA + oturum zaman aşımı (SSO sırasıyla) | P0 | L | ACCESS_TOKEN tek kapıydı; parola/oturum/MFA yoktu | **Bu sürümde minimum uygulandı:** `AUTH_MODE=hesap` ile scrypt parola, imzalı oturum çerezi (8 saat), TOTP/MFA (`otplib`), `REQUIRE_TOTP_FOR_ROLES`. **Eklenen:** sunucu tarafı oturum listesi/iptali (Yönetim → Oturumlar) ve hesap kilitleme + kilidi açma (Yönetim → Kullanıcılar). Kalan: SSO/OIDC/LDAP/SAML entegrasyonu ve çoklu üyelik. |
 | F2 | **RBAC detayı:** radyolog/teknisyen/arator/yönetici + hekim profilleri | P0 | M | Tek operatör profili; `authorize()` rolleri yok sayıyordu | **Bu sürümde uygulandı:** `yonetici/radyolog/teknisyen` rol denetimi tüm API uçlarında aktif, Yönetim → Kullanıcılar (ekle/rol/pasif/parola sıfırla). Kalan: arator rolü ve hekim profil çoklu üyelikleri. |
 | F3 | **Kullanıcı başına tercihler** (layout, preset, kısayol) sunucuda | P2 | S–M | **Bu sürümde eklendi:** `/tercihler` sayfası + `/api/profile/preferences`; açılış düzeni uygulanır. | Kalanlar arşiv/KMS ve SLSA attestation; log seviyesi ortam değişkenine bağlanacak.
 | F4 | **Turnaround/istatistik panosu** (TAT, bulgu/adet, onay süresi) | P2 | M | **Bu sürümde eklendi:** `/api/reports/stats` + Yönetim > İş akışı (TAT medyan/p90, durum/modalite dağılımı, eski taslak). | Haftalık trend grafikleri ve hedef eşik uyarıları.

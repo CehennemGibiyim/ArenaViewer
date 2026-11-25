@@ -7,6 +7,8 @@ import { apiFetch } from "@/lib/csrfClient";
 export interface LoginMode {
   accessEnabled: boolean;
   authRequired: boolean;
+  /** Hesap kilitleme ilkesi (w-auth): kaç hatalı denemede kaç dakika kilit. */
+  lockout?: { max: number; minutes: number };
 }
 
 /**
@@ -27,6 +29,7 @@ export default function LoginForm({ mode }: { mode: LoginMode }) {
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [needsTotp, setNeedsTotp] = useState(false);
+  const [locked, setLocked] = useState(false);
   const [totpMissing, setTotpMissing] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -36,6 +39,7 @@ export default function LoginForm({ mode }: { mode: LoginMode }) {
     if (busy) return;
     setBusy(true);
     setError("");
+    setLocked(false);
     try {
       const r = await apiFetch("/api/auth/login", {
         method: "POST",
@@ -51,12 +55,14 @@ export default function LoginForm({ mode }: { mode: LoginMode }) {
         error?: string;
         requiresTotp?: boolean;
         totpMissing?: boolean;
+        locked?: boolean;
       } | null;
       if (!r.ok) {
         if (d?.requiresTotp) {
           setNeedsTotp(true);
           setTotpMissing(!!d.totpMissing);
         }
+        setLocked(!!d?.locked);
         setError(d?.error ?? `Giriş reddedildi (${r.status})`);
         return;
       }
@@ -136,7 +142,17 @@ export default function LoginForm({ mode }: { mode: LoginMode }) {
         </>
       )}
 
-      {error && <p role="alert" className="text-xs text-rose-300">{error}</p>}
+      {error && (
+        <p role="alert" className={`text-xs ${locked ? "rounded-lg border border-rose-400/30 bg-rose-400/10 px-2.5 py-2 font-semibold text-rose-200" : "text-rose-300"}`}>
+          {locked ? "🔒 " : ""}
+          {error}
+        </p>
+      )}
+      {accountRequired && mode.lockout && !error && (
+        <p className="text-[11px] text-slate-500">
+          Art arda {mode.lockout.max} hatalı denemede hesap {mode.lockout.minutes} dk kilitlenir.
+        </p>
+      )}
       <button
         type="submit"
         disabled={

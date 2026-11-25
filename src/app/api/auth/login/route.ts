@@ -3,8 +3,9 @@ import { verify as verifyTotp } from "otplib";
 import { ACCESS_COOKIE, accessEnabled, checkToken } from "@/lib/server/access";
 import { audit } from "@/lib/server/audit";
 import { authRequired } from "@/lib/server/auth";
-import { authenticate, recordSuccessfulLogin, totpRequiredFor, toUserInfo } from "@/lib/server/accounts";
+import { attemptLogin, lockRemainingMinutes, lockoutPolicy, recordFailedAttempt, recordSuccessfulLogin, totpRequiredFor, toUserInfo } from "@/lib/server/accounts";
 import { issueSessionCookie, SESSION_COOKIE } from "@/lib/server/session";
+import { createSession } from "@/lib/server/sessions";
 
 export const dynamic = "force-dynamic";
 
@@ -52,10 +53,35 @@ export async function POST(req: NextRequest) {
     return res;
   }
 
-  const acc = await authenticate(username, password);
-  if (!acc) {
+  // ── Parola + kilit durumu ────────────────────────────────────────────────
+  const attempt = await attemptLogin(username, password);
+  if (!attempt.ok) {
+    if (attempt.kind === "locked") {
+      const mins = lockRemainingMinutes(attempt.lockedUntil) || 1;
+      try {
+        await audit({ id: 0, username }, "auth.login.locked", "user", 0, { until: attempt.lockedUntil.toISOString() });
+      } catch {
+        /* denetim yazılamadı diye giriş akışını engelleme */
+      }
+      return NextResponse.json(
+        {
+          error: `Hesap geçici olarak kilitli. ${mins} dk sonra tekrar deneyin ya da yöneticiden kilidi açmasını isteyin.`,
+          locked: true,
+          retryAfterMinutes: mins,
+          lockedUntil: attempt.lockedUntil.toISOString(),
+        },
+        { status: 423 }
+      );
+    }
+    if (attempt.kind === "bad") {
+      return NextResponse.json(
+        { error: `Kullanıcı adı veya parola hatalı. Kalan deneme: ${attempt.remaining}`, remainingAttempts: attempt.remaining },
+        { status: 401 }
+      );
+    }
     return NextResponse.json({ error: "Kullanıcı adı veya parola hatalı" }, { status: 401 });
   }
+  const acc = attempt.account;
 
   // ── İki faktörlü doğrulama ──────────────────────────────────────────────
   if (acc.twoFactorEnabled || totpRequiredFor(acc.role)) {
@@ -73,12 +99,39 @@ export async function POST(req: NextRequest) {
       totpOk = false;
     }
     if (!totpOk) {
-      return NextResponse.json({ error: "İki faktörlü kod hatalı ya da süresi dolmuş", requiresTotp: true }, { status: 401 });
+      // Hatalı/eksik MFA kodu da sayaça yazılır: kilit sadece parolayı değil,
+      // ikinci faktörü de kaba kuvvetten korur.
+      const r = await recordFailedAttempt(acc.id);
+      if (r.lockedUntil) {
+        const mins = lockRemainingMinutes(r.lockedUntil) || 1;
+        return NextResponse.json(
+          {
+            error: `İki faktörlü kod hatalı. Art arda başarısız denemeler nedeniyle hesap ${mins} dk kilitlendi.`,
+            requiresTotp: true,
+            locked: true,
+            retryAfterMinutes: mins,
+            lockedUntil: r.lockedUntil.toISOString(),
+          },
+          { status: 423 }
+        );
+      }
+      return NextResponse.json(
+        { error: "İki faktörlü kod hatalı ya da süresi dolmuş", requiresTotp: true, remainingAttempts: r.remaining },
+        { status: 401 }
+      );
     }
   }
 
   // ── Oturum çerezi ────────────────────────────────────────────────────────
-  const cookie = issueSessionCookie(acc.id);
+  // Sunucu tarafı oturum kaydı: çerezdeki kimlik bu satıra işaret eder, böylece
+  // "Oturumlar" ekranından iptal gerçekten etki eder (bkz. lib/server/sessions.ts).
+  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim();
+  const sid = await createSession(acc.id, { ip, userAgent: req.headers.get("user-agent") ?? "" });
+  if (!sid) {
+    // Oturum kaydı açılamıyorsa (DB yok) iptal edilemeyen bir çerez üretmeyelim.
+    return NextResponse.json({ error: "Oturum kaydı oluşturulamadı (veritabanı erişimi)" }, { status: 503 });
+  }
+  const cookie = issueSessionCookie(acc.id, sid);
   const res = NextResponse.json({ ok: true, guest: false, user: toUserInfo(acc) });
   if (cookie) {
     // MFA ve oturum imzası başarıyla tamamlanmadan son giriş güncellenmemeli.
@@ -119,5 +172,6 @@ export async function GET() {
     accessEnabled: accessEnabled(),
     authRequired: authRequired(),
     hasSigningKey: !!(process.env.SESSION_SECRET || process.env.DATA_ENCRYPTION_KEY),
+    lockout: lockoutPolicy(),
   });
 }

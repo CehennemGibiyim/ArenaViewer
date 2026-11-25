@@ -19,7 +19,7 @@ export DATABASE_URL=postgres://atik@127.0.0.1:5432/atik
 npm run db:push                      # drizzle şeması (measurement_history, model_registry dahil)
 
 AV_RATE_LIMIT=off npm start &        # testlerde hız sınırı kapalı; CSRF açık kalır
-npm run test:db-api                  # 38 kontrol
+npm run test:db-api                  # 50 kontrol
 npm run db:local:stop
 ```
 
@@ -45,7 +45,7 @@ Veri dizini varsayılan `/tmp/av-pgdata`, günlük `server.log`; ikisi de depo d
 - **Denetim:** `model_registry.register/update`, `measurement-history-save`,
   `report.peer_review` kayıtları `audit_logs`ta.
 
-Sonuç: **38/38 kontrol geçti.**
+Sonuç: **50/50 kontrol geçti.**
 
 ### Giriş akışı (ayrı, boş veritabanı ister)
 
@@ -55,8 +55,16 @@ DATABASE_URL=postgres://atik@127.0.0.1:5432/atik_auth AUTH_INTEGRATION_TEST=1 \
   npm run test:auth-integration
 ```
 
-Sonuç: parola + MFA + imzasız oturum + başarılı girişte `lastLoginAt` senaryoları
-geçti. (Test, `users` tablosuna id=1 eklediği için boş şema ister.)
+Sonuç (3 blok): **parola + MFA + imzasız oturum + `lastLoginAt`**; **oturum
+listesi/iptali** (kendi oturumu `current` işaretli, yetkisiz iptal 403, iptal edilen
+çerezle `/api/profile` 401); **hesap kilitleme** (`AUTH_LOCK_MAX_FAILURES=3` ile 423,
+kilitliyken doğru parola da reddedilir, `unlockAccount` sonrası giriş başarılı ve
+sayaç sıfır). (Test, `users` tablosuna id=1 eklediği için boş şema ister.)
+
+Kilit ayarları testte/deployda ortam değişkeniyle verilir:
+`AUTH_LOCK_MAX_FAILURES` (varsayılan 5) ve `AUTH_LOCK_MINUTES` (varsayılan 15).
+Oturum kayıtları `sessions` tablosundadır; `db:push` bu tabloyu ve
+`users.failed_login_count`/`users.locked_until` kolonlarını ekler.
 
 ## 2) Playwright tarayıcısı — npm'den Chromium
 
@@ -85,7 +93,7 @@ Playwright 1.65.1.
 | `test:report-flow` | 3 kontrol — onay kapıları, derin AI akışı, JS hatası yok |
 | `test:folder` | 3 kontrol — boş/medikal olmayan/desteklenmeyen klasör mesajları |
 | `test:seg-ui` | 2 kontrol — segment editöründe fırça, eşik, geri al, kesit kopyalama, mL hacmin ana görünümleyiciye aktarımı ve **AI adayından tohumlama** |
-| `test:panels-ui` | 4 kontrol — 📈 Trend (DB'deki ölçümler, %+değişim, ikilenme), ⚖ Peer (RADPEER dağılımı, %95 GA), /yonetim → model kayıt defteri (sürüm/aşama/trafik planı) |
+| `test:panels-ui` | 6 kontrol — 📈 Trend (DB'deki ölçümler, %+değişim, ikilenme), ⚖ Peer (RADPEER dağılımı, %95 GA), /yonetim → model kayıt defteri (sürüm/aşama/trafik planı), **Oturumlar** (sunucu tarafı oturum listesi / boş durum) ve **Kullanıcılar → hesap kilidi** (kilitli rozet, "Kilidi aç" düğmesi, DB'de sayaç/kilit temizliği) |
 
 Fixture'lı production derlemesi ve sunucu:
 
