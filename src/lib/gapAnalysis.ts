@@ -189,8 +189,8 @@ const BASE_ITEMS: GapItem[] = [
     id: "v-perf", category: "viewing", title: "Büyük çalışmalarda performans (GPU, kademeli yükleme, Web Worker)",
     status: "kismi", priority: "P1", effort: "M",
     market: ["RadiAnt", "OHIF", "Weasis"],
-    ours: "CPU canvas ile LUT; her kesit Float32 olarak bellekte (512×512 → ~1 MB/kesit). 1000+ kesitlik BT'de bellek ve akıcılık sorunu beklenir.",
-    action: "Int16 saklama, WebGL doku, OffscreenCanvas/worker ve kademeli kesit yükleme.",
+    ours: "**Bu sürümde eklendi:** kesitler artık kayıpsız olarak **Int16Array/Uint16Array** saklanır (`dicom.ts` packPixels + `volumePerf.transcodeSlices`; 512×512 800 kesitte 800 MB → 400 MB, %50 kazanç). **Worker:** `src/workers/windowWorker.ts` WL/WW dönüşümünü ayrı iş parçacığında yapar, sonucu sahipliği aktarılarak döndürür; sürüklemede eski istek `cancel` ile düşer, worker yoksa eşzamanlı yedeğe inilir (`WindowWorkerClient`). **GPU:** `webglWindow.ts` WebGL2 doku (R16I/R16UI/R32F) + LUT dokusu ile aynı tuval sözleşmesini sağlar — `NEXT_PUBLIC_WEBGL_VIEWPORT=1` ile açılır, kurulamazsa CPU yoluna düşer (shader formülü CPU LUT ile ±1 eşleşir). **Kademeli yükleme:** `ChunkedVolume` parça bazlı çözme (100 kesitte tümü değil 16'sı), `SliceWindowCache`/`prefetchOrder` ile aktif pencere ±2 ön getirme, `planMemory` bellek bütçesi (1,5 GB) ve 6 taban katman önbelleği. Ölçüm: `npm run bench:volume` (800×512²: transcode ~1,4 sn, WL/WW ~0,9 ms/kesit ≈ 1.100 kesit/sn).",
+    action: "Doku sıkıştırma (KTX2) ve çok katmanlı MPR için GPU hacim dokusu; OffscreenCanvas ile çizimi de worker'a taşıma.",
   },
   {
     id: "v-multimon", category: "viewing", title: "Tam ekran, çoklu monitör, dokunmatik jestler",

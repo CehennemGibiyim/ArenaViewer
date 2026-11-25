@@ -8,6 +8,8 @@ import { buildFusionLayer, type FusionParams } from "@/lib/fusion";
 import { jumpToPatient, refLinesFor, registerPanel, unregisterPanel, usePanelRegistry } from "@/lib/panelRegistry";
 import { planeOf, toPatient } from "@/lib/planes";
 import { buildWindowLUT, windowToRGBA } from "@/lib/window";
+import { WindowWorkerClient, type WindowResult } from "@/lib/windowWorkerClient";
+import { webglEnabled, webglWindowCanvas } from "@/lib/webglWindow";
 import { HEAT_ALPHA_MAX, heatPixel, heatVisible } from "@/lib/heat";
 import { fmtConfShort } from "@/lib/format";
 
@@ -84,11 +86,17 @@ interface ViewportProps {
 }
 
 /** Taban katmanı tuvalini üretir (True Color kopyası veya WL/WW LUT uygulamasi). */
-function buildBaseCanvas(series: SeriesData, idx: number, wl: number, ww: number, invert: boolean): HTMLCanvasElement | null {
+function buildBaseCanvas(series: SeriesData, idx: number, wl: number, ww: number, invert: boolean, prepared?: Uint32Array | null): HTMLCanvasElement | null {
   const sl = series.slices[idx];
   if (!sl) return null;
   const W = series.width, H = series.height;
   const isColor = !!series.isColor && !!series.rgbaSlices && !!series.rgbaSlices[idx];
+  // GPU yolu (v-perf): NEXT_PUBLIC_WEBGL_VIEWPORT=1 ile açılır. Kurulamazsa
+  // sessizce aşağıdaki CPU yoluna düşülür — klinik görüntü hiçbir zaman boş kalmaz.
+  if (!isColor && !prepared && webglEnabled()) {
+    const glc = webglWindowCanvas(sl, W, H, wl, ww, invert);
+    if (glc) return glc;
+  }
   const c = document.createElement("canvas");
   c.width = W; c.height = H;
   const octx = c.getContext("2d");
@@ -96,6 +104,8 @@ function buildBaseCanvas(series: SeriesData, idx: number, wl: number, ww: number
   const img = octx.createImageData(W, H);
   const u32 = new Uint32Array(img.data.buffer);
   if (isColor) u32.set(series.rgbaSlices![idx]);
+  // Worker'dan hazır tampon geldiyse (v-perf) ana iş parçacığında dönüşüm yapılmaz.
+  else if (prepared && prepared.length === u32.length) u32.set(prepared);
   else { const wlut = buildWindowLUT(wl, ww, invert); windowToRGBA(sl, wlut.lut, wlut.lo, u32); }
   octx.putImageData(img, 0, 0);
   return c;
@@ -138,6 +148,15 @@ export default function Viewport(props: ViewportProps) {
   const fusRef = useRef<{ key: string; canvas: HTMLCanvasElement | null }>({ key: "", canvas: null });
   const heatRef = useRef<Map<string, { key: string; canvas: HTMLCanvasElement }>>(new Map());
   const registryVersion = usePanelRegistry();
+  // WL/WW worker'ı (v-perf): büyük 2B görüntülerde ana iş parçacığı donmasın.
+  const workerRef = useRef<WindowWorkerClient | null>(null);
+  const [workerFrame, setWorkerFrame] = useState<{ key: string; pixels: Uint32Array } | null>(null);
+  useEffect(() => {
+    if (!window.Worker) return;
+    const c = new WindowWorkerClient();
+    workerRef.current = c;
+    return () => { c.terminate(); workerRef.current = null; };
+  }, []);
   const suvFactor = series?.suv?.factor ?? null;
 
   // Bu panelin hangi seri/kesiti gösterdiğini kayda geçir (referans çizgileri ve 3B imleç için).
@@ -232,6 +251,31 @@ export default function Viewport(props: ViewportProps) {
     return () => { alive = false; clearTimeout(t); };
   }, [series, slice, wl, ww, invert]);
 
+  /**
+   * WL/WW dönüşümünü worker'a devret (v-perf).
+   *
+   * Yalnız büyük kesitlerde (≥ 1 MP) ve monokrom görüntülerde denenir; küçük
+   * kesitlerde mesaj gidiş-dönüşü kendi hesaplamasından pahalıdır. Sonuç
+   * `workerFrame` olarak saklanır; çizim döngüsü hazır tamponu kullanır ve
+   * ana iş parçacığı hiç piksel işlemez. Worker yoksa/başarısızsa döngü
+   * eşzamanlı yola düşer (davranış aynı kalır).
+   */
+  useEffect(() => {
+    const client = workerRef.current;
+    if (!client || !series) return;
+    if (series.isColor || (series.width * series.height) < 1_000_000) return;
+    const idx = Math.min(slice, series.slices.length - 1);
+    const wkey = `w|${series.id}|${idx}|${Math.round(wl)}|${Math.round(ww)}|${invert}`;
+    const src = series.slices[idx];
+    if (!src) return;
+    let alive = true;
+    void client.window({ pixels: src, wl: Math.round(wl), ww: Math.round(ww), invert }).then((r: WindowResult) => {
+      if (!alive || !r.viaWorker || r.pixels.length !== src.length) return;
+      setWorkerFrame({ key: wkey, pixels: r.pixels });
+    });
+    return () => { alive = false; };
+  }, [series, slice, wl, ww, invert]);
+
   // ───────── Çizim Döngüsü ─────────
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -255,9 +299,11 @@ export default function Viewport(props: ViewportProps) {
     const isColor = series.isColor && series.rgbaSlices && series.rgbaSlices[sliceIdx];
     const key = `${series.id}|${slice}|${Math.round(wl)}|${Math.round(ww)}|${invert}|${isColor ? "color" : "mono"}`;
 
+    // Worker'dan bu kare için hazır RGBA geldiyse doğrudan kullanılır (v-perf).
+    const prepared = !isColor && workerFrame?.key === `w|${series.id}|${sliceIdx}|${Math.round(wl)}|${Math.round(ww)}|${invert}` ? workerFrame.pixels : null;
     let cachedBase = baseCache.current.get(key);
     if (!cachedBase) {
-      const c = buildBaseCanvas(series, sliceIdx, wl, ww, invert);
+      const c = buildBaseCanvas(series, sliceIdx, wl, ww, invert, prepared);
       if (c) { cachedBase = { key, canvas: c }; baseCache.current.set(key, cachedBase); trimBaseCache(baseCache.current, BASE_CACHE_MAX); }
     }
 
@@ -561,7 +607,7 @@ export default function Viewport(props: ViewportProps) {
       ctx.beginPath(); ctx.moveTo(ox, lineY); ctx.lineTo(ox + dispW * scale, lineY); ctx.stroke();
       ctx.restore();
     }
-  }, [series, slice, wl, ww, invert, size, getTransform, imgToDisp, fusion, panelId, registryVersion, suvFactor, findings, revealedIds, activeFindingId, overlay, showDicomOverlays, annotations, draft, scan, rotation, flipH, flipV, pxMm, renderTick]);
+  }, [series, slice, wl, ww, invert, size, getTransform, imgToDisp, fusion, panelId, registryVersion, suvFactor, findings, revealedIds, activeFindingId, overlay, showDicomOverlays, annotations, draft, scan, rotation, flipH, flipV, pxMm, renderTick, workerFrame]);
 
   // Nabız animasyonu
   const animate = !!scan?.active || (!!series && findings.some((f) => f.bbox && revealedIds.has(f.id) && slice >= f.sliceStart && slice <= f.sliceEnd));

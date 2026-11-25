@@ -323,6 +323,25 @@ DATA_ENCRYPTION_KEYS=<eski>,<yeni>   # 2) .env'e yaz, servisi yeniden başlat
 - v1 (kimliksiz) kayıtlar halkadaki anahtarlarla okunur ve ilk rotasyonda v2'ye taşınır.
 - Rotasyon ilerlemesi `GET /api/admin/status` içindeki `staleKey` alanında görünür.
 
+## Büyük çalışmalarda performans
+
+800 kesitlik 512×512 BT'de bellek ve akıcılık için üç katman:
+
+| Katman | Ne yapar | Açma |
+|---|---|---|
+| Tamsayı saklama | Kesitler `Int16Array`/`Uint16Array` (kayıpsız); 800 MB → 400 MB | otomatik (`transcodeSlices`) |
+| WL/WW worker | Pencere dönüşümü ayrı iş parçacığında, sonuç zero-copy aktarılır; sürüklemede eski istek iptal | otomatik (≥ 1 MP kesitler) |
+| WebGL2 | Doku + LUT shader'ı ile GPU'da pencereleme; kurulamazsa CPU'ya düşer | `NEXT_PUBLIC_WEBGL_VIEWPORT=1` |
+
+Kademeli yükleme: yalnız görünen kesit ±2 komşusu tutulur (`prefetchOrder`,
+`ChunkedVolume`), bellek bütçesi 1,5 GB'ı aşan çalışmalarda uzak kesitler istek
+üzerine çözülür (`planMemory`). Ölçüm:
+
+```bash
+npm run bench:volume              # 800 × 512² varsayılan
+npx tsx scripts/volume-bench.ts 2000 512 512
+```
+
 ## Depolama, yedek ve DR
 
 Görüntü dosyaları `StorageAdapter` üzerinden yazılır: yerel disk (`.data/`),
@@ -414,6 +433,7 @@ npm run test:webhard                # hız sınırı + CSRF + CSP
 npm run test:supplychain            # SBOM + SHA256SUMS + SLSA köken doğrulaması
 npm run test:backupdr               # depolama adaptörü + yedek/geri yükleme
 npm run test:kms                    # anahtar halkası + rotasyon
+npm run test:volumeperf             # büyük çalışma performansı (transcode + worker + GPU)
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)
