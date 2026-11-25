@@ -587,8 +587,8 @@ const BASE_ITEMS: GapItem[] = [
     id: "c-measure-history", category: "measure", title: "Ölçüm geçmişi ve trend grafikleri (çap/HU/SUV zaman serisi)",
     status: "kismi", priority: "P2", effort: "M",
     market: ["Lunit", "Aidoc"],
-    ours: "Nodül takibi tarayıcıda; ölçümler rapora yazılıyor ama sunucuda yapılandırılmış geçmiş yok.",
-    action: "Ölçümleri study_state'e yapılandırılmış kayıt olarak yaz; sunucu tarihçesi + grafik.",
+    ours: "**Sunucu tarafı yapılandırılmış geçmiş var:** `measurement_history` tablosu (hasta + tarih + lezyon tekil; HU/SUV kolonları) ve `/api/measurements` (GET hasta geçmişi, POST toplu yazma + aynı üçlüde güncelleme + `measurement.save` denetim kaydı). Nodül takibinde girilen ölçümler otomatik yazılır; footer'daki «☁ Sunucu geçmişi» paneli lezyon bazlı **trend grafiği** (SVG), ilk–son Δ mm/% ve HU değişimi, gün aralığı ve CSV üretir (`src/lib/measureHistory.ts`, 27 test). Tarayıcı kaydı yedek yoldur. KALAN: ROI/anotasyon ölçümleri henüz yazmıyor (yalnız nodül takibi) ve SUV değerini girecek nükleer tıp paneli yok — kolon hazır, yazan arayüz yok.",
+    action: "ROI/anotasyon ölçümlerini de aynı tabloya bağla; SUV girişli nükleer tıp paneli + ortak trend görünümü.",
   },
   {
     id: "d-close-loop", category: "report", title: "Kritik sonuç kapanış döngüsü: ACK + iletim kanıtı + eskalasyon kaydı",

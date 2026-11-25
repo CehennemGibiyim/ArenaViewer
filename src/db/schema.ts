@@ -242,6 +242,33 @@ export const studyState = pgTable(
   (t) => [uniqueIndex("study_state_uq").on(t.studyUid, t.seriesKey)]
 );
 
+/**
+ * Ölçüm geçmişi (c-measure-history): hasta + tarih + lezyon başına tek ölçüm.
+ * Nodül takibi panelinin tarayıcı kaydına ek olarak sunucuda kalıcı ve paylaşımlı
+ * geçmiş tutulur; aynı üçlü yeniden gönderilirse satır güncellenir.
+ */
+export const measurementHistory = pgTable(
+  "measurement_history",
+  {
+    id: serial("id").primaryKey(),
+    patientId: text("patient_id").notNull(),
+    patientName: text("patient_name").notNull().default(""),
+    studyDate: text("study_date").notNull(),
+    label: text("label").notNull(),
+    anatomy: text("anatomy").notNull().default(""),
+    kind: text("kind").notNull().default(""),
+    longMm: real("long_mm").notNull(),
+    hu: real("hu"),
+    suv: real("suv"),
+    createdBy: integer("created_by"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("measurement_history_uq").on(t.patientId, t.studyDate, t.label),
+    index("measurement_history_patient_idx").on(t.patientId, t.studyDate),
+  ]
+);
+
 export const storedFiles = pgTable("stored_files", {
   id: serial("id").primaryKey(),
   studyId: integer("study_id")

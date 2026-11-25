@@ -12,6 +12,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import MirrorView from "../src/components/MirrorView";
 import SegEditor from "../src/components/SegEditor";
 import NoduleTracker from "../src/components/NoduleTracker";
+import MeasureHistoryPanel from "../src/components/MeasureHistoryPanel";
 import type { SeriesData } from "../src/lib/types";
 
 const mirror = renderToStaticMarkup(<MirrorView />);
@@ -54,5 +55,13 @@ for (const marker of ["Nodül takibi", "Çalışmalar arası eşleştirme", "en 
 }
 assert.ok(nod.includes('data-testid="cross-study-panel"'), "eşleştirme paneli işaretli render edilir");
 console.log("PASS nodül takibi: çalışmalar arası eşleştirme paneli boş durumda render edilir.");
+
+// c-measure-history: sunucu ölçüm geçmişi paneli SSR'da çökmeden render edilir.
+const hist = renderToStaticMarkup(<MeasureHistoryPanel patientId="T1" onClose={() => {}} />);
+for (const marker of ["Ölçüm geçmişi · sunucu", "Hasta: T1", "Yükleniyor…", "CSV indir"]) {
+  assert.ok(hist.includes(marker), `ölçüm geçmişinde "${marker}" bulunmalı`);
+}
+assert.ok(hist.includes('data-testid="measure-history-panel"'), "geçmiş paneli işaretli render edilir");
+console.log("PASS ölçüm geçmişi: sunucu paneli yükleme durumunda render edilir.");
 
 console.log("Tüm arayüz duman testleri geçti.");

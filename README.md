@@ -47,7 +47,9 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   eşleştirme:** en yeni iki çalışma tarihi otomatik karşılaştırılır (anatomi +
   lezyon adı imzası); eşleşen lezyonlarda Δ mm / Δ%, yeni ve saptanmayan
   lezyonlar, **lenf nodu kısa eksen tablosu** (normal/takip/patolojik) gösterilir
-  ve CSV'ye eklenir.
+  ve CSV'ye eklenir. **Sunucu ölçüm geçmişi:** girilen ölçümler `measurement_history`
+  tablosuna (`/api/measurements`, hasta + tarih + lezyon tekil) yazılır; «☁ Sunucu
+  geçmişi» paneli lezyon bazlı trend grafiği (SVG), Δ mm/% ve HU değişimini gösterir.
 - **Segmentasyon editörü + SEG/RTSTRUCT:** Araç çubuğu → 🧩 Segmentasyon:
   **fırça/silgi** (1–40 px), **eşik dolgusu** (HU aralığı), **tohumdan bölge
   büyütme**, kesit gezinme ve «sonraki kesite kopyala». Maske seri kimliğiyle
@@ -459,6 +461,7 @@ npm run test:sr1500                 # TID 1500 yapılandırılmış ölçüm SR 
 npm run test:seg                    # segmentasyon maskesi + DICOM SEG/RTSTRUCT
 npm run test:recistfull             # RECIST hedef seçimi + non-hedef + genel yanıt
 npm run test:tracking               # lezyon eşleştirme + nodül takibi köprüsü
+npm run test:measure-history        # sunucu ölçüm geçmişi serileri + trend + CSV
 npm run test:closeloop              # kapanış döngüsü süre/eskalasyon kuralları
 npm run test:followup               # takip görev kovaları + iade eşleme
 npm run test:stowanon               # anonim seri → PACS (plan + sunucu doğrulaması)

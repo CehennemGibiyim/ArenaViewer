@@ -5,6 +5,7 @@ import { ADVICE, KIND_LABEL, csvOf, daysBetween, summarize, type NoduleKind, typ
 import { recist11, recistCsv } from "@/lib/recist";
 import { fullRecist, RECIST_LIMITS, type CandidateLesion, type NonTargetStatus } from "@/lib/recistFull";
 import { summarizeNoduleTracking, trackingCsv } from "@/lib/lesionTracking";
+import MeasureHistoryPanel from "@/components/MeasureHistoryPanel";
 
 export interface MeasurementChoice { label: string; mm: number; slice: number }
 interface Props {
@@ -38,6 +39,10 @@ export default function NoduleTracker({ patientId, patientName, studyDate, measu
   const [targets, setTargets] = useState<string[]>([]);
   /** Non-hedef lezyon durumu (lezyon başına) */
   const [nonTarget, setNonTarget] = useState<Record<string, NonTargetStatus>>({});
+  // Sunucu ölçüm geçmişi (c-measure-history)
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyKey, setHistoryKey] = useState(0);
+  const [cloudMsg, setCloudMsg] = useState("");
 
   useEffect(() => {
     void (async () => {
@@ -51,6 +56,33 @@ export default function NoduleTracker({ patientId, patientName, studyDate, measu
       try { localStorage.setItem(key(patientId), JSON.stringify(tracks)); } catch { setMsg("Tarayıcı depolama alanı dolu; kayıt yapılamadı."); }
     })();
   }, [tracks, loaded, patientId]);
+
+  // Ölçümleri sunucuya da yaz (tarayıcı kaydı tek başına cihaza bağlı kalmasın).
+  useEffect(() => {
+    if (!loaded || tracks.length === 0) return;
+    const entries = tracks.flatMap((t) => t.points.map((p) => ({
+      patientId, patientName, studyDate: p.date, label: t.label, anatomy: t.location,
+      kind: t.kind, longMm: p.diameterMm,
+    })));
+    if (entries.length === 0) return;
+    let live = true;
+    void (async () => {
+      try {
+        const r = await fetch("/api/measurements", {
+          method: "POST", credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ entries }),
+        });
+        if (!live) return;
+        const body = (await r.json().catch(() => ({}))) as { saved?: number; error?: string };
+        setCloudMsg(r.ok ? `☁ ${body.saved ?? entries.length} ölçüm sunucuya yazıldı` : `☁ yazılamadı: ${body.error ?? r.status}`);
+        if (r.ok) setHistoryKey((k) => k + 1);
+      } catch {
+        if (live) setCloudMsg("☁ sunucuya ulaşılamadı (yerel kayıt korunuyor)");
+      }
+    })();
+    return () => { live = false; };
+  }, [tracks, loaded, patientId, patientName]);
 
   const cur = tracks.find((t) => t.id === sel) ?? null;
   const sum = useMemo(() => (cur ? summarize(cur) : null), [cur]);
@@ -412,10 +444,16 @@ export default function NoduleTracker({ patientId, patientName, studyDate, measu
           </div>
         </div>
         <div className="flex items-center justify-between border-t border-[#1a2230] px-4 py-2">
-          <span className="text-slate-500">{tracks.length} nodül · {tracks.reduce((a, t) => a + t.points.length, 0)} ölçüm</span>
-          <button disabled={tracks.length === 0} onClick={downloadCsv} className="cursor-pointer rounded border border-[#2d3b4e] px-3 py-1 font-bold hover:bg-[#1a2330] disabled:opacity-40">CSV indir</button>
+          <span className="text-slate-500">{tracks.length} nodül · {tracks.reduce((a, t) => a + t.points.length, 0)} ölçüm{cloudMsg ? ` · ${cloudMsg}` : ""}</span>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowHistory(true)} className="cursor-pointer rounded border border-[#2d3b4e] px-3 py-1 hover:bg-[#1a2330]">☁ Sunucu geçmişi</button>
+            <button disabled={tracks.length === 0} onClick={downloadCsv} className="cursor-pointer rounded border border-[#2d3b4e] px-3 py-1 font-bold hover:bg-[#1a2330] disabled:opacity-40">CSV indir</button>
+          </div>
         </div>
       </div>
+      {showHistory && (
+        <MeasureHistoryPanel patientId={patientId} refreshKey={historyKey} onClose={() => setShowHistory(false)} />
+      )}
     </div>
   );
 }
