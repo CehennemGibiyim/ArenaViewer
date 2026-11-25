@@ -323,6 +323,19 @@ DATA_ENCRYPTION_KEYS=<eski>,<yeni>   # 2) .env'e yaz, servisi yeniden başlat
 - v1 (kimliksiz) kayıtlar halkadaki anahtarlarla okunur ve ilk rotasyonda v2'ye taşınır.
 - Rotasyon ilerlemesi `GET /api/admin/status` içindeki `staleKey` alanında görünür.
 
+## LLM rapor taslağı ve doğrulama
+
+`LLM_API_URL` + `LLM_API_KEY` (OpenAI uyumlu) tanımlıysa "✨ Taslak izlenim üret" düğmesi LLM kullanır;
+tanımlı değilse kural tabanlı taslak üretilir. Her iki yolda da:
+
+- Yalnız **hekimin onayladığı/düzenlediği** bulgular gönderilir; hasta adı/MRN/doğum tarihi gitmez.
+  Üslup örneği kimlik taramasından geçer, kimlik benzeri veri varsa hiç gönderilmez.
+- LLM metnindeki **birimli ölçüler** (mm, cm, mL, HU, %, yaş) ve `kesit N` atıfları doğrulanmış
+  bulgularla karşılaştırılır. Uyuşmayan sayı/kesit varsa metin **reddedilir**, kural tabanlı taslak
+  kullanılır ve gerekçe üstte kırmızı şeritte gösterilir (ham metin yalnız bilgi amaçlı, rapora girmez).
+- Kaynak etiketi (`LLM` / `kural` / `LLM reddedildi`) rapora `[Taslak — … hekim doğrulaması gerekir]`
+  olarak eklenir ve `report.draft_impression` denetim kaydına yazılır.
+
 ## Kalibre güven skoru ve belirsizlik
 
 Model skoru **kalibre olasılık değildir**. Ekranda üç katman birlikte gösterilir:
@@ -450,6 +463,7 @@ npm run test:kms                    # anahtar halkası + rotasyon
 npm run test:volumeperf             # büyük çalışma performansı (transcode + worker + GPU)
 npm run test:interval               # interval değişim özeti (a-prior)
 npm run test:confidence             # kalibre güven skoru + Wilson aralığı (a-uncert)
+npm run test:genai                  # LLM taslak doğrulama katmanı (r-genai)
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)

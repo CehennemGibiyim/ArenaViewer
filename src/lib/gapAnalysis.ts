@@ -370,7 +370,7 @@ const BASE_ITEMS: GapItem[] = [
     id: "r-genai", category: "report", title: "Üretken yapay zeka ile izlenim/rapor taslağı ve hekim üslubuna uyum",
     status: "kismi", priority: "P1", effort: "M",
     market: ["Rad AI", "RadPal", "Annalise"],
-    ours: "Kural tabanlı metin üretimi; LLM yok, hekim üslubu öğrenilmiyor.",
+    ours: "**Bu sürümde eklendi:** LLM taslağı artık **doğrulama katmanından** geçer (`genaiDraft.ts`): (1) yalnız hekimin onayladığı/düzenlediği bulgular gönderilir, hasta kimliği hiç gitmez ve üslup örneği kimlik taramasından geçer; (2) LLM metnindeki **birimli ölçüler** (mm, HU, %, mL) ve 'kesit N' atıfları doğrulanmış bulgularla eşleşmezse metin **reddedilir** ve kural tabanlı taslağa düşülür — uydurma ölçü/tanı rapora giremez; (3) kaynak (llm / kural / llm-reddedildi) ve gerekçe denetime yazılır, arayüzde etiket ve kırmızı uyarı olarak görünür. Üslup uyumu `styleProfile.ts` ile aynı bölgeden seçilen onaylı örnek üzerinden sağlanır. Sınır: üslup 'klonu'/fine-tune ve kalite ölçümü kurumsal gereksinim olarak kalır.",
     action: "LLM ile bulgu→izlenim; çıktının yalnızca doğrulanmış bulgulara dayanmasını zorunlu kıl.",
   },
   {

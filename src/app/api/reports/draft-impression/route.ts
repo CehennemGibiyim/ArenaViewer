@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { audit } from "@/lib/server/audit";
 import { authorize } from "@/lib/server/auth";
 import { buildStyleInstruction } from "@/lib/styleProfile";
+import {
+  buildDraftPrompt,
+  DRAFT_SYSTEM_PROMPT,
+  finalizeDraft,
+  identityLeaks,
+  verifiedFindings,
+  type DraftFinding,
+} from "@/lib/genaiDraft";
 
 export const dynamic = "force-dynamic";
 
@@ -21,16 +29,15 @@ export async function POST(req: NextRequest) {
   const a = await authorize(req, ["radyolog", "yonetici"]);
   if ("error" in a) return a.error;
   const b = (await req.json().catch(() => null)) as DraftBody | null;
-  const verified = (b?.findings ?? []).filter((f) => (f.status === "onaylandi" || f.status === "duzenlendi") && f.category !== "Sistem" && f.category !== "ROI");
+  const verified = verifiedFindings((b?.findings ?? []) as DraftFinding[]);
   if (!b || verified.length === 0) return NextResponse.json({ error: "Önce en az bir bulguyu 'Onayla/Düzenlendi' olarak işaretleyin" }, { status: 400 });
-
-  const rule = `${verified.map((f, i) => `${i + 1}) ${f.label} (Kesit ${f.slice})`).join("; ")}. Klinik korelasyon önerilir.`;
+  // Üslup örneği kimlik içeriyorsa hiç gönderilmez (savunma katmanı).
+  const hamOrnek = (b.styleSample ?? "").trim().slice(0, 1200);
+  const styleSample = identityLeaks(hamOrnek).length ? "" : hamOrnek;
   const url = process.env.LLM_API_URL;
   const key = process.env.LLM_API_KEY;
-  let text = rule;
-  let source: "llm" | "kural" = "kural";
+  let llmText: string | null = null;
 
-  const styleSample = (b.styleSample ?? "").trim().slice(0, 1200);
   const styleInstruction = styleSample ? buildStyleInstruction(styleSample) : null;
   if (url && key) {
     try {
@@ -42,21 +49,30 @@ export async function POST(req: NextRequest) {
           model: process.env.LLM_MODEL ?? "gpt-4o-mini",
           temperature: 0.2,
           messages: [
-            { role: "system", content: "Sen bir radyoloji raporlama yardımcısısın. Yalnızca verilen, hekimce doğrulanmış bulgulara dayanarak Türkçe, kısa (en fazla 90 kelime) bir 'SONUÇ/İZLENİM' taslağı yaz. Bulgularda olmayan hiçbir bilgi, tanı veya ölçü ekleme. Emin olunmayan konuda 'klinik korelasyon önerilir' de." },
-            { role: "user", content: `Modalite: ${b.modality}\nBölge: ${b.bodyPart}\nDoğrulanmış bulgular:\n${verified.map((f) => `- [Kesit ${f.slice}] ${f.label}: ${f.detail}`).join("\n")}` },
+            { role: "system", content: DRAFT_SYSTEM_PROMPT },
+            { role: "user", content: buildDraftPrompt({ modality: b.modality, bodyPart: b.bodyPart, findings: verified }) },
             ...(styleInstruction ? [{ role: "system" as const, content: styleInstruction }] : []),
           ],
         }),
       });
       if (res.ok) {
         const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-        const t = data.choices?.[0]?.message?.content?.trim();
-        if (t) { text = t; source = "llm"; }
+        llmText = data.choices?.[0]?.message?.content?.trim() || null;
       }
     } catch {
       /* kural tabanlı yedeğe düş */
     }
   }
-  await audit(a.user, "report.draft_impression", "report", "", { source, findings: verified.length });
-  return NextResponse.json({ text, source });
+  // Doğrulama: sayı/kesit uydurması ve kimlik sızması denetlenir; başarısızsa
+  // kural tabanlı metin kullanılır ve gerekçe yanıtla birlikte döner.
+  const result = finalizeDraft(llmText, verified);
+  const { text, source } = result;
+  await audit(a.user, "report.draft_impression", "report", "", {
+    source,
+    findings: verified.length,
+    reason: result.reason,
+    styleSample: !!styleSample,
+    rejected: !!result.rejected,
+  });
+  return NextResponse.json({ text, source, reason: result.reason, rejected: result.rejected });
 }

@@ -6,6 +6,7 @@ import { appropriatenessFor, isValidIcd10, suggestIcd10 } from "@/lib/icd10";
 import { SIGNATURE_METHODS, signatureNote, type SignatureMethod, type SignatureRecord } from "@/lib/esign";
 import { reportPlaceholders } from "@/lib/templateMacro";
 import { pickStyleSample } from "@/lib/styleProfile";
+import { draftBadge, type DraftSource } from "@/lib/genaiDraft";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fmtConf } from "@/lib/format";
 import StructuredScorePanel from "@/components/StructuredScorePanel";
@@ -162,6 +163,8 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
   const [dialog, setDialog] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  /** Taslak üretiminin kaynağı/gerekçesi (r-genai): ret varsa nedeni gösterilir. */
+  const [draftNote, setDraftNote] = useState("");
   const [notice, setNotice] = useState("");
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
   /** Eklenen ICD-10 kodları (rapora yazılan öneriler; kodlama hekime aittir). */
@@ -305,7 +308,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
     if (r.ok) apiFetch("/api/templates").then((x) => x.json()).then((t: TemplateRow[]) => setTemplates(t));
   };
   const draftImpression = async () => {
-    setBusy(true); setError("");
+    setBusy(true); setError(""); setDraftNote("");
     const r = await apiFetch("/api/reports/draft-impression", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -318,9 +321,11 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
       }),
     });
     setBusy(false);
-    const d = (await r.json()) as { text?: string; source?: string; error?: string };
+    const d = (await r.json()) as { text?: string; source?: DraftSource; error?: string; reason?: string };
     if (!r.ok || !d.text) { setError(d.error ?? "Taslak üretilemedi"); return; }
-    set("impression", `${d.text}\n[Taslak — ${d.source === "llm" ? "LLM" : "kural tabanlı"}; hekim doğrulaması gerekir]`);
+    set("impression", `${d.text}\n[${draftBadge(d.source ?? "kural")}]`);
+    // Denetim gerekçesi hekimden gizlenmez: neden LLM metni kullanılmadı?
+    setDraftNote(d.source === "llm" ? d.reason ?? "" : d.reason ?? "");
   };
   /** Yapılandırılmış skordan gelen takip/biyopsi görevini kaydeder. */
   const createScoreTask = async (t: { message: string; intervalDays: number | null; severity?: string }) => {
@@ -564,6 +569,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
         )}
 
         {editing && (
+          <>
           <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[#1e2735] bg-[#0b0f16] px-4 py-2 text-xs print:hidden">
             <input
               value={tplQuery}
@@ -604,6 +610,13 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
             <button onClick={addMissed} className="rounded border border-amber-400/40 px-2 py-1 font-bold text-amber-200 hover:bg-amber-400/10">＋ AI&apos;nın kaçırdığı bulgu</button>
             <span className="text-slate-500">Taslak izlenim yalnızca doğruladığınız bulgulara dayanır; hasta kimliği dışarı gönderilmez.</span>
           </div>
+          {draftNote && (
+            <div className={`shrink-0 border-b px-4 py-1.5 text-[10.5px] print:hidden ${
+              draftNote.includes("reddedildi") ? "border-rose-500/30 bg-rose-500/10 text-rose-200" : "border-violet-500/25 bg-violet-500/5 text-violet-200"}`}>
+              {draftNote}
+            </div>
+          )}
+          </>
         )}
 
         {editing && (

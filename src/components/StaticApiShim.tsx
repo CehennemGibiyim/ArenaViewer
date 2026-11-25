@@ -13,6 +13,7 @@
  */
 import type { AnalyzeBody } from "@/lib/analyze";
 import type { Finding, FindingApprovalStatus, SavedReport } from "@/lib/types";
+import { ruleDraft, verifiedFindings, type DraftFinding } from "@/lib/genaiDraft";
 
 const OPERATOR = { fullName: "Demo Radyolog", title: "Uzm. Dr.", regNo: "" };
 const K_REPORTS = "atik-demo-reports";
@@ -132,10 +133,12 @@ async function route(method: string, url: URL, init?: RequestInit): Promise<Resp
     return b ? handleReportSave(b) : fail("Geçersiz istek");
   }
   if (p === "/api/reports/draft-impression" && method === "POST") {
-    const b = await body<{ findings?: { label: string; slice: number; category: string; status: string }[] }>();
-    const verified = (b?.findings ?? []).filter((f) => (f.status === "onaylandi" || f.status === "duzenlendi") && f.category !== "Sistem" && f.category !== "ROI");
+    const b = await body<{ findings?: DraftFinding[] }>();
+    const verified = verifiedFindings(b?.findings ?? []);
     if (verified.length === 0) return fail("Önce en az bir bulguyu 'Onayla/Düzenlendi' olarak işaretleyin");
-    return json({ text: `${verified.map((f, i) => `${i + 1}) ${f.label} (Kesit ${f.slice})`).join("; ")}. Klinik korelasyon önerilir.`, source: "kural" });
+    // Çevrimdışı modda LLM yok; kural tabanlı metin aynı modülden üretilir ki
+    // sunucu ve yerel mod aynı biçimi kullansın.
+    return json({ text: ruleDraft(verified), source: "kural" });
   }
   const fh = /^\/api\/reports\/(\d+)\/fhir$/.exec(p);
   if (fh && method === "GET") {
