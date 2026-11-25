@@ -5,7 +5,7 @@
  */
 import { parseDicom } from "dicom-parser";
 import { buildRtStruct, buildSegDocument, contourPoints, maskContour, packBinaryFrames, unpackBinaryFrame, SOP_RTSTRUCT, SOP_SEG } from "../src/lib/dicomSeg";
-import { cloneMask, copySlice, emptyMask, getPixel, growRegion, makeSegmentDef, maskFromJson, maskToJson, paint, paintStroke, prune, screenToImage, slicePixelCount, thresholdFill, volume } from "../src/lib/segmentation";
+import { cloneMask, copySlice, emptyMask, getPixel, growRegion, makeSegmentDef, maskFromJson, maskToJson, paint, paintStroke, prune, screenToImage, slicePixelCount, sliceProfileSummary, thresholdFill, volume } from "../src/lib/segmentation";
 
 let failed = 0;
 const ok = (cond: boolean, msg: string) => {
@@ -51,6 +51,23 @@ ok(Math.abs(v.mm3 - v.voxelCount * 0.25 * 2) < 1e-9, "hacim = voksel × px × py
 ok(Math.abs(v.ml - v.mm3 / 1000) < 1e-12, "mL dönüşümü");
 ok(v.sliceRange![0] === 0 && v.perSlice.length === 1, "kesit aralığı ve profil");
 ok(volume(emptyMask(5, 5), { px: 1, sliceThickness: 1 }).sliceRange === null, "boş maskede aralık null");
+
+// ── kesit profili (m-seg: kesit-kesit alan/hacim trendi) ──
+const mp = emptyMask(10, 10);
+paint(mp, 2, 5, 5, 0.5);
+paint(mp, 6, 5, 5, 2);
+paint(mp, 6, 2, 2, 0.5);
+const vp = volume(mp, { px: 0.5, py: 0.5, sliceThickness: 2 });
+ok(vp.perSlice.length === 2, "profil yalnız maske olan kesitleri içerir");
+ok(vp.perSlice.map((p) => p.slice).join(",") === "2,6", "kesitler artan sırada");
+ok(vp.perSlice.every((p) => Math.abs(p.mm2 - p.pixels * 0.25) < 1e-9), "kesit alanı = piksel × px × py");
+ok(vp.perSlice.every((p) => Math.abs(p.mm3 - p.mm2 * 2) < 1e-9), "kesit hacmi = alan × kalınlık");
+ok(Math.abs(vp.perSlice.reduce((a, p) => a + p.mm3, 0) - vp.mm3) < 1e-9, "kesit hacimleri toplamı genel hacme eşit");
+const prof = sliceProfileSummary(vp)!;
+ok(prof.slices === 2 && prof.widest!.slice === 6, "en geniş kesit doğru bulunuyor");
+ok(Math.abs(prof.maxMm2 - Math.max(...vp.perSlice.map((p) => p.mm2))) < 1e-9, "maksimum kesit alanı");
+ok(prof.widest!.mm2 > vp.perSlice[0].mm2, "en geniş kesit dar olandan büyük");
+ok(sliceProfileSummary(volume(emptyMask(4, 4), { px: 1, sliceThickness: 1 })) === null, "boş maskede profil özeti null (uydurma değer yok)");
 
 // ── JSON gidiş-dönüş ──
 const rt = maskFromJson(maskToJson(mv));

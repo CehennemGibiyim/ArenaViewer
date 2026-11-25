@@ -21,7 +21,7 @@ import { buildWindowLUT, windowToRGBA } from "@/lib/window";
 import { buildRtStruct, buildSegDocument } from "@/lib/dicomSeg";
 import {
   DEFAULT_SEGMENT_COLORS, cloneMask, copySlice, emptyMask, growRegion, makeSegmentDef,
-  paint, paintStroke, prune, screenToImage, segmentSummary, slicePixelCount, thresholdFill, volume,
+  paint, paintStroke, prune, screenToImage, segmentSummary, slicePixelCount, sliceProfileSummary, thresholdFill, volume,
   type SegMask, type SegmentDef, type VolumeResult,
 } from "@/lib/segmentation";
 
@@ -104,6 +104,9 @@ export default function SegmentationEditor({ series, slice, wl, ww, invert, pxMm
     pixels: slicePixelCount(seg.mask, localSlice),
     summary: segmentSummary(label || "Segment", volume(seg.mask, geo)),
   }), [seg, geo, localSlice, label]);
+
+  /** Kesit profili özeti (m-seg): en geniş kesit ve kesit sayısı. */
+  const profile = useMemo(() => sliceProfileSummary(stats.volume), [stats.volume]);
 
   /** Yeni maske durumunu ref + state olarak yazar (çizim ve hacim aynı veriyi görür). */
   const commitMask = useCallback((next: SegMask) => {
@@ -471,6 +474,40 @@ export default function SegmentationEditor({ series, slice, wl, ww, invert, pxMm
               <div className="text-lg font-black text-fuchsia-200">{stats.volume.ml.toFixed(2)} <span className="text-[10px] font-normal text-slate-400">mL</span></div>
               <div className="text-[10px] text-slate-400">{stats.volume.voxelCount} voksel · {stats.slices} kesitte maske · bu kesitte {stats.pixels} piksel</div>
               <div className="mt-1 text-[10px] text-slate-500">Hesap: piksel alanı × kesit kalınlığı. Kesit aralığı yoksa kalınlık kullanılır.</div>
+            </section>
+
+            <section className="rounded-lg border border-[#223047] bg-[#0d141e] p-2" data-testid="slice-profile">
+              <div className="flex items-baseline justify-between">
+                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Kesit dağılımı</div>
+                {profile && <div className="text-[10px] text-slate-400">{profile.slices} kesit</div>}
+              </div>
+              {profile ? (
+                <>
+                  <div className="mt-1 text-[10px] text-slate-400">
+                    En geniş kesit <b className="text-fuchsia-200">{profile.widest!.slice}</b> · {profile.widest!.mm2.toFixed(1)} mm² ·{" "}
+                    toplam <b className="text-fuchsia-200">{stats.volume.ml.toFixed(2)} mL</b>
+                  </div>
+                  <div className="mt-1.5 max-h-40 space-y-[2px] overflow-y-auto pr-1">
+                    {stats.volume.perSlice.map((p) => (
+                      <button
+                        key={p.slice}
+                        type="button"
+                        onClick={() => setLocalSlice(clamp(p.slice, 0, series.slices.length - 1))}
+                        title={`Kesit ${p.slice}: ${p.mm2.toFixed(1)} mm² · ${(p.mm3 / 1000).toFixed(3)} mL`}
+                        aria-label={`Kesit ${p.slice}'e git`}
+                        className={`flex w-full items-center gap-1.5 rounded px-1 py-[1px] text-left ${p.slice === localSlice ? "bg-fuchsia-400/15" : "hover:bg-[#16202c]"}`}
+                      >
+                        <span className="w-6 shrink-0 text-right font-mono text-[9px] text-slate-500">{p.slice}</span>
+                        <span className="h-[6px] rounded-sm bg-fuchsia-400/70" style={{ width: `${Math.max(2, (p.mm2 / profile.maxMm2) * 100)}%` }} />
+                        <span className="ml-auto shrink-0 font-mono text-[9px] text-slate-400">{p.mm2.toFixed(0)} mm²</span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="mt-1 text-[10px] leading-snug text-slate-500">Bara tıklayınca o kesite gidilir. Alan = piksel × piksel aralığı; hacim alan × kesit kalınlığı.</div>
+                </>
+              ) : (
+                <p className="mt-1 text-[10px] leading-snug text-slate-500">Maske yok — fırçayla bir alan boyayınca kesit kesit alan/hacim profili burada görünür.</p>
+              )}
             </section>
 
             <section>

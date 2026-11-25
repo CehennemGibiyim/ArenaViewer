@@ -54,6 +54,7 @@ ok(sink.every((v, i) => v === ra[i]), "out verilince aynı sonucu yazar");
 // ── Viewport entegrasyonu ──
 const root = path.resolve(__dirname, "..");
 const vp = readFileSync(path.join(root, "src/components/Viewport.tsx"), "utf8");
+const glSrc = readFileSync(path.join(root, "src/lib/webglWindow.ts"), "utf8");
 ok(vp.includes("buildBaseCanvas") && vp.includes("windowToRGBA"), "Viewport taban katmanı LUT yolunu kullanıyor");
 ok(vp.includes("baseCache") && vp.includes("trimBaseCache"), "taban katmanı sınırlı önbellek taşıyor");
 ok(vp.includes("PREFETCH_PIXELS_MAX") && vp.includes("slice + 1"), "komşu kesit ön-işleme ve bellek kapısı var");
@@ -87,12 +88,25 @@ for (let i = 0; i < 256; i++) {
 }
 ok(u16Diff === 0, "işaretsiz 16 bit değerler GPU referansıyla aynı griyi veriyor");
 
+// ── float32 kesitler (R32F) ──
+ok(WINDOW_SHADER_SOURCE.fragFloat.includes("sampler2D") && !WINDOW_SHADER_SOURCE.fragFloat.includes("isampler2D"), "float gölgelendiricisi float örnekleyici kullanıyor");
+ok(WINDOW_SHADER_SOURCE.fragFloat.includes("uniform float uLo") && WINDOW_SHADER_SOURCE.fragFloat.includes("uniform float uSpan"), "float yolu ondalık pencere taşıyor");
+const f32 = new Float32Array(256);
+for (let i = 0; i < 256; i++) f32[i] = (i - 128) * 1.75; // ondalıklı HU benzeri değerler
+let f32Diff = 0;
+for (let i = 0; i < 256; i++) {
+  const got = renderWindowFrame(f32.subarray(i, i + 1), 0.5, 300, false)[0] & 0xff;
+  f32Diff = Math.max(f32Diff, Math.abs(got - windowSampleGray(f32[i], 0.5, 300, false)));
+}
+ok(f32Diff === 0, "float32 değerler CPU referansıyla aynı griyi veriyor");
+ok(glSrc.includes("gl.R32F") && glSrc.includes("gl.FLOAT"), "float32 kesitler R32F dokusuna yükleniyor");
+ok(glSrc.includes("uniform1f") && glSrc.includes("uniform1i(u.uLo"), "int ve float yolları doğru uniform türünü kullanıyor");
+
 // ── worker sözleşmesi ──
 const workerSrc = readFileSync(path.join(root, "src/workers/window.worker.ts"), "utf8");
 ok(workerSrc.includes("renderWindowFrame") && workerSrc.includes("postMessage") && workerSrc.includes("[u32.buffer]"), "worker aynı çerçeveyi hesaplar ve RGBA'yı transfer eder");
 const clientSrc = readFileSync(path.join(root, "src/lib/windowWorker.ts"), "utf8");
 ok(clientSrc.includes("new Worker(new URL") && clientSrc.includes("renderWindowFrame"), "worker istemcisi worker yoksa/hata verirse CPU'ya düşer");
-const glSrc = readFileSync(path.join(root, "src/lib/webglWindow.ts"), "utf8");
 ok(glSrc.includes("readPixels") && glSrc.includes("windowSampleGray"), "GPU çıktısı CPU referansıyla öz-test edilir");
 ok(vp.includes("createWindowGpuRenderer") && vp.includes("renderWindowWorker"), "Viewport GPU ve worker yollarını bağlar");
 ok(vp.includes("slPixels instanceof Uint16Array"), "Viewport işaretsiz 16 bit kesitleri de GPU'ya veriyor");

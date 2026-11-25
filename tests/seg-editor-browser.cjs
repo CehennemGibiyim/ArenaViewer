@@ -94,6 +94,22 @@ async function main() {
     assert.match(seedLabel, /^AI tohumlu/, `segment adı AI tohumlamasını gösterir (${seedLabel})`);
     const seedVol = await dialog2.getByText(/voksel · /).first().innerText();
     assert.doesNotMatch(seedVol, /^0 voksel/, `tohumlanan maske boş değil (${seedVol})`);
+    // Kesit dağılımı (m-seg): maske kesit kesit alan/hacim profili olarak listelenir.
+    const profile = dialog2.getByTestId("slice-profile");
+    await profile.getByText(/En geniş kesit/).waitFor();
+    const profileText = await profile.innerText();
+    assert.match(profileText, /En geniş kesit \d+ · [\d.]+ mm²/, `en geniş kesit ve alanı yazılı (${profileText.split("\n").slice(0, 3).join(" | ")})`);
+    assert.match(profileText, /toplam \d+\.\d{2} mL/, "profil toplam hacmi gösteriyor");
+    const bars = profile.getByRole("button", { name: /Kesit \d+'e git/ });
+    const barCount = await bars.count();
+    assert.ok(barCount >= 2, `profilden birden çok kesit listeleniyor (${barCount})`);
+    const lastLabel = (await bars.last().getAttribute("aria-label")) ?? "";
+    const lastSlice = Number(/Kesit (\d+)'e git/.exec(lastLabel)?.[1] ?? "-1");
+    assert.ok(lastSlice >= 0, `bar kesit indeksini taşıyor (${lastLabel})`);
+    await bars.last().click();
+    await dialog2.getByText(new RegExp(`Kesit ${lastSlice + 1}/`)).waitFor();
+    console.log("PASS kesit profili: kesit kesit alan/hacim listelendi, bara tıklamak o kesite götürdü.");
+
     await dialog2.getByRole("button", { name: /Uygula ve kapat/ }).click();
     await dialog2.waitFor({ state: "hidden" });
     console.log("PASS AI tohumlama: aday maske düzenlemeye kopyalandı ve hacim üretti.");

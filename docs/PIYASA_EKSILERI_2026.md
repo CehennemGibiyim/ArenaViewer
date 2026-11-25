@@ -117,7 +117,7 @@ karşılaştırır (`windowGrayFromIndex`, `windowSampleGray`), worker sözleşm
 (kaynak denetimi) ve tarayıcısız ortamda CPU yedeğinin birebir aynı sonucu
 verdiğini sınar. Ölçüm: `npm run bench:window`.
 
-Kalan: float32/işaretsiz seriler için GPU, gerçek ilerlemeli decode
+Kalan: gerçek ilerlemeli decode
 (çok çözünürlüklü piramit) ve Int16 bellek düzeni.
 
 ## 0.0a Bu turda kapatılan madde: etkileşimli segmentasyon (m-seg)
@@ -129,16 +129,21 @@ bölge büyütme, kesit kopyalama, kesit/tüm maske temizleme, 12 adımlı geri 
 ve opaklık), `Viewport` içinde AI aday örtüsünden bağımsız `OverlayData.manual`
 katmanı, alt bilgi çubuğunda mL hacim ve aynı maskeden DICOM SEG/RTSTRUCT indirme.
 
+Ek olarak **AI tohumlama** (AI aday maskesini kopya olarak düzenlemeye alma) ve
+**kesit dağılımı** (maske kesit kesit mm²/mL; en geniş kesit, toplam hacim, bara
+tıklayınca o kesite gidiş — `volume().perSlice` + `sliceProfileSummary`) vardır.
+
 Doğrulama: `tests/seg.test.ts` tuval→piksel eşlemesini (`screenToImage`, kırpma
 dahil), hızlı fırça darbesinde boşluk kalmamasını (`paintStroke`), geri alma
-kopyasının bağımsızlığını (`cloneMask`) ve SEG/RTSTRUCT gidiş-dönüşünü sınar.
-`tests/seg-editor-browser.cjs` (`npm run test:seg-ui`) gerçek tarayıcıda fırça,
-eşik, geri al, kesit kopyalama ve mL hacmin ana görünümleyiciye aktarımını
+kopyasının bağımsızlığını (`cloneMask`), kesit profili toplamlarını ve
+SEG/RTSTRUCT gidiş-dönüşünü sınar. `tests/seg-editor-browser.cjs`
+(`npm run test:seg-ui`) gerçek tarayıcıda fırça, eşik, geri al, kesit kopyalama,
+mL hacmin ana görünümleyiciye aktarımını, AI tohumlamayı ve kesit dağılımını
 denetler; Playwright tarayıcı ikilisi kurulu olmayan ortamda çalışmaz.
 
-Kalan iş (neden hâlâ tam puan değil): AI/SAM aday maskesini düzenlemeye açma
-(tohumlama) ve kesit kesit hacim trendi yoktur; RTSTRUCT konturları satır
-taramasıyla üretildiği için konkav segmentlerde dış zarfa yaklaşır. Maske hekim
+Kalan iş (neden hâlâ tam puan değil): SAM tabanlı yarı otomatik bölütleme yoktur;
+RTSTRUCT konturları satır taramasıyla üretildiği için konkav segmentlerde dış
+zarfa yaklaşır. Maske hekim
 düzenlemesidir, rapora otomatik yazılmaz ve AI aday örtüsü düzenlenebilir maske
 değildir.
 

@@ -189,8 +189,11 @@ export interface VolumeResult {
   voxelCount: number;
   /** Maske bulunan kesit aralığı [ilk, son] */
   sliceRange: [number, number] | null;
-  /** Kesit başına piksel sayısı (profili) */
-  perSlice: { slice: number; pixels: number; mm3: number }[];
+  /**
+   * Kesit başına piksel sayısı (profili) — kesit-kesit hacim trendi için.
+   * `mm2`: o kesitteki segment alanı (piksel × pixelSpacingX × pixelSpacingY).
+   */
+  perSlice: { slice: number; pixels: number; mm2: number; mm3: number }[];
 }
 
 /**
@@ -211,7 +214,7 @@ export function volume(m: SegMask, spacing: { px: number; py?: number; sliceThic
     for (let k = 0; k < s.length; k++) if (s[k]) n++;
     if (!n) continue;
     voxelCount += n;
-    perSlice.push({ slice: i, pixels: n, mm3: n * areaMm2 * dz });
+    perSlice.push({ slice: i, pixels: n, mm2: n * areaMm2, mm3: n * areaMm2 * dz });
   }
   const mm3 = voxelCount * areaMm2 * dz;
   return {
@@ -221,6 +224,18 @@ export function volume(m: SegMask, spacing: { px: number; py?: number; sliceThic
     sliceRange: perSlice.length ? [perSlice[0].slice, perSlice[perSlice.length - 1].slice] : null,
     perSlice,
   };
+}
+
+/**
+ * Kesit profili özeti (m-seg): en geniş kesit, kesit sayısı ve toplam alan.
+ * Grafikte barlar `perSlice`ten çizilir; bu özet başlık satırı içindir. Ölçüm
+ * yoksa null döner (uydurma değer üretilmez).
+ */
+export function sliceProfileSummary(v: VolumeResult): { slices: number; widest: { slice: number; mm2: number } | null; maxMm2: number } | null {
+  if (!v.perSlice.length) return null;
+  let widest = v.perSlice[0];
+  for (const p of v.perSlice) if (p.mm2 > widest.mm2) widest = p;
+  return { slices: v.perSlice.length, widest: { slice: widest.slice, mm2: widest.mm2 }, maxMm2: widest.mm2 };
 }
 
 /** Maskeyi çalışma durumuna yazılabilir JSON'a çevirir (base64, kesit başına). */

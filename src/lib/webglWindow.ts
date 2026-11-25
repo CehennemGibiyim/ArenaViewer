@@ -40,19 +40,45 @@ void main() {
 }
 `;
 
+/**
+ * Float32 kesitler (bazı MR/PET serileri) için ayrı gölgelendirici: doku biçimi
+ * R32F, örnekleyici `sampler2D`. Pencere aralığı int yerine float taşınır;
+ * eşleme aynı formül (t / span → 0..255).
+ */
+const FRAG_FLOAT = `#version 300 es
+precision highp float;
+uniform sampler2D uTex;
+uniform int uH;
+uniform float uLo;
+uniform float uSpan;
+uniform int uInvert;
+out vec4 outColor;
+void main() {
+  int x = int(gl_FragCoord.x);
+  int y = uH - 1 - int(gl_FragCoord.y);
+  float v = texelFetch(uTex, ivec2(x, y), 0).r;
+  float g = clamp((v - uLo) / max(uSpan, 1e-6), 0.0, 1.0) * 255.0;
+  int gi = int(g + 0.5);
+  if (gi > 255) gi = 255;
+  if (gi < 0) gi = 0;
+  if (uInvert == 1) gi = 255 - gi;
+  outColor = vec4(float(gi) / 255.0, float(gi) / 255.0, float(gi) / 255.0, 1.0);
+}
+`;
+
 const FRAG_UNSIGNED = FRAG
   .replace("uniform isampler2D uTex;", "uniform usampler2D uTex;")
   .replace("int v = texelFetch(uTex, ivec2(x, y), 0).r;", "int v = int(texelFetch(uTex, ivec2(x, y), 0).r);");
 
 export interface WindowGpuRenderer {
   /** Güncel kesiti çizer; başarısızsa false (çağıran CPU yoluna düşer). */
-  draw(pixels: Int16Array | Uint16Array, w: number, h: number, wl: number, ww: number, invert: boolean): boolean;
+  draw(pixels: Int16Array | Uint16Array | Float32Array, w: number, h: number, wl: number, ww: number, invert: boolean): boolean;
   canvas: HTMLCanvasElement;
   dispose(): void;
 }
 
 /** Gölgelendirici kaynağı (test/teşhis için dışa açık). */
-export const WINDOW_SHADER_SOURCE = { vert: VERT, frag: FRAG, fragUnsigned: FRAG_UNSIGNED };
+export const WINDOW_SHADER_SOURCE = { vert: VERT, frag: FRAG, fragUnsigned: FRAG_UNSIGNED, fragFloat: FRAG_FLOAT };
 
 function compile(gl: WebGL2RenderingContext, type: number, src: string): WebGLShader | null {
   const sh = gl.createShader(type);
@@ -91,7 +117,8 @@ export function createWindowGpuRenderer(maxTexture = 4096): WindowGpuRenderer | 
   };
   const prog = makeProgram(FRAG);
   const progU = makeProgram(FRAG_UNSIGNED);
-  if (!prog || !progU) return null;
+  const progF = makeProgram(FRAG_FLOAT);
+  if (!prog || !progU || !progF) return null;
 
   const buf = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, buf);
@@ -113,6 +140,7 @@ export function createWindowGpuRenderer(maxTexture = 4096): WindowGpuRenderer | 
   // kullanır: doku iç biçimi sonradan değiştirilemez.
   const texS = newTexture();
   const texU = newTexture();
+  const texF = newTexture();
 
   const uniforms = (p: WebGLProgram) => ({
     uH: gl.getUniformLocation(p, "uH"),
@@ -122,29 +150,32 @@ export function createWindowGpuRenderer(maxTexture = 4096): WindowGpuRenderer | 
   });
   const uS = uniforms(prog);
   const uU = uniforms(progU);
-  gl.useProgram(prog);
-  gl.uniform1i(gl.getUniformLocation(prog, "uTex"), 0);
-  gl.useProgram(progU);
-  gl.uniform1i(gl.getUniformLocation(progU, "uTex"), 0);
+  const uF = uniforms(progF);
+  for (const p of [prog, progU, progF]) {
+    gl.useProgram(p);
+    gl.uniform1i(gl.getUniformLocation(p, "uTex"), 0);
+  }
 
-  const sizes = { s: { w: 0, h: 0 }, u: { w: 0, h: 0 } };
+  const sizes = { s: { w: 0, h: 0 }, u: { w: 0, h: 0 }, f: { w: 0, h: 0 } };
   let verified = false;
   let verifiedSize = "";
   let failed = false;
 
   const draw: WindowGpuRenderer["draw"] = (pixels, w, h, wl, ww, invert) => {
     if (failed || w <= 0 || h <= 0 || w > maxTexture || h > maxTexture) return false;
-    if (!(pixels instanceof Int16Array) && !(pixels instanceof Uint16Array)) return false;
+    if (!(pixels instanceof Int16Array) && !(pixels instanceof Uint16Array) && !(pixels instanceof Float32Array)) return false;
     if (!gpuWindowCompatible(wl, ww)) return false;
-    const span = Math.max(1, Math.round(ww));
-    const lo = Math.round(wl - ww / 2);
+    // Float32'de pencere yuvarlanmaz: Hounsfield/SUV ölçeği ondalık taşır.
+    const isFloat = pixels instanceof Float32Array;
+    const span = isFloat ? Math.max(1e-6, ww) : Math.max(1, Math.round(ww));
+    const lo = isFloat ? wl - ww / 2 : Math.round(wl - ww / 2);
     if (pixels.length < w * h) return false;
 
     const unsigned = pixels instanceof Uint16Array;
-    const program = unsigned ? progU : prog;
-    const tex = unsigned ? texU : texS;
-    const size = unsigned ? sizes.u : sizes.s;
-    const u = unsigned ? uU : uS;
+    const program = isFloat ? progF : unsigned ? progU : prog;
+    const tex = isFloat ? texF : unsigned ? texU : texS;
+    const size = isFloat ? sizes.f : unsigned ? sizes.u : sizes.s;
+    const u = isFloat ? uF : unsigned ? uU : uS;
 
     if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
     gl.useProgram(program);
@@ -152,15 +183,24 @@ export function createWindowGpuRenderer(maxTexture = 4096): WindowGpuRenderer | 
     gl.bindTexture(gl.TEXTURE_2D, tex);
     if (size.w !== w || size.h !== h) {
       size.w = w; size.h = h;
-      gl.texImage2D(gl.TEXTURE_2D, 0, unsigned ? gl.R16UI : gl.R16I, w, h, 0, gl.RED_INTEGER, unsigned ? gl.UNSIGNED_SHORT : gl.SHORT, pixels);
+      if (isFloat) gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, w, h, 0, gl.RED, gl.FLOAT, pixels);
+      else gl.texImage2D(gl.TEXTURE_2D, 0, unsigned ? gl.R16UI : gl.R16I, w, h, 0, gl.RED_INTEGER, unsigned ? gl.UNSIGNED_SHORT : gl.SHORT, pixels);
+    } else if (isFloat) {
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, w, h, gl.RED, gl.FLOAT, pixels);
     } else {
       gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, w, h, gl.RED_INTEGER, unsigned ? gl.UNSIGNED_SHORT : gl.SHORT, pixels);
     }
 
     gl.viewport(0, 0, w, h);
     gl.uniform1i(u.uH, h);
-    gl.uniform1i(u.uLo, lo);
-    gl.uniform1i(u.uSpan, span);
+    // Float yolu ondalık pencere kullanır (uniform1f); int yolları tam sayı.
+    if (isFloat) {
+      gl.uniform1f(u.uLo, lo);
+      gl.uniform1f(u.uSpan, span);
+    } else {
+      gl.uniform1i(u.uLo, lo);
+      gl.uniform1i(u.uSpan, span);
+    }
     gl.uniform1i(u.uInvert, invert ? 1 : 0);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
@@ -188,6 +228,7 @@ export function createWindowGpuRenderer(maxTexture = 4096): WindowGpuRenderer | 
     dispose: () => {
       gl.deleteTexture(texS);
       gl.deleteTexture(texU);
+      gl.deleteTexture(texF);
       gl.deleteBuffer(buf);
       gl.deleteProgram(prog);
       gl.getExtension("WEBGL_lose_context")?.loseContext();

@@ -41,8 +41,10 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   DICOM **SEG** (1 bit/piksel) ve **RTSTRUCT** (CLOSED_PLANAR konturlar) indirilir.
   **AI tohumlama:** düzenleyicideki “AI adayından başlat” bölümü, Vision AI'nın
   ürettiği bulgu maskesini kopya olarak çalışma maskesine aktarır (AI önerisi
-  değişmez, “AI tohumlu …” etiketiyle ve geri alınabilir). **Sınır:** kesit kesit
-  hacim trendi ve SAM tabanlı yarı otomatik bölütleme yoktur;
+  değişmez, “AI tohumlu …” etiketiyle ve geri alınabilir). **Kesit dağılımı:**
+  maske kesit kesit alan (mm²) ve hacim (mL) olarak listelenir — en geniş kesit,
+  toplam hacim ve bara tıklayınca o kesite gidiş. **Sınır:** SAM tabanlı yarı
+  otomatik bölütleme yoktur;
   RTSTRUCT konturları satır taramasıdır, konkav segmentlerde dış zarfa yaklaşır; AI
   aday örtüsü düzenlenebilir maske değildir.
 - **Yapılandırılmış ölçüm SR (TID 1500):** Ekran ölçümleri (uzunluk, elipsoid,
@@ -98,15 +100,15 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   dışa aktarılabilir (araç çubuğundaki "Dışa aktar"). PR rapor belgesi değildir.
 - **Performans (v-perf):** Pencere/seviye (WL/WW) dönüşümü tek geçişli tablo +
   renk paletiyle yapılır (`src/lib/window.ts`); ölçülmüş kazanç 512×512'de ≈2×,
-  4096×4096'da ≈2.2× (`npm run bench:window`). İşaretli **ve işaretsiz** 16 bit
-  kesitlerde **WebGL2 GPU pencereleme** vardır (`src/lib/webglWindow.ts`): dönüşüm gölgelendiricide
+  4096×4096'da ≈2.2× (`npm run bench:window`). İşaretli/işaretsiz 16 bit **ve
+  float32** kesitlerde **WebGL2 GPU pencereleme** vardır (`src/lib/webglWindow.ts`): dönüşüm gölgelendiricide
   yapılır, çıktı her yeni doku boyutunda `readPixels` ile CPU referansına karşı
   öz-test edilir ve uyuşmazlıkta CPU yoluna düşer. ≥1 MP kesitler **Web Worker**'da
   çevrilir (`src/workers/window.worker.ts`; kopyalanmış piksel girer, RGBA sıfır
   kopyayla döner); worker yoksa/hata verirse/süre aşımında aynı sonuç ana iş
   parçacığında hesaplanır. Kaydırmada komşu kesitler boş zamanda ön-işlenir
   (sınırlı önbellek; GPU yolu açıkken CPU ön-işleme atlanır, büyük grafiklerde
-  bellek kapısı uygulanır). **Sınır:** float32 seriler CPU yolunda kalır;
+  bellek kapısı uygulanır). **Sınır:**
   gerçek ilerlemeli decode (çok çözünürlüklü piramit) yoktur.
 - **3B imleç:** İmleç aracı (araç çubuğu) ile tıklanan noktada aynı çalışmanın
   (Frame of Reference) diğer panellerinin kesidi o hasta koordinatına atlar;
@@ -515,7 +517,7 @@ export DATABASE_URL=postgres://atik@127.0.0.1:5432/atik
 npm run db:push                     # drizzle şemasını uygula
 AV_RATE_LIMIT=off npm start &       # testte hız sınırı kapalı (CSRF açık kalır)
 npm run test:oidc                   # kurumsal giriş çekirdeği (PKCE, state, RS256, eşleme)
-npm run test:db-api                 # 50 kontrol: ölçüm geçmişi, RADPEER, model uçları
+npm run test:db-api                 # 51 kontrol: ölçüm geçmişi, RADPEER, model uçları
 npm run db:local:stop
 ```
 

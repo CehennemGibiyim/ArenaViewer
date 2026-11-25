@@ -19,7 +19,7 @@ export DATABASE_URL=postgres://atik@127.0.0.1:5432/atik
 npm run db:push                      # drizzle şeması (measurement_history, model_registry dahil)
 
 AV_RATE_LIMIT=off npm start &        # testlerde hız sınırı kapalı; CSRF açık kalır
-npm run test:db-api                  # 50 kontrol
+npm run test:db-api                  # 51 kontrol
 npm run db:local:stop
 ```
 
@@ -45,7 +45,7 @@ Veri dizini varsayılan `/tmp/av-pgdata`, günlük `server.log`; ikisi de depo d
 - **Denetim:** `model_registry.register/update`, `measurement-history-save`,
   `report.peer_review` kayıtları `audit_logs`ta.
 
-Sonuç: **50/50 kontrol geçti.**
+Sonuç: **51/51 kontrol geçti.**
 
 ### Giriş akışı (ayrı, boş veritabanı ister)
 
@@ -107,7 +107,7 @@ Playwright 1.65.1.
 | `test:review` | 5 kontrol — renkli Doppler 12/12 kare, US raporu, CR tek kare, BT beyin |
 | `test:report-flow` | 3 kontrol — onay kapıları, derin AI akışı, JS hatası yok |
 | `test:folder` | 3 kontrol — boş/medikal olmayan/desteklenmeyen klasör mesajları |
-| `test:seg-ui` | 2 kontrol — segment editöründe fırça, eşik, geri al, kesit kopyalama, mL hacmin ana görünümleyiciye aktarımı ve **AI adayından tohumlama** |
+| `test:seg-ui` | 3 kontrol — segment editöründe fırça, eşik, geri al, kesit kopyalama, mL hacmin ana görünümleyiciye aktarımı, **AI adayından tohumlama** ve **kesit dağılımı** (mm² barları, en geniş kesit, bara tıklayınca o kesite gidiş) |
 | `test:panels-ui` | 6 kontrol — 📈 Trend (DB'deki ölçümler, %+değişim, ikilenme), ⚖ Peer (RADPEER dağılımı, %95 GA), /yonetim → model kayıt defteri (sürüm/aşama/trafik planı), **Oturumlar** (sunucu tarafı oturum listesi / boş durum) ve **Kullanıcılar → hesap kilidi** (kilitli rozet, "Kilidi aç" düğmesi, DB'de sayaç/kilit temizliği) |
 
 Fixture'lı production derlemesi ve sunucu:

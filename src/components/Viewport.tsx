@@ -280,7 +280,9 @@ export default function Viewport(props: ViewportProps) {
     //   3) ana iş parçacığı LUT yolu.
     let baseSource: CanvasImageSource | null = null;
     const slPixels = series.slices[sliceIdx];
-    if (!isColor && (slPixels instanceof Int16Array || slPixels instanceof Uint16Array)) {
+    // 16 bit işaretli/işaretsiz ve float32 kesitler GPU penceresine verilebilir;
+    // GPU kendini CPU referansıyla doğrular, uyuşmazsa CPU yoluna düşülür.
+    if (!isColor && (slPixels instanceof Int16Array || slPixels instanceof Uint16Array || slPixels instanceof Float32Array)) {
       if (gpuRef.current === undefined) gpuRef.current = createWindowGpuRenderer();
       const gpu = gpuRef.current;
       if (gpu && gpu.draw(slPixels, W, H, wl, ww, invert)) baseSource = gpu.canvas;
