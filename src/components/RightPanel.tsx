@@ -5,6 +5,7 @@ import { fmtConf } from "@/lib/format";
 import { KIND_LABEL, annotationSummary } from "@/lib/geometry";
 import ReviewMetrics from "./ReviewMetrics";
 import { priorDelta } from "@/lib/priorCompare";
+import { BAND_LABEL, uncertaintyBand, uncertaintyNote } from "@/lib/uncertainty";
 import type {
   AiMode, AiProtocol, AnalysisResult, Annotation, Finding, KeyImage, SavedReport, SeriesData, StudyRow, UserInfo,
 } from "@/lib/types";
@@ -236,6 +237,7 @@ export default function RightPanel(p: Props) {
                             <div className={`h-full ${c.positive ? "bg-rose-400" : "bg-slate-600"}`} style={{ width: `${Math.min(100, c.prob * 100)}%` }} />
                           </div>
                           <span className={`w-8 shrink-0 text-right font-mono ${c.positive ? "text-rose-200" : "text-slate-500"}`}>%{Math.round(c.prob * 100)}</span>
+                          <span className="w-14 shrink-0 rounded border px-1 py-px text-center font-mono text-[8.5px] font-bold" style={{ color: "#e2b7ff", background: "#2a1a3d", borderColor: "#6b3fa055" }} title={uncertaintyNote(uncertaintyBand(c.prob, c.threshold), c.prob, c.threshold)}>{BAND_LABEL[uncertaintyBand(c.prob, c.threshold)]}</span>
                         </div>
                       ))}
                     </div>
@@ -290,6 +292,9 @@ export default function RightPanel(p: Props) {
                           {f.metrics?.volumeMl !== undefined && <div><span className="text-slate-500">Hacim: </span><span className="font-semibold text-slate-200">{f.metrics.volumeMl} mL</span></div>}
                           {f.metrics?.lungRads && <div><span className="text-slate-500">Lung-RADS eşiği: </span><span className="font-semibold text-slate-200">{f.metrics.lungRads}</span></div>}
                           {fmtConf(f) && <div className="col-span-2"><span className="text-slate-500">Güven: </span><span className="font-semibold text-slate-200">{fmtConf(f)}</span></div>}
+                          {f.source === "ai-model" && f.threshold !== undefined && Number.isFinite(f.threshold) && (
+                            <div className="col-span-2 rounded border border-violet-400/25 bg-violet-400/5 p-1 text-[9.5px] leading-snug text-violet-200" title="Skor−eşik mesafesine göre belirsizlik bandı; kalibrasyon değildir.">{uncertaintyNote(uncertaintyBand(f.confidence, f.threshold), f.confidence, f.threshold)}</div>
+                          )}
                         </div>
                       )}
                       {delta && <div className="mt-1.5 rounded border border-violet-400/30 bg-violet-400/5 p-1.5 text-[10px] text-violet-200">↺ {delta}</div>}

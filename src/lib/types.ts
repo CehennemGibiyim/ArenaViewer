@@ -96,6 +96,8 @@ export interface Finding {
   confidence: number;
   /** "heuristic": kalibre edilmemiş aday skoru, "simulated": demo, "none": skor yok */
   confidenceKind: "heuristic" | "simulated" | "none";
+  /** Sınıflandırma eşiği (yalnızca AI sınıf modellerinde dolar); belirsizlik bandı için. */
+  threshold?: number;
   source: FindingSource;
   metrics?: FindingMetrics;
 }

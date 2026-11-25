@@ -211,6 +211,7 @@ export function cxrResultsToFindings(res: CxrResult, s: SeriesData): Finding[] {
       severity: sev,
       confidence: c.prob,
       confidenceKind: "heuristic",
+      threshold: c.threshold,
       source: "ai-model",
       // Isı haritası Finding'e SAKLANMAZ: rapor kaydı şişmesin. Görselleştirme
       // anahtarı Workstation'da tutulur (bulgu sırası = pozitif sınıf sırası).
