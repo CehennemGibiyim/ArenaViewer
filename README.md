@@ -63,10 +63,17 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   plato (Tip 2) / progresif (Tip 1)** olarak sınıflanır, faz tablosu + CSV + özet satırı
   üretilir. Zaman etiketi yoksa yalnız faz sırası gösterilir ve sınıflama yapılmaz.
   `test:tic-roi` (37 assert).
-- **Füzyon katı hizalaması:** PET/BT bindirmesinde kesit içi **öteleme + dönme +
-  ölçek**; «Otomatik hizala (NCC)» kabadan inceye tarama yapar, kaydırıcılarla elle
-  ince ayar yapılır. Deformable kayıt ve TIC eğrileri henüz yoktur; sonuç tanı
-  aracı değildir, görsel doğrulama gerekir.
+- **Füzyon hizalaması (katı + elastik):** PET/BT bindirmesinde kesit içi **öteleme +
+  dönme + ölçek**; «Otomatik hizala (NCC)» kabadan inceye tarama yapar, kaydırıcılarla
+  elle ince ayar yapılır. Ardından **«Elastik hizala»** (`src/lib/fusionDeform.ts`)
+  7×7 düğümlü yer değiştirme alanını kabadan inceye **blok eşleme + Gauss
+  düzleştirmesi** ile kestirir (en çok 12 px); her tarama turu kademe skoruyla kabul
+  edilir ve **kazanç yoksa alan sıfırlanır**, böylece bindirme kötüleşmez. Panelde
+  NCC öncesi→sonrası ile ortalama/en çok kayma yazılır; katı parametre değişince
+  elastik alan sıfırlanır (bayat alan uygulanmaz). `test:fusion-rigid` (36) +
+  `test:fusion-deform` (50). **Sınır:** 2B kesit içi; kesitler arası (z) kayma, 3B
+  hacim kaydı, simetrik kayıt ve çok modaliteli (BT↔MR) MI metriği yoktur. Sonuç
+  tanı aracı değildir, görsel doğrulama gerekir.
 - **İkinci okuma (RADPEER):** rapor ekranındaki uyum kaydına ek olarak Yönetim →
   İş akışı'nda **RADPEER panosu**: deterministik **örneklem** (oran ayarlanabilir,
   varsayılan %5), hedef takibi (beklenen/kalan), uyum oranı, puan dağılımı,
@@ -520,6 +527,8 @@ npm run test:nuclear                # MTV/SUV örnekleme + TIC sınıflandırmas
 npm run test:patient-letter         # hasta mektubu: TR/EN/DE, okuma düzeyi, taslak kilidi
 npm run test:fusion-rigid           # füzyon katı hizalaması: NCC kestirimi, dönme/ölçek, katman kaydırma
 npm run test:gap-sources            # kıyaslama tablosu: her satırın kaynağı + dosya yollarının varlığı
+npm run test:gap-drift              # yamalar taban metni budamaz; bilinen yanlış iddialar geri gelemez
+npm run test:fusion-deform          # elastik kayıt: düğüm alanı, düzleştirme, sentetik geri kazanım
 npm run test:photometric            # fotometri: MONO1/2, RGB/planar, YBR 4:2:2, palet LUT
 npm run test:photometric-e2e        # sentetik DICOM ile renkli/paletli/çok kareli içe aktarma
 npm run test:tic-roi                # ROI tabanlı TIC: faz eşleme, zaman ekseni, wash-out/plato/progresif
