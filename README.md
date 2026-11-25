@@ -359,6 +359,21 @@ Rapor alanlarındaki 🎤 düğmesi Web Speech API (tr-TR) kullanır; metin `dic
   `kontrast artır`, `ters çevir`, `pencere daralt`, `geri al`, `kaydet`, `temizle`. Bir parça
   **tamamen** komutsa komut sayılır; "kırık ileri deplase" gibi cümleler metin olarak yazılır.
 
+## Segmentasyon konturları — SEG / RTSTRUCT (c-seg-rtstruct)
+
+RTSTRUCT konturları artık satır taraması yerine **kenar takibi** ile çıkarılır
+(`src/lib/segEditing.ts`, `dicomSeg.maskContours`):
+
+| Özellik | Davranış |
+|---|---|
+| Alan doğruluğu | halka alanı **tam olarak piksel sayısına eşit**; satır taraması konkav bölgelerde dış zarf üretip alanı şişiriyordu (regresyon testi) |
+| Delik | iç halkalar saat yönünde yazılır → RTSTRUCT'ta iç içe kontur kuralı korunur |
+| Ayrık adalar | her ada ayrı CLOSED_PLANAR kontur |
+| Düzenleme | Douglas-Peucker sadeleştirme + Chaikin yumuşatma; **alan sapması %5'i aşarsa uyarı** (sessiz kabul yok) |
+| Kesit tutarlılığı | tek kesitlik adacık temizliği (`removeIslands`), Dice, birleşim/kesişim/fark, hacim (mm³ → mL) |
+
+RTSTRUCT üretimi bu yolu kullanır; `maskContour` geriye dönük uyumluluk için duruyor.
+
 ## Ölçüm defteri — TID 1500 + kod defteri (c-sr-tid1500)
 
 Dışa aktarma menüsü: **"Ölçümleri deftere işle (kod denetimi)"** ve **"Ölçüm SR → PACS'e gönder (STOW)"**
@@ -612,6 +627,7 @@ npm run test:auditchain             # imzalı denetim paketi + üretim kapısı 
 npm run test:validation             # alt grup doğrulama + kabul eşiği (t-validation)
 npm run test:stroke                 # inme hattı: zaman çizelgesi + kod inme (a-stroke)
 npm run test:sr1500reg              # TID 1500 ölçüm defteri + kod sözlüğü (c-sr-tid1500)
+npm run test:segedit                # kontur izleme + segment düzenleme (c-seg-rtstruct)
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)

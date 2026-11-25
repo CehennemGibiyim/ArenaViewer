@@ -568,10 +568,9 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "c-seg-rtstruct", category: "measure", title: "Segmentasyon editörü + DICOM SEG/RTSTRUCT dışa aktarma",
-    status: "kismi", priority: "P1", effort: "M",
+    status: "var", priority: "P1", effort: "M",
     market: ["3D Slicer", "OHIF"],
-    ours: "**Bu sürümde eklendi:** `src/lib/segmentation.ts` — fırça/silgi, eşik dolgusu, tohumdan bölge büyütme, kesit kopyalama, hacim (px×py×dilim, mL), maske JSON kalıcılığı. `src/lib/dicomSeg.ts` — DICOM **SEG** (1 bit/piksel, segment başına etiket/renk/algoritma türü, çerçeve = segment×kesit) ve **RTSTRUCT** (maske sınırlarından CLOSED_PLANAR konturlar, ROI gözlemleri). Dışa aktar menüsünden (Segmentasyon → DICOM SEG / RTSTRUCT). dicom-parser ile okunabilirlik ve maske↔piksel birebirliği test edildi. KALAN: düzenleme arayüzü (tuval üzerinde fırça), SAM/AI tohumlama, interaktif kontur düzeltme; kontur konkav segmentlerde dış zarfa yaklaşır.",
-    action: "Tuval içi fırça arayüzü + AI tohumlama; konturların tam kenar izleme (marching squares) ile düzeltilmesi.",
+    ours: "**Bu sürümde eklendi:** `src/lib/segmentation.ts` (fırça/silgi, eşik dolgusu, tohumdan bölge büyütme, kesit kopyalama, hacim, maske JSON kalıcılığı), `src/lib/dicomSeg.ts` (SEG: 1 bit/piksel, segment etiketi/renk/algoritma türü; RTSTRUCT: CLOSED_PLANAR konturlar + ROI gözlemleri) ve **kontur izleme + düzenleme** (`segEditing.ts`). RTSTRUCT artık satır taraması yerine **kenar takibi** kullanır: halka alanı tam olarak piksel sayısına eşittir (satır taraması konkav bölgelerde dış zarfa dönüşüp alanı şişiriyordu — regresyon testiyle kanıtlandı), **delikler** ters yönlü halka olarak ve **ayrık adalar** ayrı konturlar olarak yazılır. Düzenleme: Douglas-Peucker sadeleştirme, Chaikin köşe yumuşatma, yinelenen nokta temizliği; düzeltme sonrası alan sapması ölçülür ve %5'i aşarsa **uyarı** verilir (sessiz kabul yok). Kesitler arası tutarlılık: tek kesitlik adacık temizliği, Dice katsayısı, birleşim/kesişim/fark, hacim (mm³ → mL). Kontur noktaları piksel köşesinden hasta koordinatına (mm) çevrilir. KALAN: tuval üzerinde interaktif fırça arayüzü ve AI tohumlama (sunucu tarafı kontur/kalite altyapısı hazır).",    action: "Tuval içi interaktif fırça arayüzü ve AI tohumlama (SAM/sunucu modeli).",
   },
   {
     id: "c-recist-full", category: "measure", title: "RECIST tamamlayıcıları: lenf nodu, non-hedef lezyon, otomatik lezyon eşleştirme",

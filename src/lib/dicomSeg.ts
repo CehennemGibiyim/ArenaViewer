@@ -6,12 +6,13 @@
  *   kümesini paylaşır (çerçeve sayısı = segment × kesit). Renk, segment etiketi
  *   ve algoritma türü (MANUAL/SEMIAUTOMATIC/AUTOMATIC) yazılır.
  * - RTSTRUCT: maske sınırlarından çıkarılan konturlar (CLOSED_PLANAR) + ROI
- *   gözlemleri. Kontur, satır taramasıyla (her satırın sol/sağ sınırı) üretilir:
- *   kapalı çokgen verir, konkav segmentlerde dış zarfa yaklaşır — bu sınır
- *   kullanıcıya belirtilir.
+ *   gözlemleri. Kontur sınırı `maskContours` ile **kenar takibi** yapılarak
+ *   çıkarılır: konkav bölgeler ve delikler korunur (eski satır taraması yalnız
+ *   dış zarfı veriyordu; `maskContour` geriye dönük uyumluluk için duruyor).
  *
  * Her iki belge de Explicit VR Little Endian, UTF-8 (ISO_IR 192) yazılır.
  */
+import { traceContours, type Pt } from "./segEditing";
 import { concat, el, enc, newUid, pad, str, uidEl, us } from "./dicomWrite";
 import type { SegMask, SegmentDef } from "./segmentation";
 
@@ -235,6 +236,28 @@ export function contourPoints(pts: { x: number; y: number }[], g: SegGeometry, s
   return out;
 }
 
+/**
+ * Maskeden DICOM kontur halkaları (c-seg-rtstruct): gerçek sınır izleme.
+ *
+ * `maskContour` satır taramasıdır ve konkav bölgelerde dış zarfa yaklaşır.
+ * RTSTRUCT yazımı bu fonksiyonu kullanır: her kapalı halka (varsa delikler
+ * dahil) ayrı CLOSED_PLANAR kontur olarak yazılır.
+ */
+export function maskContours(mask: Uint8Array, width: number, height: number): { pts: Pt[]; hole: boolean }[] {
+  // Sadeleştirme eşiği çok küçük: amaç yalnız **tam doğrusal** noktaları atmak.
+  // Daha büyük eşik konkav köşeleri keser ve kontur alanını düşürür (ölçüldü).
+  const traced = traceContours({ width, height, data: mask }, 0.01);
+  // Delik halkaları da yazılır: RTSTRUCT'ta iç içe kontur kuralı (delik saat
+  // yönünde) korunur; tek halka kalırsa delik işareti düşer.
+  const onlyOne = traced.length === 1;
+  return traced.map((t) => ({ pts: t.ring, hole: onlyOne ? false : t.hole }));
+}
+
+/** Halka noktalarını hasta koordinatına (mm) çevirir ve seyreltir. */
+export function ringPoints(ring: Pt[], g: SegGeometry, slice: number, maxPoints = 200): number[] {
+  return contourPoints(ring, g, slice, maxPoints);
+}
+
 /** Segmentasyon → DICOM RT Structure Set. */
 export function buildRtStruct(input: RtStructInput): Uint8Array {
   const sop = newUid();
@@ -267,15 +290,19 @@ export function buildRtStruct(input: RtStructInput): Uint8Array {
     for (const slice of [...roi.mask.slices.keys()].sort((a, b) => a - b)) {
       const m = roi.mask.slices.get(slice)!;
       if (!m.some((v) => v)) continue;
-      const pts = maskContour(m, input.width, input.height);
-      if (pts.length < 3) continue;
-      const data = contourPoints(pts, input.geometry, slice, maxPts);
-      contours.push(item(
-        S(0x3006, 0x0042, "CS", "CLOSED_PLANAR"),
-        S(0x3006, 0x0046, "IS", String(data.length / 3)),
-        S(0x3006, 0x0050, "DS", data.join("\\")),
-        S(0x3006, 0x0040, "IS", String(slice + 1)),
-      ));
+      // Gerçek sınır izleme (delikler korunur); tek halka/kontur her zaman yazılır.
+      for (const c of maskContours(m, input.width, input.height)) {
+        if (c.pts.length < 3) continue;
+        const pts = c.hole ? [...c.pts].reverse() : c.pts;
+        const data = ringPoints(pts, input.geometry, slice, maxPts);
+        if (data.length < 9) continue;
+        contours.push(item(
+          S(0x3006, 0x0042, "CS", "CLOSED_PLANAR"),
+          S(0x3006, 0x0046, "IS", String(data.length / 3)),
+          S(0x3006, 0x0050, "DS", data.join("\\")),
+          S(0x3006, 0x0040, "IS", String(slice + 1)),
+        ));
+      }
     }
     roiContourSeq.push(item(
       S(0x3006, 0x0084, "IS", String(n)),
