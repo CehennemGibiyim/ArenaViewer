@@ -323,6 +323,20 @@ DATA_ENCRYPTION_KEYS=<eski>,<yeni>   # 2) .env'e yaz, servisi yeniden başlat
 - v1 (kimliksiz) kayıtlar halkadaki anahtarlarla okunur ve ilk rotasyonda v2'ye taşınır.
 - Rotasyon ilerlemesi `GET /api/admin/status` içindeki `staleKey` alanında görünür.
 
+## Kalibre güven skoru ve belirsizlik
+
+Model skoru **kalibre olasılık değildir**. Ekranda üç katman birlikte gösterilir:
+
+1. **Belirsizlik bandı** (`uncertainty.ts`): skorun sınıf eşiğine uzaklığı → SINIRDA / ORTA / GÜÇLÜ.
+2. **Kalibre değer** (`confidenceInterval.ts`): hekim onay/ret geri bildiriminden skor kutuları ve
+   onay oranı; Laplace düzeltmesi + %95 **Wilson** aralığı. Örnek: `Kalibre ≈ %71 (aralık %61–%80, n=48)`.
+3. **Eminlik kararı**: aralık sınıf eşiğini içeriyorsa **EMİN DEĞİL**, genişse **İHTİYATLI**, dar ve tek
+   taraftaysa **EMİN**. Etiket sayısı 20'nin altındaysa kalibrasyon yapılmaz, ham skor gösterilir.
+
+Yönetim → **AI performansı** sekmesinde kutu grafiği (dolu = onay oranı, kesikli = model skoru) ve ECE
+renk kodu bulunur. Bu bir güven göstergesidir; seçim yanlılığı düzeltilmez ve kontrollü klinik doğrulama
+çalışmasının yerini tutmaz.
+
 ## Büyük çalışmalarda performans
 
 800 kesitlik 512×512 BT'de bellek ve akıcılık için üç katman:
@@ -434,6 +448,8 @@ npm run test:supplychain            # SBOM + SHA256SUMS + SLSA köken doğrulama
 npm run test:backupdr               # depolama adaptörü + yedek/geri yükleme
 npm run test:kms                    # anahtar halkası + rotasyon
 npm run test:volumeperf             # büyük çalışma performansı (transcode + worker + GPU)
+npm run test:interval               # interval değişim özeti (a-prior)
+npm run test:confidence             # kalibre güven skoru + Wilson aralığı (a-uncert)
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)

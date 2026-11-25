@@ -7,6 +7,7 @@ import ReviewMetrics from "./ReviewMetrics";
 import { priorDelta } from "@/lib/priorCompare";
 import { CHANGE_LABEL, CHANGE_TONE, compareInterval, intervalCsv, pickPriorReport, type IntervalSummary } from "@/lib/intervalChange";
 import { BAND_LABEL, uncertaintyBand, uncertaintyNote } from "@/lib/uncertainty";
+import { calibrateScore, confidenceVerdict } from "@/lib/confidenceInterval";
 import type {
   AiMode, AiProtocol, AnalysisResult, Annotation, Finding, KeyImage, SavedReport, SeriesData, StudyRow, UserInfo,
 } from "@/lib/types";
@@ -120,6 +121,14 @@ export default function RightPanel(p: Props) {
   const priors = p.patientReports.filter((r) => !series || r.studyUid !== series.studyUid).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   // Interval değişim özeti (a-prior): en güncel aynı modalite raporu ile
   // karşılaştırılır; ölçüm yoksa tablo "karşılaştırılabilir ölçüm yok" der.
+  // Kalibrasyon verisi (a-uncert): tüm raporlardaki onaylanmış/reddedilmiş
+  // AI bulguları. Yetersizse kalibrasyon uyarısı gösterilir, sahte aralık yok.
+  const outcomes = p.patientReports.flatMap((r) =>
+    r.findingsJson
+      .filter((f) => f.source !== "manual" && f.category !== "Sistem" && f.category !== "ROI" && f.confidenceKind !== "none" && Number.isFinite(f.confidence))
+      .filter((f) => r.findingsApproval?.[f.id] === "onaylandi" || r.findingsApproval?.[f.id] === "reddedildi")
+      .map((f) => ({ score: f.confidence, approved: r.findingsApproval[f.id] === "onaylandi" })),
+  );
   const currentReport = p.patientReports.find((r) => series && r.studyUid === series.studyUid) ?? null;
   const priorReport = currentReport ? pickPriorReport(p.patientReports, currentReport) : priors[0] ?? null;
   const interval: IntervalSummary | null = currentReport && priorReport
@@ -306,6 +315,20 @@ export default function RightPanel(p: Props) {
                           {f.source === "ai-model" && f.threshold !== undefined && Number.isFinite(f.threshold) && (
                             <div className="col-span-2 rounded border border-violet-400/25 bg-violet-400/5 p-1 text-[9.5px] leading-snug text-violet-200" title="Skor−eşik mesafesine göre belirsizlik bandı; kalibrasyon değildir.">{uncertaintyNote(uncertaintyBand(f.confidence, f.threshold), f.confidence, f.threshold)}</div>
                           )}
+                          {f.source === "ai-model" && Number.isFinite(f.confidence) && (() => {
+                            const c = calibrateScore(f.confidence, outcomes);
+                            const v = confidenceVerdict(c, f.threshold ?? 0.5);
+                            return (
+                              <div className={`col-span-2 rounded border p-1 text-[9.5px] leading-snug ${
+                                v.level === "emin" ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
+                                : v.level === "ihtiyatli" ? "border-amber-400/30 bg-amber-400/10 text-amber-200"
+                                : "border-rose-400/30 bg-rose-400/10 text-rose-200"}`}>
+                                <b>{v.level === "emin" ? "EMİN" : v.level === "ihtiyatli" ? "İHTİYATLI" : "EMİN DEĞİL"}</b> · {c.text}
+                                <div className="mt-0.5 opacity-80">{v.text}</div>
+                                {c.warning && <div className="mt-0.5 opacity-70">{c.warning}</div>}
+                              </div>
+                            );
+                          })()}
                         </div>
                       )}
                       {delta && <div className="mt-1.5 rounded border border-violet-400/30 bg-violet-400/5 p-1.5 text-[10px] text-violet-200">↺ {delta}</div>}

@@ -4,10 +4,12 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { UserInfo } from "@/lib/types";
 import { AUTH_LABELS, PACS_PRESETS, type PacsAuthType, type PacsConfig } from "@/lib/pacsPresets";
+import { wilsonInterval } from "@/lib/confidenceInterval";
 
 type Tab = "profile" | "users" | "audit" | "ai" | "stats" | "security" | "integration" | "compliance";
 interface AuditRow { id: number; ts: string; username: string; action: string; entityType: string; entityId: string; details: string; hash: string }
 interface UserRow { id: number; username: string; fullName: string; title: string; regNo: string; role: string; active: boolean; twoFactorEnabled: boolean; lastLoginAt: string | null }
+interface CalibRow { engine: string; category: string; n: number; bins: { binLo: number; binHi: number; n: number; meanPred: number | null; empirical: number | null }[]; ece: number | null }
 interface PerfRow { engine: string; category: string; shown: number; approved: number; rejected: number; edited: number; pending: number; manualAdded: number; ppv: number | null }
 interface WorkflowStats {
   total: number; byStatus: Record<string, number>; byModality: Record<string, number>;
@@ -77,7 +79,7 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
   const loadAudit = useCallback(async () => { const r = await api<AuditRow[]>(`/api/audit?limit=300&q=${encodeURIComponent(aq)}`); if (r.ok) setAudit(r.data); }, [aq]);
   const loadSiem = useCallback(async () => { const r = await api<{ pending: number; failed: number; sent: number; abandoned: number; configured: boolean; maxAttempts: number }>("/api/audit/export?siem=stats"); if (r.ok) setSiem(r.data); }, []);
   // AI
-  const [perf, setPerf] = useState<{ rows: PerfRow[]; note: string } | null>(null);
+  const [perf, setPerf] = useState<{ rows: PerfRow[]; note: string; calibration?: CalibRow[] } | null>(null);
   // iş akışı istatistikleri (F4)
   const [stats, setStats] = useState<WorkflowStats | null>(null);
   const [statsNote, setStatsNote] = useState("");
@@ -457,6 +459,44 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
                   ))}
                 </tbody>
               </table>
+            </div>
+            <div className={card}>
+              <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Güven kalibrasyonu (skor → hekim onayı)</div>
+              <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+                Skor kutuları, hekim onay oranı ve %95 Wilson aralığı. Aralık ham skoru değil <b>onay davranışını</b> modeller;
+                yeterli etiket (≥ 20) yoksa satır gösterilmez, ekranda ham skor kalır.
+              </p>
+              {(perf?.calibration ?? []).length === 0 && <p className="mt-2 text-[11px] text-slate-500">Etiketli bulgu yok. Raporlarda bulguları Onayla/Reddet olarak işaretleyin.</p>}
+              {(perf?.calibration ?? []).filter((c) => c.n >= 20).map((c) => (
+                <div key={`${c.engine}-${c.category}`} className="mt-2 rounded border border-[#1a2230] bg-[#0b1018] p-2">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="font-mono text-cyan-300">{c.engine} · {c.category}</span>
+                    <span className={`font-bold ${c.ece !== null && c.ece <= 0.1 ? "text-emerald-300" : c.ece !== null && c.ece <= 0.2 ? "text-amber-300" : "text-rose-300"}`}>
+                      {c.ece === null ? "—" : `ECE %${Math.round(c.ece * 100)}`} · n={c.n}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex gap-0.5">
+                    {c.bins.map((b, i) => {
+                      const w = b.empirical === null ? 0 : Math.round(b.empirical * 100);
+                      const wil = b.n > 0 && b.empirical !== null ? wilsonInterval(Math.round(b.empirical * b.n), b.n) : null;
+                      return (
+                        <div key={i} className="flex-1" title={`%${Math.round(b.binLo * 100)}–%${Math.round(b.binHi * 100)}: ${b.n} gözlem, onay %${w}${wil ? ` (aralık %${Math.round(wil.lo * 100)}–%${Math.round(wil.hi * 100)})` : ""}`}>
+                          <div className="relative h-14 rounded-sm bg-[#141b26]">
+                            <div className="absolute bottom-0 w-full rounded-sm bg-cyan-500/60" style={{ height: `${Math.max(2, w)}%` }} />
+                            {b.meanPred !== null && <div className="absolute w-full border-t border-dashed border-slate-400/70" style={{ bottom: `${Math.round(b.meanPred * 100)}%` }} />}
+                          </div>
+                          <div className="mt-0.5 text-center font-mono text-[8.5px] text-slate-500">{b.n}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-1 flex items-center justify-between text-[9px] text-slate-500">
+                    <span>düşük skor</span>
+                    <span>kesikli çizgi = model skoru · dolu = onay oranı</span>
+                    <span>yüksek skor</span>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
