@@ -107,7 +107,7 @@ jobs:
           }
 
   # Güvenlik açısından bağımlılık denetimi (G3): PR'da yeni/ değişen bağımlılıklar
-  # bilinen açığa göre işaretlenir; high/critical ise iş kırmadı (rapor niteliği).
+  # bilinen kritik açıkları ve denetimin çalışamamasını başarısız gösterir.
   dependency-review:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
@@ -118,11 +118,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Dependency graph bu depoda etkin değilse (ayarlar > Security analysis)
-      # eylem "desteklenmiyor" hatası verir; o durumda iş kırmasın diye
-      # continue-on-error uygulanır. Ayrıntı: docs/PIYASA_EKSILERI_2026.md (G3).
+      # Dependency Graph kapalıysa başarısız olmalı; yeşil sonuç denetim yapıldığını göstermeli.
       - name: Bağımlılık denetimi
-        continue-on-error: true
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: critical
