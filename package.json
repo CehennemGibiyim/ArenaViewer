@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "npm run test:image-review && npm run test:pacs && npm run test:recist && npm run test:close-loop && npm run test:auth && npm run test:templates && npm run test:structured-report && npm run test:quant && npm run test:tracking && npm run test:model-ops && npm run test:metrics && npm run test:audit-export && npm run test:macros && npm run test:prefs && npm run test:workflow-stats && npm run test:stow && npm run test:peer-review && npm run test:hl7 && npm run test:share && npm run test:cxr && npm run test:cxr-model && npm run test:codecs && npm run test:mpr && npm run test:dictate && npm run test:pwa && npm run test:icd10 && npm run test:msk && npm run test:esign && npm run test:xref && npm run test:perf && npm run test:pr && npm run test:notify && npm run test:shadow",
+    "test": "npm run test:image-review && npm run test:pacs && npm run test:recist && npm run test:close-loop && npm run test:auth && npm run test:templates && npm run test:structured-report && npm run test:quant && npm run test:tracking && npm run test:model-ops && npm run test:metrics && npm run test:audit-export && npm run test:macros && npm run test:prefs && npm run test:workflow-stats && npm run test:stow && npm run test:peer-review && npm run test:hl7 && npm run test:share && npm run test:cxr && npm run test:cxr-model && npm run test:codecs && npm run test:mpr && npm run test:dictate && npm run test:pwa && npm run test:icd10 && npm run test:msk && npm run test:esign && npm run test:xref && npm run test:perf && npm run test:pr && npm run test:notify && npm run test:prior && npm run test:shadow",
     "test:image-review": "tsx tests/image-review.test.ts",
     "test:pacs": "tsx tests/pacs.test.ts",
     "test:recist": "node --experimental-strip-types tests/recist.test.mjs",
@@ -46,6 +46,7 @@
     "test:perf": "tsx tests/perf-window.test.ts",
     "test:pr": "tsx tests/presentation-state.test.ts",
     "test:notify": "tsx tests/notify.test.ts",
+    "test:prior": "tsx tests/prior-compare.test.ts",
     "bench:window": "tsx scripts/window-bench.ts",
     "test:esign": "tsx tests/esign.test.ts",
     "test:shadow": "tsx tests/shadow-mode.test.ts"

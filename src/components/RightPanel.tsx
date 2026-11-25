@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { fmtConf } from "@/lib/format";
 import { KIND_LABEL, annotationSummary } from "@/lib/geometry";
 import ReviewMetrics from "./ReviewMetrics";
+import { priorDelta } from "@/lib/priorCompare";
 import type {
   AiMode, AiProtocol, AnalysisResult, Annotation, Finding, KeyImage, SavedReport, SeriesData, StudyRow, UserInfo,
 } from "@/lib/types";
@@ -91,25 +92,6 @@ interface Props {
   mskAppendNote?: string | null;
 }
 
-function priorDelta(f: Finding, priors: SavedReport[]): string | null {
-  const m = f.metrics;
-  if (!m || f.category === "Sistem") return null;
-  for (const r of priors) {
-    const pf = r.findingsJson.find((x) => x.category === f.category && x.metrics && x.source !== "manual");
-    if (!pf?.metrics) continue;
-    const parts: string[] = [];
-    if (m.maxDiameterMm !== undefined && pf.metrics.maxDiameterMm !== undefined) {
-      const d = m.maxDiameterMm - pf.metrics.maxDiameterMm;
-      parts.push(`çap ${pf.metrics.maxDiameterMm.toFixed(0)} → ${m.maxDiameterMm.toFixed(0)} mm (${d >= 0 ? "+" : ""}${d.toFixed(1)})`);
-    }
-    if (m.volumeMl !== undefined && pf.metrics.volumeMl) {
-      const pct = ((m.volumeMl - pf.metrics.volumeMl) / pf.metrics.volumeMl) * 100;
-      parts.push(`hacim ${pf.metrics.volumeMl} → ${m.volumeMl} mL (${pct >= 0 ? "+" : ""}${pct.toFixed(0)}%)`);
-    }
-    if (parts.length) return `Önceki (${new Date(r.createdAt).toLocaleDateString("tr-TR")}): ${parts.join(" · ")}. Kayıt (registration) yapılmadan, yalnızca ölçüm karşılaştırması.`;
-  }
-  return null;
-}
 
 const PROTO_LABEL = {
   "ct-head": "BT Beyin · kanama adayı (kural tabanlı)",
