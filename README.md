@@ -20,6 +20,11 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   oblik (eğimli) MPR ve WebGL 3B hacim. Kesit konumu kaydı (IPP) varsa koronal/sagital
   gerçek hasta geometrisinden, ölçek kayması olmadan örneklenir (`src/lib/mpr.ts` +
   `VolumeView`). Kaynak seri salt okunur tutulur.
+- **Yapılandırılmış ölçüm SR (TID 1500):** Ekran ölçümleri (uzunluk, elipsoid,
+  ROI, çokgen) DICOM **Comprehensive SR** olarak yazılır: 125007 Measurement
+  Group içinde izleme kimliği, kodlu bulgu/bölge, NUM değer + UCUM birimi ve
+  referans görüntü. Standart kodlar DCM/SCT/UCUM; eşleşmeyenler `99ATIKVIEWER`
+  (uydurma kod yazılmaz). Dışa aktar ▾ → "Ölçümler → DICOM SR (TID 1500)".
 - **İnme / CTP:** ASPECTS 10 bölge skoru + `ctp.ts` ile cSVD (kesilmiş SVD)
   dekonvolüsyonu: rölatif CBF/CBV/MTT ve Tmax, **otomatik AIF seçimi**, çoklu
   bölge özeti (core: rCBF<%30, penumbra: Tmax≥6 sn) ve mismatch oranı. Panelden
@@ -296,6 +301,7 @@ npm run test:style                  # üslup örneği seçimi + LLM prompt enteg
 npm run test:pacssend               # KO/PR → PACS gönderim planı ve uç sözleşmesi
 npm run test:siem                   # SIEM kuyruğu, yeniden deneme, HMAC imza
 npm run test:ctp                    # CTP cSVD dekonvolüsyonu + otomatik AIF
+npm run test:sr1500                 # TID 1500 yapılandırılmış ölçüm SR (+köprü)
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)

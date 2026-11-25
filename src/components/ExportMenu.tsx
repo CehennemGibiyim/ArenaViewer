@@ -1,10 +1,12 @@
 "use client";
 
 import { useRef, useState } from "react";
-import type { KeyImage, SeriesData } from "@/lib/types";
+import type { Annotation, KeyImage, SeriesData } from "@/lib/types";
 import { exportPngZip, exportVideoWebm } from "@/lib/exportMedia";
 import { buildKeyObjectSelection, buildPresentationState } from "@/lib/dicomSr";
 import { planKeyObject } from "@/lib/pacsSend";
+import { annotationsToMeasurements, exportCoverage, siteCode } from "@/lib/measurementExport";
+import { buildMeasurementReportSr } from "@/lib/sr1500";
 
 interface Props {
   series: SeriesData | null;
@@ -12,6 +14,12 @@ interface Props {
   rotation?: 0 | 90 | 180 | 270;
   flipH?: boolean; flipV?: boolean;
   keyImages: KeyImage[];
+  /** Ekran ölçümleri (TID 1500 yapılandırılmış SR için) */
+  annotations?: Annotation[];
+  /** Piksel→mm ölçeği */
+  pxMm?: number;
+  /** Bölge (bulgu yeri kodu için) */
+  bodyPart?: string;
   toast: (m: string, ms?: number) => void;
 }
 
@@ -23,7 +31,7 @@ function download(blob: Blob, name: string) {
 }
 
 /** Dışa aktarma: cine video (WebM), kesit PNG ZIP, anahtar kesit DICOM KO. */
-export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0, flipH = false, flipV = false, keyImages, toast }: Props) {
+export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0, flipH = false, flipV = false, keyImages, annotations = [], pxMm = 1, bodyPart = "", toast }: Props) {
   const [open, setOpen] = useState(false);
   const [dlg, setDlg] = useState<"video" | "zip" | null>(null);
   const [from, setFrom] = useState(1);
@@ -80,6 +88,30 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
     toast("DICOM sunum durumu (GSPS/PR) indirildi — rapor belgesi değildir.", 5000);
   };
 
+  /** Ölçümler → DICOM Comprehensive SR (TID 1500): sayısal ölçüm ağacı. */
+  const exportSr1500 = () => {
+    setOpen(false);
+    if (!series) { toast("Önce bir görüntü serisi açın."); return; }
+    const measurements = annotationsToMeasurements(annotations, {
+      pxMm: pxMm > 0 ? pxMm : 1,
+      site: bodyPart ? siteCode(bodyPart) : undefined,
+      series: { seriesUid: series.seriesUid, sopClassUid: series.sopClassUid, sopUids: series.sopUids },
+    });
+    if (measurements.length === 0) {
+      toast("Yapılandırılmış SR için sayısal ölçüm gerekir (uzunluk, elipsoid, ROI, çokgen). Açı/Cobb/ok yazılmaz.", 7000);
+      return;
+    }
+    const bytes = buildMeasurementReportSr({
+      patientName: series.patientName, patientId: series.patientId, patientSex: series.patientSex,
+      studyUid: series.studyUid, studyDate: series.studyDate, institution: series.institution,
+      title: `${series.modality} ${bodyPart || series.description} ölçümleri`,
+      measurements,
+    });
+    download(new Blob([bytes.slice().buffer as ArrayBuffer], { type: "application/dicom" }), `SR1500-${series.modality}-${measurements.length}-olcum.dcm`);
+    const cov = exportCoverage(annotations);
+    toast(`TID 1500 SR indirildi: ${measurements.length} sayısal ölçüm${cov.skipped.length ? ` (yazılmayan: ${cov.skipped.join(", ")})` : ""}.`, 6000);
+  };
+
   /** KO/PR nesnesini PACS'e STOW-RS ile gönderir (rapor SR'ı rapor penceresinden gider). */
   const sendToPacs = async (kind: "ko" | "pr") => {
     setOpen(false);
@@ -116,6 +148,7 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
           <button className={item} onClick={exportPr} title="Pencere, döndürme ve çevirme ayarlarını GSPS belgesi olarak kaydeder">🖼 Görünüm → DICOM PR (sunum durumu)</button>
           <div className="my-1 border-t border-[#1e2735]" />
           <button className={item} disabled={sending !== null} onClick={() => void sendToPacs("ko")}>☁ Anahtar kesitler → PACS&apos;e gönder (KO)</button>
+          <button className={item} onClick={exportSr1500} title="Ölçümleri TID 1500 yapılandırılmış rapor (Comprehensive SR) olarak indirir">📐 Ölçümler → DICOM SR (TID 1500)</button>
           <button className={item} disabled={sending !== null} onClick={() => void sendToPacs("pr")} title="Pencere/döndürme ayarını GSPS olarak PACS'e yazar">☁ Görünüm (PR) → PACS&apos;e gönder</button>
           <div className="px-3 py-1 text-[10px] leading-relaxed text-slate-500">Video/PNG görüntü verisini olduğu gibi aktarır; kimlik bilgisi içermez ama anonimleştirme/DICOM etiketi taşımaz.</div>
         </div>

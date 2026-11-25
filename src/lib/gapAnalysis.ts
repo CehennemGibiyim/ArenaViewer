@@ -566,8 +566,8 @@ const BASE_ITEMS: GapItem[] = [
     id: "c-sr-tid1500", category: "measure", title: "Yapılandırılmış ölçümler: DICOM SR TID 1500 + RadLex/RSNA CDE",
     status: "kismi", priority: "P1", effort: "M",
     market: ["PowerScribe", "Weasis"],
-    ours: "Basic Text SR üretiliyor; yapılandırılmış ölçüm container'ı ve CDE kodlaması yok.",
-    action: "Ölçümleri TID 1500 measurement container'a taşı; RadLex OID eşlemeli sözlük.",
+    ours: "Basic Text SR (rapor) + **yeni:** `src/lib/sr1500.ts` — DICOM Comprehensive SR (…88.33) TID 1500 Imaging Measurement Report: her ölçüm 125007 Measurement Group içinde izleme kimliği (112039), kararlı izleme UID'si (112040), kodlu bulgu (121071) ve bulgu yeri (363698007), NUM değeri + UCUM birimi ve referans görüntü (121191) ile yazılır. Ekran ölçümleri `measurementExport.ts` ile bu yapıya çevrilir (uzunluk/elipsoid/ROI/çokgen). Kod UYDURULMAZ: standart kodlar DCM/SCT/UCUM, diğerleri 99ATIKVIEWER. KALAN: lisanslı RadLex/SNOMED CT sözlüğü eşlemesi (kurum lisansı).",
+    action: "RadLex/SNOMED CT sözlük dosyasıyla kod eşleme tablosu (lisans kurumda).",
   },
   {
     id: "c-seg-rtstruct", category: "measure", title: "Segmentasyon editörü + DICOM SEG/RTSTRUCT dışa aktarma",
