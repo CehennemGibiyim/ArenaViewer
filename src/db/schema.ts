@@ -243,6 +243,36 @@ export const studyState = pgTable(
 );
 
 /**
+ * Model kayıt defteri (a-modelops): her model sürümü için aşama (aday/aktif/emekli)
+ * ve A/B trafik oranı. Aşama değişiklikleri denetim izine yazılır; kayıt defteri
+ * yalnız yönetici tarafından değiştirilir.
+ */
+export const aiModelRegistry = pgTable(
+  "ai_model_registry",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    version: text("version").notNull(),
+    modality: text("modality").notNull().default(""),
+    task: text("task").notNull().default(""),
+    /** aday | aktif | emekli */
+    stage: text("stage").notNull().default("aday"),
+    /** A/B trafik payı (0–100) */
+    trafficPercent: real("traffic_percent").notNull().default(0),
+    fingerprint: text("fingerprint").notNull().default(""),
+    notes: text("notes").notNull().default(""),
+    createdBy: integer("created_by"),
+    updatedBy: integer("updated_by"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("ai_model_registry_uq").on(t.name, t.version),
+    index("ai_model_registry_task_idx").on(t.task, t.stage),
+  ]
+);
+
+/**
  * Ölçüm geçmişi (c-measure-history): hasta + tarih + lezyon başına tek ölçüm.
  * Nodül takibi panelinin tarayıcı kaydına ek olarak sunucuda kalıcı ve paylaşımlı
  * geçmiş tutulur; aynı üçlü yeniden gönderilirse satır güncellenir.

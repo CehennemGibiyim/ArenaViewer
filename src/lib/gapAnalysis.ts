@@ -545,8 +545,8 @@ const BASE_ITEMS: GapItem[] = [
     id: "a-lungquant", category: "ai", title: "Akciğer kvantifikasyonu: lob/emphisema (LAA-950)/volüm",
     status: "kismi", priority: "P2", effort: "L",
     market: ["3D Slicer", "Aidoc"],
-    ours: "**Bu sürümde eklendi:** `src/lib/lungQuant.ts` histogramdan LAA-950 (−950 HU altı oran), ortalama HU, PD15 ve hacim mL; sınıf: normal–hafif/orta/ağır.",
-    action: "Lob segmentasyonu (kural/SAM), yağ-doku sınırı ve kesit dağılım grafiği.",
+    ours: "**Panel olarak çalışıyor:** Araç çubuğu → 🫁 Akciğer (CT). `src/lib/lungQuant.ts` seriden histogram örnekler (gövde dışı hava dışlanır: satır uçlarından gövde sınırı), LAA-950 (−950 HU altı oran), ortalama HU, PD15, tahmini hacim (mL) ve sınıf (normal–hafif/orta/ağır) üretir. Panelde **kesit dağılım profili** (kesit bazlı LAA-950 çubukları, en yüksek kesit işaretli), apikal–bazal fark notu, HU histogramı ve «Rapora ekle» satırı var (36 test; adım/örnekleme, gövde-dışı hava, kısmi −950 kümesi, hacim ölçekleme doğrulandı). SINIR: **lob/fissür ayrımı, yağ-doku sınırı ve SAM tabanlı segmentasyon YOK**; örnekleme (kesit/piksel adımı) nedeniyle hacim yaklaşıktır.",
+    action: "Lob segmentasyonu (fissür tespiti/SAM) ve yağ-doku sınırı; solunum fazına göre normalizasyon.",
   },
   {
     id: "a-nm", category: "ai", title: "Nükleer tıp: DSA çıkarma, TIC eğrileri, MTV/SUVpeak",
@@ -559,8 +559,8 @@ const BASE_ITEMS: GapItem[] = [
     id: "a-modelops", category: "ai", title: "Model operasyonları: kayıt defteri, A/B, kalibrasyon ve drift izleme",
     status: "kismi", priority: "P2", effort: "L",
     market: ["Tüm üreticiler"],
-    ours: "**Bu sürümde eklendi:** `src/lib/modelOps.ts` güven kalibrasyonu (binler + ECE), z tabanlı drift kontrolü, model parmak izi; `/api/ai/performance` kalibrasyon/ECE üretir.",
-    action: "Model kayıt defteri tablosu, A/B dağıtımı ve denetimde model değişiklik kaydı.",
+    ours: "`src/lib/modelOps.ts` güven kalibrasyonu (binler + ECE), z tabanlı drift kontrolü ve model parmak izi; `/api/ai/performance` kalibrasyon/ECE üretir. **Yeni — model kayıt defteri:** `ai_model_registry` tablosu (ad+sürüm tekil; aşama aday/aktif/emekli, trafik %0–100, parmak izi, not) ve `/api/ai/registry` (GET liste + aşama sayımı + tutarlılık uyarıları + `?seed=` ile **deterministik A/B ataması**; POST yalnız yönetici, `model.register`/`model.activate` denetim kaydı ve aşama değişikliği notu). Yönetim → AI sekmesinde kayıt tablosu + ekleme/güncelleme formu (`src/lib/modelRegistry.ts`: FNV-1a tohum, kümülatif trafik bantları, eksik toplamda kalan pay ilk aktif modele, >%100 normalize; 38 test). SINIR: A/B ataması **çıkarım yoluna bağlanmadı** (çıkarım tarayıcıda çalışıyor) ve otomatik kanarya/geri alma yok.",
+    action: "Atamayı gerçek çıkarım isteğine bağla, kanarya metrikleriyle otomatik geri alma; etiket/sürüm değişikliği süreç onayı.",
   },
   {
     id: "c-sr-tid1500", category: "measure", title: "Yapılandırılmış ölçümler: DICOM SR TID 1500 + RadLex/RSNA CDE",

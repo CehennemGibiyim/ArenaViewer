@@ -40,6 +40,12 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   alınma / 30 dk eskalasyon), süresi dolan bildirim için **ikinci hekim / sorumlu
   uzman / kurum nöbeti** eskalasyonu ve 15 dk'lık hatırlatma; her adım denetim
   izine yazılır. 🔔 panelinde süre etiketi ve "⏱ Süre taraması" düğmesi.
+- **Akciğer kantitasyonu:** Araç çubuğu → 🫁 Akciğer (CT): LAA-950 (emfizem
+  oranı), ortalama HU, PD15, tahmini hacim ve **kesit dağılım profili**. Gövde
+  dışı hava dışlanır; lob/fissür ayrımı yoktur, DSBG ile birlikte değerlendirilir.
+- **Model kayıt defteri:** Yönetim → AI: model sürümleri (aday/aktif/emekli),
+  trafik payı, parmak izi; `/api/ai/registry` deterministik **A/B ataması**
+  (tohum → kova) ve aşama değişikliğinde denetim kaydı.
 - **RECIST 1.1 (tam):** Hedef lezyon seçim denetimi (≥10 mm; lenf nodu kısa eksen
   ≥15 mm; organ başına ≤2, toplam ≤5), non-hedef bileşkesi ve **genel yanıt
   tablosu** (yeni lezyon → PD; hedef CR + non-hedef CR → CR). Nodül takibi
@@ -462,6 +468,8 @@ npm run test:seg                    # segmentasyon maskesi + DICOM SEG/RTSTRUCT
 npm run test:recistfull             # RECIST hedef seçimi + non-hedef + genel yanıt
 npm run test:tracking               # lezyon eşleştirme + nodül takibi köprüsü
 npm run test:measure-history        # sunucu ölçüm geçmişi serileri + trend + CSV
+npm run test:lungquant              # LAA-950, PD15, kesit profili, örnekleme
+npm run test:model-registry         # model kayıt defteri + A/B ataması
 npm run test:closeloop              # kapanış döngüsü süre/eskalasyon kuralları
 npm run test:followup               # takip görev kovaları + iade eşleme
 npm run test:stowanon               # anonim seri → PACS (plan + sunucu doğrulaması)

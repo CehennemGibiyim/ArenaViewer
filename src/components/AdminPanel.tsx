@@ -9,6 +9,8 @@ type Tab = "profile" | "sessions" | "users" | "audit" | "ai" | "stats" | "securi
 interface AuditRow { id: number; ts: string; username: string; action: string; entityType: string; entityId: string; details: string; hash: string }
 interface UserRow { id: number; username: string; fullName: string; title: string; regNo: string; role: string; active: boolean; twoFactorEnabled: boolean; lastLoginAt: string | null }
 interface SessionRow { id: string; userId: number; username: string; fullName: string; role: string; createdAt: string; lastSeenAt: string; expiresAt: string; revokedAt: string | null; ip: string; client: string; state: "aktif" | "suresi-dolmus" | "iptal-edilmis"; current: boolean }
+interface RegistryRow { id?: number; name: string; version: string; modality: string; task: string; stage: "aday" | "aktif" | "emekli"; trafficPercent: number; fingerprint: string; notes: string; updatedAt?: string }
+interface RegistryState { entries: RegistryRow[]; summary: Record<string, number>; issues: string[] }
 interface PerfRow { engine: string; category: string; shown: number; approved: number; rejected: number; edited: number; pending: number; manualAdded: number; ppv: number | null }
 interface WorkflowStats {
   total: number; byStatus: Record<string, number>; byModality: Record<string, number>;
@@ -64,9 +66,17 @@ const btn = "cursor-pointer rounded-lg px-3 py-1.5 text-xs font-bold";
 export default function AdminPanel({ user }: { user: UserInfo }) {
   const [tab, setTab] = useState<Tab>("profile");
   const [msg, setMsg] = useState("");
+  // Model kayıt defteri (a-modelops)
+  const [registry, setRegistry] = useState<RegistryState | null>(null);
+  const [regForm, setRegForm] = useState({ name: "", version: "", modality: "CT", task: "nodule", stage: "aday" as RegistryRow["stage"], trafficPercent: "0", notes: "" });
+  const [regBusy, setRegBusy] = useState(false);
   const [notifyTesting, setNotifyTesting] = useState(false);
   const [notifyTest, setNotifyTest] = useState<{ results: { id: string; kind: string; ok: boolean; status: number | null; ms: number; error?: string }[] } | null>(null);
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(""), 4000); };
+  const loadRegistry = useCallback(async () => {
+    const r = await api<RegistryState>("/api/ai/registry");
+    if (r.ok) setRegistry(r.data);
+  }, []);
 
   // hekim profili (rapor imzasında görünecek ad)
   const [prof, setProf] = useState({ fullName: user.fullName, title: user.title, regNo: user.regNo });
@@ -164,12 +174,16 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
       if (tab === "sessions") await loadSessions();
       if (tab === "users") await loadUsers();
       if (tab === "audit") { await loadAudit(); await loadSiem(); }
-      if (tab === "ai") { const r = await api<{ rows: PerfRow[]; note: string }>("/api/ai/performance"); if (r.ok) setPerf(r.data); }
+      if (tab === "ai") {
+        const r = await api<{ rows: PerfRow[]; note: string }>("/api/ai/performance");
+        if (r.ok) setPerf(r.data);
+        await loadRegistry();
+      }
       if (tab === "stats") await loadStats();
       if (["security", "integration", "compliance"].includes(tab)) await loadSettings();
       if (tab === "security") await loadKeyring();
     })();
-  }, [tab, loadProfile, loadAudit, loadSiem, loadStats, loadSettings, loadUsers, loadMfa, loadKeyring, loadSessions]);
+  }, [tab, loadProfile, loadAudit, loadSiem, loadStats, loadSettings, loadUsers, loadMfa, loadKeyring, loadSessions, loadRegistry]);
 
   const saveSettings = async (patch: Record<string, unknown>) => {
     const r = await api<{ error?: string }>("/api/settings", json("PUT", patch));
@@ -278,6 +292,18 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
   };
 
   const tabs: [Tab, string][] = [["profile", "Profil & MFA"], ["sessions", "Oturumlar"], ["users", "Kullanıcılar"], ["audit", "Denetim kaydı"], ["ai", "AI performans"], ["stats", "İş akışı"], ["security", "Güvenlik & saklama"], ["integration", "Entegrasyon"], ["compliance", "Uyum"]];
+
+  const saveModel = async () => {
+    setRegBusy(true);
+    const r = await api<RegistryState & { error?: string }>("/api/ai/registry", json("POST", {
+      ...regForm,
+      trafficPercent: Number(regForm.trafficPercent.replace(",", ".")),
+    }));
+    setRegBusy(false);
+    if (!r.ok) { flash(r.data?.error ?? "Model kaydı başarısız."); return; }
+    setRegistry({ entries: r.data.entries ?? [], summary: r.data.summary ?? {}, issues: r.data.issues ?? [] });
+    flash(`${regForm.name} ${regForm.version} kaydedildi (${regForm.stage}).`);
+  };
 
   return (
     <div className="h-screen w-screen overflow-y-auto bg-[#070a0f] text-slate-200">
@@ -550,6 +576,62 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {tab === "ai" && (
+          <div className="mt-4 space-y-3">
+            <div className={`${card} space-y-2`}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <b className="text-xs text-slate-200">Model kayıt defteri</b>
+                <span className="text-[10.5px] text-slate-500">
+                  {registry ? `aday ${registry.summary.aday ?? 0} · aktif ${registry.summary.aktif ?? 0} · emekli ${registry.summary.emekli ?? 0}` : "yükleniyor…"}
+                </span>
+              </div>
+              {(registry?.issues ?? []).length > 0 && (
+                <ul className="rounded border border-amber-400/40 bg-amber-400/10 px-2 py-1 text-[10.5px] text-amber-200">
+                  {(registry?.issues ?? []).slice(0, 5).map((i) => <li key={i}>• {i}</li>)}
+                </ul>
+              )}
+              <div className="overflow-x-auto">
+                <table className="w-full text-[11.5px]">
+                  <thead className="text-left text-slate-500"><tr>{["Model", "Sürüm", "Modalite", "Görev", "Aşama", "Trafik", "Parmak izi", "Güncelleme"].map((h) => <th key={h} className="border-b border-[#1a2230] px-2 py-1.5 font-semibold">{h}</th>)}</tr></thead>
+                  <tbody>
+                    {(registry?.entries ?? []).length === 0 && <tr><td colSpan={8} className="px-2 py-4 text-center text-slate-500">Henüz model kaydı yok. Aşağıdaki formla ilk sürümü ekleyin.</td></tr>}
+                    {(registry?.entries ?? []).map((r) => (
+                      <tr key={`${r.name}@${r.version}`} className="hover:bg-[#101722]">
+                        <td className="border-b border-[#141b26] px-2 py-1.5 font-mono text-cyan-300">{r.name}</td>
+                        <td className="border-b border-[#141b26] px-2 py-1.5">{r.version}</td>
+                        <td className="border-b border-[#141b26] px-2 py-1.5">{r.modality || "—"}</td>
+                        <td className="border-b border-[#141b26] px-2 py-1.5">{r.task || "—"}</td>
+                        <td className={`border-b border-[#141b26] px-2 py-1.5 font-bold ${r.stage === "aktif" ? "text-emerald-300" : r.stage === "emekli" ? "text-slate-500" : "text-amber-300"}`}>{r.stage}</td>
+                        <td className="border-b border-[#141b26] px-2 py-1.5">%{r.trafficPercent}</td>
+                        <td className="max-w-[140px] truncate border-b border-[#141b26] px-2 py-1.5 font-mono text-[10px] text-slate-500" title={r.fingerprint}>{r.fingerprint || "—"}</td>
+                        <td className="border-b border-[#141b26] px-2 py-1.5 text-[10px] text-slate-500">{r.updatedAt ? new Date(r.updatedAt).toLocaleString("tr-TR") : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="grid gap-1.5 md:grid-cols-6">
+                <input className={input} placeholder="model adı" value={regForm.name} onChange={(e) => setRegForm((f) => ({ ...f, name: e.target.value }))} />
+                <input className={input} placeholder="sürüm" value={regForm.version} onChange={(e) => setRegForm((f) => ({ ...f, version: e.target.value }))} />
+                <input className={input} placeholder="modalite (CT)" value={regForm.modality} onChange={(e) => setRegForm((f) => ({ ...f, modality: e.target.value }))} />
+                <input className={input} placeholder="görev (nodule)" value={regForm.task} onChange={(e) => setRegForm((f) => ({ ...f, task: e.target.value }))} />
+                <select className={input} value={regForm.stage} onChange={(e) => setRegForm((f) => ({ ...f, stage: e.target.value as RegistryRow["stage"] }))}>
+                  {["aday", "aktif", "emekli"].map((st) => <option key={st} value={st}>{st}</option>)}
+                </select>
+                <div className="flex items-center gap-1">
+                  <input className={`${input} w-full`} placeholder="trafik %" value={regForm.trafficPercent} onChange={(e) => setRegForm((f) => ({ ...f, trafficPercent: e.target.value }))} />
+                  <button disabled={regBusy || !regForm.name.trim() || !regForm.version.trim()} onClick={() => void saveModel()} className={`${btn} shrink-0 bg-cyan-400/15 text-cyan-200 ring-1 ring-cyan-400/40 disabled:opacity-40`}>Kaydet</button>
+                </div>
+              </div>
+              <div className="text-[10px] leading-relaxed text-slate-500">
+                Aynı ad + sürüm üzerine yazılır; aşama değişiklikleri denetim izine ({`model.activate`} / {`model.register`}) yazılır.
+                A/B ataması tohum (ör. çalışma UID&apos;si) ile deterministiktir; aynı çalışma her zaman aynı modele düşer.
+                Kayıt defteri çıkarım yolunu kendiliğinden değiştirmez — dağıtım planıdır.
+              </div>
             </div>
           </div>
         )}

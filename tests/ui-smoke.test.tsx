@@ -13,6 +13,7 @@ import MirrorView from "../src/components/MirrorView";
 import SegEditor from "../src/components/SegEditor";
 import NoduleTracker from "../src/components/NoduleTracker";
 import MeasureHistoryPanel from "../src/components/MeasureHistoryPanel";
+import LungQuantPanel from "../src/components/LungQuantPanel";
 import type { SeriesData } from "../src/lib/types";
 
 const mirror = renderToStaticMarkup(<MirrorView />);
@@ -63,5 +64,14 @@ for (const marker of ["Ölçüm geçmişi · sunucu", "Hasta: T1", "Yükleniyor�
 }
 assert.ok(hist.includes('data-testid="measure-history-panel"'), "geçmiş paneli işaretli render edilir");
 console.log("PASS ölçüm geçmişi: sunucu paneli yükleme durumunda render edilir.");
+
+// a-lungquant: akciğer kantitasyonu paneli SSR'da çökmeden render edilir.
+const chest = { ...series, id: "chest-1", modality: "CT", description: "Toraks BT" } as unknown as SeriesData;
+const lung = renderToStaticMarkup(<LungQuantPanel series={chest} onClose={() => {}} />);
+for (const marker of ["Akciğer kantitasyonu · LAA-950", "Hesaplanıyor…", "Toraks BT"]) {
+  assert.ok(lung.includes(marker), `akciğer panelinde "${marker}" bulunmalı`);
+}
+assert.ok(lung.includes('data-testid="lung-quant-panel"'), "akciğer paneli işaretli render edilir");
+console.log("PASS akciğer kantitasyonu: panel hesaplama öncesi durumda render edilir.");
 
 console.log("Tüm arayüz duman testleri geçti.");
