@@ -39,11 +39,12 @@ export const COMPETITOR_SITES: Record<string, string> = {
   RadiAnt: "https://www.radiantviewer.com/",
   OHIF: "https://ohif.org/",
   Weasis: "https://weasis.org/",
-  Horos: "https://horosproject.org/",
+  // horosproject.org 2026-11'de yanıt vermiyor; canlı kaynak GitHub deposu (bkz. gapSources.ts).
+  Horos: "https://github.com/horosproject/horos",
   "3D Slicer": "https://www.slicer.org/",
-  MedDream: "https://meddream.net/",
+  MedDream: "https://meddream.com/products/meddream-dicom-viewer/",
   MicroDicom: "https://www.microdicom.com/",
-  OsiriX: "https://www.osirixviewer.com/",
+  OsiriX: "https://www.osirix-viewer.com/",
   Aidoc: "https://www.aidoc.com/",
   "Viz.ai": "https://www.viz.ai/",
   Lunit: "https://www.lunit.io/",
@@ -1025,16 +1026,7 @@ export const ROADMAP: RoadmapPhase[] = [
   { id: "org", title: "Kurum/üretici süreçleri (kodla bitmez)", timeframe: "Sürekli", goal: "Düzenleyici uyum, NES, altyapı ve entegrasyon sözleşmeleri.", itemIds: ["t-mdr", "r-esign", "t-privacy", "w-his", "a-notify", "w-pacs"] },
 ];
 
-export const SOURCES: { title: string; url: string }[] = [
-  { title: "RadiAnt DICOM Viewer — özellikler", url: "https://www.radiantviewer.com/dicom-viewer-manual/radiant_dicom_viewer_features.html" },
-  { title: "Radiogyan — DICOM görüntüleyici karşılaştırması (2026)", url: "https://radiogyan.com/articles/dicom-viewers/" },
-  { title: "ZipDo — En iyi DICOM görüntüleme yazılımları (2026)", url: "https://zipdo.co/best/dicom-viewing-software/" },
-  { title: "MedDream — Radyoloji DICOM görüntüleyici", url: "https://meddream.com/products/meddream-dicom-viewer/dicom-radiology-viewer/" },
-  { title: "MedAIVerdict — Aidoc incelemesi (2026)", url: "https://medaiverdict.com/tools/aidoc" },
-  { title: "Inferensys — Aidoc vs Viz.ai", url: "https://inferensys.com/comparisons/ai-medical-diagnostic-and-patient-risk-platforms/aidoc-vs-vizai" },
-  { title: "Mixpeek — En iyi AI tıbbi görüntüleme platformları (2026)", url: "https://mixpeek.com/curated-lists/best-ai-medical-imaging" },
-  { title: "Rad AI — SSS", url: "https://www.radai.com/faq" },
-  { title: "Nuance — PowerScribe One duyurusu", url: "https://www.nasdaq.com/press-release/nuance-transforms-radiology-reporting-with-major-ai-and-ambient-enhancements-to" },
-  { title: "RadPal — AI destekli radyoloji raporlama", url: "https://www.radpal.ai/" },
-  { title: "TopFlight — Yapay zeka destekli tıbbi görüntü dokümantasyonu ve FDA sınıflaması", url: "https://topflightapps.com/ideas/ai-medical-image-documentation/" },
-];
+/**
+ * Eski serbest "kaynak listesi" kaldırıldı: kaynaklar artık satır bazında
+ * `src/lib/gapSources.ts` kayıt defterinden gelir (doğrulama tarihi + yöntemi ile).
+ */

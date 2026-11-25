@@ -43,6 +43,14 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
 - **Akciğer kantitasyonu:** Araç çubuğu → 🫁 Akciğer (CT): LAA-950 (emfizem
   oranı), ortalama HU, PD15, tahmini hacim ve **kesit dağılım profili**. Gövde
   dışı hava dışlanır; lob/fissür ayrımı yoktur, DSBG ile birlikte değerlendirilir.
+- **Kıyaslama tablosu ve kaynak politikası (`/kiyaslama`):** tablodaki durumlar
+  `src/lib/gapAnalysis.ts` + `gapProgress` üzerinden **kodla senkron** hesaplanır
+  (sayfada sabit yüzde yok). Her satırın dayanağı `src/lib/gapSources.ts` kayıt
+  defterinde: piyasa iddiaları üretici sitesi/dokümantasyon/standarda, "bizde şu an"
+  ifadeleri ise **gerçek dosya yollarına** bağlıdır. `npm run test:gap-sources`
+  dosyaların varlığını dosya sisteminden doğrular; doğrulanmamış kaynaklar tabloda
+  ⚠ ile işaretlenir. Adresler `npm run verify:sources` ile (ağ erişimiyle) yeniden
+  kontrol edilebilir.
 - **Füzyon katı hizalaması:** PET/BT bindirmesinde kesit içi **öteleme + dönme +
   ölçek**; «Otomatik hizala (NCC)» kabadan inceye tarama yapar, kaydırıcılarla elle
   ince ayar yapılır. Deformable kayıt ve TIC eğrileri henüz yoktur; sonuç tanı
@@ -497,6 +505,9 @@ npm run test:model-registry         # model kayıt defteri + A/B ataması
 npm run test:a11y                   # WCAG kontrastı + tema sabitleri
 npm run test:nuclear                # MTV/SUV örnekleme + TIC sınıflandırması
 npm run test:patient-letter         # hasta mektubu: TR/EN/DE, okuma düzeyi, taslak kilidi
+npm run test:fusion-rigid           # füzyon katı hizalaması: NCC kestirimi, dönme/ölçek, katman kaydırma
+npm run test:gap-sources            # kıyaslama tablosu: her satırın kaynağı + dosya yollarının varlığı
+npm run verify:sources              # (ağ gerekir) kaynak adreslerini yeniden doğrula
 npm run test:closeloop              # kapanış döngüsü süre/eskalasyon kuralları
 npm run test:followup               # takip görev kovaları + iade eşleme
 npm run test:stowanon               # anonim seri → PACS (plan + sunucu doğrulaması)
