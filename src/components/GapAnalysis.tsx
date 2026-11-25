@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { gapProgress } from "@/lib/gapProgress";
 import {
   CATEGORIES,
   COMPETITORS,
@@ -17,10 +18,10 @@ import {
   type GapStatus,
 } from "@/lib/gapAnalysis";
 
-const STATUS_META: Record<GapStatus, { label: string; cls: string; score: number }> = {
-  var: { label: "VAR", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/40", score: 1 },
-  kismi: { label: "KISMİ", cls: "bg-amber-500/15 text-amber-300 border-amber-500/40", score: 0.5 },
-  yok: { label: "YOK", cls: "bg-rose-500/15 text-rose-300 border-rose-500/40", score: 0 },
+const STATUS_META: Record<GapStatus, { label: string; cls: string }> = {
+  var: { label: "VAR", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/40" },
+  kismi: { label: "KISMİ", cls: "bg-amber-500/15 text-amber-300 border-amber-500/40" },
+  yok: { label: "YOK", cls: "bg-rose-500/15 text-rose-300 border-rose-500/40" },
 };
 
 const PRIORITY_META: Record<GapPriority, { label: string; cls: string }> = {
@@ -50,11 +51,6 @@ const TYPE_LABEL: Record<CompetitorType, string> = {
 
 const NAME_TYPE: Record<string, CompetitorType> = Object.fromEntries(COMPETITORS.map((c) => [c.name, c.type]));
 
-function coverage(items: GapItem[]): number {
-  if (items.length === 0) return 0;
-  return Math.round((items.reduce((s, i) => s + STATUS_META[i.status].score, 0) / items.length) * 100);
-}
-
 function barColor(pct: number): string {
   if (pct >= 70) return "from-emerald-400 to-teal-400";
   if (pct >= 40) return "from-amber-400 to-orange-400";
@@ -70,7 +66,8 @@ export default function GapAnalysis() {
 
   const itemById = useMemo(() => new Map(GAP_ITEMS.map((i) => [i.id, i])), []);
 
-  const overall = useMemo(() => coverage(GAP_ITEMS), []);
+  const progress = useMemo(() => gapProgress(GAP_ITEMS), []);
+  const overall = progress.indexPercent;
   const counts = useMemo(
     () => ({
       var: GAP_ITEMS.filter((i) => i.status === "var").length,
@@ -99,7 +96,8 @@ export default function GapAnalysis() {
     const lines: string[] = [
       "# ATIKVIEWER — Piyasa Kıyaslaması ve Eksik Analizi",
       "",
-      `Genel kapsama: %${overall} (var ${counts.var} · kısmi ${counts.kismi} · yok ${counts.yok})`,
+      `Durum endeksi: %${overall} (var ${counts.var} · kısmi ${counts.kismi} · yok ${counts.yok}); tamamlanan madde oranı: %${progress.completedPercent}`,
+      "Endeks: var=1, kısmi=0,5, yok=0; kısmi işin gerçek yüzdesi ölçülmez.",
       "",
       "| Özellik | Durum | Öncelik | Efor | Piyasada | Aksiyon |",
       "| --- | --- | --- | --- | --- | --- |",
@@ -144,17 +142,17 @@ export default function GapAnalysis() {
           <ul className="mt-2 grid gap-1.5 text-[12.5px] leading-relaxed text-slate-300 md:grid-cols-2">
             <li>
               <b className="text-amber-200">Yapay zeka klinik olarak doğrulanmadı.</b> BT beyin (kanama adayı) ve BT toraks (nodül adayı)
-              için <b>kural tabanlı</b> (derin öğrenme olmayan) motor gerçek pikselden ölçüm yapar. Duyarlılık/özgüllük bilinmiyor;
-              MR ve direkt grafide dedektör yok (örnek MR/CR vakaları açıkça DEMO etiketli).
+              için kural tabanlı motor ve isteğe bağlı yerel modeller bulunur; CXR için de yerel model seçeneği vardır.
+              Modellerin klinik kullanımı doğrulanmış değildir; MR için hastalık dedektörü yoktur ve örnekler DEMO niteliğindedir.
             </li>
             <li>
               <b className="text-amber-200">Düzenleyici yol sizin sürecinizdir.</b> Tıbbi cihaz yazılımı sınıflandırması (MDR/TİTCK),
               ISO 13485/62304/14971 ve klinik performans çalışması koda dönüştürülemez; Yönetim → Uyum sekmesi yalnızca takip içindir.
             </li>
             <li>
-              <b className="text-rose-300">Oturum açma kaldırıldı.</b> Adresi bilen herkes hasta verilerini görebilir ve rapor
-              onaylayabilir. Onay kimlik doğrulamaz; SHA-256 mühür yalnızca içerik değişikliğini saptar. Gerçek hasta
-              verisinde kullanılacaksa erişimi ağ düzeyinde kısıtlayın.
+              <b className="text-rose-300">Demo modu kimlik doğrulamaz.</b> Hesap modu ve erişim kontrolü yapılandırılmadığında
+              erişimi olanlar işlemleri demo kullanıcısı olarak yapabilir. SHA-256 mühür elektronik imza değildir.
+              Gerçek hasta verileri için uygun erişim kontrolü ve kurumsal güvenlik gerekir.
             </li>
             <li>
               <b className="text-amber-200">Gerçek hastane ortamında doğrulanmadı.</b> PACS (DICOMweb) sahte bir sunucuyla, codec&apos;ler
@@ -166,13 +164,13 @@ export default function GapAnalysis() {
         {/* Skor kartları */}
         <section className="mt-6 grid gap-3 md:grid-cols-4">
           <div className="rounded-xl border border-[#1e2735] bg-[#0b1018] p-4 md:col-span-1">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Genel kapsama</div>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Durum endeksi</div>
             <div className="mt-1 text-4xl font-black text-slate-100">%{overall}</div>
             <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#13202b]">
               <div className={`h-full bg-gradient-to-r ${barColor(overall)}`} style={{ width: `${overall}%` }} />
             </div>
             <div className="mt-2 text-[11px] text-slate-400">
-              Var = 1, Kısmi = 0,5, Yok = 0 puan. {GAP_ITEMS.length} özellik üzerinden.
+              Var = 1, Kısmi = 0,5, Yok = 0 puan; {GAP_ITEMS.length} madde. Bu bir karşılaştırma endeksidir, gerçek iş bitiş yüzdesi veya klinik yeterlilik değildir.
             </div>
           </div>
           <div className="grid grid-cols-3 gap-3 md:col-span-2">
@@ -186,17 +184,24 @@ export default function GapAnalysis() {
           <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-4">
             <div className="text-[10px] font-bold uppercase tracking-widest text-rose-300">Açık P0 madde</div>
             <div className="mt-1 text-3xl font-black text-rose-200">{counts.p0open}</div>
-            <div className="mt-1 text-[11px] text-rose-200/80">Klinik kullanımdan önce kapanması gerekenler</div>
+            <div className="mt-1 text-[11px] text-rose-200/80">Açık P0; ayrıca tüm açık maddeler: {progress.open}</div>
           </div>
         </section>
 
+        <p className="mt-3 text-xs leading-relaxed text-slate-400">
+          Tamamlanan madde oranı: <strong className="text-slate-200">%{progress.completedPercent}</strong> ({progress.var}/{progress.total}).
+          Kısmi maddelerin gerçek tamamlanma oranı ayrı ölçülmediğinden %50 tamamlandı sayılmaz; yukarıdaki endekste yalnızca sabit ağırlık olarak kullanılır.
+          Durumlar elle güncellenir, otomatik test veya canlı dağıtım doğrulaması değildir.
+        </p>
+
         {/* Kategori çubukları */}
         <section className="mt-6 rounded-xl border border-[#1e2735] bg-[#0b1018] p-4">
-          <h2 className="text-sm font-black tracking-wide text-slate-100">Kategori bazlı kapsama</h2>
+          <h2 className="text-sm font-black tracking-wide text-slate-100">Kategori bazlı durum endeksi</h2>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             {CATEGORIES.map((c) => {
               const items = GAP_ITEMS.filter((i) => i.category === c.id);
-              const pct = coverage(items);
+              const summary = gapProgress(items);
+              const pct = summary.indexPercent;
               return (
                 <button
                   key={c.id}
@@ -215,7 +220,7 @@ export default function GapAnalysis() {
                     <div className={`h-full bg-gradient-to-r ${barColor(pct)}`} style={{ width: `${pct}%` }} />
                   </div>
                   <div className="mt-1 text-[10.5px] text-slate-500">
-                    {c.blurb} · {items.length} madde
+                    {c.blurb} · {summary.var} var / {summary.kismi} kısmi / {summary.yok} yok · tamamlanan %{summary.completedPercent}
                   </div>
                 </button>
               );

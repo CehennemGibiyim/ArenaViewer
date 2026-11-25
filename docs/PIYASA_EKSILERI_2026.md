@@ -20,6 +20,21 @@ rapor durumu farklı olabilir ve ayrı gösterilir. Statik demo sunucu kuyruğun
 desteklemez. AI sıralaması klinik olarak doğrulanmış değildir ve bir çalışma
 listede yoksa veya düşük sıralanmışsa güvenli olduğu anlamına gelmez.
 
+### İlerleme ölçümü ve Dependency Graph
+
+Kıyaslama ekranındaki durumlar elle gözden geçirilir. Tamamlanan madde oranı
+`var / toplam`dır; durum endeksi `var=1, kısmi=0,5, yok=0` ağırlıklarıyla
+hesaplanır. Endeks gerçek çalışma yüzdesi veya klinik uygunluk değildir. Kısmi
+olan bir maddenin gerçek yüzdesi ölçülmemiştir.
+
+G3 hâlâ kısmi: PR dependency-review daha önce `continue-on-error` nedeniyle
+başarısız olsa da yeşil görünüyordu. Artık hata gizlenmez. Depo yöneticisi
+GitHub Settings → Security → Advanced Security / Code security and analysis
+altından Dependency graph özelliğini etkinleştirmeli; ardından bir PR çalışmasında
+**Bağımlılık denetimi** adımının gerçekten başarılı olduğu kontrol edilmelidir.
+Graph erişimi yetki veya kurumsal ayarlara bağlıysa GitHub yöneticisi incelemelidir.
+İşin yalnızca yeşil olması değil, adım sonucu ve API erişimi de doğrulanmalıdır.
+
 ## 0. Nasıl okunur
 
 | Öncelik | Anlamı |
