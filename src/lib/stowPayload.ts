@@ -30,12 +30,15 @@ export interface AnonStowPlan {
   instances: { name: string; data: string }[];
 }
 
-function toBase64(b: Uint8Array): string {
+/** Tarayıcıda (btoa) ve sunucuda (Buffer) çalışan base64 kodlayıcı. */
+export function bytesToBase64(b: Uint8Array): string {
   const b64 = typeof btoa === "function"
     ? (() => { let s = ""; for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]); return btoa(s); })()
     : Buffer.from(b).toString("base64");
   return b64;
 }
+
+const toBase64 = bytesToBase64;
 
 /**
  * Anonim örnekleri STOW isteğine hazırlar.

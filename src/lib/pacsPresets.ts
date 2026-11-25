@@ -43,6 +43,11 @@ export interface PacsConfig {
   includefield: boolean;
   /** Kuruma özgü notlar (AE başlığı, port, conformance statement vb.). */
   notes: string;
+  /**
+   * DIMSE C-STORE köprüsü adresi (e-stow). DICOMweb STOW-RS kapalı olan PACS'ler
+   * için `scripts/cstore-bridge.ts` sürecinin HTTP adresi; boşsa C-STORE kapalı.
+   */
+  cstoreBridgeUrl?: string;
 }
 
 export const EMPTY_AUTH: PacsAuth = { type: "none", username: "", password: "", token: "", headerName: "", headerValue: "" };

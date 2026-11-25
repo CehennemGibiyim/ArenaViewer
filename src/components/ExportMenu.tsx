@@ -5,7 +5,7 @@ import type { Annotation, KeyImage, SeriesData } from "@/lib/types";
 import { exportPngZip, exportVideoWebm } from "@/lib/exportMedia";
 import { buildKeyObjectSelection, buildPresentationState } from "@/lib/dicomSr";
 import { planKeyObject } from "@/lib/pacsSend";
-import { planAnonStow } from "@/lib/stowPayload";
+import { bytesToBase64, planAnonStow } from "@/lib/stowPayload";
 import { buildAnonymizedDicom } from "@/lib/dicomWrite";
 import { annotationsToMeasurements, exportCoverage, siteCode } from "@/lib/measurementExport";
 import { buildMeasurementReportSr } from "@/lib/sr1500";
@@ -239,6 +239,55 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
     toast(`${ext} indirildi (${mask.slices.size} kesit). Hekim düzenlemesine açıktır; AI örtüsü maske değildir.`, 7000);
   };
 
+  /**
+   * Seçimli C-STORE gönderimi (e-stow): elde hazır DICOM nesnelerini (üretilen
+   * KO/PR baytları) DIMSE köprüsü üzerinden PACS'e gönderir. STOW-RS kapalı
+   * kurumlarda yedek yoldur; köprü yoksa dürüst hata gösterir.
+   */
+  const sendCStore = async (kind: "ko" | "pr") => {
+    setOpen(false);
+    if (!series) { toast("Önce bir görüntü serisi açın."); return; }
+    const plan = planKeyObject(keyImages, series);
+    if (!plan.ok) { toast(plan.reason ?? "Gönderilemedi", 7000); return; }
+    const host = window.prompt("DIMSE hedefi (host:port)", "");
+    if (!host?.trim()) return;
+    const ae = window.prompt("Hedef AE Title", "");
+    if (!ae?.trim()) return;
+    const [h, p] = host.trim().split(":");
+    if (!series.seriesUid) { toast("Seri UID yok; DICOM nesnesi üretilemez."); return; }
+    setProg(null);
+    setSending(kind);
+    try {
+      // Bayt üretimi tarayıcıda: KO seçili anahtar kesitlerden, PR geçerli
+      // pencere/döndürme ayarından üretilir; sunucu yalnız köprüye iletir.
+      if (!series.sopUids || !series.sopClassUid) { toast("Bu seride SOP Instance UID bilgisi yok; C-STORE nesnesi üretilemez.", 7000); return; }
+      const base = {
+        patientName: series.patientName, patientId: series.patientId, patientSex: series.patientSex,
+        studyUid: series.studyUid, studyDate: series.studyDate, institution: series.institution,
+        seriesUid: series.seriesUid, sopClassUid: series.sopClassUid,
+      };
+      const bytes = kind === "ko"
+        ? buildKeyObjectSelection({ ...base, title: "Anahtar kesitler", items: keyImages.filter((k) => series.sopUids![k.slice]).map((k) => ({ sopUid: series.sopUids![k.slice], note: k.note })) })
+        : buildPresentationState({ ...base, sopUids: series.sopUids, wl, ww, invert, rotation, flipH, flipV });
+      const r = await apiFetch("/api/pacs/cstore", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          target: { host: h, port: Number(p) || 104, calledAe: ae.trim().toUpperCase() },
+          retries: 1,
+          items: [{
+            name: `${kind}-${series.modality ?? "nesne"}.dcm`,
+            data: bytesToBase64(bytes),
+          }],
+        }),
+      });
+      const d = (await r.json().catch(() => ({}))) as { error?: string; outcome?: { sent?: number; message?: string } };
+      if (!r.ok) throw new Error(d.error ?? "C-STORE başarısız");
+      toast(d.outcome?.message ?? "C-STORE gönderildi", 7000);
+      if (plan.skipped.length) toast(`${plan.skipped.length} kesit UID eşlemesi olmadığı için atlandı.`, 6000);
+    } catch (e) { toast(`C-STORE: ${e instanceof Error ? e.message : "hata"}`, 8000); }
+    finally { setSending(null); }
+  };
+
   /** KO/PR nesnesini PACS'e STOW-RS ile gönderir (rapor SR'ı rapor penceresinden gider). */
   const sendToPacs = async (kind: "ko" | "pr") => {
     setOpen(false);
@@ -280,6 +329,7 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
           <button className={item} onClick={() => exportSeg("rtstruct")} title="İşaretli alanlardan RTSTRUCT (ROI konturları) üretir">🧩 Segmentasyon → RTSTRUCT</button>
           <button className={item} onClick={exportSr1500} title="Ölçümleri TID 1500 yapılandırılmış rapor (Comprehensive SR) olarak indirir">📐 Ölçümler → DICOM SR (TID 1500)</button>
           <button className={item} disabled={sending !== null} onClick={() => void sendToPacs("pr")} title="Pencere/döndürme ayarını GSPS olarak PACS'e yazar">☁ Görünüm (PR) → PACS&apos;e gönder</button>
+          <button className={item} disabled={sending !== null} onClick={() => void sendCStore("ko")} title="STOW-RS kapalı PACS'ler için DIMSE C-STORE köprüsü (host:port + AE Title sorar)">📡 KO → C-STORE (DIMSE köprüsü)</button>
           <div className="px-3 py-1 text-[10px] leading-relaxed text-slate-500">Video/PNG görüntü verisini olduğu gibi aktarır; kimlik bilgisi içermez ama anonimleştirme/DICOM etiketi taşımaz.</div>
         </div>
       )}

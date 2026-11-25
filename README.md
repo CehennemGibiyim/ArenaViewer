@@ -359,6 +359,20 @@ Rapor alanlarındaki 🎤 düğmesi Web Speech API (tr-TR) kullanır; metin `dic
   `kontrast artır`, `ters çevir`, `pencere daralt`, `geri al`, `kaydet`, `temizle`. Bir parça
   **tamamen** komutsa komut sayılır; "kırık ileri deplase" gibi cümleler metin olarak yazılır.
 
+## PACS'a geri gönderme — DIMSE C-STORE (e-stow)
+
+STOW-RS (`/api/pacs/stow`) yanında, DICOMweb kapalı kurumlar için C-STORE köprüsü.
+
+- **`scripts/cstore-bridge.ts`** (`npm run cstore:bridge`): yalnız `127.0.0.1`e bağlanır;
+  nesneleri geçici dizine yazar, `storescu`ya devreder, dizini **her durumda** siler.
+  Ortam: `CSTORE_HOST/PORT/AET`, `CSTORE_LISTEN_PORT` (varsayılan 2590).
+- **`/api/pacs/cstore`**: hedef (host/port/AE) ve gövde **sunucuda yeniden** doğrulanır —
+  20 nesne, nesne başına 12 MB, yalnız Part 10 (`DICM`) baytları; hatalı tek nesne tüm
+  isteği reddettirir. Sonuçlar DIMSE durum kodlarıyla döner (`0x0000` başarı), kalıcı redde
+  tekrar denenmez; her gönderim `pacs.cstore` / `pacs.cstore_failed` olarak denetlenir.
+- **Köprü adresi** yalnız yerel/iç ağ olabilir (köprü kimlik doğrulaması taşımaz).
+- Arayüz: Dışa aktar → **📡 KO → C-STORE (DIMSE köprüsü)**.
+
 ## Takip iadesi alımı — HL7 ORU / FHIR (d-followup)
 
 `src/lib/followupReturn.ts`; `PATCH /api/notifications {action:"outcome", rawPayload}`.
@@ -677,6 +691,7 @@ npm run test:segedit                # kontur izleme + segment düzenleme (c-seg-
 npm run test:lesion3d               # 3B lezyon eşleştirme + rijit hizalama (c-recist-full)
 npm run test:closeloopev            # kapanış kanıt paketi + dış iletişim defteri (d-close-loop)
 npm run test:followupreturn         # HL7 ORU / FHIR iade alımı + kapatma kararı (d-followup)
+npm run test:cstore                 # DIMSE C-STORE köprüsü istemcisi (e-stow)
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)

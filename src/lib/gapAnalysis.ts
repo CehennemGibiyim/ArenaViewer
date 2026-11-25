@@ -634,10 +634,9 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "e-stow", category: "workflow", title: "PACS'a geri gönderme: STOW-RS / C-STORE (SR, KO, anonim DICOM)",
-    status: "kismi", priority: "P1", effort: "M",
+    status: "var", priority: "P1", effort: "M",
     market: ["Weasis", "OHIF"],
-    ours: "`/api/pacs/stow` tek uçtan dört nesne türü: **SR** (yalnız onaylı rapor → DICOM Basic Text SR), **KO** (anahtar kesitler), **PR** (GSPS sunum durumu) ve **anonim seri**. KO/PR'de kesit UID'leri önce QIDO-RS ile PACS'te doğrulanır; anonim gönderimde baytlar TARAYICIDA sıfırdan üretilir (kimlik/özel etiket/orijinal UID taşımaz), sunucu örnek sayısı + toplam boyut + DICM imzasını yeniden denetler (`stowPayload.ts`), her gönderim denetime yazılır (pacs.send_anon / _partial). C-STORE (DIMSE) yok.",
-    action: "C-STORE (DIMSE) ve seçimli gönderme diyaloğu (nesne türü + seri parçası).",
+    ours: "`/api/pacs/stow` tek uçtan dört nesne türü: **SR** (yalnız onaylı rapor → DICOM Basic Text SR), **KO**, **PR** (GSPS sunum durumu) ve **anonim seri**; KO/PR kesit UID'leri QIDO-RS ile doğrulanır, anonim gönderimde baytlar tarayıcıda sıfırdan üretilir ve sunucu örnek sayısı/boyut/DICM imzasını yeniden denetler. **Bu sürümde eklendi — DIMSE C-STORE:** `cstoreBridge.ts` (hedef/AE doğrulama, Part 10 imza zorunluluğu, 20 nesne + nesne başına 12 MB sınırı, DIMSE durum kodu korunur, kalıcı redde tekrar denemez) + `server/cstore.ts` (köprüye HTTP, sınırlı yeniden deneme) + `scripts/cstore-bridge.ts` (`npm run cstore:bridge`; nesneleri geçici dizine yazıp `storescu`ya devreder, dizini her durumda siler) + `/api/pacs/cstore` (GET yapılandırma, POST gönderim; `pacs.cstore`/`pacs.cstore_failed` denetimi). Köprü adresi yalnız yerel/iç ağ olabilir (kimlik taşımaz), arayüzde 'KO → C-STORE (DIMSE köprüsü)' girdisi var. KALAN: seçimli gönderme diyaloğunda seri parçası (kesit aralığı) seçimi.",    action: "Seçimli gönderme diyaloğunda seri parçası (kesit aralığı) seçimi; çoklu STOW-RS partisi.",
   },
   {
     id: "e-wado-frame", category: "workflow", title: "WADO-RS URI + kare/bulk (frame-level) getirme",
