@@ -20,6 +20,90 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   oblik (eğimli) MPR ve WebGL 3B hacim. Kesit konumu kaydı (IPP) varsa koronal/sagital
   gerçek hasta geometrisinden, ölçek kayması olmadan örneklenir (`src/lib/mpr.ts` +
   `VolumeView`). Kaynak seri salt okunur tutulur.
+- **Takip görevleri:** Onaylı raporun önerisi göreve dönüşür; sonuç tarihine göre
+  **geciken / bugün / yaklaşan (14 gün) / ileri / tarihsiz** kovaları, öncelik
+  sıralaması, görev tarihçesi CSV'si ve HBYS/RIS **iade eşleme** (rapor kimliği →
+  çalışma UID → tek aday; belirsizse eşleşmez) + sonuçla kapatma.
+- **Kritik sonuç kapanışı:** Önem derecesine göre süre politikası (kritik 15 dk
+  alınma / 30 dk eskalasyon), süresi dolan bildirim için **ikinci hekim / sorumlu
+  uzman / kurum nöbeti** eskalasyonu ve 15 dk'lık hatırlatma; her adım denetim
+  izine yazılır. 🔔 panelinde süre etiketi ve "⏱ Süre taraması" düğmesi.
+- **RECIST 1.1 (tam):** Hedef lezyon seçim denetimi (≥10 mm; lenf nodu kısa eksen
+  ≥15 mm; organ başına ≤2, toplam ≤5), non-hedef bileşkesi ve **genel yanıt
+  tablosu** (yeni lezyon → PD; hedef CR + non-hedef CR → CR). Nodül takibi
+  panelinden işaretlenir; CSV'ye genel değerlendirme eklenir.
+- **Segmentasyon + SEG/RTSTRUCT:** Fırça/silgi, eşik dolgusu ve tohumdan bölge
+  büyütme ile maske düzenleme; hacim (mL) hesabı. DICOM **SEG** (1 bit/piksel,
+  segment başına renk/etiket/algoritma) ve **RTSTRUCT** (CLOSED_PLANAR konturlar)
+  dışa aktarımı; ekran işaretlerinden otomatik maske üretimi. AI aday örtüsü
+  düzenlenebilir maske değildir; SEG/RTSTRUCT hekim düzenlemesine açıktır.
+- **Yapılandırılmış ölçüm SR (TID 1500):** Ekran ölçümleri (uzunluk, elipsoid,
+  ROI, çokgen) DICOM **Comprehensive SR** olarak yazılır: 125007 Measurement
+  Group içinde izleme kimliği, kodlu bulgu/bölge, NUM değer + UCUM birimi ve
+  referans görüntü. Standart kodlar DCM/SCT/UCUM; eşleşmeyenler `99ATIKVIEWER`
+  (uydurma kod yazılmaz). Dışa aktar ▾ → "Ölçümler → DICOM SR (TID 1500)".
+- **İnme / CTP:** ASPECTS 10 bölge skoru + `ctp.ts` ile cSVD (kesilmiş SVD)
+  dekonvolüsyonu: rölatif CBF/CBV/MTT ve Tmax, **otomatik AIF seçimi**, çoklu
+  bölge özeti (core: rCBF<%30, penumbra: Tmax≥6 sn) ve mismatch oranı. Panelden
+  `ad | zaman | değer` biçiminde eğri yapıştırılır. Değerler **rölatiftir**;
+  mutlak mL/100 g/dk için dansite kalibrasyonu gerekir, klinik karar aracı değildir.
+- **Denetim → SIEM:** Her denetim olayı aynı işlemde `audit_delivery` kuyruğuna
+  CEF olarak yazılır. `AUDIT_SIEM_URL` (+ isteğe bağlı `AUDIT_SIEM_SECRET`) tanımlıysa
+  HMAC-SHA256 imzalı POST ile gönderilir; hata olursa üstel geri çekilmeyle
+  yeniden denenir, vazgeçilen olaylar silinmez. Yönetim → Denetim kaydı'ndan
+  kuyruk durumu izlenir ve elle boşaltılır.
+- **Kare düzeyinde getirme (WADO-RS frames):** `.../instances/{sop}/frames/1,2,3`
+  ile yalnız görünen kareler indirilir; istemcide LRU önbellek (240 kare) ve ±2
+  ön getirme penceresi vardır. Büyük çalışmalarda tüm instance indirmek yerine
+  kademeli getirme sağlar.
+- **Anonim seri gönderimi:** Seriyi PACS'e **kimliksiz** göndermek için anonim
+  DICOM baytları tarayıcıda sıfırdan üretilir (özel etiket / orijinal UID / ad
+  taşınmaz); sunucu örnek sayısı, toplam boyut ve DICM imzasını yeniden denetler.
+  Her gönderim denetime yazılır (`/api/pacs/stow` kind=anon).
+- **PACS gönderimi (STOW-RS):** Onaylanmış rapor DICOM SR olarak, anahtar
+  kesitler KO ve pencere/döndürme ayarı GSPS (PR) olarak PACS'e gönderilebilir.
+  KO/PR gönderiminde kesit UID'leri önce QIDO-RS ile PACS'te doğrulanır;
+  her gönderim denetim kaydına yazılır (`/api/pacs/stow`, `pacsSend.ts`).
+- **Üretken taslak + üslup:** Rapor için izlenim taslağı üretilir (LLM varsa
+  OpenAI uyumlu uç, yoksa kural tabanlı; yalnızca onaylanmış bulgular, kimlik
+  gönderilmez). Hekimin geçmiş onaylı raporlarından kimliksiz üslup örneği
+  seçilerek taslağın üsluba uyması sağlanır (`styleProfile.ts`).
+- **Şablon makroları:** 24+ hazır bölge/protokol şablonu arasından arama/filtre;
+  `[BOYUT]`/`[KONUM]` gibi yer tutucular tanınır, raporu onaylamadan önce
+  "doldurulmamış şablon alanları" uyarısı gösterilir (`templateMacro.ts`).
+- **Model belirsizliği:** AI skorları sınıf eşiğine göre SINIRDA/ORTA/GÜÇLÜ
+  bandında gösterilir; bulgu kartlarına "model emin değil" notu eklenir.
+  Bu kalibrasyon değildir — güven aralığı için doğrulama seti gerekir.
+- **Önceki tetkik karşılaştırması:** Geçmiş çalışma ikinci panele konum senkronuyla
+  açılır; aynı kategoriden bulgular için önceki çap/hacim ölçümüyle karşılaştırma
+  notu gösterilir (`priorCompare.ts`). Piksel hizalaması (registration) yapılmaz.
+- **Bildirimler:** Kritik/yüksek aday bulgularda uygulama içi zil, sunucudan
+  webhook'a JSON POST (denetimde kanıt), alındı/iletildi/eskalasyon kaydı ve
+  masaüstü tarayıcı bildirimi (izin akışlı). E-posta/SMS/çağrı için kurumsal
+  sağlayıcı gerekir.
+- **AI ısı haritası örtüsü:** CXR modeli pozitif sınıflarda aktivasyon haritası
+  üretir; görüntüde saydamlık ayarlanabilir renkli katman olarak gösterilir
+  (düşük aktivasyon gizlenir). Bu bir klinik araç değildir ve rapora işlenmez.
+- **Anahtar kesit ve sunum durumu:** ★ ile seçilen anahtar kesitler rapora
+  gider; ayrıca DICOM **Key Object Selection** (KO) ve **Grayscale Softcopy
+  Presentation State** (GSPS/PR: pencere, döndürme, çevirme, referanslar) olarak
+  dışa aktarılabilir (araç çubuğundaki "Dışa aktar"). PR rapor belgesi değildir.
+- **Performans:** Pencere/seviye (WL/WW) dönüşümü tek geçişli tablo + renk
+  paletiyle yapılır (`src/lib/window.ts`); ölçülmüş kazanç 512×512'de ≈2×,
+  4096×4096'da ≈2.2× (`npm run bench:window`). Kaydırmada komşu kesitler boş
+  zamanda ön-işlenir (sınırlı önbellek; büyük grafiklerde bellek kapısı uygulanır).
+- **3B imleç:** İmleç aracı (araç çubuğu) ile tıklanan noktada aynı çalışmanın
+  (Frame of Reference) diğer panellerinin kesidi o hasta koordinatına atlar;
+  paralel olmayan serilerde de nokta bazlı en yakın kesit seçilir.
+- **Elektronik imza kaydı:** Rapor ekranında imza kaydı paneli; SHA-256 içerik
+  mühürü + imza sahibi + kurum + zaman + sürüm kanonik biçimde denetim zincirine
+  (`report.esignature`) yazılır ve yeniden doğrulanabilir. **Nitelikli elektronik
+  imza (NES) değildir** — bu, arayüzde ve her kayıtta açıkça belirtilir.
+- **MSK ölçüm yardımcısı:** El bileği (radiyal inklinasyon/ulnar varyans), ayak bileği
+  (Böhler, tibiofibular mesafe), ayak lateral (Meary, kalkaneal pitch) ve kalça AP
+  (CE/Wiberg, asetabular indeks) protokollerini adlandırılmış noktalarla çizer;
+  kenar-yapışmalı nokta seçimi ve aralık yorumu sunar (`src/lib/msk.ts`). **Tanısal
+  model değildir**; kırık/landmark sınıflandırması bu sürümde yoktur.
 - **ICD-10 / istem uygunluğu:** Rapor metninden yaklaşık ICD-10 önerileri ve
   ACR tarzı istem uygunluğu puanı (`src/lib/icd10.ts`). Öneriler raporda açıkça
   "yaklaşık eşleme; radyolog onayı şart" olarak etiketlenir.
@@ -180,7 +264,81 @@ HIS_API_KEY=<ayarlardaki anahtar> HL7_PORT=2575 npm run hl7:mllp
 - Dinleme: `HL7_HOST`/`HL7_PORT` (varsayılan `127.0.0.1:2575`); kurum ağına açarken `HL7_HOST=0.0.0.0`.
 - Hedef: `HIS_BASE_URL` (varsayılan `http://127.0.0.1:3000`) → `/api/his/orders`, `x-api-key` başlığı ile.
 - Yanıt: PACS/HBYS'e `MSA|AA` (kabul), `AR` (eksik alan) veya `AE` (ulaşılamadı) ACK'i döner.
-- Ayrıştırma: `src/lib/hl7.ts` (saf fonksiyonlar, `npm run test:hl7`). MWL/C-FIND ve DIMSE tarafı bu script'te **yoktur**; siparişe dayalı çalışma listesi uygulamada oluşur.
+- Ayrıştırma: `src/lib/hl7.ts` (saf fonksiyonlar, `npm run test:hl7`).
+
+### Modality Worklist (MWL) — modalite konsolu
+
+Modalitenin "bugün hangi işler beni bekliyor" listesi DICOM MWL'den gelir. ArenaViewer
+üç kaynağı sırayla dener (`src/lib/mwl.ts` ayrıştırma, `pacs.ts` `fetchMwl()`):
+
+1. **MWL kökü** — Yönetim → Entegrasyon → *MWL kökü* (ör. `…/dcm4chee-arc/aets/AET/rs`),
+2. **DICOMweb** — QIDO/WADO kökü üzerinden `GET …/modality-worklist?modality=CT&scheduled-date=20260115`,
+3. **DIMSE C-FIND köprüsü** — Node'da DIMSE yığını yok; köprü ayrı süreçte C-FIND yapar:
+
+```bash
+MWL_PACS_HOST=10.0.0.20 MWL_PACS_PORT=104 MWL_PACS_AET=ORTHANC npm run mwl:cfind
+# → http://127.0.0.1:2580/cfind ; Yönetim'de "DIMSE köprüsü" alanına yazın
+```
+
+- Liste: **Çalışma listesi → İş listesi (MWL)** sekmesi (tarih, modalite, açık işler süzgeci).
+- "Çalışmaya al" ögeyi yerel çalışmaya çevirir (`POST /api/his/mwl`, denetim `his.mwl_to_study`);
+  DICOM StudyInstanceUID varsa korunur, PACS'ten gelen görüntü aynı UID ile eşleşir.
+- `findscu` (dcm4che) yoksa `MWL_BACKEND=bin` + `MWL_BIN` ile kendi C-FIND betiğinizi bağlayın;
+  köprü ham Implicit VR yanıtını da DICOM JSON'a çevirir (`parseImplicitVr`).
+
+## Tedarik zinciri (SBOM + SLSA)
+
+Her `v*` etiketinde `.github/workflows/sbom.yml` şunları üretir ve Release'e ekler:
+CycloneDX 1.6 **SBOM**, kaynak arşivi, `SHA256SUMS` ve **SLSA v1 derleme kökeni**
+(`actions/attest-build-provenance`; imza GitHub OIDC ile atılır, özel anahtar yok).
+`.github/workflows/supplychain-verify.yml` yayınlanan varlıkları indirip bağımsız
+olarak yeniden doğrular.
+
+İndirilen bir sürümü kurumda denetlemek için:
+
+```bash
+node scripts/supplychain.mjs verify --dir <indirilen-klasör> --strict
+# → SHA256SUMS eşleşmesi, SBOM biçimi (purl/lisans), kanıtın dosya özetleriyle bağlantısı
+gh attestation verify <dosya> --repo CehennemGibiyim/ArenaViewer   # imzalı köken
+```
+
+Doğrulayıcı, SBOM'u `--sbom`, kanıtı `--provenance` ile başka yoldan da okur;
+`SHA256SUMS` üretmek için `node scripts/supplychain.mjs manifest --dir dist`.
+
+## Anahtar rotasyonu (KMS)
+
+Şifreli alanlar anahtar kimliğini taşır (`enc:v2:<kid>:…`); bu sayede rotasyon
+**veri kaybı olmadan** yapılır. Anahtarlar `DATA_ENCRYPTION_KEYS` içinde virgülle
+ayrılır, **en sağdaki yazar**, soldakiler yalnız okuma içindir:
+
+```bash
+# 1) Yeni anahtar üret (Yönetim → Güvenlik → Anahtar rotasyonu → "Yeni anahtar üret")
+DATA_ENCRYPTION_KEYS=<eski>,<yeni>   # 2) .env'e yaz, servisi yeniden başlat
+# 3) "Rotasyonu çalıştır"  (kalan kayıt varsa düğmeye tekrar basılır)
+# 4) "Eski anahtarları çıkar" → DATA_ENCRYPTION_KEYS=<yeni> → yeniden başlat
+```
+
+- Çözülemeyen tek bir kayıt bile varsa rotasyon **409 ile durur** (anahtar kaybı
+  işaretidir; önce yedekten/anahtar kasasından doğrulayın).
+- v1 (kimliksiz) kayıtlar halkadaki anahtarlarla okunur ve ilk rotasyonda v2'ye taşınır.
+- Rotasyon ilerlemesi `GET /api/admin/status` içindeki `staleKey` alanında görünür.
+
+## Depolama, yedek ve DR
+
+Görüntü dosyaları `StorageAdapter` üzerinden yazılır: yerel disk (`.data/`),
+S3/MinIO (`S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`,
+`S3_REGION`, `S3_VIRTUAL_HOST=1`) veya Yönetim → Entegrasyon'daki `storage`
+ayarı. S3 istemcisi AWS SigV4 kullanır (AWS/MinIO/R2/Wasabi uyumlu).
+
+- Yedek manifesti: `GET /api/admin/backup?download=1` (dosya listesi + SHA-256)
+- Doğrulama: `POST /api/admin/backup {"verify": <manifest>}`
+- Geri yükleme: `POST /api/admin/backup {"restore": <manifest>}` — idempotent,
+  hiçbir dosyayı silmez; aynı özetliler atlanır.
+- İşletim playbook'u (pg_dump, felaket senaryoları, tatbikat listesi):
+  [docs/YEDEK_VE_DR.md](docs/YEDEK_VE_DR.md)
+
+> `DATA_ENCRYPTION_KEY` yedekten **ayrı** saklanmalıdır; anahtarsız şifreli
+> dosyalar kurtarılamaz.
 
 ## Ortam değişkenleri
 
@@ -188,6 +346,7 @@ HIS_API_KEY=<ayarlardaki anahtar> HL7_PORT=2575 npm run hl7:mllp
 |---|---|---|
 | `DATABASE_URL` | Evet | PostgreSQL bağlantı dizesi |
 | `DATA_ENCRYPTION_KEY` | Üretimde | Base64, 32 bayt AES-256 anahtarı (boşsa `.data/enc.key` üretilir) |
+| `DATA_ENCRYPTION_KEYS` | Hayır | Virgülle ayrılmış anahtar halkası; **en sağdaki yazar**, soldakiler yalnız çözme (rotasyon) |
 | `PACS_AUTH_HEADER` | Hayır | DICOMweb kimlik başlığı — yalnızca geriye dönük; kimlik/ayarlar Yönetim → Entegrasyon'dan girilir ve sunucuda şifrelenir |
 | `HIS_API_KEY` | Hayır | HBYS istem alımı API anahtarı |
 | `ACCESS_TOKEN` | Hayır | Tek erişim anahtarı (kapı); tanımlıysa `/giris` kapısı ve 401 koruması açılır |
@@ -209,6 +368,7 @@ Anahtar üretme: `node -e "console.log(require('crypto').randomBytes(32).toStrin
 | `npm run build` / `npm start` | Üretim derlemesi / sunucusu |
 | `npx drizzle-kit push` | Şemayı yerel DB'ye uygula |
 | `npm run hl7:mllp` | HL7 v2 (MLLP) sipariş alıcısını başlatır (`HIS_API_KEY` gerekir) |
+| `npm run mwl:cfind` | Modality Worklist DIMSE C-FIND köprüsü (`MWL_PACS_HOST`/`MWL_PACS_AET` gerekir) |
 | `npx drizzle-kit push --config=drizzle.config.ts` | Şemayı `DATABASE_URL`'deki DB'ye uygula (Docker/üretim) |
 
 ## Testler
@@ -228,6 +388,32 @@ npm run test:mpr                    # MPR geometrisi + trilinear yeniden kesit
 npm run test:dictate                 # sesle dikte: sayılar, komutlar, tıbbi sözlük
 npm run test:pwa                     # manifest + hizmet işçisi kapsamı
 npm run test:icd10                   # ICD-10 öneri + istem uygunluğu
+npm run test:msk                     # MSK protokol hesapları + nokta yapışması
+npm run test:esign                   # imza kaydı + NES sınır etiketi
+npm run test:xref                    # 3B imleç: en yakın kesit + panel güncellemeleri
+npm run test:perf                   # pencere/seviye doğruluğu + önbellek ön-işleme
+npm run bench:window                # WL/WW dönüşümü kıyaslaması (eski vs LUT)
+npm run test:pr                     # GSPS/PR dışa aktarma + parse doğrulama
+npm run test:notify                 # masaüstü bildirimi + izin akışı
+npm run test:prior                  # önceki tetkik ölçüm karşılaştırması
+npm run test:uncert                 # belirsizlik bandı + CXR bulgu notu
+npm run test:template               # şablon yer tutucuları + onay öncesi uyarı
+npm run test:style                  # üslup örneği seçimi + LLM prompt entegrasyonu
+npm run test:pacssend               # KO/PR → PACS gönderim planı ve uç sözleşmesi
+npm run test:siem                   # SIEM kuyruğu, yeniden deneme, HMAC imza
+npm run test:ctp                    # CTP cSVD dekonvolüsyonu + otomatik AIF
+npm run test:sr1500                 # TID 1500 yapılandırılmış ölçüm SR (+köprü)
+npm run test:seg                    # segmentasyon maskesi + DICOM SEG/RTSTRUCT
+npm run test:recistfull             # RECIST hedef seçimi + non-hedef + genel yanıt
+npm run test:closeloop              # kapanış döngüsü süre/eskalasyon kuralları
+npm run test:followup               # takip görev kovaları + iade eşleme
+npm run test:stowanon               # anonim seri → PACS (plan + sunucu doğrulaması)
+npm run test:wadoframe              # kare düzeyinde getirme + istemci önbelleği
+npm run test:mwl                    # Modality Worklist (DICOMweb + DIMSE köprüsü)
+npm run test:webhard                # hız sınırı + CSRF + CSP
+npm run test:supplychain            # SBOM + SHA256SUMS + SLSA köken doğrulaması
+npm run test:backupdr               # depolama adaptörü + yedek/geri yükleme
+npm run test:kms                    # anahtar halkası + rotasyon
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)
@@ -290,6 +476,20 @@ docs/             Yayınlama ve işletim kılavuzları
   kayıtları şifle” yalnız aynı anahtarla yeniden şifreler, anahtar rotasyonu için
   çift anahtarlı çözüm ya da yeni kurulum + içe aktarma gerekir.
 - Hasta verisi diskte AES-256-GCM ile şifrelidir; anahtar yedeğini saklayın.
+- **Web sertleştirme (G1):** tüm yanıtlarda `nosniff`, `Referrer-Policy`, COOP/CORP,
+  `Permissions-Policy`, `X-Frame-Options` ve sayfalarda **nonce tabanlı CSP**
+  (`script-src 'self' 'nonce-…' 'strict-dynamic' 'wasm-unsafe-eval'`; `object-src 'none'`,
+  `frame-ancestors 'self'`). CSP ihlalleri `/api/csp-report` ucuna raporlanır; günlüğe
+  yalnız yönerge/engellenen adres/köken yazılır (hasta bağlamı taşınmaz).
+- **Hız sınırı:** API uçları sınıf bazlı kayan pencere ile sınırlanır (giriş 10/dk,
+  analiz 30/dk, PACS/HBYS 60/dk, yazma 120/dk, genel 600/dk). Sınır aşımı `429` +
+  `Retry-After` döner. Sayaçlar süreç belleğindedir (tek örnek); çok örnekli dağıtımda
+  Redis gerekir. Ölçüm/test için `AV_RATE_LIMIT=off`.
+- **CSRF:** durum değiştiren API istekleri `Origin`/`Referer`/`Sec-Fetch-Site` kontrolünden
+  ve `av_csrf` çerezi ↔ `x-csrf-token` başlığı eşleşmesinden geçer (tarayıcı tarafındaki
+  yardımcı: `src/lib/csrfClient.ts` → `apiFetch`). İlk sayfa yüklemesindeki çerez yarışı
+  için istemci, `needsCsrfToken` yanıtında jetonu tazeleyip bir kez yeniden dener.
+
 - **Erişim kapısı:** `ACCESS_TOKEN` tanımlıysa tüm sayfa/API istekleri `/giris`
   sayfasına düşer; doğru anahtar oturum çerezi (`httpOnly`, 30 gün) yazar. API’ler
   401 döner, `/api/health` ve giriş akışı kapalı kalmaz. Tanım **yoksa** kapı

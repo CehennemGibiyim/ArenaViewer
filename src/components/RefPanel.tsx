@@ -52,7 +52,7 @@ export default function RefPanel(p: Props) {
   const synced = p.syncSlice && !!p.primary && !!series && parallelSeries(p.primary, series);
   const mapped = series && synced ? mapSliceByPosition(p.primary!, p.primarySlice, series) : local;
   const slice = series ? Math.max(0, Math.min(mapped, series.slices.length - 1)) : 0;
-  const tool: ToolName = ["wl", "pan", "zoom"].includes(p.tool) ? p.tool : "wl";
+  const tool: ToolName = ["wl", "pan", "zoom", "xref"].includes(p.tool) ? p.tool : "wl";
 
   return (
     <div className="relative h-full w-full border border-[#1a2230]" data-testid="reference-panel">

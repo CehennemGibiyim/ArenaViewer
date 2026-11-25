@@ -1,9 +1,19 @@
 import { useSyncExternalStore } from "react";
 import type { SeriesData } from "./types";
-import { intersectLine, planeOf, sameFrame } from "./planes";
+import { intersectLine, planeOf, sameFrame, sliceIndexAtPoint, type V3 } from "./planes";
 
-/** Ekrandaki görüntü panellerinin (ana + referans) hangi seri/kesiti gösterdiği; çapraz referans çizgileri için. */
-export interface PanelInfo { id: string; series: SeriesData | null; slice: number; label: string }
+/**
+ * Ekrandaki görüntü panellerinin (ana + referans) hangi seri/kesiti gösterdiği;
+ * çapraz referans çizgileri ve 3B imleç (konuma atlama) için.
+ */
+export interface PanelInfo {
+  id: string;
+  series: SeriesData | null;
+  slice: number;
+  label: string;
+  /** Kesit değişikliği talebini panele iletmek için geri çağırma (2B/3B imleç). */
+  setSlice?: (n: number) => void;
+}
 
 const panels = new Map<string, PanelInfo>();
 let version = 0;
@@ -13,9 +23,29 @@ const bump = () => { version++; listeners.forEach((l) => l()); };
 
 export function registerPanel(info: PanelInfo) {
   const old = panels.get(info.id);
+  // Not: setSlice geri çağırma her render'da yeniden oluşabileceğinden eşitlikte sayılmaz;
+  // panel bilgisi (seri/kesit/etiket) değişmedikçe kayıt durur.
   if (old && old.series === info.series && old.slice === info.slice && old.label === info.label) return;
   panels.set(info.id, info);
   bump();
+}
+
+/**
+ * 3B imleç: `fromId` panelinde hasta koordinatındaki bir noktaya tıklanınca,
+ * aynı Frame of Reference'i paylaşan DİĞER panellerin en yakın kesidine atlar.
+ * Dönüş: kesidi güncellenen panel sayısı. Geometrisi/çerçevesi olmayan paneller atlanır.
+ */
+export function jumpToPatient(fromId: string, P: V3): number {
+  const from = panels.get(fromId);
+  if (!from || !from.series) return 0;
+  let changed = 0;
+  for (const p of panels.values()) {
+    if (p.id === fromId || !p.series || !p.setSlice) continue;
+    if (!sameFrame(from.series, p.series)) continue;
+    const idx = sliceIndexAtPoint(p.series, P);
+    if (idx !== null && idx !== p.slice) { p.setSlice(idx); changed++; }
+  }
+  return changed;
 }
 export function unregisterPanel(id: string) { if (panels.delete(id)) bump(); }
 export function setRefLines(on: boolean) { if (refLinesOn !== on) { refLinesOn = on; bump(); } }

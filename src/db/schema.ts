@@ -278,5 +278,26 @@ export const appSettings = pgTable("app_settings", {
   value: text("value").notNull().default(""),
 });
 
+/**
+ * Denetim → SIEM teslimat kuyruğu (w-audit). Her CEF olayı buraya yazılır,
+ * toplayıcı erişilemezse satır kuyrukta kalır ve yeniden denenir; denetim
+ * kaydının kendisi hiçbir zaman değiştirilmez.
+ */
+export const auditDelivery = pgTable(
+  "audit_delivery",
+  {
+    id: serial("id").primaryKey(),
+    auditId: integer("audit_id"),
+    /** CEF satırı (toplayıcı/JSON olarak aynen gönderilir). */
+    payload: text("payload").notNull(),
+    status: text("status").notNull().default("bekliyor"),
+    attempts: integer("attempts").notNull().default(0),
+    lastError: text("last_error").notNull().default(""),
+    lastAttemptAt: timestamp("last_attempt_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("audit_delivery_status_idx").on(t.status)],
+);
+
 export type Study = typeof studies.$inferSelect;
 export type Report = typeof reports.$inferSelect;

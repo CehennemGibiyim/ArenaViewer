@@ -163,5 +163,5 @@ export function annotationSummary(a: Annotation, pxMm: number, unit: string, suv
 }
 
 export const KIND_LABEL: Record<Annotation["kind"], string> = {
-  length: "Uzunluk", angle: "Açı", cobb: "Cobb açısı", arrow: "Ok", rect: "Dikdörtgen ROI", ellipse: "Elips ROI", polygon: "Çokgen ROI", calib: "Kalibrasyon", ellipsoid: "Elipsoid hacim", deviation: "Sapma",
+  length: "Uzunluk", angle: "Açı", cobb: "Cobb açısı", arrow: "Ok", rect: "Dikdörtgen ROI", ellipse: "Elips ROI", polygon: "Çokgen ROI", calib: "Kalibrasyon", ellipsoid: "Elipsoid hacim", deviation: "Sapma", msk: "MSK noktası",
 };

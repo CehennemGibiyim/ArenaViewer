@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { apiFetch } from "@/lib/csrfClient";
 
 /**
  * Yerel derin AI worker durumu — canlı.
@@ -47,7 +48,7 @@ export default function AiWorkerStatus() {
     // sonra, async akışın içinde yapılır; ilk sorgu da zamanlayıcı içinde başlar.
     const tick = async () => {
       try {
-        const r = await fetch("/api/deep-scan", { cache: "no-store" });
+        const r = await apiFetch("/api/deep-scan", { cache: "no-store" });
         const j = (await r.json()) as WorkerHealth;
         setData(j);
         setState(j.worker === "up" ? "ok" : "down");

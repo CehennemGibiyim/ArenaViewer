@@ -1,8 +1,12 @@
-name: SBOM
+name: SBOM & Provenance
 
-# CycloneDX yazılım bileşen listesi (G3). v* etiketlerinde üretilir ve GitHub
-# Release'a eklenir; elle de çalıştırılabilir. Sağlama/attestation için
-# actions/attest-build-provenance eklenebilir.
+# Tedarik zinciri (g-supplychain): CycloneDX SBOM + SLSA v1 derleme kökeni.
+# v* etiketlerinde üretilir; varlıklar GitHub Release'e eklenir ve imzalı
+# köken kanıtı (attestation) `gh attestation verify` ile denetlenebilir.
+#
+# Neden tek iş akışı: SBOM ile köken kanıtı aynı derleme çıktısını tarif
+# etmeli. İki ayrı iş akışı ayrı `npm ci` çalıştırır ve farklı bağımlılık
+# ağacı üretebilir; tek işte üretim daha tutarlı ve daha hızlı.
 
 on:
   push:
@@ -11,12 +15,14 @@ on:
 
 permissions:
   contents: write
+  id-token: write # SLSA köken kanıtı (OIDC)
+  attestations: write
 
 jobs:
-  cyclonedx:
-    name: CycloneDX SBOM
+  supplychain:
+    name: SBOM + SLSA kökeni
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -27,18 +33,50 @@ jobs:
 
       - run: npm ci
 
-      - name: SBOM üret (CycloneDX 1.6)
-        run: npx --yes @cyclonedx/cyclonedx-npm@latest --output-file sbom.json --spec-version 1.6 --validate
+      - name: CycloneDX SBOM üret (1.6)
+        run: |
+          npx --yes @cyclonedx/cyclonedx-npm@latest --output-file sbom.json --spec-version 1.6 --validate
+          node scripts/supplychain.mjs check-purl --sbom sbom.json
+
+      - name: Kaynak arşivi + sağlama toplamları
+        run: |
+          mkdir -p dist
+          git archive --format=tar.gz --prefix="ATIKVIEWER-${GITHUB_REF_NAME}/" -o "dist/ATIKVIEWER-${GITHUB_REF_NAME}-kaynak.tar.gz" HEAD
+          cp sbom.json "dist/ATIKVIEWER-${GITHUB_REF_NAME}-sbom.json"
+          node scripts/supplychain.mjs manifest --dir dist
+          cat dist/SHA256SUMS
+
+      - name: Köken kanıtı (SLSA v1) üret ve imzala
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/ATIKVIEWER-*-kaynak.tar.gz
+            dist/ATIKVIEWER-*-sbom.json
+
+      - name: Kanıtı denetle (kendi ürettiğimiz kanıtı doğrula)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for f in dist/ATIKVIEWER-*-kaynak.tar.gz dist/ATIKVIEWER-*-sbom.json; do
+            gh attestation verify "$f" --repo "$GITHUB_REPOSITORY" || exit 1
+          done
+
+      - name: Doğrulama betiğini sına (pozitif + negatif)
+        run: node scripts/supplychain.mjs verify --dir dist --sbom dist/ATIKVIEWER-${GITHUB_REF_NAME}-sbom.json
+
+      - name: Release'e ekle (etiketli sürümde)
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${GITHUB_REF_NAME}" \
+            dist/ATIKVIEWER-${GITHUB_REF_NAME}-kaynak.tar.gz \
+            dist/ATIKVIEWER-${GITHUB_REF_NAME}-sbom.json \
+            dist/SHA256SUMS --clobber
 
       - name: Derleme ürünü olarak sakla
         uses: actions/upload-artifact@v4
         with:
-          name: sbom-cyclonedx
-          path: sbom.json
+          name: sbom-ve-koken
+          path: dist/*
           if-no-files-found: error
-
-      - name: Release'a ekle (etiketli sürümde)
-        if: github.ref_type == 'tag'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${GITHUB_REF_NAME}" sbom.json --clobber

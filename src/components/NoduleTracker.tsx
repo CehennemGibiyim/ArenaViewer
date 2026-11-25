@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ADVICE, KIND_LABEL, csvOf, daysBetween, summarize, type NoduleKind, type NoduleTrack } from "@/lib/lungrads";
 import { recist11, recistCsv } from "@/lib/recist";
+import { fullRecist, RECIST_LIMITS, type CandidateLesion, type NonTargetStatus } from "@/lib/recistFull";
 
 export interface MeasurementChoice { label: string; mm: number; slice: number }
 interface Props {
@@ -32,6 +33,10 @@ export default function NoduleTracker({ patientId, patientName, studyDate, measu
   // RECIST 1.1 ölçütleri — hekim işaretler
   const [newLesion, setNewLesion] = useState(false);
   const [allGone, setAllGone] = useState(false);
+  /** Hedef olarak seçilen lezyonlar (organ limiti denetimi için) */
+  const [targets, setTargets] = useState<string[]>([]);
+  /** Non-hedef lezyon durumu (lezyon başına) */
+  const [nonTarget, setNonTarget] = useState<Record<string, NonTargetStatus>>({});
 
   useEffect(() => {
     void (async () => {
@@ -48,9 +53,31 @@ export default function NoduleTracker({ patientId, patientName, studyDate, measu
 
   const cur = tracks.find((t) => t.id === sel) ?? null;
   const sum = useMemo(() => (cur ? summarize(cur) : null), [cur]);
+  // RECIST 1.1: seçilen hedefler üzerinden toplam + non-hedef + genel yanıt.
+  const candidates: CandidateLesion[] = useMemo(
+    () => tracks.map((t) => ({
+      id: t.id,
+      label: t.label,
+      organ: (t.location || "diğer").split(/[\s/]/)[0] || "diğer",
+      sizeMm: [...t.points].sort((a, b) => b.date.localeCompare(a.date))[0]?.diameterMm ?? null,
+      lymphNode: /lenf|nodu|nodal/i.test(`${t.label} ${t.location}`),
+      selected: targets.includes(t.id),
+    })),
+    [tracks, targets],
+  );
+  const full = useMemo(
+    () => fullRecist({
+      tracks,
+      candidates,
+      nonTargetStatuses: Object.values(nonTarget),
+      newLesion,
+      allDisappeared: allGone,
+    }),
+    [tracks, candidates, nonTarget, newLesion, allGone],
+  );
   const recist = useMemo(
-    () => recist11(tracks, { newLesion, allDisappeared: allGone }),
-    [tracks, newLesion, allGone],
+    () => recist11(tracks.filter((t) => targets.length === 0 || targets.includes(t.id)), { newLesion, allDisappeared: allGone }),
+    [tracks, targets, newLesion, allGone],
   );
 
   const addTrack = () => {
@@ -79,7 +106,7 @@ export default function NoduleTracker({ patientId, patientName, studyDate, measu
   const sortedPts = (t: NoduleTrack) => [...t.points].sort((a, b) => a.date.localeCompare(b.date));
 
   const downloadCsv = () => {
-    const body = csvOf(tracks) + (recist ? "\n\n" + recistCsv(recist) : "");
+    const body = csvOf(tracks) + (recist ? "\n\n" + recistCsv(recist) : "") + "\n\nRECIST 1.1 (genel)\n" + full.text;
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob(["\ufeff" + body], { type: "text/csv;charset=utf-8" }));
     a.download = `nodul-takibi-${patientId}.csv`; document.body.appendChild(a); a.click(); a.remove();
@@ -205,6 +232,60 @@ export default function NoduleTracker({ patientId, patientName, studyDate, measu
                   </div>
                 </div>
                 <div className="mt-1 rounded bg-[#0e141d] px-2 py-1 text-[11px] text-slate-300">{recist.criteria}</div>
+
+                <div className="mt-1.5 rounded border border-[#1a2230] p-1.5">
+                  <div className="mb-1 flex items-center justify-between text-[10px] uppercase tracking-wider text-slate-500">
+                    <span>Hedef lezyon seçimi</span>
+                    <span>{full.selection.targetCount}/{RECIST_LIMITS.total}{full.selection.targetCount > 0 ? ` · organ başına ≤${RECIST_LIMITS.perOrgan}` : ""}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {tracks.map((t) => {
+                      const on = targets.includes(t.id);
+                      return (
+                        <button key={t.id} type="button" onClick={() => setTargets((cur) => (on ? cur.filter((x) => x !== t.id) : [...cur, t.id]))}
+                          className={`cursor-pointer rounded border px-1.5 py-0.5 text-[10px] ${on ? "border-cyan-400/60 bg-cyan-400/15 text-cyan-200" : "border-[#2d3b4e] text-slate-400 hover:bg-[#1a2330]"}`}>
+                          {on ? "★ " : "☆ "}{t.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {full.selection.issues.length > 0 && (
+                    <ul className="mt-1 space-y-0.5 text-[10px]">
+                      {full.selection.issues.map((i, k) => (
+                        <li key={k} className={i.severity === "hata" ? "text-rose-300" : "text-amber-300"}>• {i.message}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div className="mt-1.5 grid gap-1 text-[11px] sm:grid-cols-2">
+                  <div>
+                    <span className="text-slate-500">Non-hedef lezyonlar:</span>
+                    {tracks.length === 0 && <span className="text-slate-600"> —</span>}
+                    {tracks.map((t) => (
+                      <label key={t.id} className="mt-0.5 flex items-center justify-between gap-1">
+                        <span className="truncate text-slate-400">{t.label}</span>
+                        <select
+                          aria-label={`${t.label} non-hedef durumu`}
+                          value={nonTarget[t.id] ?? ""}
+                          onChange={(e) => setNonTarget((cur) => ({ ...cur, [t.id]: (e.target.value || "belirsiz") as NonTargetStatus }))}
+                          className="rounded border border-[#1e2735] bg-[#0e141d] px-1 py-0 text-[10px] text-slate-200"
+                        >
+                          <option value="">—</option>
+                          <option value="kayboldu">kayboldu</option>
+                          <option value="kalici">stabil</option>
+                          <option value="artis">kesin ilerleme</option>
+                          <option value="belirsiz">belirsiz</option>
+                        </select>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="rounded bg-[#0e141d] px-2 py-1">
+                    <div className="text-slate-500">GENEL YANIT</div>
+                    <div className="font-bold text-slate-100">{full.overall.label}</div>
+                    <div className="text-[10px] leading-snug text-slate-400">{full.overall.reason}</div>
+                    <div className="mt-0.5 text-[10px] text-slate-500">Non-hedef: {full.nonTarget}</div>
+                  </div>
+                </div>
 
                 <div className="mt-1.5 flex flex-wrap items-center gap-3 text-[11px]">
                   <label className="flex cursor-pointer items-center gap-1.5 text-slate-300">

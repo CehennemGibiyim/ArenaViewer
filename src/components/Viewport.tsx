@@ -1,10 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { snapPoint } from "@/lib/msk";
 import type { Annotation, Finding, SeriesData, ToolName } from "@/lib/types";
 import { annotationSummary, dist, ellipseTest, pointInPolygon, perpendicular, regionStats, type Pt } from "@/lib/geometry";
 import { buildFusionLayer, type FusionParams } from "@/lib/fusion";
-import { refLinesFor, registerPanel, unregisterPanel, usePanelRegistry } from "@/lib/panelRegistry";
+import { jumpToPatient, refLinesFor, registerPanel, unregisterPanel, usePanelRegistry } from "@/lib/panelRegistry";
+import { planeOf, toPatient } from "@/lib/planes";
+import { buildWindowLUT, windowToRGBA } from "@/lib/window";
+import { HEAT_ALPHA_MAX, heatPixel, heatVisible } from "@/lib/heat";
 import { fmtConfShort } from "@/lib/format";
 
 const SEV_COLOR: Record<string, string> = { kritik: "#ff3b5c", yuksek: "#ff9f1c", orta: "#ffd60a", dusuk: "#4cc9f0", normal: "#2ee6a8" };
@@ -34,14 +38,6 @@ export interface OverlayData {
 }
 
 /** Isı haritası renklaması (mavi → camgöbeği → yeşil → sarı → kırmızı), alfa eşikli. */
-function heatColor(v: number): [number, number, number] {
-  const t = Math.max(0, Math.min(255, v)) / 255;
-  if (t < 0.25) return [0, Math.round((t / 0.25) * 255), 255];
-  if (t < 0.5) return [0, 255, Math.round((1 - (t - 0.25) / 0.25) * 255)];
-  if (t < 0.75) return [Math.round(((t - 0.5) / 0.25) * 255), 255, 0];
-  return [255, Math.round((1 - (t - 0.75) / 0.25) * 255), 0];
-}
-
 type Rot = 0 | 90 | 180 | 270;
 type Draft = { mode: "drag"; tool: ToolName; a: Pt; b: Pt } | { mode: "multi"; tool: ToolName; pts: Pt[]; cursor: Pt } | null;
 const DRAG_TOOLS: ToolName[] = ["length", "rect", "ellipse", "ellipsoid", "arrow", "calib"];
@@ -78,8 +74,40 @@ interface ViewportProps {
   onZoom: (z: number) => void;
   onPan: (p: { x: number; y: number }) => void;
   onAddAnnotation?: (a: Omit<Annotation, "id">) => void;
+  /** MSK protokol nokta sayısı; tool "msk" iken noktalar bu kadar olunca bildirilir. */
+  mskPointCount?: number;
+  onMskPoints?: (pts: Pt[], slice: number) => void;
+  /** MSK noktasını belirgin özelliğe yapıştırır (px yarıçap; 0 = kapalı). */
+  snapRadius?: number;
   onCalibrate?: (pxLength: number) => void;
   onHover?: (v: number | null) => void;
+}
+
+/** Taban katmanı tuvalini üretir (True Color kopyası veya WL/WW LUT uygulamasi). */
+function buildBaseCanvas(series: SeriesData, idx: number, wl: number, ww: number, invert: boolean): HTMLCanvasElement | null {
+  const sl = series.slices[idx];
+  if (!sl) return null;
+  const W = series.width, H = series.height;
+  const isColor = !!series.isColor && !!series.rgbaSlices && !!series.rgbaSlices[idx];
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const octx = c.getContext("2d");
+  if (!octx) return null;
+  const img = octx.createImageData(W, H);
+  const u32 = new Uint32Array(img.data.buffer);
+  if (isColor) u32.set(series.rgbaSlices![idx]);
+  else { const wlut = buildWindowLUT(wl, ww, invert); windowToRGBA(sl, wlut.lut, wlut.lo, u32); }
+  octx.putImageData(img, 0, 0);
+  return c;
+}
+
+/** Önbellek boyutu sınırı: en eski eklenen kayıtları siler. */
+function trimBaseCache(map: Map<string, { key: string; canvas: HTMLCanvasElement }>, max: number) {
+  while (map.size > max) {
+    const oldest = map.keys().next().value as string | undefined;
+    if (oldest === undefined) break;
+    map.delete(oldest);
+  }
 }
 
 const EMPTY_FINDINGS: Finding[] = [];
@@ -92,12 +120,16 @@ export default function Viewport(props: ViewportProps) {
     findings = EMPTY_FINDINGS, revealedIds = EMPTY_SET, activeFindingId = null, overlay = null,
     showDicomOverlays = true, annotations = EMPTY_ANN, readOnly = false, label, panelId, fusion = null,
     onSlice, onWL, onZoom, onPan, onAddAnnotation, onCalibrate, onHover,
+    mskPointCount = 0, onMskPoints, snapRadius = 0,
   } = props;
 
   const slice = series ? Math.max(0, Math.min(requestedSlice, series.slices.length - 1)) : 0;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const baseRef = useRef<{ key: string; canvas: HTMLCanvasElement | null }>({ key: "", canvas: null });
+  // Taban katmanı küçük önbelleği: aktif kesit + komşular (kademeli/önceden pencereleme, v-perf).
+  const BASE_CACHE_MAX = 6;
+  const PREFETCH_PIXELS_MAX = 2_000_000; // taban tabanlı ön-işleme bellek kapısı (~2 MP ≈ 8 MB)
+  const baseCache = useRef(new Map<string, { key: string; canvas: HTMLCanvasElement }>());
   const ovRef = useRef<{ key: string; canvas: HTMLCanvasElement | null }>({ key: "", canvas: null });
   const dragRef = useRef<{ button: number; sx: number; sy: number; wl: number; ww: number; zoom: number; pan: { x: number; y: number } } | null>(null);
   const [draft, setDraft] = useState<Draft>(null);
@@ -108,10 +140,18 @@ export default function Viewport(props: ViewportProps) {
   const registryVersion = usePanelRegistry();
   const suvFactor = series?.suv?.factor ?? null;
 
-  // Bu panelin hangi seri/kesiti gösterdiğini kayda geçir (diğer panellerin referans çizgileri için)
+  // Bu panelin hangi seri/kesiti gösterdiğini kayda geçir (referans çizgileri ve 3B imleç için).
+  // onSlice her render'da yeniden oluşabilen bir arrow fonksiyon olduğundan geri çağırma
+  // ref üzerinden tutulur; böylece kayıt bağımlılıkları serbest bırakılmaz.
+  const sliceFn = useRef(onSlice);
+  useEffect(() => { sliceFn.current = onSlice; });
   useEffect(() => {
     if (!panelId) return;
-    registerPanel({ id: panelId, series, slice, label: series ? `${series.description} · K${slice + 1}` : panelId });
+    registerPanel({
+      id: panelId, series, slice,
+      label: series ? `${series.description} · K${slice + 1}` : panelId,
+      setSlice: (n: number) => sliceFn.current(n),
+    });
     return () => unregisterPanel(panelId);
   }, [panelId, series, slice]);
 
@@ -164,6 +204,34 @@ export default function Viewport(props: ViewportProps) {
     return dispToImg({ x: (cx - ox) / scale, y: (cy - oy) / scale });
   }, [getTransform, dispToImg]);
 
+  // Kademeli/önceden pencereleme (v-perf): görünür kesidin komşuları boş zamanda işlenip
+  // önbelleğe alınır; kaydırma sırasında hedef kesit hazır gelir. Bellek kapısı var:
+  // yalnızca toplam taban katmanı ~8 MB altı (≈2 MP) serilerde çalışır.
+  useEffect(() => {
+    if (!series || series.isColor) return;
+    if (series.width * series.height > PREFETCH_PIXELS_MAX) return;
+    const rWl = Math.round(wl), rWw = Math.round(ww);
+    const keys = [slice + 1, slice + 2, slice - 1, slice - 2]
+      .filter((k) => k >= 0 && k < series.slices.length)
+      .map((k) => `${series.id}|${k}|${rWl}|${rWw}|${invert}|mono`);
+    const todo = keys.filter((k) => !baseCache.current.has(k));
+    if (!todo.length) return;
+    let alive = true;
+    const step = () => {
+      if (!alive) return;
+      const k = todo.pop();
+      if (!k) return;
+      if (!baseCache.current.has(k)) {
+        const idx = Number(k.split("|")[1]);
+        const c = buildBaseCanvas(series, idx, rWl, rWw, invert);
+        if (c) { baseCache.current.set(k, { key: k, canvas: c }); trimBaseCache(baseCache.current, BASE_CACHE_MAX); }
+      }
+      setTimeout(step, 0);
+    };
+    const t = setTimeout(step, 0);
+    return () => { alive = false; clearTimeout(t); };
+  }, [series, slice, wl, ww, invert]);
+
   // ───────── Çizim Döngüsü ─────────
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -187,32 +255,10 @@ export default function Viewport(props: ViewportProps) {
     const isColor = series.isColor && series.rgbaSlices && series.rgbaSlices[sliceIdx];
     const key = `${series.id}|${slice}|${Math.round(wl)}|${Math.round(ww)}|${invert}|${isColor ? "color" : "mono"}`;
 
-    if (baseRef.current.key !== key) {
-      const c = baseRef.current.canvas ?? document.createElement("canvas");
-      c.width = W; c.height = H;
-      const octx = c.getContext("2d")!;
-      const img = octx.createImageData(W, H);
-      const u32 = new Uint32Array(img.data.buffer);
-
-      if (isColor) {
-        // True Color direct RGBA copy
-        const srcRgba = series.rgbaSlices![sliceIdx];
-        u32.set(srcRgba);
-      } else {
-        // Monochromatic WL/WW Window LUT
-        const lo = wl - ww / 2;
-        const k = 255 / Math.max(1, ww);
-        for (let i = 0; i < sl.length; i++) {
-          let g = (sl[i] - lo) * k;
-          g = g < 0 ? 0 : g > 255 ? 255 : g;
-          if (invert) g = 255 - g;
-          const gi = g | 0;
-          u32[i] = 0xff000000 | (gi << 16) | (gi << 8) | gi;
-        }
-      }
-
-      octx.putImageData(img, 0, 0);
-      baseRef.current = { key, canvas: c };
+    let cachedBase = baseCache.current.get(key);
+    if (!cachedBase) {
+      const c = buildBaseCanvas(series, sliceIdx, wl, ww, invert);
+      if (c) { cachedBase = { key, canvas: c }; baseCache.current.set(key, cachedBase); trimBaseCache(baseCache.current, BASE_CACHE_MAX); }
     }
 
     // 2. AI Maske Örtüsü
@@ -244,7 +290,7 @@ export default function Viewport(props: ViewportProps) {
     // 2b. CXR ısı haritası katmanı (Grad-CAM): modelin baktığı alanlar
     let heatCanvas: HTMLCanvasElement | null = null;
     if (overlay?.heats && (overlay.heatOpacity ?? 0) > 0) {
-      const alpha = Math.round(Math.max(0, Math.min(0.95, overlay.heatOpacity ?? 0)) * 255);
+      const alpha = Math.round(Math.max(0, Math.min(HEAT_ALPHA_MAX, overlay.heatOpacity ?? 0)) * 255);
       const vis = findings.filter(
         (f) => revealedIds.has(f.id) && f.sliceIndex === slice && overlay.heats!.get(f.id),
       );
@@ -264,9 +310,8 @@ export default function Viewport(props: ViewportProps) {
             const u32 = new Uint32Array(img.data.buffer);
             for (let i = 0; i < hd.data.length; i++) {
               const v = hd.data[i];
-              if (v < 26) { u32[i] = 0; continue; } // düşük aktivasyon gizlenir
-              const [r, g, b] = heatColor(v);
-              u32[i] = ((alpha * (v / 255)) << 24) | (b << 16) | (g << 8) | r;
+              if (!heatVisible(v)) { u32[i] = 0; continue; } // düşük aktivasyon gizlenir
+              u32[i] = heatPixel(v, alpha);
             }
             cctx.putImageData(img, 0, 0);
             cached = { key, canvas: c };
@@ -301,7 +346,8 @@ export default function Viewport(props: ViewportProps) {
     }
 
     const { scale, ox, oy, dispW, dispH } = getTransform();
-    const drawLayer = (cv: HTMLCanvasElement) => {
+    const drawLayer = (cv: HTMLCanvasElement | null) => {
+      if (!cv) return;
       ctx.save();
       ctx.imageSmoothingEnabled = scale < 3;
       ctx.translate(ox, oy);
@@ -313,7 +359,7 @@ export default function Viewport(props: ViewportProps) {
       ctx.restore();
     };
 
-    drawLayer(baseRef.current.canvas!);
+    drawLayer(baseCache.current.get(key)?.canvas ?? null);
     if (fusCanvas) drawLayer(fusCanvas);
     if (ovCanvas) drawLayer(ovCanvas);
     if (heatCanvas) drawLayer(heatCanvas);
@@ -427,11 +473,16 @@ export default function Viewport(props: ViewportProps) {
 
     const drawAnn = (a: { kind: Annotation["kind"]; points: Pt[]; text?: string; stats?: Annotation["stats"] }, temp: boolean) => {
       const P = a.points.map(toC);
-      const color = a.kind === "length" || a.kind === "calib" ? "#ffd60a" : a.kind === "angle" || a.kind === "cobb" ? "#ff66c4" : a.kind === "arrow" ? "#7dd3fc" : a.kind === "deviation" ? "#fb923c" : a.kind === "ellipsoid" ? "#34d399" : "#b388ff";
+      const color = (a.kind as string) === "msk" ? "#a78bfa" : a.kind === "length" || a.kind === "calib" ? "#ffd60a" : a.kind === "angle" || a.kind === "cobb" ? "#ff66c4" : a.kind === "arrow" ? "#7dd3fc" : a.kind === "deviation" ? "#fb923c" : a.kind === "ellipsoid" ? "#34d399" : "#b388ff";
       ctx.strokeStyle = color; ctx.fillStyle = color;
       ctx.setLineDash(temp || a.kind === "calib" ? [5, 3] : []);
       ctx.beginPath();
-      if (a.kind === "length" || a.kind === "calib" || a.kind === "arrow") { ctx.moveTo(P[0].x, P[0].y); if (P[1]) ctx.lineTo(P[1].x, P[1].y); }
+      if ((a.kind as string) === "msk") {
+        P.forEach((q, i) => { dot(q); ctx.fillText(String(i + 1), q.x + 6, q.y - 6); });
+        ctx.beginPath();
+        P.forEach((q, i) => (i === 0 ? ctx.moveTo(q.x, q.y) : ctx.lineTo(q.x, q.y)));
+      }
+      else if (a.kind === "length" || a.kind === "calib" || a.kind === "arrow") { ctx.moveTo(P[0].x, P[0].y); if (P[1]) ctx.lineTo(P[1].x, P[1].y); }
       else if (a.kind === "deviation") {
         ctx.moveTo(P[0].x, P[0].y); if (P[1]) ctx.lineTo(P[1].x, P[1].y);
         if (P[2] && a.points[1]) {
@@ -558,15 +609,34 @@ export default function Viewport(props: ViewportProps) {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     return { cx: e.clientX - r.left, cy: e.clientY - r.top };
   };
-  const annTool = !readOnly && (DRAG_TOOLS.includes(tool) || tool === "angle" || tool === "cobb" || tool === "deviation" || tool === "polygon");
+  const annTool = !readOnly && (DRAG_TOOLS.includes(tool) || tool === "angle" || tool === "cobb" || tool === "deviation" || tool === "polygon" || tool === "msk");
 
   const onDown = (e: React.PointerEvent) => {
     if (!series) return;
     const { cx, cy } = local(e);
     const p = canvasToImg(cx, cy);
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    // 3B imleç: tıklanan noktanın hasta koordinatında aynı çerçevedeki diğer panelleri günceller.
+    if (e.button === 0 && tool === "xref") {
+      const pl = planeOf(series, slice);
+      if (pl && panelId) jumpToPatient(panelId, toPatient(pl, p.x, p.y));
+      return;
+    }
     if (e.button === 0 && annTool) {
       if (DRAG_TOOLS.includes(tool)) setDraft({ mode: "drag", tool, a: p, b: p });
+      else if (tool === "msk") {
+        const need = Math.max(1, mskPointCount || 3);
+        const prev = draft?.mode === "multi" && draft.tool === tool ? draft.pts : [];
+        let np = p;
+        if (snapRadius > 0 && series && series.slices[slice]) {
+          np = snapPoint(series.slices[slice], series.width, series.height, p, snapRadius, "edge");
+        }
+        const pts = [...prev, np];
+        if (pts.length >= need) {
+          onMskPoints?.(pts.slice(0, need), slice);
+          setDraft(null);
+        } else setDraft({ mode: "multi", tool, pts, cursor: np });
+      }
       else {
         const need = MULTI_NEED[tool];
         const prev = draft?.mode === "multi" && draft.tool === tool ? draft.pts : [];

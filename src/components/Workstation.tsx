@@ -13,6 +13,7 @@ import ExportMenu from "./ExportMenu";
 import NoduleTracker from "./NoduleTracker";
 import FusionControl, { type FusionConfig } from "./FusionControl";
 import { setRefLines } from "@/lib/panelRegistry";
+import { notifyCriticalFinding } from "@/lib/notify";
 import SRViewer from "./SRViewer";
 import PDFViewer from "./PDFViewer";
 import ECGViewer from "./ECGViewer";
@@ -37,11 +38,13 @@ import { shadowModeEnabled, splitFindings, toShadowRecord } from "@/lib/shadowMo
 import { KIND_LABEL, annotationSummary } from "@/lib/geometry";
 import { zipAnonymized } from "@/lib/dicomWrite";
 import { findMatchingHangingProtocol, resolveHangingCellSeries } from "@/lib/hangingProtocols";
+import { findMskProtocol, type MskMetric } from "@/lib/msk";
 import type {
   AiMode, AiProtocol, AnalysisResult, Annotation, EngineKind, Finding, FindingApprovalStatus,
   HangingProtocolRule, ImageReview, KeyImage, Layout, Lesion, SavedReport, SeriesData, StudyRow, ToolName, UserInfo, WindowPreset,
 } from "@/lib/types";
 import { LAYOUTS, WINDOW_PRESETS, type UserPrefs } from "@/lib/prefs";
+import { apiFetch } from "@/lib/csrfClient";
 
 type Rot = 0 | 90 | 180 | 270;
 const CELLS: Record<Layout, number> = { "1x1": 1, "1x2": 2, "2x1": 2, "2x2": 4, "1x3": 3, "3x1": 3, "2x3": 6, "3x2": 6 };
@@ -72,6 +75,7 @@ const TOOLS: { id: ToolName; label: string; hint: string }[] = [
   { id: "calib", label: "Kalibre", hint: "Bilinen uzunluğu çiz, mm gir" },
   { id: "ellipsoid", label: "Elipsoid", hint: "Elips çiz, 3. çapı gir → hacim (mL) = π/6·d1·d2·d3" },
   { id: "deviation", label: "Sapma", hint: "2 nokta referans doğrusu + 1 nokta: dik uzaklık (mm)" },
+  { id: "xref", label: "İmleç", hint: "3B imleç: tıklanan noktada aynı çerçevedeki diğer panellerin kesidi güncellenir" },
 ];
 
 const ts = () => new Date().toLocaleTimeString("tr-TR", { hour12: false });
@@ -181,6 +185,10 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [tool, setTool] = useState<ToolName>("wl");
+  /** MSK ölçüm yardımcısı: seçili protokol, toplanan nokta sayısı ve sonuçlar. */
+  const [mskProtocolId, setMskProtocolId] = useState<string | null>(null);
+  const [mskPointCount, setMskPointCount] = useState(0);
+  const [mskResults, setMskResults] = useState<MskMetric[] | null>(null);
   const [hoverVal, setHoverVal] = useState<number | null>(null);
   const [fusionCfg, setFusionCfg] = useState<FusionConfig | null>(null);
   const [refLinesOn, setRefLinesOn] = useState(true);
@@ -392,6 +400,39 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     else toast("Otomatik düzen açık. Bir görüntü serisi seçildiğinde uygulanacak.");
   };
 
+  const mskSelect = (id: string | null) => {
+    setMskProtocolId(id);
+    setMskResults(null);
+    setMskPointCount(0);
+    if (id) { setCine(false); setTool("msk"); toast(`${findMskProtocol(id)?.title ?? "MSK"}: ${findMskProtocol(id)?.points.length ?? 0} adlandırılmış noktayı görüntüye tıklayın.`); }
+    else setTool("wl");
+  };
+
+  /** MSK noktaları tamamlanınca protokoldeki hesaplamaları çalıştırır. */
+  const onMskPoints = (pts: { x: number; y: number }[], _slice: number) => {
+    const proto = mskProtocolId ? findMskProtocol(mskProtocolId) : null;
+    if (!proto) return;
+    const map: Record<string, { x: number; y: number }> = {};
+    proto.points.forEach((ptDef, i) => { if (pts[i]) map[ptDef.id] = pts[i]; });
+    try {
+      const metrics = proto.compute(map, pxMm || 1);
+      setMskResults(metrics);
+      setMskPointCount(0);
+      toast(`${metrics.length} ölçüm hesaplandı (${proto.title}).`);
+    } catch {
+      toast("MSK ölçümü için eksik nokta var.");
+    }
+  };
+
+  /** Ölçüm özetini panoya kopyalar ve akışa yazar (rapor metni dış işlemde). */
+  const mskAddToFindings = () => {
+    if (!mskResults || !series) return;
+    const line = `MSK ölçümü (${findMskProtocol(mskProtocolId ?? "")?.title ?? "protokol"}): ${mskResults.map((m) => `${m.name} ${m.value.toFixed(1)} ${m.unit}`).join("; ")}. Ölçüm yardımcısıdır; tanısal değildir.`;
+    pushFeed(line, "finding");
+    void navigator.clipboard?.writeText(line).catch(() => {});
+    toast("MSK ölçüm özeti akışa yazıldı ve kopyalandı.");
+  };
+
   const requestMpr = (initialTab: "not" | "3b" = "not") => {
     if (!series || !isImageSeries) { toast("MPR için önce çok kesitli bir BT veya MR görüntü serisi seçin."); return; }
     if (!["CT", "MR"].includes(series.modality) || series.isColor) { toast("MPR yalnızca gri tonlamalı, hacim oluşturan BT/MR serileri için kullanılabilir."); return; }
@@ -437,7 +478,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     loadedKey.current = "";
     const key = stateKey;
     const controller = new AbortController();
-    fetch(`/api/state?${new URLSearchParams({ studyUid: series.studyUid, seriesKey: seriesKey(series) })}`, { signal: controller.signal })
+    apiFetch(`/api/state?${new URLSearchParams({ studyUid: series.studyUid, seriesKey: seriesKey(series) })}`, { signal: controller.signal })
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { annotations: Annotation[]; keyImages: KeyImage[] } | null) => {
         if (controller.signal.aborted) return;
@@ -453,7 +494,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   useEffect(() => {
     if (!series || loadedKey.current !== stateKey) return;
     const t = setTimeout(() => {
-      fetch("/api/state", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studyUid: series.studyUid, seriesKey: seriesKey(series), annotations, keyImages }) }).catch(() => {});
+      apiFetch("/api/state", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studyUid: series.studyUid, seriesKey: seriesKey(series), annotations, keyImages }) }).catch(() => {});
     }, 1200);
     return () => clearTimeout(t);
   }, [annotations, keyImages, stateKey, series]);
@@ -462,7 +503,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   const refreshContext = useCallback(async () => {
     if (!series) return;
     try {
-      const [r, s] = await Promise.all([fetch(`/api/reports?patientId=${encodeURIComponent(series.patientId)}`), fetch("/api/studies")]);
+      const [r, s] = await Promise.all([apiFetch(`/api/reports?patientId=${encodeURIComponent(series.patientId)}`), apiFetch("/api/studies")]);
       if (r.ok) setPatientReports((await r.json()) as SavedReport[]);
       if (s.ok) setPriorStudies(((await s.json()) as StudyRow[]).filter((x) => x.patientId === series.patientId && x.studyUid !== series.studyUid));
     } catch {}
@@ -655,7 +696,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
 
   const ensureStudy = useCallback(async (s: SeriesData): Promise<number | null> => {
     try {
-      const r = await fetch("/api/studies", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studyUid: s.studyUid, patientName: s.patientName, patientId: s.patientId, patientAge: s.patientAge, patientSex: s.patientSex, studyDate: s.studyDate, institution: s.institution, modality: s.modality, bodyPart: s.bodyPart, seriesDescription: s.description, sliceCount: s.slices.length }) });
+      const r = await apiFetch("/api/studies", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studyUid: s.studyUid, patientName: s.patientName, patientId: s.patientId, patientAge: s.patientAge, patientSex: s.patientSex, studyDate: s.studyDate, institution: s.institution, modality: s.modality, bodyPart: s.bodyPart, seriesDescription: s.description, sliceCount: s.slices.length }) });
       return r.ok ? ((await r.json()) as { id: number }).id : null;
     } catch { return null; }
   }, []);
@@ -674,7 +715,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
       for (let i = 0; i < files.length; i += 3) {
         await Promise.all(files.slice(i, i + 3).map(async (f, j) => {
           const last = i + j === files.length - 1 ? `&last=1&n=${files.length}` : "";
-          const res = await fetch(`/api/storage/upload?studyId=${id}&name=${encodeURIComponent(f.name)}${last}`, { method: "POST", body: f, signal: AbortSignal.timeout(60000) });
+          const res = await apiFetch(`/api/storage/upload?studyId=${id}&name=${encodeURIComponent(f.name)}${last}`, { method: "POST", body: f, signal: AbortSignal.timeout(60000) });
           if (!res.ok) throw new Error(`${f.name} kaydedilemedi (${res.status})`);
           done++;
           toast(`Sunucuya kaydediliyor: ${done}/${files.length}`, 0);
@@ -688,14 +729,14 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
 
   const loadFromServer = useCallback(async (s: StudyRow, controller: AbortController): Promise<SeriesData[]> => {
     const signal = controller.signal;
-    const r = await withImportTimeout(fetch(`/api/storage/study/${s.id}`, { signal }), signal);
+    const r = await withImportTimeout(apiFetch(`/api/storage/study/${s.id}`, { signal }), signal);
     if (!r.ok) throw new Error("Çalışma dosyaları alınamadı");
     const { files } = (await r.json()) as { files: { id: number; name: string }[] };
     const out: File[] = [];
     for (let i = 0; i < files.length; i += 4) {
       assertNotAborted(signal);
       const part = await Promise.all(files.slice(i, i + 4).map(async (f) => {
-        const res = await withImportTimeout(fetch(`/api/storage/file/${f.id}`, { signal }), signal);
+        const res = await withImportTimeout(apiFetch(`/api/storage/file/${f.id}`, { signal }), signal);
         if (!res.ok) throw new Error(`${f.name} alınamadı`);
         return new File([await res.blob()], f.name);
       }));
@@ -738,14 +779,14 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     const signal = controller.signal;
     setProgress({ count: 0, total: 1 });
     try {
-      const li = await withImportTimeout(fetch(`/api/pacs/instances?studyUid=${encodeURIComponent(s.studyUid)}`, { signal }), signal);
+      const li = await withImportTimeout(apiFetch(`/api/pacs/instances?studyUid=${encodeURIComponent(s.studyUid)}`, { signal }), signal);
       const list = (await li.json()) as { seriesUid: string; sopUid: string }[] | { error: string };
       if (!li.ok || !Array.isArray(list)) throw new Error((list as { error: string }).error ?? "PACS hatası");
       const files: File[] = [];
       for (let i = 0; i < list.length; i += 4) {
         assertNotAborted(signal);
         const part = await Promise.all(list.slice(i, i + 4).map(async (x) => {
-          const r = await withImportTimeout(fetch(`/api/pacs/instance?${new URLSearchParams({ studyUid: s.studyUid, seriesUid: x.seriesUid, sopUid: x.sopUid })}`, { signal }), signal, 60000);
+          const r = await withImportTimeout(apiFetch(`/api/pacs/instance?${new URLSearchParams({ studyUid: s.studyUid, seriesUid: x.seriesUid, sopUid: x.sopUid })}`, { signal }), signal, 60000);
           if (!r.ok) throw new Error("Görüntü alınamadı");
           return new File([await r.blob()], `${x.sopUid}.dcm`);
         }));
@@ -991,7 +1032,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     const stat = [...annotations].reverse().find((a) => a.stats);
     let result: AnalysisResult;
     try {
-      const res = await fetch("/api/analyze", {
+      const res = await apiFetch("/api/analyze", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           studyUid: s.studyUid, engine, findings, review, clinicalNote,
@@ -1025,7 +1066,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         setShadowHidden((n) => n + hidden.length);
         try {
           const rec = toShadowRecord(engine || "unknown", result.model, s.studyUid, s.modality, hidden);
-          await fetch("/api/shadow", {
+          await apiFetch("/api/shadow", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(rec),
@@ -1052,6 +1093,9 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
       for (const f of result.findings) if (f.category !== "Sistem" && f.category !== "ROI") pushFeed(`⚑ [Kesit ${f.keySliceNumber}/${N}] ${f.label} — ${f.densityOrSignal}, ${f.sizeMmStr}`, "finding");
       pushFeed(`✓ ${N} kesit işlendi · ${result.findings.filter((f) => f.category !== "Sistem" && f.category !== "ROI").length} aday odak · triyaj: ${result.triage.level}`, "done");
       if (result.triage.score > 0.8) pushFeed("⚠ Kritik aday odak: bildirim oluşturuldu (zil simgesi).", "warn");
+      // Masaüstü bildirimi (a-notify): izin önce sorulur; izin yoksa sessizce geçilir.
+      const crit = result.findings.find((f) => f.severity === "kritik" || f.severity === "yuksek");
+      if (crit) void notifyCriticalFinding({ label: crit.label, location: crit.anatomicalLocation, detail: crit.densityOrSignal, studyUid: s.studyUid });
     }
     setActiveReport(buildReport(result));
     const top = result.findings.find((f) => f.category !== "Sistem" && f.category !== "ROI");
@@ -1107,7 +1151,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
           sliceCount: imageSeries.reduce((n, x) => n + x.slices.length, 0),
           sliceThickness: imageSeries[0].sliceThickness,
         };
-        const sres = await fetch("/api/analyze", {
+        const sres = await apiFetch("/api/analyze", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             studyUid: series?.studyUid || imageSeries[0].studyUid,
@@ -1133,7 +1177,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
             representativeImages: reps,
           };
         });
-        const rep = await fetch("/api/multi-analyze", {
+        const rep = await apiFetch("/api/multi-analyze", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             studyUid: series?.studyUid || imageSeries[0].studyUid,
@@ -1195,7 +1239,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         imageSeries.length > 0
       ) {
         try {
-          await fetch("/api/analyze", {
+          await apiFetch("/api/analyze", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -1270,7 +1314,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   };
 
   const openSaved = async (id: number) => {
-    const r = await fetch(`/api/reports/${id}`);
+    const r = await apiFetch(`/api/reports/${id}`);
     if (!r.ok) { alert("Rapor açılamadı"); return; }
     const { report: x } = (await r.json()) as { report: SavedReport };
     let kis: KeyImage[] = [];
@@ -1297,7 +1341,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     const kiPayload = prioritizedKi.length ? JSON.stringify(prioritizedKi.slice(0, 4)) : r.keyImageDataUrl;
     let res: Response;
     try {
-      res = await fetch("/api/reports", {
+      res = await apiFetch("/api/reports", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           reportId: r.id, action,
@@ -1351,7 +1395,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
 
   // Sunucudaki tercihler (F3): yalnız açılışta; istasyonda elle değiştirilebilir.
   useEffect(() => {
-    fetch("/api/profile/preferences").then((r) => (r.ok ? r.json() : null)).then((d: { prefs?: UserPrefs } | null) => {
+    apiFetch("/api/profile/preferences").then((r) => (r.ok ? r.json() : null)).then((d: { prefs?: UserPrefs } | null) => {
       const p = d?.prefs;
       if (!p) return;
       if ((LAYOUTS as readonly string[]).includes(p.layout)) setLayout(p.layout as Layout);
@@ -1459,7 +1503,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         <Btn onClick={exportPng} title="Geçerli kesiti PNG kaydet">PNG</Btn>
         <Btn onClick={exportAnon} title="Anonimleştirilmiş DICOM (ZIP)">Anonim DICOM</Btn>
         <Btn onClick={() => { if (!series || !isImageSeries) { toast("Önce bir görüntü serisi açın."); return; } setNoduleOpen(true); }} title="Nodül takibi: zaman serisi, Lung-RADS özeti, hacim ikilenme süresi">Nodül takibi</Btn>
-        <ExportMenu series={isImageSeries ? series : null} wl={wl} ww={ww} invert={invert} slice={slice} keyImages={keyImages} toast={toast} />
+        <ExportMenu series={isImageSeries ? series : null} wl={wl} ww={ww} invert={invert} slice={slice} rotation={rotation} flipH={flipH} flipV={flipV} keyImages={keyImages} annotations={annotations} pxMm={pxMm} bodyPart={series?.bodyPart ?? ""} toast={toast} />
         <Btn onClick={() => void toggleFullscreen()} title="Tam ekran">⛶</Btn>
         <div className="ml-auto flex min-w-0 flex-wrap items-center gap-2">
           <span className="rounded border border-amber-400/40 bg-amber-400/10 px-2 py-1 text-[9px] font-bold tracking-wide text-amber-300">KLİNİK KARAR İÇİN KULLANILAMAZ</span>
@@ -1467,7 +1511,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
           <Link href="/kiyaslama" prefetch={false} className="rounded-lg border border-violet-400/50 bg-violet-500/10 px-2.5 py-1.5 text-xs font-bold text-violet-200 hover:bg-violet-500/20">📊 Kıyaslama</Link>
           <Link href="/yonetim" prefetch={false} className="rounded-lg border border-slate-500/50 px-2.5 py-1.5 text-xs font-bold text-slate-200 hover:bg-slate-500/10">⚙ Yönetim</Link>
           <Link href="/tercihler" prefetch={false} title="Kullanıcı tercihleri (düzen, pencere ön ayarı, otomatik protokol)" className="rounded-lg border border-slate-500/50 px-2.5 py-1.5 text-xs font-bold text-slate-200 hover:bg-slate-500/10">🧰 Tercihler</Link>
-          <button onClick={() => void fetch("/api/auth/logout", { method: "POST" }).finally(() => { window.location.reload(); })} title="Oturumu kapat" className="rounded-lg border border-rose-400/40 px-2.5 py-1.5 text-xs font-bold text-rose-300 hover:bg-rose-400/10">⎋ Çıkış</button>
+          <button onClick={() => void apiFetch("/api/auth/logout", { method: "POST" }).finally(() => { window.location.reload(); })} title="Oturumu kapat" className="rounded-lg border border-rose-400/40 px-2.5 py-1.5 text-xs font-bold text-rose-300 hover:bg-rose-400/10">⎋ Çıkış</button>
           <NotificationsBell />
           <button onClick={openReport} className="cursor-pointer rounded-lg border border-cyan-400/60 bg-gradient-to-r from-cyan-500/20 to-emerald-500/20 px-3 py-1.5 text-xs font-bold text-cyan-200 hover:text-white">📄 Rapor <span className={`ml-1 rounded-full px-1.5 text-[9px] font-black ${reportStatus === "onaylandi" ? "bg-emerald-500 text-slate-950" : "bg-rose-500 text-white"}`}>{reportStatus === "onaylandi" ? "ONAYLI" : "TASLAK"}</span></button>
           <Link href="/yonetim" prefetch={false} title="Rapor imzasında görünecek hekim adı — düzenlemek için tıklayın" className="text-right leading-tight hover:opacity-80">
@@ -1480,6 +1524,9 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
       {/* ── Üst Çubuk 2: Araçlar & Kontroller ── */}
       <div aria-label="Görüntü araçları" className="relative z-10 flex shrink-0 flex-wrap items-center gap-1 border-b border-[#1a2230] bg-[#0a0e15] px-2 py-1 print:hidden">
         {TOOLS.map((t) => <Btn key={t.id} on={tool === t.id} title={t.hint} onClick={() => setTool(t.id)}>{t.label}</Btn>)}
+        {series && series.modality !== "US" && series.slices.length > 0 && (
+          <Btn on={tool === "msk"} tone="violet" title="MSK ölçüm protokolleri: adlandırılmış noktalar, ölçümler ve aralık yorumu (ölçüm yardımcısı)" onClick={() => mskSelect(tool === "msk" ? null : (mskProtocolId ?? "wrist-pa"))}>🦴 MSK</Btn>
+        )}
         <div className="mx-1 h-5 w-px shrink-0 bg-[#1e2735]" />
         <Btn on={invert} tone="amber" onClick={() => setInvert((v) => !v)}>Ters</Btn>
         <Btn onClick={() => setRotation((r) => ((r + 90) % 360) as Rot)} title="R">⟳ Döndür</Btn>
@@ -1556,6 +1603,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
                 <Viewport
                   series={series} slice={slice} wl={wl} ww={ww} invert={invert} zoom={zoom} pan={pan} tool={tool} rotation={rotation} flipH={flipH} flipV={flipV} pxMm={pxMm}
                   scan={scan} findings={liveFindings} revealedIds={revealed} activeFindingId={activeFinding} overlay={overlay} showDicomOverlays={showOverlays} annotations={annotations}
+                  mskPointCount={mskProtocolId ? findMskProtocol(mskProtocolId)?.points.length ?? 0 : 0} onMskPoints={onMskPoints} snapRadius={4}
                   onSlice={setSlice} onWL={(a, b) => { setWl(a); setWw(b); }} onZoom={setZoom} onPan={setPan}
                   onAddAnnotation={addAnnotation} onCalibrate={calibrate} onHover={setHoverVal} panelId="main" fusion={fusion}
                 />
@@ -1598,6 +1646,9 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
             onOpenReportModal={openReport} currentReportStatus={reportStatus}
             onStartAll={() => void startAnalysisAll()}
             loadedCount={loaded.filter((s) => !(s.specialType && s.specialType !== "image")).length}
+            mskProtocolId={mskProtocolId} onMskSelect={(id) => mskSelect(id)} mskPointCount={mskPointCount}
+            mskDisabledReason={!series || series.modality === "US" ? "MSK ölçüm yardımcısı yalnızca piksel içeren BT/MR/grafi serilerinde kullanılır." : null}
+            mskResults={mskResults} onMskAddToFindings={() => mskAddToFindings()}
           />
           </ViewerErrorBoundary>
         </aside>}
@@ -1616,7 +1667,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         <span className="ml-auto hidden text-amber-300/80 lg:inline">DEMO / ARAŞTIRMA — kural tabanlı aday bulgular klinik olarak doğrulanmamıştır</span>
       </footer>
 
-      {activeReport && <ReportPrintModal open={reportOpen} onClose={() => setReportOpen(false)} report={activeReport} user={user} onSave={saveReport} onGotoSlice={(n) => setSlice(Math.max(0, n - 1))} srEvidence={srEvidence} sessionIdentity={sessionIdentity} />}
+      {activeReport && <ReportPrintModal open={reportOpen} onClose={() => setReportOpen(false)} report={activeReport} user={user} onSave={saveReport} onGotoSlice={(n) => setSlice(Math.max(0, n - 1))} srEvidence={srEvidence} sessionIdentity={sessionIdentity} priorReports={patientReports} />}
       <WorklistModal open={worklistOpen} onClose={() => setWorklistOpen(false)} user={user} onOpenStudy={(s) => void openStored(s)} onOpenPacs={(s) => void openPacs(s)} />
       {mpr && series && <div className="fixed inset-0 z-50 bg-[#070a0f]"><ViewerErrorBoundary resetKey={series.id} label="MPR" onClose={() => setMpr(false)}><VolumeView series={series} wl={wl} ww={ww} invert={invert} initialTab={mprInitialTab} onClose={() => setMpr(false)} /></ViewerErrorBoundary></div>}
       {noduleOpen && series && <NoduleTracker patientId={series.patientId} patientName={series.patientName} studyDate={series.studyDate} measurements={noduleMeasurements} onClose={() => setNoduleOpen(false)} />}

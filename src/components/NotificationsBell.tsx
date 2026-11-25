@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { NotificationRow } from "@/lib/types";
+import { apiFetch } from "@/lib/csrfClient";
 
 /**
  * Bildirim zili: kritik bulgu bildirimleri (D1) ve takip önerisi görevleri (D2).
@@ -15,10 +16,11 @@ export default function NotificationsBell() {
   const [items, setItems] = useState<NotificationRow[]>([]);
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"bildirim" | "takip">("bildirim");
+  const [sweepMsg, setSweepMsg] = useState("");
 
   const load = useCallback(async () => {
     try {
-      const r = await fetch("/api/notifications");
+      const r = await apiFetch("/api/notifications");
       if (r.ok) setItems((await r.json()) as NotificationRow[]);
     } catch {
       /* çevrimdışı */
@@ -36,7 +38,7 @@ export default function NotificationsBell() {
   const openFollowups = followups.filter((n) => n.status === "acik").length;
 
   const patch = async (id: number, body: Record<string, unknown>) => {
-    await fetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...body }) });
+    await apiFetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...body }) });
     void load();
   };
   const ack = (id: number) => patch(id, {});
@@ -44,7 +46,40 @@ export default function NotificationsBell() {
     const to = window.prompt("Bildirim kime/kanala iletildi? (ör. Göğüs Cerrahisi — telefon)", "");
     if (to && to.trim()) void patch(id, { action: "relay", relayedTo: to.trim() });
   };
-  const escalate = (id: number) => void patch(id, { action: "escalate" });
+  const escalate = (id: number) => {
+    const choice = window.prompt(
+      "Eskalasyon hedefi:\n1) İkinci hekim (aynı kurum)\n2) Sorumlu uzman / bölüm şefi\n3) Kurum nöbet hattı\n\nNumara girin (boş = ikinci hekim):",
+      "1",
+    );
+    if (choice === null) return;
+    const role = choice.trim() === "2" ? "sorumlu-uzman" : choice.trim() === "3" ? "kurum-nobet" : "ikinci-hekim";
+    const contact = window.prompt("Kişi/iletişim (isteğe bağlı; ör. Dr. A. Yılmaz — 212 555)", "") ?? "";
+    void patch(id, { action: "escalate", relayedTo: `eskalasyon:${role}${contact.trim() ? `:${contact.trim()}` : ""}` });
+  };
+  /** HBYS/RIS iadesindeki sonucu açık takip görevine bağlar (otomatik veya elle). */
+  const recordOutcome = async (id?: number) => {
+    const text = window.prompt("Sonuç / iade metni (HBYS-RIS raporu, kontrol tetkik özeti…)", "");
+    if (text === null || !text.trim()) return;
+    const modality = window.prompt("İade modalitesi (boş = otomatik eşleşme)", "") ?? "";
+    const body = id
+      ? { action: "outcome", id, outcome: text.trim() }
+      : { action: "outcome", auto: true, outcome: text.trim(), modality: modality.trim() || undefined };
+    const r = await apiFetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const d = (await r.json().catch(() => ({}))) as { error?: string; match?: string };
+    setSweepMsg(r.ok ? `Sonuç kaydedildi (${d.match ?? "eşleşti"}).` : (d.error ?? "Sonuç bağlanamadı"));
+    void load();
+  };
+
+  /** Süresi dolan tüm bildirimleri tarar ve eskalasyon kaydı açar. */
+  const sweep = async () => {
+    setSweepMsg("Taranıyor…");
+    try {
+      const r = await apiFetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "sweep", escalationRole: "ikinci-hekim" }) });
+      const d = (await r.json().catch(() => ({}))) as { overdue?: number; escalated?: number; error?: string };
+      setSweepMsg(r.ok ? `${d.overdue ?? 0} gecikmiş bildirim; ${d.escalated ?? 0} eskalasyon kaydı açıldı.` : (d.error ?? "Tarama başarısız (yönetici/radyolog yetkisi gerekir)."));
+      void load();
+    } catch { setSweepMsg("Tarama başarısız (çevrimdışı)."); }
+  };
   const setFollowup = (id: number, status: string) => patch(id, { action: "status", status });
 
   const kapanisMetni = (n: NotificationRow) =>
@@ -61,7 +96,10 @@ export default function NotificationsBell() {
           <div className="flex items-center gap-1 border-b border-[#1a2230] px-3 py-2">
             <button onClick={() => setTab("bildirim")} className={`rounded px-2 py-1 text-[10px] font-bold ${tab === "bildirim" ? "bg-cyan-400/15 text-cyan-300" : "text-slate-400"}`}>Bildirimler {unacked > 0 ? `(${unacked})` : ""}</button>
             <button onClick={() => setTab("takip")} className={`rounded px-2 py-1 text-[10px] font-bold ${tab === "takip" ? "bg-emerald-400/15 text-emerald-300" : "text-slate-400"}`}>Takip önerileri {openFollowups > 0 ? `(${openFollowups})` : ""}</button>
+            <button onClick={() => void sweep()} title="Süresi dolan bildirimleri tara, ikinci hekime eskale et" className="cursor-pointer rounded border border-amber-500/40 px-2 py-1 text-[10px] font-bold text-amber-300 hover:bg-amber-500/10">⏱ Süre taraması</button>
+            <button onClick={() => void recordOutcome()} title="HBYS/RIS iadesindeki sonucu açık takip görevine bağla" className="cursor-pointer rounded border border-cyan-500/40 px-2 py-1 text-[10px] font-bold text-cyan-300 hover:bg-cyan-500/10">📥 İade bağla</button>
           </div>
+          {sweepMsg && <p className="border-b border-[#1a2230] bg-[#0e141d] px-3 py-1 text-[10px] text-cyan-300">{sweepMsg}</p>}
 
           {tab === "bildirim" && (
             <div className="max-h-80 overflow-y-auto">
@@ -76,6 +114,16 @@ export default function NotificationsBell() {
                   <p className={`mt-1 text-[10px] ${n.ackAt ? "text-emerald-300" : "text-slate-500"}`}>
                     {n.ackAt ? `✓ ${n.ackByName} tarafından alındı · ${new Date(n.ackAt).toLocaleTimeString("tr-TR")}` : "Alınmadı"}
                   </p>
+                  {n.loopLabel && (
+                    <p className={`mt-0.5 inline-block rounded px-1 py-0.5 text-[9.5px] font-semibold ${
+                      n.loopState === "eskalasyon-gerekli" ? "bg-rose-500/20 text-rose-200"
+                        : n.loopState === "gecikmis" ? "bg-amber-500/20 text-amber-200"
+                          : n.loopState === "eskale-edildi" ? "bg-orange-500/20 text-orange-200"
+                            : "bg-slate-500/15 text-slate-300"
+                    }`} title={n.dueInMinutes !== undefined ? `Alınma süresi: ${n.dueInMinutes} dk` : undefined}>
+                      ⏱ {n.loopLabel}{n.loopState === "gecikmis" || n.loopState === "eskalasyon-gerekli" ? " — hatırlatma" : ""}
+                    </p>
+                  )}
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                     {!n.ackAt && <button onClick={() => void ack(n.id)} className="cursor-pointer rounded bg-cyan-500 px-2.5 py-1 text-[10.5px] font-bold text-slate-950 hover:bg-cyan-400">Alındı</button>}
                     <button onClick={() => relay(n.id)} title="Bildirimin iletildiğini kaydet" className="cursor-pointer rounded border border-slate-500/40 px-2 py-1 text-[10px] font-semibold text-slate-300 hover:bg-slate-500/10">İletildi…</button>
@@ -112,11 +160,20 @@ export default function NotificationsBell() {
                   </div>
                   <p className="mt-1 text-slate-200">{n.message}</p>
                   {n.recommendedIntervalDays != null && <p className="mt-0.5 text-[10px] text-slate-400">Önerilen aralık: {n.recommendedIntervalDays} gün</p>}
+                  {n.status === "acik" && n.dueDate && (() => {
+                    const due = new Date(`${n.dueDate}T00:00:00`).getTime();
+                    const d = Number.isFinite(due) ? Math.round((due - new Date().setHours(0, 0, 0, 0)) / 86400000) : null;
+                    if (d === null) return null;
+                    const label = d < 0 ? `${-d} gün gecikti` : d === 0 ? "bugün" : `${d} gün kaldı`;
+                    const tone = d < 0 ? "bg-rose-500/20 text-rose-200" : d <= 14 ? "bg-amber-500/20 text-amber-200" : "bg-slate-500/15 text-slate-300";
+                    return <span className={`ml-1 inline-block rounded px-1 py-0.5 text-[9.5px] font-bold ${tone}`}>⏳ {label}</span>;
+                  })()}
                   {n.studyUid && <p className="mt-0.5 font-mono text-[9.5px] text-slate-500">{n.studyUid}</p>}
                   {n.status === "acik" && (
                     <div className="mt-1.5 flex gap-1.5">
                       <button onClick={() => setFollowup(n.id, "tamamlandi")} className="cursor-pointer rounded bg-emerald-500 px-2.5 py-1 text-[10.5px] font-bold text-slate-950 hover:bg-emerald-400">Tamamlandı</button>
                       <button onClick={() => setFollowup(n.id, "iptal")} className="cursor-pointer rounded border border-rose-500/40 px-2 py-1 text-[10px] font-semibold text-rose-300 hover:bg-rose-500/10">İptal</button>
+                      <button onClick={() => void recordOutcome(n.id)} title="Sonuç kaydıyla kapat (HBYS iadesi)" className="cursor-pointer rounded border border-cyan-500/40 px-2 py-1 text-[10px] font-semibold text-cyan-300 hover:bg-cyan-500/10">📥 Sonuç</button>
                     </div>
                   )}
                   {n.completedAt && <p className="mt-1 text-[10px] text-slate-500">Kapatıldı: {new Date(n.completedAt).toLocaleString("tr-TR")}</p>}

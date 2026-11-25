@@ -1,14 +1,30 @@
 "use client";
 
 import { useRef, useState } from "react";
-import type { KeyImage, SeriesData } from "@/lib/types";
+import type { Annotation, KeyImage, SeriesData } from "@/lib/types";
 import { exportPngZip, exportVideoWebm } from "@/lib/exportMedia";
-import { buildKeyObjectSelection } from "@/lib/dicomSr";
+import { buildKeyObjectSelection, buildPresentationState } from "@/lib/dicomSr";
+import { planKeyObject } from "@/lib/pacsSend";
+import { planAnonStow } from "@/lib/stowPayload";
+import { buildAnonymizedDicom } from "@/lib/dicomWrite";
+import { annotationsToMeasurements, exportCoverage, siteCode } from "@/lib/measurementExport";
+import { buildMeasurementReportSr } from "@/lib/sr1500";
+import { buildRtStruct, buildSegDocument } from "@/lib/dicomSeg";
+import { emptyMask, makeSegmentDef, paint, prune } from "@/lib/segmentation";
+import { apiFetch } from "@/lib/csrfClient";
 
 interface Props {
   series: SeriesData | null;
   wl: number; ww: number; invert: boolean; slice: number;
+  rotation?: 0 | 90 | 180 | 270;
+  flipH?: boolean; flipV?: boolean;
   keyImages: KeyImage[];
+  /** Ekran ölçümleri (TID 1500 yapılandırılmış SR için) */
+  annotations?: Annotation[];
+  /** Piksel→mm ölçeği */
+  pxMm?: number;
+  /** Bölge (bulgu yeri kodu için) */
+  bodyPart?: string;
   toast: (m: string, ms?: number) => void;
 }
 
@@ -20,7 +36,7 @@ function download(blob: Blob, name: string) {
 }
 
 /** Dışa aktarma: cine video (WebM), kesit PNG ZIP, anahtar kesit DICOM KO. */
-export default function ExportMenu({ series, wl, ww, invert, slice, keyImages, toast }: Props) {
+export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0, flipH = false, flipV = false, keyImages, annotations = [], pxMm = 1, bodyPart = "", toast }: Props) {
   const [open, setOpen] = useState(false);
   const [dlg, setDlg] = useState<"video" | "zip" | null>(null);
   const [from, setFrom] = useState(1);
@@ -28,6 +44,7 @@ export default function ExportMenu({ series, wl, ww, invert, slice, keyImages, t
   const [fps, setFps] = useState(12);
   const [side, setSide] = useState(512);
   const [prog, setProg] = useState<{ done: number; total: number } | null>(null);
+  const [sending, setSending] = useState<"ko" | "pr" | null>(null);
   const abort = useRef<AbortController | null>(null);
   const n = series?.slices.length ?? 0;
   const imageOk = !!series && (!series.specialType || series.specialType === "image") && n > 0;
@@ -63,6 +80,148 @@ export default function ExportMenu({ series, wl, ww, invert, slice, keyImages, t
     toast(`DICOM Key Object (${items.length} anahtar kesit) indirildi.`, 5000);
   };
 
+  const exportPr = () => {
+    setOpen(false);
+    if (!series || !imageOk) { toast("Önce bir görüntü serisi açın."); return; }
+    if (!series.sopUids || !series.sopClassUid || !series.seriesUid) { toast("Bu seride SOP Instance UID bilgisi yok (örnek vaka veya UID'siz görüntü); PR yalnızca gerçek DICOM serileri için üretilir.", 7000); return; }
+    const bytes = buildPresentationState({
+      patientName: series.patientName, patientId: series.patientId, patientSex: series.patientSex, studyUid: series.studyUid, studyDate: series.studyDate, institution: series.institution,
+      seriesUid: series.seriesUid, sopClassUid: series.sopClassUid, sopUids: series.sopUids,
+      wl, ww, invert, rotation, flipH, flipV,
+    });
+    download(new Blob([bytes.slice().buffer as ArrayBuffer], { type: "application/dicom" }), `PR-${series.modality}-sunum-durumu.dcm`);
+    toast("DICOM sunum durumu (GSPS/PR) indirildi — rapor belgesi değildir.", 5000);
+  };
+
+  /**
+   * Anonim seriyi PACS'e gönderir (e-stow). Baytlar TARAYICIDA sıfırdan üretilir
+   * (kimlik/özel etiket taşımaz); sunucu yalnız STOW-RS'i çağırır.
+   */
+  const sendAnonToPacs = async () => {
+    setOpen(false);
+    if (!series) { toast("Önce bir görüntü serisi açın."); return; }
+    if (!series.sopUids?.length) { toast("Bu seride SOP Instance UID bilgisi yok; anonim gönderim yalnız gerçek DICOM serilerinde yapılır.", 7000); return; }
+    try {
+      // Baytlar tarayıcıda sıfırdan üretilir: orijinal etiket/UID/kimlik taşınmaz.
+      const anon = buildAnonymizedDicom({ ...series, patientName: "", patientId: "" } as typeof series);
+      const plan = planAnonStow(anon.map((a) => ({ name: a.name, bytes: a.bytes })), series.sopUids);
+      if (!plan.ok) { toast(plan.reason ?? "Gönderim hazırlanamadı", 7000); return; }
+      setSending("pr");
+      const r = await apiFetch("/api/pacs/stow", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "anon", studyUid: series.studyUid, instances: plan.instances }),
+      });
+      const d = (await r.json().catch(() => ({}))) as { stored?: number; failed?: number; text?: string; error?: string; pacs?: string };
+      if (!r.ok && r.status !== 207) throw new Error(d.error ?? "Gönderilemedi");
+      toast(`${d.text ?? `${d.stored ?? 0} örnek gönderildi`} (${d.pacs ?? "PACS"}).`, 8000);
+    } catch (e) { toast(`Anonim gönderim başarısız: ${e instanceof Error ? e.message : "hata"}`, 8000); }
+    finally { setSending(null); }
+  };
+
+  /** Ölçümler → DICOM Comprehensive SR (TID 1500): sayısal ölçüm ağacı. */
+  const exportSr1500 = () => {
+    setOpen(false);
+    if (!series) { toast("Önce bir görüntü serisi açın."); return; }
+    const measurements = annotationsToMeasurements(annotations, {
+      pxMm: pxMm > 0 ? pxMm : 1,
+      site: bodyPart ? siteCode(bodyPart) : undefined,
+      series: { seriesUid: series.seriesUid, sopClassUid: series.sopClassUid, sopUids: series.sopUids },
+    });
+    if (measurements.length === 0) {
+      toast("Yapılandırılmış SR için sayısal ölçüm gerekir (uzunluk, elipsoid, ROI, çokgen). Açı/Cobb/ok yazılmaz.", 7000);
+      return;
+    }
+    const bytes = buildMeasurementReportSr({
+      patientName: series.patientName, patientId: series.patientId, patientSex: series.patientSex,
+      studyUid: series.studyUid, studyDate: series.studyDate, institution: series.institution,
+      title: `${series.modality} ${bodyPart || series.description} ölçümleri`,
+      measurements,
+    });
+    download(new Blob([bytes.slice().buffer as ArrayBuffer], { type: "application/dicom" }), `SR1500-${series.modality}-${measurements.length}-olcum.dcm`);
+    const cov = exportCoverage(annotations);
+    toast(`TID 1500 SR indirildi: ${measurements.length} sayısal ölçüm${cov.skipped.length ? ` (yazılmayan: ${cov.skipped.join(", ")})` : ""}.`, 6000);
+  };
+
+  /**
+   * Ekran işaretlerinden segmentasyon → DICOM SEG / RTSTRUCT.
+   * Kaynak: kapalı şekiller (elips/dikdörtgen/çokgen) ve uzunluk/elipsoid
+   * işaretlerinin orta noktasına küçük fırça izi. AI örtüsü düzenlenebilir maske değildir.
+   */
+  const exportSeg = (kind: "seg" | "rtstruct") => {
+    setOpen(false);
+    if (!series) { toast("Önce bir görüntü serisi açın."); return; }
+    if (!series.seriesUid || !series.sopClassUid || !series.sopUids?.length) {
+      toast("Bu seride SOP Instance UID bilgisi yok; SEG/RTSTRUCT yalnızca gerçek DICOM serileri için üretilir.", 7000);
+      return;
+    }
+    const w = series.width, h = series.height;
+    const shapes = annotations.filter((a) => ["ellipse", "rect", "polygon", "length", "ellipsoid"].includes(a.kind));
+    if (!shapes.length) { toast("Önce görüntü üzerinde en az bir şekil/ölçüm işaretleyin.", 6000); return; }
+    const mask = emptyMask(w, h);
+    const brush = (cx: number, cy: number, r: number) => paint(mask, 0, Math.round(cx), Math.round(cy), r);
+    for (const a of shapes) {
+      const p = a.points;
+      if (!p.length) continue;
+      if (a.kind === "polygon") {
+        // Çokgen: köşeler arasını doldur (kenar çizgisi + iç dolgu yaklaşımı).
+        for (let i = 0; i < p.length; i++) {
+          const q = p[(i + 1) % p.length];
+          const steps = Math.max(1, Math.round(Math.hypot(q.x - p[i].x, q.y - p[i].y)));
+          for (let k = 0; k <= steps; k++) brush(p[i].x + ((q.x - p[i].x) * k) / steps, p[i].y + ((q.y - p[i].y) * k) / steps, 1);
+        }
+      } else if (p.length >= 2) {
+        const cx = (p[0].x + p[1].x) / 2, cy = (p[0].y + p[1].y) / 2;
+        const r = Math.max(2, Math.round(Math.min(Math.abs(p[1].x - p[0].x), Math.abs(p[1].y - p[0].y)) / 2));
+        brush(cx, cy, Math.min(r, 40));
+      }
+    }
+    prune(mask);
+    if (!mask.slices.size) { toast("İşaretlerden maske üretilemedi (kesit/koordinat eksik).", 6000); return; }
+    const geo = {
+      pxMm: pxMm > 0 ? pxMm : 1,
+      pyMm: series.pixelSpacing > 0 ? series.pixelSpacing : 1,
+      dz: (series.sliceSpacing ?? series.sliceThickness) > 0 ? (series.sliceSpacing ?? series.sliceThickness) : 1,
+      origin: (series.ipp?.[0] ?? [0, 0, 0]) as [number, number, number],
+    };
+    const base = {
+      patientName: series.patientName, patientId: series.patientId, patientSex: series.patientSex,
+      studyUid: series.studyUid, studyDate: series.studyDate, institution: series.institution,
+      source: { seriesUid: series.seriesUid, sopClassUid: series.sopClassUid, sopUids: series.sopUids },
+      frameOfReferenceUid: series.frameOfRef, geometry: geo, width: w, height: h,
+    };
+    const def = makeSegmentDef(1, bodyPart ? `${bodyPart} işaretli alan` : "İşaretli alan", "MANUAL");
+    const bytes = kind === "seg"
+      ? buildSegDocument({ ...base, segments: [{ def, mask }] })
+      : buildRtStruct({ ...base, rois: [{ def, mask }] });
+    const ext = kind === "seg" ? "SEG" : "RTSTRUCT";
+    download(new Blob([bytes.slice().buffer as ArrayBuffer], { type: "application/dicom" }), `${ext}-${series.modality}-${mask.slices.size}-kesit.dcm`);
+    toast(`${ext} indirildi (${mask.slices.size} kesit). Hekim düzenlemesine açıktır; AI örtüsü maske değildir.`, 7000);
+  };
+
+  /** KO/PR nesnesini PACS'e STOW-RS ile gönderir (rapor SR'ı rapor penceresinden gider). */
+  const sendToPacs = async (kind: "ko" | "pr") => {
+    setOpen(false);
+    if (!series) { toast("Önce bir görüntü serisi açın."); return; }
+    const plan = planKeyObject(keyImages, series);
+    if (!plan.ok) { toast(plan.reason ?? "Gönderilemedi", 7000); return; }
+    setProg(null);
+    setSending(kind);
+    try {
+      const r = await apiFetch("/api/pacs/stow", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind, studyUid: series.studyUid, seriesKey: `${series.seriesUid ?? series.description}|${series.slices.length}`,
+          seriesUid: series.seriesUid, sopClassUid: series.sopClassUid, sopUids: series.sopUids,
+        }),
+      });
+      const d = (await r.json().catch(() => ({}))) as { stored?: number; pacs?: string; error?: string; message?: string };
+      if (!r.ok) throw new Error(d.error ?? "PACS'e gönderilemedi");
+      toast(`${kind === "ko" ? "Anahtar kesit (KO)" : "Sunum durumu (PR)"} PACS'e gönderildi — ${d.stored ?? 1} nesne (${d.pacs ?? "PACS"}).`, 6000);
+      if (plan.skipped.length) toast(`${plan.skipped.length} kesit UID eşlemesi olmadığı için atlandı.`, 6000);
+    } catch (e) { toast(`PACS'e gönderilemedi: ${e instanceof Error ? e.message : "hata"}`, 8000); }
+    finally { setSending(null); }
+  };
+
   const item = "block w-full cursor-pointer px-3 py-1.5 text-left hover:bg-[#1a2330]";
   return (
     <div className="relative shrink-0">
@@ -72,6 +231,14 @@ export default function ExportMenu({ series, wl, ww, invert, slice, keyImages, t
           <button className={item} onClick={() => openDlg("video")}>🎞 Cine video (WebM)…</button>
           <button className={item} onClick={() => openDlg("zip")}>🖼 Kesitler → PNG (ZIP)…</button>
           <button className={item} onClick={exportKo}>★ Anahtar kesitler → DICOM KO</button>
+          <button className={item} onClick={exportPr} title="Pencere, döndürme ve çevirme ayarlarını GSPS belgesi olarak kaydeder">🖼 Görünüm → DICOM PR (sunum durumu)</button>
+          <div className="my-1 border-t border-[#1e2735]" />
+          <button className={item} disabled={sending !== null} onClick={() => void sendToPacs("ko")}>☁ Anahtar kesitler → PACS&apos;e gönder (KO)</button>
+          <button className={item} disabled={sending !== null} onClick={() => void sendAnonToPacs()} title="Seriyi bellekten anonim DICOM olarak üretip PACS'e gönderir (kimlik taşımaz)">☁ Anonim seri → PACS&apos;e gönder</button>
+          <button className={item} onClick={() => exportSeg("seg")} title="İşaretli alanlardan DICOM Segmentasyon (SEG, 1 bit/piksel) üretir">🧩 Segmentasyon → DICOM SEG</button>
+          <button className={item} onClick={() => exportSeg("rtstruct")} title="İşaretli alanlardan RTSTRUCT (ROI konturları) üretir">🧩 Segmentasyon → RTSTRUCT</button>
+          <button className={item} onClick={exportSr1500} title="Ölçümleri TID 1500 yapılandırılmış rapor (Comprehensive SR) olarak indirir">📐 Ölçümler → DICOM SR (TID 1500)</button>
+          <button className={item} disabled={sending !== null} onClick={() => void sendToPacs("pr")} title="Pencere/döndürme ayarını GSPS olarak PACS'e yazar">☁ Görünüm (PR) → PACS&apos;e gönder</button>
           <div className="px-3 py-1 text-[10px] leading-relaxed text-slate-500">Video/PNG görüntü verisini olduğu gibi aktarır; kimlik bilgisi içermez ama anonimleştirme/DICOM etiketi taşımaz.</div>
         </div>
       )}

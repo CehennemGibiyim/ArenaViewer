@@ -1,5 +1,7 @@
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
+import { audit } from "@/lib/server/audit";
+import { escalationMessage, loopAuditDetails, loopStatus } from "@/lib/closeLoopRules";
 import { notifications } from "@/db/schema";
 import {
   BIOPSY_FOLLOWUP_DAYS, followupSeverityFor, followupTitle, isBiopsySuggestion, parseIntervalDays,
@@ -80,6 +82,52 @@ export async function closeLoopUpdate(
     set.escalatedAt = new Date();
   }
   if (Object.keys(set).length > 0) await db.update(notifications).set(set).where(eq(notifications.id, id));
+}
+
+/**
+ * Süresi dolan kritik bildirimleri tarar ve eskalasyon kaydı açar (d-close-loop).
+ * - `escalate`: alınmamış ve eskalasyon süresi geçmiş bildirimler eskalasyon
+ *   hedefine iletilir (relayedTo + escalated + escalatedAt yazılır).
+ * - `remind`: yalnız sayım döner (bildirim gönderimi çağıran katmana aittir).
+ * Her işlem `notify.escalate` olarak denetim izine yazılır.
+ */
+export async function sweepCloseLoop(p: {
+  target: { role: string; contact: string };
+  actor: { id: number; username: string; fullName: string } | null;
+  now?: number;
+}): Promise<{ scanned: number; overdue: number; escalated: number; details: { id: number; state: string; ageMinutes: number }[] }> {
+  const rows = await db.select().from(notifications).orderBy(desc(notifications.id)).limit(500);
+  const now = p.now ?? Date.now();
+  const out: { id: number; state: string; ageMinutes: number }[] = [];
+  let escalated = 0;
+  for (const r of rows) {
+    if (r.status !== "acik") continue;
+    const st = loopStatus(
+      { id: r.id, severity: r.severity, createdAt: r.createdAt, ackAt: r.ackAt, relayedAt: r.relayedAt, escalated: r.escalated, escalatedAt: r.escalatedAt },
+      now,
+    );
+    if (!st.remind) continue;
+    out.push({ id: r.id, state: st.state, ageMinutes: st.ageMinutes });
+    if (st.state === "eskalasyon-gerekli") {
+      const msg = escalationMessage(
+        { id: r.id, severity: r.severity, createdAt: r.createdAt, ackAt: r.ackAt, relayedAt: r.relayedAt, escalated: r.escalated, escalatedAt: r.escalatedAt },
+        st, p.target,
+      );
+      await db.update(notifications).set({
+        escalated: true,
+        escalatedAt: new Date(now),
+        relayedTo: `eskalasyon:${p.target.role}${p.target.contact ? `:${p.target.contact}` : ""}`.slice(0, 160),
+        relayedAt: new Date(now),
+        message: r.message.endsWith(msg) ? r.message : `${r.message}\n---\n${msg}`.slice(0, 8000),
+      }).where(eq(notifications.id, r.id));
+      await audit(p.actor, "notify.escalate", "notification", r.id, loopAuditDetails(
+        { id: r.id, severity: r.severity, createdAt: r.createdAt, ackAt: r.ackAt, relayedAt: r.relayedAt, escalated: true },
+        st,
+      ));
+      escalated++;
+    }
+  }
+  return { scanned: rows.filter((r) => r.status === "acik").length, overdue: out.length, escalated, details: out };
 }
 
 /** Takip görevi durumu (acik/tamamlandi/iptal). */

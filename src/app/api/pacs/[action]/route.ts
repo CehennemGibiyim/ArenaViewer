@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { audit } from "@/lib/server/audit";
 import { authorize } from "@/lib/server/auth";
-import { isUid, qidoInstances, qidoStudies, testConnection, wadoInstance } from "@/lib/server/pacs";
+import { isUid, qidoInstances, qidoStudies, testConnection, wadoFrames, wadoInstance } from "@/lib/server/pacs";
 import { loadPacsConfig } from "@/lib/server/pacsConfig";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +32,28 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ acti
       const list = await qidoInstances(cfg, studyUid);
       await audit(a.user, "pacs.retrieve", "pacs", studyUid, { instances: list.length });
       return NextResponse.json(list);
+    }
+    if (action === "frames") {
+      // Kare düzeyinde getirme: yalnız istenen kareler (büyük çalışmalarda bant genişliği).
+      const seriesUid = sp.get("seriesUid") ?? "";
+      const sopUid = sp.get("sopUid") ?? "";
+      if (!isUid(seriesUid) || !isUid(sopUid)) return NextResponse.json({ error: "Geçersiz UID" }, { status: 400 });
+      const framesParam = sp.get("frames") ?? sp.get("frame") ?? "1";
+      const frames = framesParam.split(",").map((x) => Number(x.trim())).filter((n) => Number.isInteger(n) && n > 0 && n <= 100000);
+      if (!frames.length) return NextResponse.json({ error: "Geçersiz kare numarası (1 tabanlı)" }, { status: 400 });
+      const accept = sp.get("accept") ?? undefined;
+      const parts = await wadoFrames(cfg, { studyUid, seriesUid, sopUid }, frames, accept);
+      await audit(a.user, "pacs.retrieve_frames", "pacs", studyUid, { sop: sopUid, frames: frames.length, returned: parts.length });
+      // Tek kare: doğrudan ikili yanıt (istemci <img>/Blob ile kullanır).
+      if (parts.length === 1 && sp.get("raw") === "1") {
+        const type = (sp.get("accept") ?? "").includes("jpeg") ? "image/jpeg" : "application/octet-stream";
+        return new NextResponse(new Uint8Array(parts[0]), { headers: { "Content-Type": type, "Cache-Control": "no-store" } });
+      }
+      return NextResponse.json({
+        count: parts.length,
+        requested: frames,
+        frames: parts.map((p) => ({ bytes: p.length, data: Buffer.from(p).toString("base64") })),
+      });
     }
     if (action === "instance") {
       const seriesUid = sp.get("seriesUid") ?? "";

@@ -4,11 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { fmtConf } from "@/lib/format";
 import { KIND_LABEL, annotationSummary } from "@/lib/geometry";
 import ReviewMetrics from "./ReviewMetrics";
+import { priorDelta } from "@/lib/priorCompare";
+import { BAND_LABEL, uncertaintyBand, uncertaintyNote } from "@/lib/uncertainty";
 import type {
   AiMode, AiProtocol, AnalysisResult, Annotation, Finding, KeyImage, SavedReport, SeriesData, StudyRow, UserInfo,
 } from "@/lib/types";
 import type { ScanState } from "./Viewport";
 import type { CxrResult } from "@/lib/cxrModel";
+import { ASSESSMENT_LABEL, MSK_PROTOCOLS, findMskProtocol } from "@/lib/msk";
 
 const SEV: Record<string, { color: string; bg: string; label: string }> = {
   kritik: { color: "#ff3b5c", bg: "rgba(255,59,92,0.14)", label: "KRİTİK" },
@@ -80,27 +83,16 @@ interface Props {
   currentReportStatus: "taslak" | "onaylandi";
   onStartAll?: () => void;
   loadedCount?: number;
+  /** MSK ölçüm yardımcısı (a-msk). */
+  mskProtocolId: string | null;
+  onMskSelect: (id: string | null) => void;
+  mskPointCount: number;
+  mskDisabledReason?: string | null;
+  mskResults?: { name: string; value: number; unit: string; assessment: "normal" | "sınırda" | "anormal" | "yetersiz"; note: string }[] | null;
+  onMskAddToFindings?: () => void;
+  mskAppendNote?: string | null;
 }
 
-function priorDelta(f: Finding, priors: SavedReport[]): string | null {
-  const m = f.metrics;
-  if (!m || f.category === "Sistem") return null;
-  for (const r of priors) {
-    const pf = r.findingsJson.find((x) => x.category === f.category && x.metrics && x.source !== "manual");
-    if (!pf?.metrics) continue;
-    const parts: string[] = [];
-    if (m.maxDiameterMm !== undefined && pf.metrics.maxDiameterMm !== undefined) {
-      const d = m.maxDiameterMm - pf.metrics.maxDiameterMm;
-      parts.push(`çap ${pf.metrics.maxDiameterMm.toFixed(0)} → ${m.maxDiameterMm.toFixed(0)} mm (${d >= 0 ? "+" : ""}${d.toFixed(1)})`);
-    }
-    if (m.volumeMl !== undefined && pf.metrics.volumeMl) {
-      const pct = ((m.volumeMl - pf.metrics.volumeMl) / pf.metrics.volumeMl) * 100;
-      parts.push(`hacim ${pf.metrics.volumeMl} → ${m.volumeMl} mL (${pct >= 0 ? "+" : ""}${pct.toFixed(0)}%)`);
-    }
-    if (parts.length) return `Önceki (${new Date(r.createdAt).toLocaleDateString("tr-TR")}): ${parts.join(" · ")}. Kayıt (registration) yapılmadan, yalnızca ölçüm karşılaştırması.`;
-  }
-  return null;
-}
 
 const PROTO_LABEL = {
   "ct-head": "BT Beyin · kanama adayı (kural tabanlı)",
@@ -245,6 +237,7 @@ export default function RightPanel(p: Props) {
                             <div className={`h-full ${c.positive ? "bg-rose-400" : "bg-slate-600"}`} style={{ width: `${Math.min(100, c.prob * 100)}%` }} />
                           </div>
                           <span className={`w-8 shrink-0 text-right font-mono ${c.positive ? "text-rose-200" : "text-slate-500"}`}>%{Math.round(c.prob * 100)}</span>
+                          <span className="w-14 shrink-0 rounded border px-1 py-px text-center font-mono text-[8.5px] font-bold" style={{ color: "#e2b7ff", background: "#2a1a3d", borderColor: "#6b3fa055" }} title={uncertaintyNote(uncertaintyBand(c.prob, c.threshold), c.prob, c.threshold)}>{BAND_LABEL[uncertaintyBand(c.prob, c.threshold)]}</span>
                         </div>
                       ))}
                     </div>
@@ -299,6 +292,9 @@ export default function RightPanel(p: Props) {
                           {f.metrics?.volumeMl !== undefined && <div><span className="text-slate-500">Hacim: </span><span className="font-semibold text-slate-200">{f.metrics.volumeMl} mL</span></div>}
                           {f.metrics?.lungRads && <div><span className="text-slate-500">Lung-RADS eşiği: </span><span className="font-semibold text-slate-200">{f.metrics.lungRads}</span></div>}
                           {fmtConf(f) && <div className="col-span-2"><span className="text-slate-500">Güven: </span><span className="font-semibold text-slate-200">{fmtConf(f)}</span></div>}
+                          {f.source === "ai-model" && f.threshold !== undefined && Number.isFinite(f.threshold) && (
+                            <div className="col-span-2 rounded border border-violet-400/25 bg-violet-400/5 p-1 text-[9.5px] leading-snug text-violet-200" title="Skor−eşik mesafesine göre belirsizlik bandı; kalibrasyon değildir.">{uncertaintyNote(uncertaintyBand(f.confidence, f.threshold), f.confidence, f.threshold)}</div>
+                          )}
                         </div>
                       )}
                       {delta && <div className="mt-1.5 rounded border border-violet-400/30 bg-violet-400/5 p-1.5 text-[10px] text-violet-200">↺ {delta}</div>}
@@ -353,6 +349,56 @@ export default function RightPanel(p: Props) {
 
         {tab === "olcum" && (
           <div className="flex flex-col gap-3">
+            {/* MSK ölçüm yardımcısı: adlandırılmış anatomik noktalar + aralık yorumu. Tanısal model değildir. */}
+            <div className="rounded-lg border border-violet-400/30 bg-violet-400/5 p-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-violet-200">MSK ölçüm protokolü</span>
+                {p.mskProtocolId && (
+                  <button onClick={() => p.onMskSelect(null)} className="cursor-pointer text-[10px] text-slate-400 hover:text-rose-300">bırak</button>
+                )}
+              </div>
+              {!p.mskProtocolId ? (
+                <>
+                  {p.mskDisabledReason && <p className="mt-1 text-[10.5px] text-amber-300">{p.mskDisabledReason}</p>}
+                  <div className="mt-1.5 grid gap-1">
+                    {MSK_PROTOCOLS.map((m) => (
+                      <button key={m.id} onClick={() => p.onMskSelect(m.id)} className="cursor-pointer rounded border border-[#2a2140] bg-[#150f22] px-2 py-1.5 text-left text-[10.5px] text-violet-100 hover:border-violet-400/60 hover:bg-[#1d1430]">
+                        <div className="font-bold">{m.title}</div>
+                        <div className="text-[9.5px] text-slate-500">{m.points.length} adlandırılmış nokta · {m.modality}</div>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="mt-1 text-[10.5px] font-bold text-violet-100">{findMskProtocol(p.mskProtocolId)?.title}</p>
+                  <ol className="mt-1 space-y-1">
+                    {(findMskProtocol(p.mskProtocolId)?.points ?? []).map((pt, i) => (
+                      <li key={pt.id} className="rounded px-1.5 py-1 text-[10px] text-slate-300">
+                        {i + 1}. {pt.label} <span className="opacity-60">· {pt.hint}</span>
+                      </li>
+                    ))}
+                  </ol>
+                  {p.mskResults && p.mskResults.length > 0 && (
+                    <div className="mt-2 space-y-1 border-t border-violet-400/20 pt-2">
+                      {p.mskResults.map((r) => (
+                        <div key={r.name} className="text-[10.5px]">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <span className="font-semibold text-slate-200">{r.name}</span>
+                            <span className="font-mono font-bold text-violet-200">{r.value.toFixed(1)} {r.unit}</span>
+                          </div>
+                          <div className="text-[9.5px] text-slate-500">{ASSESSMENT_LABEL[r.assessment]} · {r.note}</div>
+                        </div>
+                      ))}
+                      <p className="text-[9.5px] italic text-slate-500">Ölçüm yardımcısıdır; tanı ve klinik karar hekime aittir.</p>
+                      {p.onMskAddToFindings && <button onClick={p.onMskAddToFindings} className="mt-1 w-full cursor-pointer rounded bg-violet-500/20 px-2 py-1 text-[10px] font-bold text-violet-100 hover:bg-violet-500/30">Özetle ve kopyala</button>}
+                    </div>
+                  )}
+                  {!p.mskResults && <p className="mt-1 text-[10px] text-slate-500">Noktaları görüntüye tıklayarak işaretleyin; belirgin kenarlara otomatik yapışır.</p>}
+                </>
+              )}
+            </div>
+
             <div className="flex items-center justify-between"><span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Ölçümler ({p.annotations.length})</span>{p.annotations.length > 0 && <button onClick={p.onClearAnnotations} className="cursor-pointer text-[10px] text-rose-400 hover:underline">Tümünü sil</button>}</div>
             {p.annotations.length === 0 && <p className="text-[11px] text-slate-500">Araç çubuğundan uzunluk, açı, ROI, ok vb. seçip görüntü üzerinde çizin. Ölçümler çalışmayla birlikte sunucuya kaydedilir ve rapora eklenir.</p>}
             {[...p.annotations].sort((a, b) => a.slice - b.slice).map((a) => (

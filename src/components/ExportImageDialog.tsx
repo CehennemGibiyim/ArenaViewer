@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { apiFetch } from "@/lib/csrfClient";
 
 export interface ImageExport {
   dataUrl: string;
@@ -17,7 +18,7 @@ export default function ExportImageDialog({ image, onClose }: { image: ImageExpo
   useEffect(() => {
     let cancelled = false;
     let objectUrl = "";
-    fetch(image.dataUrl).then((r) => r.blob()).then((blob) => {
+    apiFetch(image.dataUrl).then((r) => r.blob()).then((blob) => {
       objectUrl = URL.createObjectURL(blob);
       if (!cancelled) setUrl(objectUrl);
       else URL.revokeObjectURL(objectUrl);
