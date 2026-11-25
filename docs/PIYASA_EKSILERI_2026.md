@@ -251,3 +251,6 @@ açıktır; bu nedenle `w-pacs` kısmi kalır.
 - [highdicom SEG dokümantasyonu](https://highdicom.readthedocs.io/en/latest/seg.html), BINARY, FRACTIONAL ve LABELMAP ile sıkıştırma ve kaynak görüntü hizalamasında görüntüleyiciler arası uyumluluk farklılıklarına dikkat çeker. Destek matrisi gerçek örneklerle tür ve aktarım sözdizimi bazında test edilmelidir.
 
 Öncelikli sonraki adımlar: (1) PALETTE COLOR LUT descriptor ve segmented LUT için referans örnekler, (2) çok kareli enhanced DICOM per-frame geometri ve güvenli hacim oluşturma, (3) SEG/SR ve video için gerçek örneklerle destek matrisi. Bu alanlar tamamlanmış veya klinik kullanıma uygun sayılmaz.
+
+#### PALETTE COLOR adımı
+İkili US/SS descriptor alanları, işaretli ilk eşlenen değer, 8/16 bit LUT ve endian duyarlı veri okuma düzeltildi. Sentetik dosyalarla renk değerleri yükleme yolunda sınanır. Eksik, çelişkili veya desteklenmeyen segmented LUT içeren palet görüntüleri sessizce gri/yanlış renkle açılmak yerine uyarıyla atlanır. Segmented LUT henüz uygulanmadı; gerçek hasta/PACS verisi veya klinik validasyon yapılmadı. 8-bit tek girişli LUT veri kodlaması belirsiz olduğundan güvenli biçimde reddedilir. Descriptor ve veri yorumlaması için [DICOM Image Pixel Module](https://dicom.nema.org/medical/Dicom/2016a/output/chtml/part03/sect_C.7.6.3.html) esas alındı. Format maddesi kısmi kalır.

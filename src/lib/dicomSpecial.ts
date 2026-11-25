@@ -301,44 +301,45 @@ export function parsePresentationState(ds: DicomDataSet): DicomGSPS | null {
 // ───────────── 6. Palette Color Lookup Table (LUT) ─────────────
 
 export function parsePaletteColorLUT(ds: DicomDataSet): PaletteColorLUT | null {
-  const rDesc = ds.string("x00281101");
-  const gDesc = ds.string("x00281102");
-  const bDesc = ds.string("x00281103");
-  const rData = ds.elements["x00281201"];
-  const gData = ds.elements["x00281202"];
-  const bData = ds.elements["x00281203"];
+  // Descriptor US/SS olarak ikili kodlanır; ilk ve üçüncü değer daima unsigned'dır.
+  const descTags = ["x00281101", "x00281102", "x00281103"];
+  const dataTags = ["x00281201", "x00281202", "x00281203"];
+  const read16 = (offset: number) => ds.byteArrayParser.readUint16(ds.byteArray, offset);
+  const signed = ds.uint16("x00280103") === 1;
+  const descriptors = descTags.map(tag => {
+    const el = ds.elements[tag];
+    if (!el || el.length !== 6 || el.dataOffset + el.length > ds.byteArray.length) return null;
+    const count = read16(el.dataOffset) || 65536;
+    const first = signed ? ds.byteArrayParser.readInt16(ds.byteArray, el.dataOffset + 2) : read16(el.dataOffset + 2);
+    return { count, first, bits: read16(el.dataOffset + 4) };
+  });
+  const desc = descriptors[0];
+  if (!desc || (desc.bits === 8 && desc.count === 1) || ![8, 16].includes(desc.bits) || descriptors.some(d => !d || d.count !== desc.count || d.first !== desc.first || d.bits !== desc.bits)) return null;
 
-  if (!rDesc || !gDesc || !bDesc || !rData || !gData || !bData) return null;
-
-  const [numEntriesRaw, firstMappedRaw, bitsRaw] = rDesc.split("\\").map(Number);
-  const numEntries = numEntriesRaw === 0 ? 65536 : numEntriesRaw || 256;
-  const firstMapped = firstMappedRaw || 0;
-  const bits = bitsRaw || 8;
-
-  const buf = ds.byteArray.buffer as ArrayBuffer;
-  const rOffset = ds.byteArray.byteOffset + rData.dataOffset;
-  const gOffset = ds.byteArray.byteOffset + gData.dataOffset;
-  const bOffset = ds.byteArray.byteOffset + bData.dataOffset;
-
-  const r: Uint8Array | Uint16Array =
-    bits === 16
-      ? new Uint16Array(buf, rOffset, Math.min(numEntries, Math.floor(rData.length / 2)))
-      : new Uint8Array(buf, rOffset, Math.min(numEntries, rData.length));
-  const g: Uint8Array | Uint16Array =
-    bits === 16
-      ? new Uint16Array(buf, gOffset, Math.min(numEntries, Math.floor(gData.length / 2)))
-      : new Uint8Array(buf, gOffset, Math.min(numEntries, gData.length));
-  const b: Uint8Array | Uint16Array =
-    bits === 16
-      ? new Uint16Array(buf, bOffset, Math.min(numEntries, Math.floor(bData.length / 2)))
-      : new Uint8Array(buf, bOffset, Math.min(numEntries, bData.length));
-
-  return {
-    numEntries,
-    firstMapped,
-    bits,
-    r,
-    g,
-    b,
-  };
+  const channels = dataTags.map(tag => {
+    const el = ds.elements[tag];
+    if (!el || el.dataOffset + el.length > ds.byteArray.length) return null;
+    const packedLength = desc.count + (desc.count % 2);
+    const words = el.length === desc.count * 2;
+    if (desc.bits === 16 && !words) return null;
+    if (desc.bits === 8 && !words && el.length !== packedLength) return null;
+    const out = desc.bits === 16 ? new Uint16Array(desc.count) : new Uint8Array(desc.count);
+    for (let i = 0; i < desc.count; i++) {
+      if (words) {
+        const value = read16(el.dataOffset + i * 2);
+        if (desc.bits === 8 && value > 255) return null;
+        out[i] = value;
+      } else if (el.vr === "OB") {
+        out[i] = ds.byteArray[el.dataOffset + i];
+      } else {
+        // OW is a sequence of endian-aware words, including packed 8-bit entries.
+        const word = read16(el.dataOffset + (i & ~1));
+        out[i] = i % 2 ? word >>> 8 : word & 255;
+      }
+    }
+    return out;
+  });
+  const [r, g, b] = channels;
+  if (!r || !g || !b) return null;
+  return { numEntries: desc.count, firstMapped: desc.first, bits: desc.bits, r, g, b };
 }

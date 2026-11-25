@@ -145,12 +145,13 @@ function readNative(ds: DicomDataSet, info: PixelInfo, bigEndian: boolean): RawF
 }
 
 /** Palette Color LUT ile 32-bit RGBA tamponu oluşturur. */
-function applyPaletteColor(raw: RawFrame, lut: PaletteColorLUT, n: number): Uint32Array {
+function applyPaletteColor(raw: RawFrame, lut: PaletteColorLUT, n: number, info: PixelInfo): Uint32Array {
   const rgba = new Uint32Array(n);
   const { r, g, b, firstMapped, numEntries } = lut;
 
   for (let i = 0; i < n; i++) {
-    const idx = raw[i];
+    const shift = 32 - info.bitsStored;
+    const idx = info.pixelRep === 1 ? (raw[i] << shift) >> shift : (raw[i] & (0xffff >>> (16 - info.bitsStored)));
     const mappedIdx = Math.max(0, Math.min(numEntries - 1, idx - firstMapped));
     const red = r[mappedIdx] || 0;
     const green = g[mappedIdx] || 0;
@@ -203,7 +204,7 @@ function toPixels(
 
   let rgba: Uint32Array | undefined = undefined;
   if (paletteLut && info.photometric === "PALETTE COLOR") {
-    rgba = applyPaletteColor(raw, paletteLut, n);
+    rgba = applyPaletteColor(raw, paletteLut, n, info);
   } else if (info.samples >= 3) {
     rgba = buildColorRgba(raw, n, ybrRaw);
   }
@@ -579,6 +580,11 @@ export async function loadMedicalFiles(
       }
 
       const paletteLut = parsePaletteColorLUT(ds);
+      if ((ds.string("x00280004") || "").trim().toUpperCase() === "PALETTE COLOR" && !paletteLut) {
+        const msg = "PALETTE COLOR tablosu eksik, geçersiz veya desteklenmeyen biçimde (segmented LUT dahil)";
+        failed.set(msg, (failed.get(msg) ?? 0) + 1);
+        continue;
+      }
       const overlays = parseOverlayPlanes(ds);
 
       let dec: Awaited<ReturnType<typeof decodePixels>>;
