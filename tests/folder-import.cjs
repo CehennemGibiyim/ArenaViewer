@@ -38,7 +38,8 @@ async function upload(page, dir) {
   mk("tibbi-olmayan/AUTORUN.INF", "[autorun]"); mk("tibbi-olmayan/README.txt", "x".repeat(300)); mk("tibbi-olmayan/viewer.bin", Buffer.alloc(4096, 7));
   mk("desteklenmeyen/DICOM/IM0001", fakeMpegDicom());
   const b = await chromium.launch({ args: ["--no-sandbox"] });
-  const p = await b.newPage({ viewport: { width: 1280, height: 850 } });
+  try {
+  const p = await b.newPage({ serviceWorkers: "block", viewport: { width: 1280, height: 850 } });
   p.setDefaultTimeout(15000);
   const errors = []; p.on("pageerror", (e) => errors.push(e.message));
   await p.goto(BASE);
@@ -83,7 +84,9 @@ async function upload(page, dir) {
     console.log(`PASS ${dir}: ${after - before} seri, ${((Date.now() - t0) / 1000).toFixed(1)} sn, rapor düğmesi çalışıyor`);
   }
   assert.deepEqual(errors, [], "JavaScript hataları");
-  await b.close();
-  fs.rmSync(tmp, { recursive: true, force: true });
   console.log("\nKlasör yükleme testleri başarılı.");
+  } finally {
+    await b.close();
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
 })().catch((e) => { console.error(e); fs.rmSync(tmp, { recursive: true, force: true }); process.exitCode = 1; });
