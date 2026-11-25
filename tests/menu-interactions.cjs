@@ -130,7 +130,10 @@ async function main() {
       await page.getByRole("button", { name: "PNG", exact: true }).click();
       const dialog = page.getByRole("dialog", { name: "PNG görüntü önizlemesi" });
       await dialog.waitFor();
-      await page.waitForFunction(() => document.querySelector('a[download="kesit-14.png"]')?.getAttribute("href")?.startsWith("blob:"));
+      await page.waitForFunction(() => {
+        const href = document.querySelector('a[download="kesit-14.png"]')?.getAttribute("href") || "";
+        return href.startsWith("blob:") || href.startsWith("data:image/png");
+      });
       const event = page.waitForEvent("download");
       await dialog.getByRole("link", { name: "PNG dosyasını indir" }).click();
       const dl = await event;

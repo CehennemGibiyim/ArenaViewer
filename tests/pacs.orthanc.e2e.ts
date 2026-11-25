@@ -12,6 +12,7 @@
  * yönü de gerçek bir PACS üzerinde doğrulanır.
  */
 import { randomInt } from "node:crypto";
+import { parseMultipartRelated } from "../src/lib/server/pacs";
 
 const BASE = (process.env.ORTHANC_URL ?? "").replace(/\/$/, "");
 const USER = process.env.ORTHANC_USER ?? "orthanc";
@@ -69,9 +70,9 @@ function minimalDicom(meta: { patientId: string; patientName: string; studyUid: 
   parts.push(...metaElems);
 
   // Veri kümesi
-  const px = new Uint8Array(8);
+  const px = new Uint8Array(32);
   const dvpx = new DataView(px.buffer);
-  dvpx.setUint16(0, 16, true); dvpx.setUint16(2, 32, true); dvpx.setUint16(4, 48, true); dvpx.setUint16(6, 64, true);
+  for (let i = 0; i < px.length / 2; i++) dvpx.setUint16(i * 2, 16 + i, true);
   parts.push(
     element(0x0008, 0x0016, "UI", uiVal(sopClass)),
     element(0x0008, 0x0018, "UI", uiVal(meta.sopUid)),
@@ -133,42 +134,54 @@ async function main() {
   const boundary = `arena-${Date.now()}`;
   const head = Buffer.from(`--${boundary}\r\nContent-Type: application/dicom\r\n\r\n`);
   const tail = Buffer.from(`\r\n--${boundary}--\r\n`);
-  const stowResp = await req("/studies", {
+  const stowResp = await req("/dicom-web/studies", {
     method: "POST",
     headers: { "Content-Type": `multipart/related; type="application/dicom"; boundary=${boundary}` },
     body: Buffer.concat([head, Buffer.from(dcm), tail]),
   });
-  const storedOk = stowResp.ok;
-  if (!storedOk) {
-    // Bazı Orthanc sürümler tek part'lı multipart yerine ham DICOM kabul eder.
-    const raw = await req("/studies", { method: "POST", headers: { "Content-Type": "application/dicom" }, body: Buffer.from(dcm) });
-    ok(raw.ok, `STOW-RS: örnek çalışma yüklendi (${raw.status})`);
-  } else {
-    ok(true, `STOW-RS: örnek çalışma yüklendi (${stowResp.status})`);
-  }
+  ok(stowResp.ok, `STOW-RS: örnek çalışma yüklendi (${stowResp.status})`);
 
   // 2) QIDO-RS: çalışmayı hasta kimliğiyle bul
-  const studies = (await jget(`/studies?PatientID=${patientId}&includefield=all`)) as Array<Record<string, unknown>>;
+  const studies = (await jget(`/dicom-web/studies?PatientID=${patientId}&includefield=all`)) as Array<Record<string, unknown>>;
   ok(Array.isArray(studies) && studies.length >= 1, `QIDO-RS: yüklenen çalışma bulundu (${studies.length} sonuç)`);
 
   // 3) Seri ve instance listesi
-  const series = (await jget(`/studies/${studyUid}/series`)) as Array<Record<string, unknown>>;
+  const series = (await jget(`/dicom-web/studies/${studyUid}/series`)) as Array<Record<string, unknown>>;
   ok(Array.isArray(series) && series.length >= 1, "QIDO-RS: seri listesi alındı");
-  const instances = (await jget(`/studies/${studyUid}/series/${seriesUid}/instances`)) as Array<Record<string, unknown>>;
+  const instances = (await jget(`/dicom-web/studies/${studyUid}/series/${seriesUid}/instances`)) as Array<Record<string, unknown>>;
   ok(Array.isArray(instances) && instances.length >= 1, "QIDO-RS: instance listesi alındı");
 
   // 4) WADO-RS: instance'ı geri al ve DICM imzasını doğrula
-  const wado = await req(`/instances/${sopUid}`);
+  const wado = await req(`/dicom-web/studies/${studyUid}/series/${seriesUid}/instances/${sopUid}`, {
+    headers: { Accept: 'multipart/related; type="application/dicom"' },
+  });
   if (wado.ok) {
-    const buf = new Uint8Array(await wado.arrayBuffer());
-    ok(buf.length > 132 && buf.slice(128, 132).every((b, i) => b === "DICM".charCodeAt(i)), `WADO-RS: instance geri alındı (${buf.length} bayt, DICM imzalı)`);
+    const body = new Uint8Array(await wado.arrayBuffer());
+    const dicom = parseMultipartRelated(body, wado.headers.get("content-type") ?? "");
+    ok(!!dicom && dicom.length > 132 && dicom.slice(128, 132).every((b, i) => b === "DICM".charCodeAt(i)), `WADO-RS: DICOM instance geri alındı (${dicom?.length ?? 0} bayt)`);
   } else {
     ok(false, `WADO-RS: instance alınamadı (${wado.status})`);
   }
 
   // 5) Temizlik
-  const del = await req(`/studies/${studyUid}`, { method: "DELETE" });
-  ok(del.ok || del.status === 404, `Temizlik: çalışma silindi (${del.status})`);
+  const lookup = await req("/tools/find", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ Level: "Study", Query: { StudyInstanceUID: studyUid } }),
+  });
+  if (lookup.ok) {
+    const studyIds = await lookup.json() as string[];
+    const deleted = await Promise.all(studyIds.map((id) => req(`/studies/${id}`, { method: "DELETE" })));
+    const remaining = await req("/tools/find", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ Level: "Study", Query: { StudyInstanceUID: studyUid } }),
+    });
+    const remainingIds = remaining.ok ? await remaining.json() as string[] : [studyUid];
+    ok(deleted.every((response) => response.ok) && remainingIds.length === 0, "Temizlik: çalışma silindi");
+  } else {
+    ok(false, `Temizlik: Orthanc çalışma kimliği bulunamadı (${lookup.status})`);
+  }
 
   if (failed) { console.error(`${failed} Orthanc e2e adımı başarısız`); process.exit(1); }
   console.log("Tüm Orthanc uçtan uca testleri geçti.");
