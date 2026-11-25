@@ -1019,6 +1019,11 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
       } catch (e) {
         if (runRef.current !== run) return;
         pushFeed(`CXR modeli çalıştırılamadı: ${e instanceof Error ? e.message : "hata"} — görüntüler radyolog tarafından değerlendirilmelidir.`, "warn");
+        // Başarısız çıkarım, negatif model sonucu veya tamamlanmış analiz değildir.
+        engine = "no-model";
+        findings = [];
+        setCxr(null);
+        setHeats(new Map());
       }
     }
 
@@ -1050,7 +1055,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     }
     if (runRef.current !== run) return;
 
-    if (deepOut && deepOut.findings.length > 0) {
+    if (deepOut) {
       result = {
         ...result,
         model: `${result.model} + ${deepProto === "ct-head" ? "ct-head-hemorrhage-detection" : "MONAI lung_nodule_ct_detection"} (yerel, ücretsiz)`,
