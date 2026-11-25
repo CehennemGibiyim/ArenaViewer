@@ -581,7 +581,7 @@ export async function loadMedicalFiles(
 
       const paletteLut = parsePaletteColorLUT(ds);
       if ((ds.string("x00280004") || "").trim().toUpperCase() === "PALETTE COLOR" && !paletteLut) {
-        const msg = "PALETTE COLOR tablosu eksik, geçersiz veya desteklenmeyen biçimde (segmented LUT dahil)";
+        const msg = "PALETTE COLOR tablosu eksik, geçersiz veya desteklenmeyen biçimde";
         failed.set(msg, (failed.get(msg) ?? 0) + 1);
         continue;
       }
