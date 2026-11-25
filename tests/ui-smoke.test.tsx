@@ -15,6 +15,7 @@ import NoduleTracker from "../src/components/NoduleTracker";
 import MeasureHistoryPanel from "../src/components/MeasureHistoryPanel";
 import LungQuantPanel from "../src/components/LungQuantPanel";
 import NuclearPanel from "../src/components/NuclearPanel";
+import PatientLetterModal from "../src/components/PatientLetterModal";
 import type { SeriesData } from "../src/lib/types";
 
 const mirror = renderToStaticMarkup(<MirrorView />);
@@ -85,5 +86,19 @@ for (const marker of ["Nükleer tıp · MTV / SUV / TIC", "SUV çarpanı yok", "
 }
 assert.ok(nuc.includes('role="dialog"') && nuc.includes('aria-modal="true"'), "nükleer panel diyalog semantiği taşır");
 console.log("PASS nükleer tıp: panel SUV çarpanı olmadan uyarıyla render edilir.");
+
+// d-patient-letter: hasta mektubu paneli SSR'da render edilir (dil/düzey seçicileri + taslak kilidi).
+const letterSource = {
+  patientName: "TEST HASTA", studyDate: "20260214", modality: "CT", bodyPart: "TORAKS",
+  findingsText: "Nodül izlendi.", impression: "Takip önerilir.", recommendation: "3 ay kontrol.",
+  institution: "Test Hastanesi", approvedBy: "Dr Test", doctorTitle: "Radyoloji Uzmanı", approved: false,
+};
+const letter = renderToStaticMarkup(<PatientLetterModal source={letterSource} onClose={() => {}} />);
+for (const marker of ["Hasta mektubu", "Türkçe", "sade dil", "Yazdır / PDF", "TASLAK"]) {
+  assert.ok(letter.includes(marker), `hasta mektubunda "${marker}" bulunmalı`);
+}
+assert.ok(letter.includes('role="dialog"') && letter.includes('aria-modal="true"'), "hasta mektubu diyalog semantiği taşır");
+assert.ok(letter.includes("disabled"), "onaysız raporda yazdırma kilitlidir");
+console.log("PASS hasta mektubu: onaysız raporda taslak uyarısı ve kilitli yazdırma ile render edilir.");
 
 console.log("Tüm arayüz duman testleri geçti.");

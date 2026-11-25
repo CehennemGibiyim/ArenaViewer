@@ -1,0 +1,127 @@
+"use client";
+
+/**
+ * Hasta dostu sonuç mektubu paneli (d-patient-letter).
+ *
+ * Onaylı rapor metninden dil (TR/EN/DE) ve okuma düzeyi (sade/standart) seçilerek
+ * özet üretilir; önizleme düzenlenebilir, yazdırma/PDF ve panoya kopyalama vardır.
+ * Rapor onaylı değilse mektup TASLAK olarak işaretlenir ve yazdırma kilitlidir.
+ */
+import { useMemo, useState } from "react";
+import {
+  LANG_LABELS, LETTER_LANGS, READING_LEVELS, buildPatientLetter, letterToText,
+  type LetterLang, type ReadingLevel,
+} from "@/lib/patientLetter";
+import { useEscapeKey } from "@/lib/useEscapeKey";
+
+export interface PatientLetterSource {
+  patientName: string;
+  studyDate: string;
+  modality: string;
+  bodyPart: string;
+  findingsText: string;
+  impression: string;
+  recommendation: string;
+  institution: string;
+  approvedBy: string;
+  doctorTitle: string;
+  approved: boolean;
+}
+
+interface Props {
+  source: PatientLetterSource;
+  onClose: () => void;
+}
+
+export default function PatientLetterModal({ source, onClose }: Props) {
+  useEscapeKey(onClose);
+  const [lang, setLang] = useState<LetterLang>("tr");
+  const [level, setLevel] = useState<ReadingLevel>("sade");
+  const [includeFindings, setIncludeFindings] = useState(true);
+  const [copied, setCopied] = useState("");
+
+  const letter = useMemo(
+    () => buildPatientLetter({ ...source, doctorName: source.approvedBy }, { lang, level, includeFindings }),
+    [source, lang, level, includeFindings],
+  );
+  const text = useMemo(() => letterToText(letter), [letter]);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied("Panoya kopyalandı.");
+    } catch {
+      setCopied("Panoya kopyalanamadı; metni seçip elle kopyalayın.");
+    }
+    setTimeout(() => setCopied(""), 3000);
+  };
+
+  /** Yazdırma: mektup kâğıdı #print-root içine kopyalanır (rapor yazdırmayla aynı yol). */
+  const printLetter = () => {
+    const paper = document.getElementById("patient-letter-paper");
+    if (!paper) { window.print(); return; }
+    const root = document.createElement("div");
+    root.id = "print-root";
+    root.appendChild(paper.cloneNode(true));
+    document.body.appendChild(root);
+    const cleanup = () => { root.remove(); window.removeEventListener("afterprint", cleanup); };
+    window.addEventListener("afterprint", cleanup);
+    setTimeout(() => window.print(), 50);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-3" data-testid="patient-letter-modal" role="dialog" aria-modal="true" aria-label="Hasta mektubu">
+      <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-[#2d3b4e] bg-[#0b0f16] text-xs text-slate-200 shadow-2xl">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#1a2230] px-4 py-2">
+          <b className="text-sm text-slate-100">Hasta mektubu</b>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <select value={lang} onChange={(e) => setLang(e.target.value as LetterLang)} aria-label="Mektup dili" className="rounded border border-[#232e40] bg-[#141b24] px-1.5 py-0.5">
+              {LETTER_LANGS.map((l) => <option key={l} value={l}>{LANG_LABELS[l]}</option>)}
+            </select>
+            <select value={level} onChange={(e) => setLevel(e.target.value as ReadingLevel)} aria-label="Okuma düzeyi" className="rounded border border-[#232e40] bg-[#141b24] px-1.5 py-0.5">
+              {READING_LEVELS.map((r) => <option key={r} value={r}>{r === "sade" ? "sade dil" : "standart"}</option>)}
+            </select>
+            <label className="flex cursor-pointer items-center gap-1 text-[10.5px] text-slate-400">
+              <input type="checkbox" checked={includeFindings} onChange={(e) => setIncludeFindings(e.target.checked)} className="h-3 w-3 accent-cyan-500" />
+              bulguları ekle
+            </label>
+            <button onClick={() => void copy()} className="cursor-pointer rounded border border-[#2d3b4e] px-2 py-0.5 hover:bg-[#1a2330]">Kopyala</button>
+            <button onClick={printLetter} disabled={!source.approved} title={source.approved ? "Yazdır / PDF" : "Rapor onaylanmadan mektup verilemez"} className={`rounded border px-2 py-0.5 ${source.approved ? "cursor-pointer border-cyan-400/50 text-cyan-200 hover:bg-cyan-400/10" : "cursor-not-allowed border-[#2d3b4e] text-slate-500 opacity-60"}`}>🖨 Yazdır / PDF</button>
+            <button onClick={onClose} aria-label="Kapat" className="cursor-pointer rounded border border-[#2d3b4e] px-2 py-0.5 hover:bg-[#1a2330]">✕</button>
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-auto px-4 py-3">
+          {letter.draftWarning && (
+            <div className="mb-2 rounded border border-rose-400/50 bg-rose-400/10 px-2 py-1 font-bold text-rose-200">{letter.draftWarning}</div>
+          )}
+          {copied && <div role="status" className="mb-2 rounded border border-cyan-400/40 bg-cyan-400/10 px-2 py-1 text-cyan-200">{copied}</div>}
+
+          <article id="patient-letter-paper" className="rounded-lg border border-[#1e2735] bg-[#0f141c] p-4 leading-relaxed text-slate-200">
+            <h2 className="text-sm font-bold text-slate-100">{letter.title}</h2>
+            <div className="mt-1 text-[11px] text-slate-500">{source.institution || ""}{source.institution ? " · " : ""}{source.modality}{source.bodyPart ? ` · ${source.bodyPart}` : ""}</div>
+            <p className="mt-3 font-semibold">{letter.greeting}</p>
+            {letter.paragraphs.map((p, i) => (
+              <p key={i} className="mt-2 text-[12px]">
+                {p.split(": ").length === 2 && p.includes(": ") ? (
+                  <>
+                    <b>{p.split(": ")[0]}:</b> {p.split(": ").slice(1).join(": ")}
+                  </>
+                ) : p}
+              </p>
+            ))}
+            <p className="mt-3 text-[12px] font-semibold">{letter.nextSteps}</p>
+            <p className="mt-1 text-[11px] text-slate-400">{letter.contact}</p>
+            <p className="mt-3 rounded border border-amber-400/30 bg-amber-400/5 px-2 py-1 text-[10.5px] text-amber-200">{letter.important}</p>
+            <p className="mt-2 text-[10px] text-slate-500">{letter.disclaimer}</p>
+          </article>
+
+          <div className="mt-2 text-[10px] leading-relaxed text-slate-500">
+            Mektup, hekimin onayladığı rapor metninden <b>şablonla</b> üretilir (LLM kullanılmaz). Sade düzeyde bazı tıbbi terimler
+            günlük karşılıklarıyla değiştirilir. Gönderilmeden önce içeriğin doğruluğu hekim tarafından kontrol edilmelidir.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -627,10 +627,10 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "d-patient-letter", category: "report", title: "Hasta dostu sonuç mektubu (çok dilli)",
-    status: "kismi", priority: "P3", effort: "S",
+    status: "var", priority: "P3", effort: "S",
     market: ["Rad AI"],
-    ours: "Hasta özeti raporda var; PDF/e-posta çıktısı yok.",
-    action: "Okuma düzeyi seçeneğiyle çok dilli hasta mektubu.",
+    ours: "**Çalışıyor:** Rapor ekranı → «💬 Hasta mektubu». `src/lib/patientLetter.ts` hekimin onayladığı rapordan **TR/EN/DE** dillerinde, **sade/standart** okuma düzeyinde şablon tabanlı mektup üretir; sade düzeyde tıbbi terimler günlük karşılıklarıyla değiştirilir (nodül → küçük yumru, efüzyon → sıvı birikmesi, malign → kötü huylu olabilecek…). Uzun metinler cümle sınırında kısaltılır, tarih seçilen dilin biçimine çevrilir; mektup **yazdırılabilir/PDF**, panoya kopyalanabilir. Rapor onaylı değilse mektup **TASLAK** olarak işaretlenir ve yazdırma kilitlenir; sorumluluk notu ve «hekiminize başvurun» ilkesi her dilde sabittir. 39 test (üç dil, sadeleştirme, tarih biçimi, kısaltma, boş alan yedekleri, taslak uyarısı) + SSR duman testi. SINIR: e-posta/SMS ile gönderim ve hasta portalı entegrasyonu yok (kurum sağlayıcısına bağlı); dil seti TR/EN/DE ile sınırlı.",
+    action: "Kurumsal: e-posta/SMS gönderimi, hasta portalı entegrasyonu ve ek diller (çeviri onayı).",
   },
   {
     id: "r-style-cite", category: "report", title: "Üretken AI'da hekim üslubu öğrenme + kesit alıntısı",

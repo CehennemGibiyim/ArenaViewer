@@ -43,6 +43,10 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
 - **Akciğer kantitasyonu:** Araç çubuğu → 🫁 Akciğer (CT): LAA-950 (emfizem
   oranı), ortalama HU, PD15, tahmini hacim ve **kesit dağılım profili**. Gövde
   dışı hava dışlanır; lob/fissür ayrımı yoktur, DSBG ile birlikte değerlendirilir.
+- **Hasta mektubu:** Rapor ekranı → 💬 Hasta mektubu: onaylı rapordan **TR/EN/DE**
+  dillerinde, **sade/standart** okuma düzeyinde özet; sade düzeyde tıbbi terimler
+  günlük karşılıklarına çevrilir, yazdırma/PDF ve panoya kopyalama var. Onaysız
+  raporda mektup TASLAK olarak kilitlenir.
 - **Nükleer tıp:** Araç çubuğu → 🧪 Nükleer (PT/NM ya da SUV çarpanı olan seri):
   eşik tabanlı **MTV/SUVpeak/SUVmean** (mutlak SUV veya maksimumun %41'i) ve
   zaman-aktivite noktalarından **TIC** sınıflandırması (wash-out/plato/progresif).
@@ -482,6 +486,7 @@ npm run test:lungquant              # LAA-950, PD15, kesit profili, örnekleme
 npm run test:model-registry         # model kayıt defteri + A/B ataması
 npm run test:a11y                   # WCAG kontrastı + tema sabitleri
 npm run test:nuclear                # MTV/SUV örnekleme + TIC sınıflandırması
+npm run test:patient-letter         # hasta mektubu: TR/EN/DE, okuma düzeyi, taslak kilidi
 npm run test:closeloop              # kapanış döngüsü süre/eskalasyon kuralları
 npm run test:followup               # takip görev kovaları + iade eşleme
 npm run test:stowanon               # anonim seri → PACS (plan + sunucu doğrulaması)
