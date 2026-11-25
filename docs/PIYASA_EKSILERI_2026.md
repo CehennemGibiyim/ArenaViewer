@@ -20,6 +20,20 @@ rapor durumu farklı olabilir ve ayrı gösterilir. Statik demo sunucu kuyruğun
 desteklemez. AI sıralaması klinik olarak doğrulanmış değildir ve bir çalışma
 listede yoksa veya düşük sıralanmışsa güvenli olduğu anlamına gelmez.
 
+### İlerleme ölçümü ve Dependency Graph
+
+Kıyaslama ekranındaki durumlar elle gözden geçirilir. Tamamlanan madde oranı
+`var / toplam`dır; durum endeksi `var=1, kısmi=0,5, yok=0` ağırlıklarıyla
+hesaplanır. Endeks gerçek çalışma yüzdesi veya klinik uygunluk değildir. Kısmi
+olan bir maddenin gerçek yüzdesi ölçülmemiştir.
+
+G3 hâlâ kısmi: PR dependency-review daha önce `continue-on-error` nedeniyle
+başarısız olsa da yeşil görünüyordu; artık hata gizlenmez. Dependency Graph
+etkinleştirildi: 25 Kasım 2026'da SBOM API'si 602 paket döndürdü ve PR #21'de
+**Bağımlılık denetimi** adımı başarıyla tamamlandı. Bu PR'da bağımlılık farkı
+olmadığından, açık içeren bir değişikliğin tespit edilmesi ayrıca sınanmadı.
+SBOM imzalama ve kurumsal HSM gibi kalan işler nedeniyle G3 kısmi kalır.
+
 ## 0. Nasıl okunur
 
 | Öncelik | Anlamı |
