@@ -606,10 +606,10 @@ const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "d-peer", category: "report", title: "Peer review / ikinci okuma / uyuşmazlık kaydı (RADPEER)",
-    status: "kismi", priority: "P2", effort: "M",
+    status: "var", priority: "P2", effort: "M",
     market: ["RADPEER (ACR)", "PeerVue", "RadPeer"],
-    ours: "**Bu sürümde eklendi:** `peer_reviews` tablosu + `/api/reports/[id]/peer-reviews` (GET/POST) + rapor ekranında “İkinci okuma” kartı (uyumlu/kısmen/uyumsuz + fark türü + not; uyumsuzda açıklama zorunlu, raporu oluşturan kişi yorumlayamaz). Rastgele örnekleme (örneklem oranı), uzun vadeli uyumsuzluk istatistikleri ve gözetim panosu yok.",
-    action: "Örneklem oranı/hedefi, uyuşmazlık istatistikleri ve RADPEER puanlama.",
+    ours: "`peer_reviews` tablosu + `/api/reports/[id]/peer-reviews` (GET/POST) + rapor ekranında «İkinci okuma» kartı (uyumlu/kısmen/uyumsuz + fark türü + not; uyumsuzda açıklama zorunlu, raporu oluşturan kişi yorumlayamaz). **Yeni — RADPEER gözetimi:** puan eşlemesi (1 uyumlu / 2 anlamsız fark / 3 anlamlı fark), **deterministik örnekleme** (`shouldSampleReport`: aynı rapor her zaman aynı sonuca düşer), oran **ayarı** (`peerReviewSamplePct`, varsayılan %5, Yönetim → İş akışı'ndan kaydedilir) ve **hedef takibi** (`samplingTarget`: onaylı rapor × oran → beklenen/kalan). `/api/reports/peer-stats` uyum oranını (puan 1–2 uyumlu), RADPEER dağılımını, uyuşmazlık türlerini, hekim başına uyumsuzluk oranını, takip gerektiren uyumsuz okumaları ve **örneklem kuyruğunu** verir; panelde çubuklarla gösterilir. 34 test (puan eşlemesi, %10 örnek dağılımı ±1,5, hedef matematği, boş küme, bilinmeyen sonuç). SINIR: seçilen raporun ikinci okuyucuya **ataması/bildirimi** ve kurum RADPEER konferans iş akışı yok.",
+    action: "Örneklenen raporu ikinci okuyucuya ata + bildirim gönder; RADPEER konferans/toplantı kaydı.",
   },
   {
     id: "d-ambient", category: "report", title: "Ambient dokümantasyon + yapılandırılmış makrolar",

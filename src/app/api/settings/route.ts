@@ -16,6 +16,8 @@ export async function GET(req: NextRequest) {
   const cfg = await loadPacsConfig();
   return NextResponse.json({
     retentionDraftDays: Number(await getSetting("retentionDraftDays", "0")),
+    // İkinci okuma örneklem oranı (%) — d-peer
+    peerReviewSamplePct: Number(await getSetting("peerReviewSamplePct", "5")),
     criticalWebhookUrl: await getSetting("criticalWebhookUrl"),
     // Kritik bulgu kanalları (e-posta/SMS/çağrı/webhook) — normalize edilmiş JSON.
     notifyChannels: await getSetting("notifyChannels"),
@@ -101,6 +103,11 @@ export async function PUT(req: NextRequest) {
     if (errors.length) return NextResponse.json({ error: errors.join(" · "), channelErrors: errors }, { status: 400 });
     await setSetting("notifyChannels", serializeChannels(channels));
     changed.push("notifyChannels");
+  }
+  if (typeof b.peerReviewSamplePct === "number") {
+    const pct = Math.max(0, Math.min(100, Math.round(b.peerReviewSamplePct)));
+    await setSetting("peerReviewSamplePct", String(pct));
+    changed.push("peerReviewSamplePct");
   }
   if (typeof b.retentionDraftDays === "number") {
     const d = Math.max(0, Math.min(3650, Math.floor(b.retentionDraftDays)));

@@ -19,6 +19,16 @@ interface WorkflowStats {
   perRadiologist: { name: string; approved: number; medianHours: number | null; p90Hours: number | null }[];
 }
 interface WeekBucket { weekStart: string; label: string; approved: number; medianHours: number | null; p90Hours: number | null }
+interface PeerScoreBucket { score: 1 | 2 | 3; label: string; count: number; pct: number }
+interface PeerStats {
+  total: number; agreementRate: number | null;
+  byScore: PeerScoreBucket[];
+  byDiscrepancy: { type: string; count: number }[];
+  byReviewer: { name: string; count: number; disagreements: number; disagreementRate: number | null }[];
+  needsFollowUp: { id: number; reportId: number; reviewedByName: string; note: string; createdAt: string }[];
+  note: string;
+}
+interface PeerTarget { ratePct: number; expected: number; reviewed: number; remaining: number; met: boolean; note: string }
 interface TatTarget { status: "hedef-icinde" | "sinirda" | "hedef-disi" | "bilinmiyor"; targetHours: number; ratio: number | null; note: string }
 interface Status { keySource: string; plaintext: { studies: number; reports: number }; totals: Record<string, number>; retentionDraftDays: number }
 type Settings = {
@@ -105,6 +115,9 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
   const [tatAlertList, setTatAlertList] = useState<string[]>([]);
   const [targetHours, setTargetHours] = useState("24");
   const [trendModality, setTrendModality] = useState("");
+  // İkinci okuma gözetim panosu (d-peer)
+  const [peer, setPeer] = useState<{ stats: PeerStats; target: PeerTarget; samplePct: number; approvedReports: number; queue: number[]; note: string } | null>(null);
+  const [peerPct, setPeerPct] = useState("5");
   const targetHoursRef = useRef("24");
   const trendModalityRef = useRef("");
   useEffect(() => { targetHoursRef.current = targetHours; }, [targetHours]);
@@ -122,6 +135,10 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
       setTatTargetState(r.data.target ?? null);
       setTatAlertList(r.data.alerts ?? []);
     }
+  }, []);
+  const loadPeer = useCallback(async () => {
+    const r = await api<{ stats: PeerStats; target: PeerTarget; samplePct: number; approvedReports: number; queue: number[]; note: string }>("/api/reports/peer-stats");
+    if (r.ok) { setPeer(r.data); setPeerPct(String(r.data.samplePct ?? 5)); }
   }, []);
   // güvenlik / ayarlar
   const [status, setStatus] = useState<Status | null>(null);
@@ -201,11 +218,11 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
         if (r.ok) setPerf(r.data);
         await loadRegistry();
       }
-      if (tab === "stats") await loadStats(targetHoursRef.current, trendModalityRef.current);
+      if (tab === "stats") { await loadStats(targetHoursRef.current, trendModalityRef.current); await loadPeer(); }
       if (["security", "integration", "compliance"].includes(tab)) await loadSettings();
       if (tab === "security") await loadKeyring();
     })();
-  }, [tab, loadProfile, loadAudit, loadSiem, loadStats, loadSettings, loadUsers, loadMfa, loadKeyring, loadSessions, loadRegistry]);
+  }, [tab, loadProfile, loadAudit, loadSiem, loadStats, loadSettings, loadUsers, loadMfa, loadKeyring, loadSessions, loadRegistry, loadPeer]);
 
   const saveSettings = async (patch: Record<string, unknown>) => {
     const r = await api<{ error?: string }>("/api/settings", json("PUT", patch));
@@ -314,6 +331,13 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
   };
 
   const tabs: [Tab, string][] = [["profile", "Profil & MFA"], ["sessions", "Oturumlar"], ["users", "Kullanıcılar"], ["audit", "Denetim kaydı"], ["ai", "AI performans"], ["stats", "İş akışı"], ["security", "Güvenlik & saklama"], ["integration", "Entegrasyon"], ["compliance", "Uyum"]];
+
+  const savePeerPct = async () => {
+    const n = Number(peerPct);
+    if (!Number.isFinite(n)) { flash("Örneklem oranı sayı olmalı."); return; }
+    await saveSettings({ peerReviewSamplePct: Math.max(0, Math.min(100, Math.round(n))) });
+    await loadPeer();
+  };
 
   const saveModel = async () => {
     setRegBusy(true);
@@ -708,6 +732,66 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
                 <ul className="rounded border border-amber-400/40 bg-amber-400/10 px-2 py-1 text-[10.5px] text-amber-200">
                   {tatAlertList.map((a) => <li key={a}>• {a}</li>)}
                 </ul>
+              )}
+            </div>
+            <div className={`${card} space-y-2`}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <b className="text-xs text-slate-200">İkinci okuma (RADPEER)</b>
+                <div className="flex items-center gap-1 text-[11px] text-slate-400">
+                  <span>Örneklem %</span>
+                  <input value={peerPct} onChange={(e) => setPeerPct(e.target.value)} className={`${input} w-16`} aria-label="İkinci okuma örneklem oranı" />
+                  <button onClick={() => void savePeerPct()} className={`${btn} bg-cyan-400/15 text-cyan-200 ring-1 ring-cyan-400/40`}>Kaydet</button>
+                  {peer && (
+                    <span className={`ml-2 rounded px-1.5 py-0.5 text-[10px] font-black ${peer.target.met ? "bg-emerald-500/20 text-emerald-200" : "bg-amber-500/20 text-amber-200"}`}>
+                      {peer.target.met ? "HEDEF TAMAM" : `${peer.target.remaining} RAPOR KALDI`}
+                    </span>
+                  )}
+                </div>
+              </div>
+              {!peer && <div className="text-[11px] text-slate-500">Yükleniyor…</div>}
+              {peer && (
+                <>
+                  <div className="text-[10.5px] text-slate-500">
+                    {peer.stats.note} · onaylı rapor {peer.approvedReports} · hedef {peer.target.expected} okuma ({peer.target.reviewed} yapıldı)
+                  </div>
+                  <div className="grid gap-2 md:grid-cols-3">
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-slate-500">RADPEER dağılımı</div>
+                      {peer.stats.byScore.map((b) => (
+                        <div key={b.score} className="mt-1">
+                          <div className="flex justify-between text-[10.5px] text-slate-400"><span>{b.label}</span><span className="font-mono">{b.count} (%{b.pct})</span></div>
+                          <div className="mt-0.5 h-1.5 rounded bg-[#141b24]">
+                            <div className={`h-1.5 rounded ${b.score === 3 ? "bg-rose-400" : b.score === 2 ? "bg-amber-400" : "bg-emerald-400"}`} style={{ width: `${Math.min(100, b.pct)}%` }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-slate-500">Uyuşmazlık türleri</div>
+                      {peer.stats.byDiscrepancy.length === 0 && <div className="mt-1 text-[10.5px] text-slate-500">Anlamlı fark kaydı yok.</div>}
+                      {peer.stats.byDiscrepancy.map((d) => <div key={d.type} className="mt-1 flex justify-between text-[10.5px] text-slate-400"><span>{d.type}</span><span className="font-mono">{d.count}</span></div>)}
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-slate-500">Hekim başına</div>
+                      {peer.stats.byReviewer.length === 0 && <div className="mt-1 text-[10.5px] text-slate-500">Kayıt yok.</div>}
+                      {peer.stats.byReviewer.slice(0, 5).map((r) => (
+                        <div key={r.name} className="mt-1 flex justify-between text-[10.5px] text-slate-400">
+                          <span className="truncate">{r.name}</span>
+                          <span className="font-mono">{r.count} okuma · {r.disagreements} uyumsuz{r.disagreementRate !== null ? ` (%${Math.round(r.disagreementRate * 100)})` : ""}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {peer.stats.needsFollowUp.length > 0 && (
+                    <div className="rounded border border-rose-400/40 bg-rose-400/10 px-2 py-1 text-[10.5px] text-rose-200">
+                      Takip gerektiren {peer.stats.needsFollowUp.length} uyumsuz okuma: {peer.stats.needsFollowUp.map((r) => `#${r.reportId} (${r.reviewedByName || "isimsiz"})`).join(", ")}
+                    </div>
+                  )}
+                  {peer.queue.length > 0 && (
+                    <div className="text-[10px] text-slate-500">Örneklem kuyruğu (ilk 50): {peer.queue.slice(0, 12).join(", ")}{peer.queue.length > 12 ? "…" : ""}</div>
+                  )}
+                  <div className="text-[10px] text-slate-500">{peer.note}</div>
+                </>
               )}
             </div>
             {!stats && <div className={`${card}`}>Yükleniyor…</div>}
