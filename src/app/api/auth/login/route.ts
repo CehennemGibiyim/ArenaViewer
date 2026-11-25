@@ -6,6 +6,7 @@ import { authRequired } from "@/lib/server/auth";
 import { attemptLogin, lockRemainingMinutes, lockoutPolicy, recordFailedAttempt, recordSuccessfulLogin, totpRequiredFor, toUserInfo, type AccountRecord } from "@/lib/server/accounts";
 import { ldapAuthenticate } from "@/lib/server/ldapAuth";
 import { ldapConfig } from "@/lib/server/ldap";
+import { samlConfig } from "@/lib/server/saml";
 import { issueSessionCookie, SESSION_COOKIE } from "@/lib/server/session";
 import { createSession } from "@/lib/server/sessions";
 import { oidcConfig } from "@/lib/server/oidc";
@@ -220,5 +221,9 @@ export async function GET() {
     // LDAP/AD aynı kullanıcı adı+parola formunu kullanır; istemciye yalnız
     // dizinin etkin olduğu bilgisi verilir (ipucu metni).
     ldap: { enabled: ldapConfig() !== null },
+    saml: (() => {
+      const c = samlConfig();
+      return c ? { enabled: true, label: c.label } : { enabled: false, label: "" };
+    })(),
   });
 }

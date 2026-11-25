@@ -424,6 +424,11 @@ ayarı. S3 istemcisi AWS SigV4 kullanır (AWS/MinIO/R2/Wasabi uyumlu).
 | `LDAP_ADMIN_GROUP` / `LDAP_DEFAULT_ROLE` / `LDAP_AUTO_PROVISION` | Hayır | Yönetici yapan grup (DN ya da CN), yeni hesapların rolü ve ilk girişte otomatik hesap açma |
 | `LDAP_ATTR_NAME` / `LDAP_ATTR_MAIL` / `LDAP_ATTR_GROUPS` / `LDAP_TIMEOUT_MS` | Hayır | Dizin öznitelik eşlemesi (varsayılan `cn`/`mail`/`memberOf`) ve zaman aşımı (1–30 sn) |
 | `AV_FRAME_ANCESTORS` | Hayır | Uygulamanın **iframe içinde** çerçevelenebileceği ek kökenler (boşluk/virgülle; ör. `https://portal.hastane.local https://*.e2b.app`). Tanımsızsa yalnız aynı köken ve `X-Frame-Options: SAMEORIGIN` gönderilir; tanımlıysa CSP `frame-ancestors` listesine eklenir. Yalnız http(s) kökenleri kabul edilir, `*` reddedilir |
+| `SAML_IDP_SSO_URL` + `SAML_IDP_ENTITY_ID` + `SAML_IDP_CERT` | Hayır | SAML 2.0 SP — üçü birlikte tanımlıysa `/giris`'te SAML düğmesi çıkar; SP meta verisi `/api/auth/saml/metadata`. Ayrıntı: [docs/SAML.md](docs/SAML.md) |
+| `SAML_ENTITY_ID` / `SAML_ACS_URL` / `SAML_LABEL` | Hayır | SP entityID (varsayılan `atikviewer-sp`), sabit ACS adresi ve düğme etiketi |
+| `SAML_ADMIN_GROUP` / `SAML_DEFAULT_ROLE` / `SAML_AUTO_PROVISION` / `SAML_LINK_BY_EMAIL` | Hayır | Yönetici yapan grup, yeni hesapların rolü, otomatik açma ve (varsayılan kapalı) kullanıcı adı devralma |
+| `SAML_ATTR_NAME` / `SAML_ATTR_MAIL` / `SAML_ATTR_GROUPS` / `SAML_NAME_ID_FORMAT` | Hayır | Talep eşlemesi (varsayılan `displayName`/`mail`/`memberOf`) ve istenen NameID biçimi |
+| `SAML_CLOCK_SKEW_SEC` / `SAML_ALLOW_SHA1` / `SAML_SKIP_TOTP` | Hayır | Saat kayması toleransı (≤600 sn), SHA-1 imza izni (varsayılan red) ve SSO'da TOTP atlama |
 | `AUTH_LOCK_MINUTES` | Hayır | Kilit süresi, dakika (varsayılan 15) |
 | `LLM_API_URL` / `LLM_API_KEY` / `LLM_MODEL` | Hayır | Taslak izlenim LLM'i (yoksa kural tabanlı yedek). Ücretsiz yerel yol: [docs/OLLAMA.md](docs/OLLAMA.md) |
 | `AI_WORKER_URL` | Hayır | Yerel derin AI worker adresi (varsayılan `http://127.0.0.1:8787`) |
@@ -524,6 +529,7 @@ npm run db:push                     # drizzle şemasını uygula
 AV_RATE_LIMIT=off npm start &       # testte hız sınırı kapalı (CSRF açık kalır)
 npm run test:oidc                   # kurumsal giriş çekirdeği (PKCE, state, RS256, eşleme)
 npm run test:ldap                   # LDAP çekirdeği (BER, filtre/DN kaçışı, ayrıştırma)
+npm run test:saml                   # SAML çekirdeği (XML DSig/c14n, koşullar, replay)
 npm run test:frame-ui               # iframe gömme: izinli köken çerçevelenir, izinsiz engellenir (iki sunucu + Chromium)
 npm run test:db-api                 # 51 kontrol: ölçüm geçmişi, RADPEER, model uçları
 npm run db:local:stop
@@ -652,6 +658,16 @@ docs/             Yayınlama ve işletim kılavuzları
   koruması); filtre/DN değerleri RFC 4515/4514 ile kaçırılır. Dizin sunucusu
   yoksa "parola hatalı" yerine 503 + açıklama döner. Kurulum, güvenlik kararları
   ve sınırlar: [docs/LDAP.md](docs/LDAP.md).
+- **Kurumsal giriş / SAML 2.0 (SP):** `SAML_IDP_SSO_URL` + `SAML_IDP_ENTITY_ID` +
+  `SAML_IDP_CERT` tanımlıysa `/giris`'te SAML düğmesi çıkar. SP-initiated akış:
+  imzalı durum çerezi (requestID + RelayState + ACS), HTTP-Redirect AuthnRequest,
+  HTTP-POST yanıtı. Yanıt **kendi XML DSig doğrulayıcımızla** denetlenir: Exclusive/
+  Inclusive C14N, Assertion ya da Response imzası, özet/signedInfo kontrolü,
+  RSA-SHA256+ (SHA-1 varsayılan **red**), Status/Issuer/Destination, Conditions
+  (süre + audience), SubjectConfirmationData (recipient + InResponseTo) ve
+  `saml_replay` tablosuyla **replay koruması**. `(IdP, NameID)` ile hesap eşleme,
+  grup → yönetici, `SAML_AUTO_PROVISION`; denetim `auth.login.saml`. Ayrıntı ve
+  bilinen sınırlar: [docs/SAML.md](docs/SAML.md).
 - **İki faktörlü doğrulama (F2):** `REQUIRE_TOTP_FOR_ROLES` (varsayılan `yonetici`)
   bu rollere sahip hesaplara TOTP/MFA şart koşar; Yönetim → Profil & MFA ekranından
   authenticator uygulamasıyla kurulur. Hesap MFA kurmadan giriş yapamaz, denetim

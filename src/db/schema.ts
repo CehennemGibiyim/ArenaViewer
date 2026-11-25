@@ -38,7 +38,33 @@ export const users = pgTable("users", {
   oidcSubject: text("oidc_subject").notNull().default(""),
   /** LDAP/AD bağlantısı: dizindeki ayırt edici ad (küçük harfe indirgenmiş). */
   ldapDn: text("ldap_dn").notNull().default(""),
-}, (t) => [index("users_oidc_idx").on(t.oidcIssuer, t.oidcSubject), index("users_ldap_idx").on(t.ldapDn)]);
+  /** SAML bağlantısı: IdP entityID + NameID (kimliğin kalıcı eşi). */
+  samlIssuer: text("saml_issuer").notNull().default(""),
+  samlNameId: text("saml_name_id").notNull().default(""),
+}, (t) => [
+  index("users_oidc_idx").on(t.oidcIssuer, t.oidcSubject),
+  index("users_ldap_idx").on(t.ldapDn),
+  index("users_saml_idx").on(t.samlIssuer, t.samlNameId),
+]);
+
+/**
+ * SAML tek kullanım kaydı: doğrulanmış her Assertion ID'si buraya yazılır.
+ *
+ * Neden DB: uygulama birden çok süreçte çalışabilir; yeniden oynatma (replay)
+ * korumasının süreçler arası çalışması gerekir. `assertion_id` benzersizdir,
+ * yinelenen ekleme `null` döner ve giriş reddedilir.
+ */
+export const samlReplay = pgTable(
+  "saml_replay",
+  {
+    id: serial("id").primaryKey(),
+    assertionId: text("assertion_id").notNull(),
+    consumedAt: timestamp("consumed_at").notNull().defaultNow(),
+    /** Assertion'ın son geçerlilik anı; sonrasında satır silinebilir. */
+    expiresAt: timestamp("expires_at").notNull(),
+  },
+  (t) => [uniqueIndex("saml_replay_assertion_idx").on(t.assertionId), index("saml_replay_expiry_idx").on(t.expiresAt)]
+);
 
 /**
  * Sunucu tarafı oturum kaydı — "aktif oturum listesi / iptali" için.

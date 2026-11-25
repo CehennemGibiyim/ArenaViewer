@@ -90,13 +90,30 @@ kullanıcı, filtre enjeksiyonu, otomatik açma kapalı (403), pasif hesabın di
 atlanmaması, doğrudan bind modu (tek bind) ve dizin sunucusu kapalıyken 503.
 Saf çekirdek: `npm run test:ldap` (ağ yok).
 
+SAML 2.0 için test kendi **sahte IdP'sini** (gerçek HTTP sunucusu) başlatır; SP'nin
+AuthnRequest'ini DEFLATE+base64'ten çözer, alanlarını doğrular ve **RSA ile
+imzalanmış** SAMLResponse üretir — bkz. `docs/SAML.md`:
+
+```bash
+DATABASE_URL=postgres://atik@127.0.0.1:5432/atik AUTH_INTEGRATION_TEST=1 \
+  npm run test:saml-integration
+```
+
+Sonuç: **10 blok PASS** — start (AuthnRequest alanları + imzalı durum çerezi),
+başarılı dönüş (imza + hesap + oturum + `auth.login.saml`), replay (aynı Assertion
+ikinci kez reddedilir), tekrar giriş (mükerrer hesap yok), yönetici grubu, otomatik
+açma kapalı, MFA politikası, kurcalanan/imzasız/süresi geçmiş/yanlış audience/
+yanlış InResponseTo yanıtların reddi, çerezsiz dönüş ve SP metadata ucu.
+Saf çekirdek: `npm run test:saml` (ağ/DB yok; XML DSig + C14N + koşullar).
+
 Kilit ayarları testte/deployda ortam değişkeniyle verilir:
 `AUTH_LOCK_MAX_FAILURES` (varsayılan 5) ve `AUTH_LOCK_MINUTES` (varsayılan 15).
 Oturum kayıtları `sessions` tablosundadır; `db:push` bu tabloyu ve
 `users.failed_login_count`/`users.locked_until` kolonlarını ekler. Kurumsal giriş
 için `users.oidc_issuer`/`users.oidc_subject` kolonları ve `users_oidc_idx`
-indeksi, LDAP için `users.ldap_dn` kolonu ve `users_ldap_idx` indeksi aynı komutla
-gelir.
+indeksi, LDAP için `users.ldap_dn` kolonu ve `users_ldap_idx` indeksi, SAML için
+`users.saml_issuer`/`users.saml_name_id` kolonları + `users_saml_idx` indeksi ve
+tek kullanım (replay) tablosu `saml_replay` aynı komutla gelir.
 
 ## 2) Playwright tarayıcısı — npm'den Chromium
 
