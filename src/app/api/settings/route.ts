@@ -3,7 +3,7 @@ import { audit } from "@/lib/server/audit";
 import { authorize } from "@/lib/server/auth";
 import { encryptText, keySource } from "@/lib/server/crypto";
 import { publicPacsConfig } from "@/lib/server/pacs";
-import { loadPacsConfig } from "@/lib/server/pacsConfig";
+import { loadMwlEndpoints, loadPacsConfig } from "@/lib/server/pacsConfig";
 import { getSetting, isHttpUrl, setSetting } from "@/lib/server/settings";
 import { DEFAULT_PACS, type PacsAuthType, type PacsConfig } from "@/lib/pacsPresets";
 
@@ -18,6 +18,8 @@ export async function GET(req: NextRequest) {
     criticalWebhookUrl: await getSetting("criticalWebhookUrl"),
     pacsBaseUrl: await getSetting("pacsBaseUrl"),
     pacs: cfg ? publicPacsConfig(cfg) : DEFAULT_PACS,
+    // MWL ek uçları (ayrı kök + DIMSE C-FIND köprüsü) — boşsa MWL DICOMweb kökünü kullanır.
+    pacsMwl: await loadMwlEndpoints(),
     compliance: await getSetting("compliance", "{}"),
     env: { llm: !!process.env.LLM_API_URL && !!process.env.LLM_API_KEY, his: !!process.env.HIS_API_KEY, pacsAuth: !!process.env.PACS_AUTH_HEADER, keySource: keySource() },
   });
@@ -97,6 +99,15 @@ export async function PUT(req: NextRequest) {
     try { JSON.parse(b.compliance); } catch { return NextResponse.json({ error: "Geçersiz JSON" }, { status: 400 }); }
     await setSetting("compliance", b.compliance);
     changed.push("compliance");
+  }
+  if (b.pacsMwl !== undefined) {
+    const m = (typeof b.pacsMwl === "object" && b.pacsMwl ? b.pacsMwl : {}) as Record<string, unknown>;
+    const mwlRoot = str(m.mwlRoot, 512).replace(/\/+$/, "");
+    const dimseUrl = str(m.dimseUrl, 512);
+    if (mwlRoot && !isHttpUrl(mwlRoot)) return NextResponse.json({ error: "MWL kökü http(s) adresi olmalı" }, { status: 400 });
+    if (dimseUrl && !isHttpUrl(dimseUrl)) return NextResponse.json({ error: "DIMSE köprüsü http(s) adresi olmalı" }, { status: 400 });
+    await setSetting("pacs.mwl", JSON.stringify({ mwlRoot, dimseUrl }));
+    changed.push("pacs.mwl");
   }
   if (b.pacs !== undefined) {
     const err = await savePacs(b);

@@ -264,7 +264,27 @@ HIS_API_KEY=<ayarlardaki anahtar> HL7_PORT=2575 npm run hl7:mllp
 - Dinleme: `HL7_HOST`/`HL7_PORT` (varsayılan `127.0.0.1:2575`); kurum ağına açarken `HL7_HOST=0.0.0.0`.
 - Hedef: `HIS_BASE_URL` (varsayılan `http://127.0.0.1:3000`) → `/api/his/orders`, `x-api-key` başlığı ile.
 - Yanıt: PACS/HBYS'e `MSA|AA` (kabul), `AR` (eksik alan) veya `AE` (ulaşılamadı) ACK'i döner.
-- Ayrıştırma: `src/lib/hl7.ts` (saf fonksiyonlar, `npm run test:hl7`). MWL/C-FIND ve DIMSE tarafı bu script'te **yoktur**; siparişe dayalı çalışma listesi uygulamada oluşur.
+- Ayrıştırma: `src/lib/hl7.ts` (saf fonksiyonlar, `npm run test:hl7`).
+
+### Modality Worklist (MWL) — modalite konsolu
+
+Modalitenin "bugün hangi işler beni bekliyor" listesi DICOM MWL'den gelir. ArenaViewer
+üç kaynağı sırayla dener (`src/lib/mwl.ts` ayrıştırma, `pacs.ts` `fetchMwl()`):
+
+1. **MWL kökü** — Yönetim → Entegrasyon → *MWL kökü* (ör. `…/dcm4chee-arc/aets/AET/rs`),
+2. **DICOMweb** — QIDO/WADO kökü üzerinden `GET …/modality-worklist?modality=CT&scheduled-date=20260115`,
+3. **DIMSE C-FIND köprüsü** — Node'da DIMSE yığını yok; köprü ayrı süreçte C-FIND yapar:
+
+```bash
+MWL_PACS_HOST=10.0.0.20 MWL_PACS_PORT=104 MWL_PACS_AET=ORTHANC npm run mwl:cfind
+# → http://127.0.0.1:2580/cfind ; Yönetim'de "DIMSE köprüsü" alanına yazın
+```
+
+- Liste: **Çalışma listesi → İş listesi (MWL)** sekmesi (tarih, modalite, açık işler süzgeci).
+- "Çalışmaya al" ögeyi yerel çalışmaya çevirir (`POST /api/his/mwl`, denetim `his.mwl_to_study`);
+  DICOM StudyInstanceUID varsa korunur, PACS'ten gelen görüntü aynı UID ile eşleşir.
+- `findscu` (dcm4che) yoksa `MWL_BACKEND=bin` + `MWL_BIN` ile kendi C-FIND betiğinizi bağlayın;
+  köprü ham Implicit VR yanıtını da DICOM JSON'a çevirir (`parseImplicitVr`).
 
 ## Ortam değişkenleri
 
@@ -293,6 +313,7 @@ Anahtar üretme: `node -e "console.log(require('crypto').randomBytes(32).toStrin
 | `npm run build` / `npm start` | Üretim derlemesi / sunucusu |
 | `npx drizzle-kit push` | Şemayı yerel DB'ye uygula |
 | `npm run hl7:mllp` | HL7 v2 (MLLP) sipariş alıcısını başlatır (`HIS_API_KEY` gerekir) |
+| `npm run mwl:cfind` | Modality Worklist DIMSE C-FIND köprüsü (`MWL_PACS_HOST`/`MWL_PACS_AET` gerekir) |
 | `npx drizzle-kit push --config=drizzle.config.ts` | Şemayı `DATABASE_URL`'deki DB'ye uygula (Docker/üretim) |
 
 ## Testler
@@ -333,6 +354,7 @@ npm run test:closeloop              # kapanış döngüsü süre/eskalasyon kura
 npm run test:followup               # takip görev kovaları + iade eşleme
 npm run test:stowanon               # anonim seri → PACS (plan + sunucu doğrulaması)
 npm run test:wadoframe              # kare düzeyinde getirme + istemci önbelleği
+npm run test:mwl                    # Modality Worklist (DICOMweb + DIMSE köprüsü)
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)

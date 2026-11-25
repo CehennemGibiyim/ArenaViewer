@@ -480,3 +480,69 @@ export async function testConnection(cfg: PacsConfig): Promise<PacsTestResult> {
   const hardFail = steps.some((s) => !s.ok && s.name.startsWith("Hasta araması"));
   return { ok: !hardFail && steps.length > 0, steps };
 }
+
+// ───────────── Modality Worklist (MWL) ─────────────
+
+/**
+ * MWL sorgusu: DICOMweb `?modality=CT&scheduled-date=20260115&stationAE=...`
+ * parametreleriyle planlanan işlem adımlarını çeker.
+ *
+ * Neden tek uçta üç yol:
+ *  - `qidoRoot` + `/modality-worklist` (DICOMweb standardı; dcm4chee/Orthanc eklentisi)
+ *  - `mwlRoot` (yapılandırmada ayrı kök varsa; ör. `/dcm4chee-arc/aets/DCM4CHEE/rs`)
+ *  - `dimseUrl` (kurum içi C-FIND köprüsü — `scripts/mwl-cfind-proxy.ts` bu uca
+ *    DIMSE C-FIND atıp DICOM JSON döndürür; Node'da DIMSE yığını olmadığı için
+ *    soket işini ayrı süreç yapar, bu istemci yalnızca HTTP konuşur).
+ *
+ * Sıralama: `mwlRoot` → DICOMweb → DIMSE köprüsü. İlk başarılı olan kazanır;
+ * tümü başarısızsa en anlamlı hata (401/403 > diğerleri) fırlatılır.
+ */
+export interface MwlQuery {
+  modality?: string;
+  /** ScheduledProcedureStepStartDate — DICOM DA ("20260115") */
+  date?: string;
+  /** Scheduled Station AE Title */
+  stationAe?: string;
+  limit?: number;
+}
+
+const DA = /^\d{8}$/;
+
+export async function fetchMwl(
+  cfg: PacsConfig,
+  q: MwlQuery,
+  extra: { mwlRoot?: string; dimseUrl?: string } = {},
+  timeoutMs = 30000,
+): Promise<unknown[]> {
+  const date = (q.date ?? "").replace(/[^0-9]/g, "");
+  const params = new URLSearchParams({ limit: String(Math.max(1, Math.min(500, q.limit ?? 100))) });
+  if (q.modality) params.set("modality", q.modality);
+  if (date && DA.test(date)) params.set("scheduled-date", date);
+  if (q.stationAe) params.set("stationAE", q.stationAe);
+  if (cfg.includefield) params.set("includefield", "all");
+
+  const attempts: { label: string; url: string }[] = [];
+  const roots = [extra.mwlRoot, cfg.wadoRoot, cfg.qidoRoot].filter(Boolean) as string[];
+  for (const r of [...new Set(roots)]) attempts.push({ label: "DICOMweb MWL", url: `${r}/modality-worklist?${params}` });
+  if (extra.dimseUrl) attempts.push({ label: "DIMSE C-FIND köprüsü", url: `${extra.dimseUrl}${extra.dimseUrl.includes("?") ? "&" : "?"}${params}` });
+
+  const errors: { status: number; message: string }[] = [];
+  for (const a of attempts) {
+    try {
+      const arr = await getJson(a.url, cfg, timeoutMs);
+      return arr;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const code = Number(/\((\d{3})\)/.exec(msg)?.[1] ?? 0);
+      // Köprü ucu 404 dönerse yol yok demektir; kimlik hatası değil.
+      errors.push({ status: code, message: `${a.label}: ${msg}` });
+    }
+  }
+  // Kimlik/yetki hatası diğerlerinden daha çok şey anlatır; onu öne çıkar.
+  const primary = errors.find((e) => e.status === 401 || e.status === 403) ?? errors[0];
+  throw new Error(
+    primary
+      ? `MWL sorgusu başarısız: ${primary.message} (denenen yol sayısı: ${attempts.length})`
+      : "MWL için yapılandırılmış adres yok (PACS → MWL kökü veya DIMSE köprüsü).",
+  );
+}

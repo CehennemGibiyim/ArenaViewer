@@ -657,8 +657,8 @@ const BASE_ITEMS: GapItem[] = [
     id: "e-hl7-mwl", category: "workflow", title: "HL7 v2 MLLP alıcısı + Modality Worklist (MWL)",
     status: "kismi", priority: "P1", effort: "L",
     market: ["Aidoc", "PowerScribe", "MedDream"],
-    ours: "**Bu sürümde eklendi:** `scripts/hl7-mllp-server.ts` + `src/lib/hl7.ts` — MLLP/TCP dinleyici ORM^O01/ORU^R01 mesajını ayrıştırıp `/api/his/orders`'a çevirir ve ACK verir (`npm run hl7:mllp`). MWL SCP (C-FIND) ve DIMSE tarafı yok.",
-    action: "MLLP üzerinden ADT/dis mesajları; MWL SCP hedefi.",
+    ours: "`scripts/hl7-mllp-server.ts` + `src/lib/hl7.ts` — MLLP/TCP dinleyici ORM^O01/ORU^R01 mesajını ayrıştırıp `/api/his/orders`'a çevirir ve ACK verir (`npm run hl7:mllp`). **Bu sürümde eklendi — Modality Worklist:** `src/lib/mwl.ts` (DICOM JSON → worklist ögesi, Implicit VR LE okuyucu, süzme/sıralama/özet, öge → çalışma eşlemesi), `pacs.ts` `fetchMwl()` (MWL kökü → DICOMweb `/modality-worklist` → DIMSE köprüsü sırasıyla dener, 401/403 hatasını öne çıkarır), `/api/his/mwl` (GET liste + POST `Çalışmaya al`, `his.mwl_query`/`his.mwl_to_study` denetimi) ve `scripts/mwl-cfind-proxy.ts` (`npm run mwl:cfind`, dcm4che `findscu` ile C-FIND; ham Implicit VR baytlarını da JSON'a çevirir). İş istasyonunda **Çalışma listesi → İş listesi (MWL)** sekmesi. KALAN: gerçek DIMSE C-FIND/N-CREATE (MPPS) yığını Node içinde değil, köprü sürecinde.",
+    action: "MPPS (N-CREATE/N-SET) bildirimi; ADT/A08 hasta birleştirme; çoklu AET yönlendirme.",
   },
   {
     id: "e-fhir-in", category: "workflow", title: "FHIR girişi: ServiceRequest/ImagingStudy çekici",

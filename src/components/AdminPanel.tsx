@@ -21,6 +21,8 @@ type Settings = {
   criticalWebhookUrl: string;
   pacsBaseUrl: string;
   pacs: PacsForm;
+  /** MWL ek uçları: ayrı DICOMweb MWL kökü ve/veya DIMSE C-FIND köprüsü. */
+  pacsMwl?: { mwlRoot: string; dimseUrl: string };
   compliance: string;
   env: { llm: boolean; his: boolean; pacsAuth: boolean; keySource: string };
 };
@@ -89,6 +91,7 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
   // PACS formu (ayarlar ayrı state'te tutulur ki test/Kaydet sırasında elle düzenler kaybolmasın)
   const [pacs, setPacs] = useState<PacsForm | null>(null);
   const [pacsHint, setPacsHint] = useState("");
+  const [mwlEndpoints, setMwlEndpoints] = useState<{ mwlRoot: string; dimseUrl: string }>({ mwlRoot: "", dimseUrl: "" });
   const [pacsTest, setPacsTest] = useState<PacsTestOut | null>(null);
   const [pacsTesting, setPacsTesting] = useState(false);
   // kullanıcı hesapları (F1) ve MFA kurulumu (F2)
@@ -105,6 +108,7 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
     if (s.ok) {
       setSettings(s.data);
       setPacs(s.data.pacs);
+      setMwlEndpoints(s.data.pacsMwl ?? { mwlRoot: "", dimseUrl: "" });
       try { setComp(JSON.parse(s.data.compliance || "{}")); } catch { setComp({}); }
     }
     if (st.ok) setStatus(st.data);
@@ -151,7 +155,7 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
 
   const savePacs = async (): Promise<boolean> => {
     if (!pacs) return false;
-    const r = await api<{ error?: string }>("/api/settings", json("PUT", { pacs: pacsPayload(pacs) }));
+    const r = await api<{ error?: string }>("/api/settings", json("PUT", { pacs: pacsPayload(pacs), pacsMwl: mwlEndpoints }));
     if (!r.ok) { flash(r.data.error ?? "PACS kaydedilemedi"); return false; }
     flash("PACS kaydedildi");
     return true;
@@ -590,6 +594,9 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
                       <input type="number" min={1} max={1000} className={input} style={{ width: 72 }} value={pacs.limit} onChange={(e) => setPacs({ ...pacs, limit: Number(e.target.value) || 50 })} />
                     </span>
                   </label>
+                  <input className={input} placeholder="MWL kökü (farklıysa) — ör. https://pacs/dcm4chee-arc/aets/AET/rs" value={mwlEndpoints.mwlRoot} onChange={(e) => setMwlEndpoints({ ...mwlEndpoints, mwlRoot: e.target.value })} />
+                  <input className={input} placeholder="DIMSE C-FIND köprüsü — ör. http://127.0.0.1:2580/cfind" value={mwlEndpoints.dimseUrl} onChange={(e) => setMwlEndpoints({ ...mwlEndpoints, dimseUrl: e.target.value })} />
+                  <p className="text-[10.5px] text-slate-500">İş listesi (MWL) bu sırayla denenir: MWL kökü → DICOMweb → DIMSE köprüsü. Köprü süreci: <code className="text-slate-400">npm run mwl:cfind</code>. Köprü ayarını kaydetmek için aşağıdaki Kaydet düğmesi tüm alanları yazar.</p>
                   <textarea className={`${input} h-16 w-full resize-none`} placeholder="Kurum notları (AE başlığı, port, conformance statement vb.)" value={pacs.notes} onChange={(e) => setPacs({ ...pacs, notes: e.target.value })} />
                   {pacsHint && <p className="text-[11px] text-cyan-300/90">💡 {pacsHint}</p>}
                   <div className="flex flex-wrap items-center gap-2">
