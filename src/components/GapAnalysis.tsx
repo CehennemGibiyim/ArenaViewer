@@ -18,6 +18,28 @@ import {
 } from "@/lib/gapAnalysis";
 import { GAP_SOURCES, SOURCES_UPDATED, competitorLink, itemSources, sourceSummary } from "@/lib/gapSources";
 
+/**
+ * Metin içi biçim: satır metinleri `**kalın**` ve `` `kod` `` işaretleri taşır.
+ * Düz metin olarak basıldığında tablo okunmuyordu (yıldız/ters tırnak görünür);
+ * burada güvenli biçimde (dangerouslySetInnerHTML YOK) React düğümlerine çevrilir.
+ */
+function Inline({ text }: { text: string }) {
+  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).filter((p) => p !== "");
+  return (
+    <>
+      {parts.map((p, k) => {
+        if (p.startsWith("**") && p.endsWith("**") && p.length > 4) {
+          return <strong key={k} className="font-semibold text-slate-100">{p.slice(2, -2)}</strong>;
+        }
+        if (p.startsWith("`") && p.endsWith("`") && p.length > 2) {
+          return <code key={k} className="rounded bg-[#0f1620] px-1 py-0.5 font-mono text-[10.5px] text-cyan-300">{p.slice(1, -1)}</code>;
+        }
+        return <span key={k}>{p}</span>;
+      })}
+    </>
+  );
+}
+
 const STATUS_META: Record<GapStatus, { label: string; cls: string }> = {
   var: { label: "VAR", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/40" },
   kismi: { label: "KISMİ", cls: "bg-amber-500/15 text-amber-300 border-amber-500/40" },
@@ -331,11 +353,11 @@ export default function GapAnalysis() {
                   <div className="mt-2.5 grid gap-2 text-[11.5px] leading-relaxed md:grid-cols-2">
                     <div className="rounded-md border border-[#1a2332] bg-[#080c12] p-2.5">
                       <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Bizde şu an</div>
-                      <p className="mt-0.5 text-slate-300">{i.ours}</p>
+                      <p className="mt-0.5 text-slate-300"><Inline text={i.ours ?? ""} /></p>
                     </div>
                     <div className="rounded-md border border-cyan-500/20 bg-cyan-500/5 p-2.5">
                       <div className="text-[10px] font-bold uppercase tracking-widest text-cyan-400">Önerilen aksiyon</div>
-                      <p className="mt-0.5 text-slate-300">{i.action}</p>
+                      <p className="mt-0.5 text-slate-300"><Inline text={i.action ?? ""} /></p>
                     </div>
 
                   <div className="mt-2 rounded-md border border-[#1a2332] bg-[#080c12] p-2.5 text-[11px] leading-relaxed">

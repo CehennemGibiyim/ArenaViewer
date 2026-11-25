@@ -17,6 +17,7 @@ import LungQuantPanel from "../src/components/LungQuantPanel";
 import NuclearPanel from "../src/components/NuclearPanel";
 import TicPanel from "../src/components/TicPanel";
 import PatientLetterModal from "../src/components/PatientLetterModal";
+import GapAnalysis from "../src/components/GapAnalysis";
 import type { SeriesData } from "../src/lib/types";
 
 const mirror = renderToStaticMarkup(<MirrorView />);
@@ -109,5 +110,15 @@ for (const marker of ["Hasta mektubu", "Türkçe", "sade dil", "Yazdır / PDF", 
 assert.ok(letter.includes('role="dialog"') && letter.includes('aria-modal="true"'), "hasta mektubu diyalog semantiği taşır");
 assert.ok(letter.includes("disabled"), "onaysız raporda yazdırma kilitlidir");
 console.log("PASS hasta mektubu: onaysız raporda taslak uyarısı ve kilitli yazdırma ile render edilir.");
+
+// Kıyaslama tablosu: satır metinlerindeki **kalın** / `kod` işaretleri düz metin
+// olarak basılmamalı (tablo okunmuyordu); güvenli React düğümlerine çevrilmeli.
+const gap = renderToStaticMarkup(<GapAnalysis />);
+assert.ok(gap.includes("<strong"), "kıyaslama satırlarında kalın metin biçimlenir");
+assert.ok(gap.includes("<code"), "kıyaslama satırlarında kod (dosya yolu) biçimlenir");
+assert.ok(!gap.includes("**Katı hizalama"), "ham markdown yıldızları ekrana basılmaz");
+assert.ok(gap.includes("fusionDeform"), "v-fusion satırı elastik kayıt modülünü gösterir");
+assert.ok(gap.includes("Durum endeksi"), "durum endeksi başlığı render edilir");
+console.log("PASS kıyaslama tablosu: satır biçimlendirmesi (kalın/kod) ve elastik kayıt satırı SSR'da doğru.");
 
 console.log("Tüm arayüz duman testleri geçti.");
