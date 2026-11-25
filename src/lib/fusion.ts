@@ -14,6 +14,8 @@ export interface FusionParams {
   rigid?: RigidParams;
   /** Deforme (elastik) in-plane alan — katı hizalamadan SONRA uygulanır (v-fusion). */
   deform?: DeformField | null;
+  /** Kesitler arası (z) kayma, mm (+ = hareketli seri +normal yönünde kaymış). */
+  zMm?: number;
 }
 
 export const CMAPS: Record<CmapName, string> = { hot: "Sıcak (PET)", iron: "Demir", rainbow: "Gökkuşağı", cool: "Soğuk" };
@@ -58,10 +60,11 @@ const resCache = new Map<string, Float32Array | null>();
 export function buildFusionLayer(target: SeriesData, slice: number, f: FusionParams): Uint32Array | null {
   const rkey = rigidKey(f.rigid);
   const dkey = deformKey(f.deform);
-  const rk = `${target.id}|${slice}|${f.series.id}|${rkey}|${dkey}`;
+  const zkey = Number.isFinite(f.zMm) && Math.abs(f.zMm ?? 0) >= 0.01 ? (f.zMm as number).toFixed(2) : "z0";
+  const rk = `${target.id}|${slice}|${f.series.id}|${rkey}|${dkey}|${zkey}`;
   let res = resCache.get(rk);
   if (res === undefined) {
-    res = resampleOnto(target, slice, f.series);
+    res = resampleOnto(target, slice, f.series, f.zMm ?? 0);
     // Katı hizalama: yeniden örneklenmiş kesit hedef ızgarasında kaydırılır/döndürülür.
     if (res && !isIdentityRigid(f.rigid)) res = applyRigid(res, target.width, target.height, f.rigid!);
     // Elastik alan katı hizalamadan SONRA uygulanır: alan, hizalanmış hedef

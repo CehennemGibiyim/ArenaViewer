@@ -94,7 +94,7 @@ export function sameFrame(a: SeriesData, b: SeriesData): boolean {
  * `target` kesitindeki her piksel için `other` serisinden örnek alır (en yakın kesit, düzlem içi çift doğrusal).
  * Dönüş: other piksel değerleri (NaN = kapsam dışı). Geometri yoksa null.
  */
-export function resampleOnto(target: SeriesData, slice: number, other: SeriesData): Float32Array | null {
+export function resampleOnto(target: SeriesData, slice: number, other: SeriesData, zMm = 0): Float32Array | null {
   const t = planeOf(target, slice);
   const keys = sliceKeys(other);
   const p0 = planeOf(other, 0);
@@ -117,7 +117,9 @@ export function resampleOnto(target: SeriesData, slice: number, other: SeriesDat
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
       const P = toPatient(t, x + 0.5, y + 0.5);
-      const k = dot(P, p0.n);
+      // zMm: hareketli serinin kesitler arası (z) kayması — hedef konum k ise
+      // hareketli seride k + zMm aranır (fusionZ::estimateSliceShift sözleşmesi).
+      const k = dot(P, p0.n) + zMm;
       const si = nearest(k);
       if (Math.abs(nKey[si] - k) > spacing * 0.75) continue;
       const q = planes[si];
