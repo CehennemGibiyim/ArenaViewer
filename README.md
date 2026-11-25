@@ -20,6 +20,9 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   oblik (eğimli) MPR ve WebGL 3B hacim. Kesit konumu kaydı (IPP) varsa koronal/sagital
   gerçek hasta geometrisinden, ölçek kayması olmadan örneklenir (`src/lib/mpr.ts` +
   `VolumeView`). Kaynak seri salt okunur tutulur.
+- **Şablon makroları:** 24+ hazır bölge/protokol şablonu arasından arama/filtre;
+  `[BOYUT]`/`[KONUM]` gibi yer tutucular tanınır, raporu onaylamadan önce
+  "doldurulmamış şablon alanları" uyarısı gösterilir (`templateMacro.ts`).
 - **Model belirsizliği:** AI skorları sınıf eşiğine göre SINIRDA/ORTA/GÜÇLÜ
   bandında gösterilir; bulgu kartlarına "model emin değil" notu eklenir.
   Bu kalibrasyon değildir — güven aralığı için doğrulama seti gerekir.
@@ -270,6 +273,7 @@ npm run test:pr                     # GSPS/PR dışa aktarma + parse doğrulama
 npm run test:notify                 # masaüstü bildirimi + izin akışı
 npm run test:prior                  # önceki tetkik ölçüm karşılaştırması
 npm run test:uncert                 # belirsizlik bandı + CXR bulgu notu
+npm run test:template               # şablon yer tutucuları + onay öncesi uyarı
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)

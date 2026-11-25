@@ -4,6 +4,7 @@ import { buildReportSr, type EvidenceRef } from "@/lib/dicomSr";
 import { processDictation } from "@/lib/dictate";
 import { appropriatenessFor, isValidIcd10, suggestIcd10 } from "@/lib/icd10";
 import { SIGNATURE_METHODS, signatureNote, type SignatureMethod, type SignatureRecord } from "@/lib/esign";
+import { reportPlaceholders } from "@/lib/templateMacro";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fmtConf } from "@/lib/format";
 import StructuredScorePanel from "@/components/StructuredScorePanel";
@@ -200,6 +201,8 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
 
   // ICD-10 önerileri: rapor metnine göre yaklaşık eşleme (hekim onayı şart).
   const icdText = `${report.findingsText ?? ""} ${report.impression ?? ""}`;
+  // Şablon yer tutucuları ([BOYUT] vb.): onay öncesi görünür olmalı.
+  const leftPlaceholders = reportPlaceholders(report);
   const icdSuggest = useMemo(() => suggestIcd10(icdText, 5), [icdText]);
   const icdAppropriate = useMemo(
     () => (report.clinicalInfo ? appropriatenessFor(report.modality, report.bodyPart, report.clinicalInfo) : null),
@@ -851,6 +854,11 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
             <p className="mt-2 text-xs leading-relaxed text-slate-400">
               Onaylandıktan sonra rapor <b>kilitlenir</b>; değişiklik yalnızca addendum ile yapılır.
             </p>
+            {leftPlaceholders.length > 0 && (
+              <p className="mt-3 rounded-md border border-amber-400/40 bg-amber-400/10 p-2.5 text-[11px] leading-relaxed text-amber-200">
+                ⚠ Raporunda doldurulmamış şablon alanları var: {leftPlaceholders.map((x) => `[${x}]`).join(", ")}. Onaydan önce eksiksiz olması önerilir.
+              </p>
+            )}
             <div className="mt-3 rounded-md border border-[#232e40] bg-[#141b24] p-2.5 text-xs text-slate-200">
               <div className="font-bold">{user.title} {user.fullName}</div>
               <div className="text-slate-400">Sicil/diploma: {user.regNo || <span className="text-amber-300">tanımlı değil</span>}</div>
