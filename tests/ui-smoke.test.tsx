@@ -11,6 +11,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import MirrorView from "../src/components/MirrorView";
 import SegEditor from "../src/components/SegEditor";
+import NoduleTracker from "../src/components/NoduleTracker";
 import type { SeriesData } from "../src/lib/types";
 
 const mirror = renderToStaticMarkup(<MirrorView />);
@@ -43,4 +44,15 @@ const empty = renderToStaticMarkup(
 );
 assert.ok(empty.includes("önce bir görüntü serisi"), "seri yokken yönlendirme gösterilir");
 console.log("PASS segmentasyon editörü: seri yokken güvenli boş durum.");
+
+// a-track: nodül takibi — çalışmalar arası eşleştirme paneli SSR'da çökmeden render edilir.
+const nod = renderToStaticMarkup(
+  <NoduleTracker patientId="T1" patientName="TEST" studyDate="20260101" measurements={[]} onClose={() => {}} />
+);
+for (const marker of ["Nodül takibi", "Çalışmalar arası eşleştirme", "en az iki farklı tarihte ölçüm gerekir", "Lung-RADS", "CSV indir"]) {
+  assert.ok(nod.includes(marker), `nodül takibinde "${marker}" bulunmalı`);
+}
+assert.ok(nod.includes('data-testid="cross-study-panel"'), "eşleştirme paneli işaretli render edilir");
+console.log("PASS nodül takibi: çalışmalar arası eşleştirme paneli boş durumda render edilir.");
+
 console.log("Tüm arayüz duman testleri geçti.");

@@ -43,7 +43,11 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
 - **RECIST 1.1 (tam):** Hedef lezyon seçim denetimi (≥10 mm; lenf nodu kısa eksen
   ≥15 mm; organ başına ≤2, toplam ≤5), non-hedef bileşkesi ve **genel yanıt
   tablosu** (yeni lezyon → PD; hedef CR + non-hedef CR → CR). Nodül takibi
-  panelinden işaretlenir; CSV'ye genel değerlendirme eklenir.
+  panelinden işaretlenir; CSV'ye genel değerlendirme eklenir. **Çalışmalar arası
+  eşleştirme:** en yeni iki çalışma tarihi otomatik karşılaştırılır (anatomi +
+  lezyon adı imzası); eşleşen lezyonlarda Δ mm / Δ%, yeni ve saptanmayan
+  lezyonlar, **lenf nodu kısa eksen tablosu** (normal/takip/patolojik) gösterilir
+  ve CSV'ye eklenir.
 - **Segmentasyon editörü + SEG/RTSTRUCT:** Araç çubuğu → 🧩 Segmentasyon:
   **fırça/silgi** (1–40 px), **eşik dolgusu** (HU aralığı), **tohumdan bölge
   büyütme**, kesit gezinme ve «sonraki kesite kopyala». Maske seri kimliğiyle
@@ -454,6 +458,7 @@ npm run test:ctp                    # CTP cSVD dekonvolüsyonu + otomatik AIF
 npm run test:sr1500                 # TID 1500 yapılandırılmış ölçüm SR (+köprü)
 npm run test:seg                    # segmentasyon maskesi + DICOM SEG/RTSTRUCT
 npm run test:recistfull             # RECIST hedef seçimi + non-hedef + genel yanıt
+npm run test:tracking               # lezyon eşleştirme + nodül takibi köprüsü
 npm run test:closeloop              # kapanış döngüsü süre/eskalasyon kuralları
 npm run test:followup               # takip görev kovaları + iade eşleme
 npm run test:stowanon               # anonim seri → PACS (plan + sunucu doğrulaması)

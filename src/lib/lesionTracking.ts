@@ -137,3 +137,97 @@ export function trackingCsv(t: TrackingResult, nodes: LymphNodeRow[] = []): stri
   for (const n of nodes) rows.push([n.label, n.shortAxisMm === null ? "" : String(n.shortAxisMm), n.category]);
   return rows.map((r) => r.join(";")).join("\n");
 }
+
+// ───────── Nodül takibi köprüsü (a-track) ─────────
+
+/** Nodül takibindeki tek ölçüm (tarih + ortalama çap). */
+export interface NoduleLikePoint { date: string; diameterMm: number }
+/** Nodül takibi kaydının izleme için gereken alt kümesi. */
+export interface NoduleLike {
+  id: string;
+  /** Lezyonun kısa adı (ör. "Nodül 1"). */
+  label: string;
+  /** Anatomik bölge (ör. "sağ üst lob") — eşleştirmede anatomi olarak kullanılır. */
+  location: string;
+  points: NoduleLikePoint[];
+}
+
+/** Takip kayıtlarında geçen çalışma tarihleri (en yeni önce). */
+export function studyDates(tracks: NoduleLike[]): string[] {
+  const set = new Set<string>();
+  for (const t of tracks) for (const p of t.points) if (p.date) set.add(p.date);
+  return [...set].sort((a, b) => b.localeCompare(a));
+}
+
+/** Belirli çalışma tarihindeki lezyon kayıtları (o tarihte ölçümü olanlar). */
+export function lesionsAt(tracks: NoduleLike[], date: string): LesionRecord[] {
+  const out: LesionRecord[] = [];
+  for (const t of tracks) {
+    const p = t.points.find((x) => x.date === date);
+    if (!p || !Number.isFinite(p.diameterMm)) continue;
+    out.push({
+      id: `${t.id}@${date}`,
+      anatomy: t.location || "bilinmiyor",
+      location: t.label || "lezyon",
+      date,
+      longMm: p.diameterMm,
+      shortMm: isLymphNode(t.location || "") ? p.diameterMm : null,
+    });
+  }
+  return out;
+}
+
+export interface NodulePair {
+  label: string;
+  anatomy: string;
+  fromMm: number | null;
+  toMm: number | null;
+  deltaMm: number | null;
+  /** Yüzde değişim; bazal 0 ise null (bölme yok). */
+  pctChange: number | null;
+}
+
+export interface NoduleTrackingSummary {
+  /** Karşılaştırılan iki çalışma tarihi (yoksa null). */
+  baselineDate: string | null;
+  followUpDate: string | null;
+  result: TrackingResult;
+  /** Eşleşen çiftlerin ölçüm farkı. */
+  pairs: NodulePair[];
+  nodes: LymphNodeRow[];
+  note: string;
+}
+
+/**
+ * Nodül takibi kayıtlarını çalışmalar arası izlemeye çevirir: en yeni iki
+ * çalışma tarihi karşılaştırılır (bazal = daha eski). Tek tarih varsa eşleştirme
+ * yapılmaz, bunun nedeni döner.
+ */
+export function summarizeNoduleTracking(tracks: NoduleLike[], maxNodes = 10): NoduleTrackingSummary {
+  const dates = studyDates(tracks);
+  const empty: TrackingResult = { matched: [], newOnes: [], disappeared: [], note: "Karşılaştırılacak iki çalışma tarihi yok." };
+  if (dates.length < 2) {
+    return { baselineDate: dates[0] ?? null, followUpDate: null, result: empty, pairs: [], nodes: [], note: empty.note };
+  }
+  const [followUpDate, baselineDate] = dates;
+  const followUp = lesionsAt(tracks, followUpDate);
+  const baseline = lesionsAt(tracks, baselineDate);
+  const result = matchLesions(baseline, followUp);
+  const pairs: NodulePair[] = result.matched.map((m) => {
+    const from = m.baseline.longMm ?? null;
+    const to = m.followUp.longMm ?? null;
+    const delta = from !== null && to !== null ? Number((to - from).toFixed(1)) : null;
+    const pct = from !== null && to !== null && from > 0 ? Number((((to - from) / from) * 100).toFixed(0)) : null;
+    return { label: m.followUp.location, anatomy: m.followUp.anatomy, fromMm: from, toMm: to, deltaMm: delta, pctChange: pct };
+  });
+  // Lenf nodu tablosu: en güncel ölçüm, patolojik olanlar önce.
+  const nodes = lymphNodeTable(
+    tracks.map((t) => {
+      const latest = [...t.points].sort((a, b) => b.date.localeCompare(a.date))[0];
+      return { id: t.id, anatomy: t.location || "", location: t.label, shortMm: latest?.diameterMm ?? null };
+    })
+  )
+    .sort((a, b) => (b.shortAxisMm ?? -1) - (a.shortAxisMm ?? -1))
+    .slice(0, Math.max(1, maxNodes));
+  return { baselineDate, followUpDate, result, pairs, nodes, note: result.note };
+}

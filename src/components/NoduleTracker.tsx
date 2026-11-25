@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ADVICE, KIND_LABEL, csvOf, daysBetween, summarize, type NoduleKind, type NoduleTrack } from "@/lib/lungrads";
 import { recist11, recistCsv } from "@/lib/recist";
 import { fullRecist, RECIST_LIMITS, type CandidateLesion, type NonTargetStatus } from "@/lib/recistFull";
+import { summarizeNoduleTracking, trackingCsv } from "@/lib/lesionTracking";
 
 export interface MeasurementChoice { label: string; mm: number; slice: number }
 interface Props {
@@ -75,6 +76,11 @@ export default function NoduleTracker({ patientId, patientName, studyDate, measu
     }),
     [tracks, candidates, nonTarget, newLesion, allGone],
   );
+  // Çalışmalar arası eşleştirme (a-track): en yeni iki tarih, lenf nodu tablosu.
+  const crossStudy = useMemo(
+    () => summarizeNoduleTracking(tracks.map((t) => ({ id: t.id, label: t.label, location: t.location, points: t.points }))),
+    [tracks],
+  );
   const recist = useMemo(
     () => recist11(tracks.filter((t) => targets.length === 0 || targets.includes(t.id)), { newLesion, allDisappeared: allGone }),
     [tracks, targets, newLesion, allGone],
@@ -106,7 +112,10 @@ export default function NoduleTracker({ patientId, patientName, studyDate, measu
   const sortedPts = (t: NoduleTrack) => [...t.points].sort((a, b) => a.date.localeCompare(b.date));
 
   const downloadCsv = () => {
-    const body = csvOf(tracks) + (recist ? "\n\n" + recistCsv(recist) : "") + "\n\nRECIST 1.1 (genel)\n" + full.text;
+    const cross = crossStudy.baselineDate && crossStudy.followUpDate
+      ? "\n\nÇalışmalar arası eşleştirme (" + crossStudy.baselineDate + " → " + crossStudy.followUpDate + ")\n" + trackingCsv(crossStudy.result, crossStudy.nodes)
+      : "";
+    const body = csvOf(tracks) + (recist ? "\n\n" + recistCsv(recist) : "") + "\n\nRECIST 1.1 (genel)\n" + full.text + cross;
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob(["\ufeff" + body], { type: "text/csv;charset=utf-8" }));
     a.download = `nodul-takibi-${patientId}.csv`; document.body.appendChild(a); a.click(); a.remove();
@@ -341,6 +350,62 @@ export default function NoduleTracker({ patientId, patientName, studyDate, measu
                 </div>
               </div>
             )}
+            <div className="rounded-lg border border-[#1a2230] p-2 leading-relaxed" data-testid="cross-study-panel">
+              <div className="flex flex-wrap items-center justify-between gap-1">
+                <b className="text-slate-100">Çalışmalar arası eşleştirme</b>
+                <span className="text-[10px] text-slate-500">
+                  {crossStudy.baselineDate && crossStudy.followUpDate
+                    ? `${crossStudy.baselineDate} → ${crossStudy.followUpDate}`
+                    : "en az iki farklı tarihte ölçüm gerekir"}
+                </span>
+              </div>
+              {crossStudy.pairs.length > 0 && (
+                <table className="mt-1 w-full text-left text-[11px]">
+                  <thead>
+                    <tr className="text-[10px] uppercase tracking-wider text-slate-500">
+                      <th className="py-0.5 font-semibold">Lezyon</th>
+                      <th className="py-0.5 font-semibold">Bölge</th>
+                      <th className="py-0.5 text-right font-semibold">Bazal</th>
+                      <th className="py-0.5 text-right font-semibold">İzlem</th>
+                      <th className="py-0.5 text-right font-semibold">Δ mm</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {crossStudy.pairs.map((p, i) => (
+                      <tr key={`${p.label}-${i}`} className="border-t border-[#151d28]">
+                        <td className="py-0.5 text-slate-200">{p.label}</td>
+                        <td className="py-0.5 text-slate-400">{p.anatomy}</td>
+                        <td className="py-0.5 text-right font-mono text-slate-300">{p.fromMm === null ? "—" : `${p.fromMm.toFixed(1)}`}</td>
+                        <td className="py-0.5 text-right font-mono text-slate-300">{p.toMm === null ? "—" : `${p.toMm.toFixed(1)}`}</td>
+                        <td className={`py-0.5 text-right font-mono ${p.deltaMm && p.deltaMm > 0 ? "text-amber-300" : p.deltaMm && p.deltaMm < 0 ? "text-emerald-300" : "text-slate-400"}`}>
+                          {p.deltaMm === null ? "—" : `${p.deltaMm >= 0 ? "+" : ""}${p.deltaMm.toFixed(1)}`}
+                          {p.pctChange !== null && <span className="ml-1 text-[9.5px] text-slate-500">({p.pctChange >= 0 ? "+" : ""}{p.pctChange}%)</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              {(crossStudy.result.newOnes.length > 0 || crossStudy.result.disappeared.length > 0) && (
+                <div className="mt-1 text-[10.5px]">
+                  {crossStudy.result.newOnes.length > 0 && <div className="text-rose-300">Yeni: {crossStudy.result.newOnes.map((r) => `${r.location} (${r.anatomy})`).join(", ")}</div>}
+                  {crossStudy.result.disappeared.length > 0 && <div className="text-slate-400">Saptanmayan: {crossStudy.result.disappeared.map((r) => `${r.location} (${r.anatomy})`).join(", ")}</div>}
+                </div>
+              )}
+              {crossStudy.nodes.length > 0 && (
+                <div className="mt-1.5">
+                  <div className="text-[10px] uppercase tracking-wider text-slate-500">Lenf nodları (kısa eksen)</div>
+                  <div className="mt-0.5 flex flex-wrap gap-1">
+                    {crossStudy.nodes.map((n) => (
+                      <span key={n.id} className={`rounded border px-1.5 py-0.5 text-[10px] ${n.category === "patolojik" ? "border-rose-400/50 text-rose-200" : n.category === "takip" ? "border-amber-400/50 text-amber-200" : "border-[#243044] text-slate-300"}`}>
+                        {n.label} · {n.shortAxisMm === null ? "—" : `${n.shortAxisMm} mm`}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="mt-1 text-[10px] leading-relaxed text-slate-500">{crossStudy.note} Eşleştirme anatomi + lezyon adına dayalı kuraldır; aynı lezyon olduğu hekim tarafından doğrulanmalıdır.</div>
+            </div>
             <div className="rounded border border-amber-400/30 bg-amber-400/5 p-2 text-[10px] leading-relaxed text-amber-200">
               Kategori, ACR Lung-RADS v2022 eşiklerinin ÖZETİ ve girilen çaplara dayanır; nodül tipi, konum, morfoloji, risk faktörleri ve güncel kılavuz dikkate alınmaz. Klinik karar aracı değildir. Veriler yalnızca bu tarayıcıda saklanır.
             </div>
