@@ -13,6 +13,7 @@ import ExportMenu from "./ExportMenu";
 import NoduleTracker from "./NoduleTracker";
 import FusionControl, { type FusionConfig } from "./FusionControl";
 import { setRefLines } from "@/lib/panelRegistry";
+import { notifyCriticalFinding } from "@/lib/notify";
 import SRViewer from "./SRViewer";
 import PDFViewer from "./PDFViewer";
 import ECGViewer from "./ECGViewer";
@@ -1091,6 +1092,9 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
       for (const f of result.findings) if (f.category !== "Sistem" && f.category !== "ROI") pushFeed(`⚑ [Kesit ${f.keySliceNumber}/${N}] ${f.label} — ${f.densityOrSignal}, ${f.sizeMmStr}`, "finding");
       pushFeed(`✓ ${N} kesit işlendi · ${result.findings.filter((f) => f.category !== "Sistem" && f.category !== "ROI").length} aday odak · triyaj: ${result.triage.level}`, "done");
       if (result.triage.score > 0.8) pushFeed("⚠ Kritik aday odak: bildirim oluşturuldu (zil simgesi).", "warn");
+      // Masaüstü bildirimi (a-notify): izin önce sorulur; izin yoksa sessizce geçilir.
+      const crit = result.findings.find((f) => f.severity === "kritik" || f.severity === "yuksek");
+      if (crit) void notifyCriticalFinding({ label: crit.label, location: crit.anatomicalLocation, detail: crit.densityOrSignal, studyUid: s.studyUid });
     }
     setActiveReport(buildReport(result));
     const top = result.findings.find((f) => f.category !== "Sistem" && f.category !== "ROI");

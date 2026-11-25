@@ -20,6 +20,10 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   oblik (eğimli) MPR ve WebGL 3B hacim. Kesit konumu kaydı (IPP) varsa koronal/sagital
   gerçek hasta geometrisinden, ölçek kayması olmadan örneklenir (`src/lib/mpr.ts` +
   `VolumeView`). Kaynak seri salt okunur tutulur.
+- **Bildirimler:** Kritik/yüksek aday bulgularda uygulama içi zil, sunucudan
+  webhook'a JSON POST (denetimde kanıt), alındı/iletildi/eskalasyon kaydı ve
+  masaüstü tarayıcı bildirimi (izin akışlı). E-posta/SMS/çağrı için kurumsal
+  sağlayıcı gerekir.
 - **AI ısı haritası örtüsü:** CXR modeli pozitif sınıflarda aktivasyon haritası
   üretir; görüntüde saydamlık ayarlanabilir renkli katman olarak gösterilir
   (düşük aktivasyon gizlenir). Bu bir klinik araç değildir ve rapora işlenmez.
@@ -257,6 +261,7 @@ npm run test:xref                    # 3B imleç: en yakın kesit + panel günce
 npm run test:perf                   # pencere/seviye doğruluğu + önbellek ön-işleme
 npm run bench:window                # WL/WW dönüşümü kıyaslaması (eski vs LUT)
 npm run test:pr                     # GSPS/PR dışa aktarma + parse doğrulama
+npm run test:notify                 # masaüstü bildirimi + izin akışı
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)
