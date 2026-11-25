@@ -4,7 +4,8 @@ import { db } from "@/db";
 import { notifications } from "@/db/schema";
 import { audit } from "@/lib/server/audit";
 import { authorize } from "@/lib/server/auth";
-import { closeLoopUpdate, setFollowupStatus } from "@/lib/server/closeLoop";
+import { closeLoopUpdate, setFollowupStatus, sweepCloseLoop } from "@/lib/server/closeLoop";
+import { ESCALATION_ROLES, loopStatus } from "@/lib/closeLoopRules";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,10 @@ const map = (r: typeof notifications.$inferSelect) => ({
   status: r.status as "acik" | "tamamlandi" | "iptal",
   completedAt: r.completedAt,
   reportId: r.reportId,
+  ...(() => {
+    const st = loopStatus({ id: r.id, severity: r.severity, createdAt: r.createdAt, ackAt: r.ackAt, relayedAt: r.relayedAt, escalated: r.escalated, escalatedAt: r.escalatedAt });
+    return { loopState: st.state, loopLabel: st.label, ageMinutes: st.ageMinutes, dueInMinutes: st.dueInMinutes };
+  })(),
 });
 
 /** Bildirimler; `?kind=followup` yalnız takip görevlerini verir. */
@@ -38,6 +43,18 @@ export async function GET(req: NextRequest) {
   const a = await authorize(req);
   if ("error" in a) return a.error;
   const sp = req.nextUrl.searchParams;
+  if (sp.get("escalation") === "1") {
+    const rowsAll = await db.select().from(notifications).orderBy(desc(notifications.id)).limit(500);
+    const st = rowsAll
+      .filter((r) => r.status === "acik")
+      .map((r) => ({ row: r, st: loopStatus({ id: r.id, severity: r.severity, createdAt: r.createdAt, ackAt: r.ackAt, relayedAt: r.relayedAt, escalated: r.escalated, escalatedAt: r.escalatedAt }) }))
+      .filter((x) => x.st.remind)
+      .sort((a, b) => b.st.ageMinutes - a.st.ageMinutes);
+    return NextResponse.json({
+      roles: ESCALATION_ROLES,
+      items: st.map((x) => ({ id: x.row.id, severity: x.row.severity, message: x.row.message.slice(0, 200), state: x.st.state, label: x.st.label, ageMinutes: x.st.ageMinutes, relayedTo: x.row.relayedTo })),
+    });
+  }
   const limit = Math.min(Number(sp.get("limit") ?? "50") || 50, 200);
   const rows = await db.select().from(notifications).orderBy(desc(notifications.id)).limit(limit);
   const out = sp.get("kind") === "followup" ? rows.filter((r) => r.kind === "followup") : rows;
@@ -64,6 +81,15 @@ export async function PATCH(req: NextRequest) {
   if (!b.id) return NextResponse.json({ error: "id gerekli" }, { status: 400 });
   const cur = (await db.select().from(notifications).where(eq(notifications.id, b.id)).limit(1))[0];
   if (!cur) return NextResponse.json({ error: "Bulunamadı" }, { status: 404 });
+
+  // Toplu tarama: süresi dolan bildirimleri eskale et (id gerekmez).
+  if (b.action === "sweep") {
+    const role = (b as { escalationRole?: string }).escalationRole ?? "ikinci-hekim";
+    const contact = (b as { escalationContact?: string }).escalationContact ?? "";
+    const res = await sweepCloseLoop({ target: { role, contact }, actor: a.user });
+    await audit(a.user, "notify.sweep", "notification", 0, { escalated: res.escalated, overdue: res.overdue });
+    return NextResponse.json(res);
+  }
 
   if (b.action === "relay" || b.action === "escalate") {
     await closeLoopUpdate(b.id, { relayedTo: b.relayedTo, escalate: b.action === "escalate" });

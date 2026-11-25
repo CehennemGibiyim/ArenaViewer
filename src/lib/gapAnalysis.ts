@@ -594,8 +594,8 @@ const BASE_ITEMS: GapItem[] = [
     id: "d-close-loop", category: "report", title: "Kritik sonuç kapanış döngüsü: ACK + iletim kanıtı + eskalasyon kaydı",
     status: "kismi", priority: "P1", effort: "M",
     market: ["Aidoc", "Viz.ai"],
-    ours: "ACK + iletiledi kanıtı (relayedTo/relayedAt) ve eskalasyon kaydı var; süre hatırlatması ve ikinci hekime iletilme kanıtı henüz yok.",
-    action: "Zaman aşımına uğrayan bildirim için hatırlatma ve ikinci hekim/kurum bildirimi; denetim satırını HBYS ile birleştir.",
+    ours: "ACK + iletildi kanıtı (relayedTo/relayedAt) + eskalasyon kaydı. **Yeni:** `closeLoopRules.ts` — önem derecesine göre SÜRE politikası (kritik 15 dk alınma/30 dk eskalasyon, yüksek 60/120, diğer 240), durum makinesi (yeni/gecikmis/eskalasyon-gerekli/eskale-edildi/alinmis/iletildi), 15 dk'lık hatırlatma aralığı ve ikinci hekim/sorumlu uzman/kurum nöbeti hedefli eskalasyon mesajı. `/api/notifications?escalation=1` gecikmişleri listeler; PATCH `action=sweep` süresi dolanları eskale eder (denetim: notify.escalate/notify.sweep). Bildirim zilinde süre etiketi + 'Süre taraması' ve hedef seçimi var. KALAN: hatırlatmanın e-posta/SMS ile dışarı gönderimi (sağlayıcı kurumda) ve HBYS denetim satırı eşlemesi.",
+    action: "Dış iletişim sağlayıcısı (e-posta/SMS/çağrı) ve HBYS denetim birleştirme (kurum entegrasyonu).",
   },
   {
     id: "d-followup", category: "report", title: "Takip önerilerini çalışma listesine taşıma",

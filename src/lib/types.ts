@@ -525,6 +525,11 @@ export interface NotificationRow {
   status: FollowupStatus;
   completedAt: string | null;
   reportId: number | null;
+  /** Kapanış döngüsü süre durumu (sunucu hesaplar; d-close-loop). */
+  loopState?: "yeni" | "gecikmis" | "eskalasyon-gerekli" | "eskale-edildi" | "iletildi" | "alinmis";
+  loopLabel?: string;
+  ageMinutes?: number;
+  dueInMinutes?: number;
 }
 
 export interface TemplateRow {
