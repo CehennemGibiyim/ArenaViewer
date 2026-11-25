@@ -69,6 +69,12 @@ interface ViewportProps {
   label?: string;
   /** Çapraz referans çizgileri için panel kimliği (aynı çerçevedeki diğer panellerin düzlemleri çizilir). */
   panelId?: string;
+  /**
+   * Kayıt (registration) düzeltmesi: görüntüyü **görüntü pikseli** biriminde
+   * öteler (a-prior hizalaması). Ölçüm/annotasyon koordinatları değişmez —
+   * yalnız görüntüleme kaydırılır.
+   */
+  alignPx?: { dx: number; dy: number } | null;
   /** PET-BT vb. füzyon katmanı (bu seri üzerine bindirilir). */
   fusion?: FusionParams | null;
   onSlice: (s: number) => void;
@@ -170,7 +176,7 @@ export default function Viewport(props: ViewportProps) {
     findings = EMPTY_FINDINGS, revealedIds = EMPTY_SET, activeFindingId = null, overlay = null,
     showDicomOverlays = true, annotations = EMPTY_ANN, readOnly = false, label, panelId, fusion = null,
     onSlice, onWL, onZoom, onPan, onAddAnnotation, onCalibrate, onHover,
-    mskPointCount = 0, onMskPoints, snapRadius = 0,
+    mskPointCount = 0, onMskPoints, snapRadius = 0, alignPx = null,
   } = props;
 
   const slice = series ? Math.max(0, Math.min(requestedSlice, series.slices.length - 1)) : 0;
@@ -252,8 +258,12 @@ export default function Viewport(props: ViewportProps) {
   const getTransform = useCallback(() => {
     const { dispW, dispH } = dims();
     const scale = Math.min(size.w / dispW, size.h / dispH) * 0.92 * zoom;
-    return { scale, ox: size.w / 2 - (dispW / 2) * scale + pan.x, oy: size.h / 2 - (dispH / 2) * scale + pan.y, dispW, dispH };
-  }, [dims, size, zoom, pan]);
+    // Hizalama düzeltmesi (a-prior) yalnız görüntü katmanını kaydırır; pan/zoom
+    // kullanıcıya aittir ve üstüne eklenir.
+    const ax = alignPx ? alignPx.dx * scale : 0;
+    const ay = alignPx ? alignPx.dy * scale : 0;
+    return { scale, ox: size.w / 2 - (dispW / 2) * scale + pan.x + ax, oy: size.h / 2 - (dispH / 2) * scale + pan.y + ay, dispW, dispH };
+  }, [dims, size, zoom, pan, alignPx]);
 
   // Görüntü koordinatı -> Ekran koordinatı
   const imgToDisp = useCallback((p: Pt): Pt => {

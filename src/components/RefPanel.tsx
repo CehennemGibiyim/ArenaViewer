@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Viewport from "./Viewport";
 import ViewerErrorBoundary from "./ViewerErrorBoundary";
 import { mapSliceByPosition } from "@/lib/geometry";
+import { alignmentNote, alignmentTrusted, estimateAlignment, type AlignmentResult } from "@/lib/registration";
 import { parallelSeries } from "@/lib/planes";
 import type { SeriesData, ToolName } from "@/lib/types";
 
@@ -33,6 +34,10 @@ export default function RefPanel(p: Props) {
   const [ww, setWw] = useState(1);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  // Kayıt (registration) sonucu: a-prior hizalaması (a-prior).
+  const [align, setAlign] = useState<(AlignmentResult & { trusted: boolean }) | null>(null);
+  const [alignBusy, setAlignBusy] = useState(false);
+  const [alignMsg, setAlignMsg] = useState<string>("");
 
   // Seri veya pencere ayarı değişince görüntüyü sıfırla: effect yerine render sırasında
   // korumalı durum güncellemesi (React "You Might Not Need an Effect" deseni).
@@ -46,6 +51,8 @@ export default function RefPanel(p: Props) {
       setLocal(Math.floor(series.slices.length / 2));
       setZoom(1);
       setPan({ x: 0, y: 0 });
+      setAlign(null);
+      setAlignMsg("");
     }
   }
 
@@ -54,11 +61,43 @@ export default function RefPanel(p: Props) {
   const slice = series ? Math.max(0, Math.min(mapped, series.slices.length - 1)) : 0;
   const tool: ToolName = ["wl", "pan", "zoom", "xref"].includes(p.tool) ? p.tool : "wl";
 
+  /**
+   * Önceki/şimdiki kesidi hizalar (katı: öteleme + izotropik ölçek, NCC).
+   * Hesaplama birkaç yüz ms sürebilir; bu yüzden bir sonraki kareye ertelenir
+   * ("hizalanıyor…" göstergesi boyanabilsin) ve ana iş parçacığı bloke edilmez.
+   */
+  const runAlign = () => {
+    const a = p.primary;
+    if (!a || !series) return;
+    const refSlice = a.slices[Math.min(p.primarySlice, a.slices.length - 1)];
+    const movSlice = series.slices[slice];
+    if (!refSlice || !movSlice) { setAlignMsg("Hizalama için iki görüntü kesidi gerekir."); return; }
+    setAlignBusy(true);
+    setAlignMsg("");
+    setTimeout(() => {
+      try {
+        const maxShift = Math.max(6, Math.round(Math.min(a.width, a.height) * 0.12));
+        const res = estimateAlignment(refSlice, a.width, a.height, movSlice, series.width, series.height, { maxShift });
+        const trusted = alignmentTrusted(res);
+        setAlign({ ...res, trusted });
+        setAlignMsg(alignmentNote(res, trusted));
+      } catch (e) {
+        setAlign(null);
+        setAlignMsg(`Hizalama başarısız: ${e instanceof Error ? e.message : "bilinmeyen hata"}`);
+      } finally {
+        setAlignBusy(false);
+      }
+    }, 0);
+  };
+
   return (
     <div className="relative h-full w-full border border-[#1a2230]" data-testid="reference-panel">
       <ViewerErrorBoundary resetKey={series?.id ?? "empty"} label={p.label}>
         <Viewport
-          series={series} slice={slice} wl={wl} ww={ww} invert={p.invert} zoom={zoom} pan={pan} tool={tool}
+          series={series} slice={slice} wl={wl} ww={ww} invert={p.invert}
+          zoom={zoom * (align?.trusted ? align.scale : 1)}
+          pan={pan} tool={tool}
+          alignPx={align?.trusted ? { dx: align.dx, dy: align.dy } : null}
           rotation={p.rotation} flipH={p.flipH} flipV={p.flipV} pxMm={series?.pixelSpacing ?? 1} readOnly panelId={p.panelId}
           label={series ? `${p.label}${synced ? " · senkron" : ""} · Kesit ${slice + 1}/${series.slices.length}` : p.label}
           onSlice={(s) => {
@@ -79,6 +118,30 @@ export default function RefPanel(p: Props) {
         {images.map((s) => <option key={s.id} value={s.id}>{s.modality} · {s.description} ({s.slices.length})</option>)}
       </select>
       {series && <div className="pointer-events-none absolute bottom-1 left-2 font-mono text-[10px] text-cyan-200/80">WL {Math.round(wl)} · WW {Math.round(ww)}</div>}
+      {series && p.primary && (
+        <div className="absolute bottom-1 right-2 flex max-w-[78%] flex-col items-end gap-1 text-[10px]">
+          <div className="flex gap-1">
+            <button
+              onClick={runAlign}
+              disabled={alignBusy}
+              title="Bu kesidi ana penceredeki kesitle hizala (normalize çapraz korelasyon; öteleme + ölçek)"
+              className="rounded border border-[#243044] bg-[#0e141d]/90 px-1.5 py-0.5 text-slate-200 hover:border-cyan-400/60 hover:text-cyan-200 disabled:opacity-50"
+            >🎯 {alignBusy ? "hizalanıyor…" : "Hizala"}</button>
+            {align && (
+              <button
+                onClick={() => { setAlign(null); setAlignMsg(""); }}
+                title="Hizalamayı kaldır"
+                className="rounded border border-[#243044] bg-[#0e141d]/90 px-1.5 py-0.5 text-slate-300 hover:border-rose-400/60 hover:text-rose-200"
+              >↺</button>
+            )}
+          </div>
+          {alignMsg && (
+            <div className={`rounded px-1.5 py-0.5 text-right ${align?.trusted ? "bg-cyan-500/15 text-cyan-200" : "bg-amber-500/15 text-amber-200"}`}>
+              {alignMsg}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

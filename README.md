@@ -25,6 +25,13 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   oblik (eğimli) MPR ve WebGL 3B hacim. Kesit konumu kaydı (IPP) varsa koronal/sagital
   gerçek hasta geometrisinden, ölçek kayması olmadan örneklenir (`src/lib/mpr.ts` +
   `VolumeView`). Kaynak seri salt okunur tutulur.
+- **Önceki tetkik karşılaştırması + görsel hizalama:** Geçmiş çalışma ikinci panele
+  anatomik senkronla (IPP/kesit konumu) açılır; bulgu kartında çap/hacim farkı
+  yazılır. Karşılaştırma panelindeki 🎯 **Hizala**, iki kesidi normalize çapraz
+  korelasyonla **öteleme + izotropik ölçek** olarak hizalar; Δx/Δy/ölçek/skor
+  gösterilir, skor < 0,55 ise sonuç "güvenilir değil" sayılır ve uygulanmaz.
+  Hizalama yalnız görüntü katmanını kaydırır — ölçüm koordinatları değişmez
+  (`src/lib/registration.ts`). Döndürme/deformable/3B kayıt yoktur.
 - **Takip görevleri:** Onaylı raporun önerisi göreve dönüşür; sonuç tarihine göre
   **geciken / bugün / yaklaşan (14 gün) / ileri / tarihsiz** kovaları, öncelik
   sıralaması, görev tarihçesi CSV'si ve HBYS/RIS **iade eşleme** (rapor kimliği →
@@ -432,6 +439,7 @@ npm run test:gpu                    # GPU pencereleme kararı + shader≡CPU eş
 npm run test:gestures               # dokunmatik jest matematiği (pinch/pan)
 npm run test:mirror                 # ikinci ekran yayını + gerçek BroadcastChannel turu
 npm run test:ui-smoke               # ikinci ekran + segmentasyon editörü render duman testi
+npm run test:registration           # önceki/şimdiki tetkik hizalaması (NCC, öteleme+ölçek)
 npm run test:notify-channels        # e-posta/SMS/çağrı kanalları: ayrıştırma, eşik, PHI'siz yük
 npm run bench:window                # WL/WW dönüşümü kıyaslaması (eski vs LUT)
 npm run test:pr                     # GSPS/PR dışa aktarma + parse doğrulama
