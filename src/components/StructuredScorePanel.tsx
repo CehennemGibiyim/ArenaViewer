@@ -10,6 +10,7 @@
  */
 import { useMemo, useState } from "react";
 import { ASPECTS_LABELS, ASPECTS_REGIONS, aspectsScore } from "@/lib/stroke";
+import { ctpSvdSummary, ctpSvdText, parseCtpCurves } from "@/lib/ctp";
 import { cxrProjection, cxrQuality, cxrQualityLine, type CxrProjection } from "@/lib/cxr";
 import {
   acrDensity, agatston, biRads, boneDensity, cxrCardiothoracicRatio, lungRads, piRadsV2,
@@ -66,6 +67,9 @@ export default function StructuredScorePanel({ modality, bodyPart, onApply, onCr
   const [dens, setDens] = useState<"a" | "b" | "c" | "d">("b");
   // ASPECTS: anormal işaretli bölgeler
   const [aspectsSet, setAspectsSet] = useState<string[]>([]);
+  // CTP eğrileri (yapıştırılan; cSVD dekonvolüsyonu)
+  const [ctpText, setCtpText] = useState("");
+  const [ctpMsg, setCtpMsg] = useState("");
   // Agatston: damar bazlı (peck HU, alan mm²)
   const [ca, setCa] = useState<Record<string, { hu: string; area: string }>>({
     LM: { hu: "", area: "" }, LAD: { hu: "", area: "" }, LCx: { hu: "", area: "" }, RCA: { hu: "", area: "" },
@@ -274,6 +278,39 @@ export default function StructuredScorePanel({ modality, bodyPart, onApply, onCr
               })}
             </div>
             <p className="mt-1 text-[10px] text-slate-500">İşaretsiz bölgeler normal sayılır; skor 10 eksi anormal bölge sayısıdır.</p>
+          </div>
+        )}
+
+        {system === "aspects" && (
+          <div className="col-span-2 sm:col-span-3 md:col-span-4">
+            <span className={lbl}>CTP perfüzyon (isteğe bağlı · cSVD dekonvolüsyonu)</span>
+            <textarea
+              aria-label="CTP eğrileri"
+              value={ctpText}
+              onChange={(e) => setCtpText(e.target.value)}
+              rows={3}
+              placeholder={"satır başına bir bölge:  ad | t1,t2,… | HU1,HU2,…\nAIF | 0,1,2,3 | 40,120,300,180"}
+              className="mt-1 w-full rounded border border-[#232e40] bg-[#141b24] px-2 py-1 font-mono text-[11px] text-slate-200"
+            />
+            <div className="mt-1 flex items-center gap-2">
+              <button
+                type="button"
+                className="cursor-pointer rounded border border-cyan-400/40 px-2 py-0.5 text-[11px] font-bold text-cyan-200 hover:bg-cyan-400/10"
+                onClick={() => {
+                  const curves = parseCtpCurves(ctpText);
+                  const s = ctpSvdSummary(curves);
+                  if (!s) { setCtpMsg("En az iki geçerli eğri gerekir (ad | zaman | değer)."); return; }
+                  const text = ctpSvdText(s);
+                  setCtpMsg(text);
+                  onApply(text);
+                  if ((s.coreIndices.length > 0 || s.penumbraIndices.length > 0) && onCreateTask) {
+                    void onCreateTask({ message: `CTP: core-penumbra adayı — ${text.slice(0, 160)}`, intervalDays: 2, severity: s.coreIndices.length > 0 ? "kritik" : "yuksek" });
+                  }
+                }}
+              >🧠 CTP çöz (core/penumbra)</button>
+              <span className="text-[10px] text-slate-500">Rölatif CBF/CBV/MTT/Tmax; dekonvolüsyon. Klinik karar aracı değildir.</span>
+            </div>
+            {ctpMsg && <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap rounded bg-[#0e141d] p-2 text-[10px] text-slate-300">{ctpMsg}</pre>}
           </div>
         )}
 

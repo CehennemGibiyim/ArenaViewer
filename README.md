@@ -20,6 +20,11 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   oblik (eğimli) MPR ve WebGL 3B hacim. Kesit konumu kaydı (IPP) varsa koronal/sagital
   gerçek hasta geometrisinden, ölçek kayması olmadan örneklenir (`src/lib/mpr.ts` +
   `VolumeView`). Kaynak seri salt okunur tutulur.
+- **İnme / CTP:** ASPECTS 10 bölge skoru + `ctp.ts` ile cSVD (kesilmiş SVD)
+  dekonvolüsyonu: rölatif CBF/CBV/MTT ve Tmax, **otomatik AIF seçimi**, çoklu
+  bölge özeti (core: rCBF<%30, penumbra: Tmax≥6 sn) ve mismatch oranı. Panelden
+  `ad | zaman | değer` biçiminde eğri yapıştırılır. Değerler **rölatiftir**;
+  mutlak mL/100 g/dk için dansite kalibrasyonu gerekir, klinik karar aracı değildir.
 - **Denetim → SIEM:** Her denetim olayı aynı işlemde `audit_delivery` kuyruğuna
   CEF olarak yazılır. `AUDIT_SIEM_URL` (+ isteğe bağlı `AUDIT_SIEM_SECRET`) tanımlıysa
   HMAC-SHA256 imzalı POST ile gönderilir; hata olursa üstel geri çekilmeyle
@@ -290,6 +295,7 @@ npm run test:template               # şablon yer tutucuları + onay öncesi uya
 npm run test:style                  # üslup örneği seçimi + LLM prompt entegrasyonu
 npm run test:pacssend               # KO/PR → PACS gönderim planı ve uç sözleşmesi
 npm run test:siem                   # SIEM kuyruğu, yeniden deneme, HMAC imza
+npm run test:ctp                    # CTP cSVD dekonvolüsyonu + otomatik AIF
 npm run test:codecs                 # WASM codec (J2K / JPEG-LS) piksel testleri
 
 # Tarayıcı regresyon testleri (production sunucusu gerekir; BASE_URL varsayılanı :3000)

@@ -517,8 +517,8 @@ const BASE_ITEMS: GapItem[] = [
     id: "a-stroke", category: "ai", title: "İnme paketi: ASPECTS skoru + CTP perfüzyon (CBF/CBV/MTT/Tmax)",
     status: "kismi", priority: "P1", effort: "L",
     market: ["Viz.ai", "Aidoc"],
-    ours: "**Bu sürümde kısmen uygulandı:** `src/lib/stroke.ts` — ASPECTS 10 bölge skoru (rapor panelinde işaretleme) ve basitleştirilmiş CTP özeti (TTP/gecikme, CBF/CBV oranları, core/penumbra adayı). Dekonvolüsyon/AIF seçimi yoktur.",
-    action: "Model tabanlı AIF seçimi + dekonvolüsyon; injeksiyon öncesi/sonrası seri eşleme.",
+    ours: "**Bu sürümde kısmen uygulandı:** `src/lib/stroke.ts` — ASPECTS 10 bölge skoru (rapor panelinde işaretleme) ve basitleştirilmiş CTP özeti. **Eklenen (a-stroke):** `src/lib/ctp.ts` — cSVD (kesilmiş SVD) dekonvolüsyonu ile rölatif CBF/CBV/MTT + Tmax, otomatik AIF seçimi (genlik/zirve zamanı/genişlik skoru), çoklu bölge özeti (core: rCBF<%30, penumbra: Tmax≥6 sn) ve mismatch oranı; panelden yapıştırılan eğrilerle çalışır, sentetik konvolüsyon verisiyle doğrulandı (MTT ~4 sn geri kazanımı). KALAN: mutlak mL/100 g/dk için dansite (ρ) kalibrasyonu, hareket düzeltmesi, otomatik bölge (ROI) segmentasyonu.",
+    action: "Hareket düzeltmesi + otomatik ROI/kontur segmentasyonu; 4D seriden eğri çıkarma; mutlak akım kalibrasyonu.",
   },
   {
     id: "a-msk", category: "ai", title: "MSK/X-ışını kırık ve landmarke AI",
