@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { StudyRow, UserInfo } from "@/lib/types";
 import { apiFetch } from "@/lib/csrfClient";
+import TriageQueue from "./TriageQueue";
 
 interface PacsStudy {
   studyUid: string;
@@ -56,7 +57,7 @@ function criticalBadge(score: number) {
 }
 
 export default function WorklistModal({ open, onClose, user, onOpenStudy, onOpenPacs }: Props) {
-  const [tab, setTab] = useState<"liste" | "pacs" | "mwl">("liste");
+  const [tab, setTab] = useState<"liste" | "triaj" | "pacs" | "mwl">("liste");
   const [rows, setRows] = useState<StudyRow[]>([]);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
@@ -146,8 +147,8 @@ export default function WorklistModal({ open, onClose, user, onOpenStudy, onOpen
       <div className="flex h-full max-h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-[#232e40] bg-[#0b0f16] shadow-2xl">
         <div className="flex items-center gap-3 border-b border-[#1a2230] px-4 py-3">
           <h2 className="text-sm font-black tracking-wide text-slate-100">Çalışma listesi</h2>
-          {(["liste", "pacs", "mwl"] as const).map((t) => (
-            <button key={t} onClick={() => setTab(t)} className={`cursor-pointer rounded px-3 py-1 text-xs font-bold ${tab === t ? "bg-cyan-400/15 text-cyan-300 ring-1 ring-cyan-400/40" : "text-slate-400 hover:text-slate-200"}`}>{t === "liste" ? "Yerel / HBYS" : t === "pacs" ? "PACS (DICOMweb)" : "İş listesi (MWL)"}</button>
+          {(["liste", "triaj", "pacs", "mwl"] as const).map((t) => (
+            <button key={t} onClick={() => setTab(t)} className={`cursor-pointer rounded px-3 py-1 text-xs font-bold ${tab === t ? "bg-cyan-400/15 text-cyan-300 ring-1 ring-cyan-400/40" : "text-slate-400 hover:text-slate-200"}`}>{t === "liste" ? "Yerel / HBYS" : t === "triaj" ? "AI Triaj" : t === "pacs" ? "PACS (DICOMweb)" : "İş listesi (MWL)"}</button>
           ))}
           <button onClick={onClose} className="ml-auto cursor-pointer rounded border border-[#2d3b4e] bg-[#141b24] px-2.5 py-1 text-xs text-slate-300 hover:text-white">✕</button>
         </div>
@@ -195,6 +196,8 @@ export default function WorklistModal({ open, onClose, user, onOpenStudy, onOpen
             </div>
           </>
         )}
+
+        {tab === "triaj" && <TriageQueue onOpenStudy={(s) => { onOpenStudy(s); onClose(); }} />}
 
         {tab === "mwl" && (
           <>

@@ -98,7 +98,13 @@ jobs:
           echo "Orthanc 180 sn içinde hazır olmadı"; curl -sv -u "$ORTHANC_USER:$ORTHANC_PASS" "$ORTHANC_URL/system" 2>&1 | tail -20; exit 1
 
       - name: DICOMweb uçtan uca testi (STOW/QIDO/WADO)
-        run: npm run test:pacs-e2e
+        run: |
+          set -o pipefail
+          npm run test:pacs-e2e 2>&1 | tee /tmp/pacs-test.log || {
+            message=$(tail -40 /tmp/pacs-test.log | sed -e 's/%/%25/g' -e ':a;N;$!ba;s/\n/%0A/g' -e 's/\r/%0D/g')
+            echo "::error title=Orthanc test çıktısı::$message"
+            exit 1
+          }
 
   # Güvenlik açısından bağımlılık denetimi (G3): PR'da yeni/ değişen bağımlılıklar
   # bilinen açığa göre işaretlenir; high/critical ise iş kırmadı (rapor niteliği).
@@ -146,6 +152,9 @@ jobs:
       PORT: 3000
       # Test-only synthetic series are compiled into this UI-test artifact only.
       NEXT_PUBLIC_E2E_FIXTURES: "true"
+      # Bağımsız tarayıcı testleri aynı IP üzerinden kısa sürede analiz çalıştırır.
+      # Hız sınırı test:webhard içinde ayrıca doğrulanır; üretimde kapatılmaz.
+      AV_RATE_LIMIT: "off"
     steps:
       - uses: actions/checkout@v4
 
@@ -177,16 +186,40 @@ jobs:
           echo "sunucu 120 sn içinde hazır olmadı"; tail -50 server.log; exit 1
 
       - name: Menü etkileşim testleri (16 kontrol)
-        run: npm run test:menu
+        run: |
+          set -o pipefail
+          npm run test:menu 2>&1 | tee /tmp/menu-test.log || {
+            message=$(tail -40 /tmp/menu-test.log | sed -e 's/%/%25/g' -e ':a;N;$!ba;s/\n/%0A/g' -e 's/\r/%0D/g')
+            echo "::error title=Menü test çıktısı::$message"
+            exit 1
+          }
 
       - name: Klasör içe aktarma testleri (3 kontrol)
-        run: npm run test:folder
+        run: |
+          set -o pipefail
+          npm run test:folder 2>&1 | tee /tmp/folder-test.log || {
+            message=$(tail -40 /tmp/folder-test.log | sed -e 's/%/%25/g' -e ':a;N;$!ba;s/\n/%0A/g' -e 's/\r/%0D/g')
+            echo "::error title=folder test çıktısı::$message"
+            exit 1
+          }
 
       - name: Görüntü inceleme testleri (5 kontrol)
-        run: npm run test:review
+        run: |
+          set -o pipefail
+          npm run test:review 2>&1 | tee /tmp/review-test.log || {
+            message=$(tail -40 /tmp/review-test.log | sed -e 's/%/%25/g' -e ':a;N;$!ba;s/\n/%0A/g' -e 's/\r/%0D/g')
+            echo "::error title=review test çıktısı::$message"
+            exit 1
+          }
 
       - name: Rapor onay + derin AI akışı (CI'da onay tamamlanır)
-        run: npm run test:report-flow
+        run: |
+          set -o pipefail
+          npm run test:report-flow 2>&1 | tee /tmp/report-flow-test.log || {
+            message=$(tail -40 /tmp/report-flow-test.log | sed -e 's/%/%25/g' -e ':a;N;$!ba;s/\n/%0A/g' -e 's/\r/%0D/g')
+            echo "::error title=report-flow test çıktısı::$message"
+            exit 1
+          }
 
       - name: Sunucu günlüğü (hata durumunda)
         if: failure()

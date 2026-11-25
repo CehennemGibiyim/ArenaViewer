@@ -200,6 +200,7 @@ async function route(method: string, url: URL, init?: RequestInit): Promise<Resp
       return json({ ok: true });
     }
   }
+  if (p === "/api/triage-queue" && method === "GET") return fail("AI triaj kuyruğu sunucu gerektirir; statik demoda kullanılamaz", 503);
   if ((p === "/api/studies" || p === "/api/notifications") && method === "GET") return json([]);
   return null;
 }

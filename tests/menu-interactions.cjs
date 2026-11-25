@@ -5,7 +5,6 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const http = require("node:http");
 const { chromium } = require("playwright");
 
 const BASE = process.env.BASE_URL || "http://localhost:3000";
@@ -33,9 +32,8 @@ async function chooser(page, root, name) {
 
 async function main() {
   const browser = await chromium.launch({ args: ["--no-sandbox"] });
-  let server;
   try {
-    const ctx = await browser.newContext({ viewport: { width: 1280, height: 850 }, acceptDownloads: true });
+    const ctx = await browser.newContext({ serviceWorkers: "block", viewport: { width: 1280, height: 850 }, acceptDownloads: true });
     const page = await ctx.newPage();
     page.setDefaultTimeout(10000);
     const errors = [];
@@ -130,7 +128,10 @@ async function main() {
       await page.getByRole("button", { name: "PNG", exact: true }).click();
       const dialog = page.getByRole("dialog", { name: "PNG görüntü önizlemesi" });
       await dialog.waitFor();
-      await page.waitForFunction(() => document.querySelector('a[download="kesit-14.png"]')?.getAttribute("href")?.startsWith("blob:"));
+      await page.waitForFunction(() => {
+        const href = document.querySelector('a[download="kesit-14.png"]')?.getAttribute("href") || "";
+        return href.startsWith("blob:") || href.startsWith("data:image/png");
+      });
       const event = page.waitForEvent("download");
       await dialog.getByRole("link", { name: "PNG dosyasını indir" }).click();
       const dl = await event;
@@ -180,7 +181,7 @@ async function main() {
     await ctx.close();
 
     for (const kind of ["malformed", "storage-denied", "cancel-import"]) {
-      const c = await browser.newContext({ viewport: { width: 1280, height: 850 } });
+      const c = await browser.newContext({ serviceWorkers: "block", viewport: { width: 1280, height: 850 } });
       const p = await c.newPage(); p.setDefaultTimeout(10000);
       const errors = []; p.on("pageerror", (e) => errors.push(e.message));
       if (kind === "malformed") await c.addInitScript(() => {
@@ -215,15 +216,21 @@ async function main() {
       await c.close();
     }
 
-    server = http.createServer((_req, res) => {
-      res.setHeader("Content-Type", "text/html");
-      res.end(`<iframe title="Önizleme" sandbox="allow-scripts allow-same-origin allow-forms allow-modals" src="${BASE}" style="border:0;width:100vw;height:100vh"></iframe>`);
-    });
-    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-    const cc = await browser.newContext({ viewport: { width: 1280, height: 850 } });
+    // Üretim güvenlik politikası (CSP frame-ancestors self ve X-Frame-Options)
+    // farklı port/kökendeki sayfaların uygulamayı çerçevelemesini engeller.
+    // Gerçekten izin verilen aynı-kökenli sandbox senaryosunu test et.
+    const cc = await browser.newContext({ serviceWorkers: "block", viewport: { width: 1280, height: 850 } });
     const pp = await cc.newPage(); pp.setDefaultTimeout(10000);
     const frameErrors = []; pp.on("pageerror", (e) => frameErrors.push(e.message));
-    await pp.goto(`http://127.0.0.1:${server.address().port}`);
+    await pp.goto(BASE);
+    await pp.evaluate(() => {
+      const iframe = document.createElement("iframe");
+      iframe.title = "Önizleme";
+      iframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms allow-modals");
+      iframe.src = "/";
+      iframe.style.cssText = "position:fixed;inset:0;border:0;width:100vw;height:100vh;z-index:9999";
+      document.body.appendChild(iframe);
+    });
     const frame = pp.frameLocator("iframe");
     await waitReady(pp, frame);
     await check("Sandbox iframe: Dosya/Klasör seçicileri ve PNG önizleme çalışır", async () => {
@@ -238,7 +245,6 @@ async function main() {
     await cc.close();
     console.log(`\n${checks.length} kontrol başarılı; arayüz, dosya seçimi, indirme ve hata senaryoları doğrulandı.`);
   } finally {
-    if (server) await new Promise((resolve) => server.close(resolve));
     await browser.close();
     fs.rmSync(temp, { recursive: true, force: true });
   }

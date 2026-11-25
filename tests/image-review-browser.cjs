@@ -7,7 +7,7 @@ const { chromium } = require("playwright");
 
 async function main() {
   const browser = await chromium.launch({ args: ["--no-sandbox"] });
-  const page = await browser.newPage({ viewport: { width: 1500, height: 900 } });
+  const page = await browser.newPage({ serviceWorkers: "block", viewport: { width: 1500, height: 900 } });
   page.setDefaultTimeout(15000);
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -71,6 +71,10 @@ async function main() {
     console.log("PASS BT beyin: mevcut aday odak taraması korunuyor.");
     assert.deepEqual(errors, []);
     console.log("PASS Tarayıcı JavaScript hatası yok.");
+  } catch (e) {
+    console.error("İnceleme paneli:", (await page.locator('aside[aria-label="İnceleme paneli"]').innerText().catch(() => "okunamadı")).slice(-5000));
+    console.error("Tarayıcı hataları:", errors);
+    throw e;
   } finally {
     await browser.close();
   }

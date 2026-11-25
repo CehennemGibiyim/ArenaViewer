@@ -19,7 +19,7 @@ const FULL = process.env.CI === "true" || process.env.E2E_FULL === "1";
 async function main() {
   const base = process.env.BASE_URL ?? "http://localhost:3000";
   const browser = await chromium.launch({ args: ["--no-sandbox"] });
-  const page = await browser.newPage({ viewport: { width: 1500, height: 900 } });
+  const page = await browser.newPage({ serviceWorkers: "block", viewport: { width: 1500, height: 900 } });
   page.setDefaultTimeout(20000);
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
