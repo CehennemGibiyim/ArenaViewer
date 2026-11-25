@@ -7,6 +7,9 @@ set -euo pipefail
 # DATABASE_URL zorunluluğu yüzünden patlar (Pages işi bu yüzden kırılıyordu).
 # Statik demoda olmayan sayfalar: /giris /yonetim /tercihler /paylas/*
 rm -rf src/app/api src/app/yonetim src/app/giris src/proxy.ts src/app/tercihler src/app/paylas
+# API entegrasyon testleri silinen sunucu uçlarını içe aktarabilir. Statik
+# kopyanın TypeScript denetiminden testleri çıkar; gerçek CI testleri korunur.
+node -e 'const fs = require("fs"); const p = JSON.parse(fs.readFileSync("tsconfig.json", "utf8")); p.exclude = [...new Set([...(p.exclude || []), "tests"])]; fs.writeFileSync("tsconfig.json", JSON.stringify(p, null, 2) + "\n");'
 mkdir -p src/app/yonetim
 cat > src/app/page.tsx <<'TSX'
 import Workstation from "@/components/Workstation";

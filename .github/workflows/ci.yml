@@ -58,6 +58,25 @@ jobs:
         run: npm run test:auth-integration
 
 
+  # Pages yalnız main'e dağıtılır; PR'da aynı statik derleme dağıtımsız sınanır.
+  pages-build:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_PAGES: "true"
+      NEXT_PUBLIC_STATIC_DEMO: "true"
+      NEXT_PUBLIC_BASE_PATH: /${{ github.event.repository.name }}
+      NEXT_TELEMETRY_DISABLED: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: bash scripts/prepare-pages.sh
+      - run: npm run build
+
   # Gerçek PACS (Orthanc) ile uçtan uca DICOMweb testi: STOW yükle → QIDO bul →
   # WADO geri al → temizlik. ORTHANC_URL tanımsızca test kendini atlar.
   #
