@@ -9,6 +9,17 @@
 > olmadan tanı/ölçüm olarak sunulamaz ve “hekim onayı” zorunluluğu bozulmaz.
 > Bu listedeki öğeler ürün yol haritası adayıdır, klinik iddia değil.
 
+### AI Triaj İş Listesi (araştırma/demonstrasyon)
+
+Çalışma listesinde **AI Triaj** sekmesi, onaylı iş durumunda olmayan çalışmaları
+mevcut AI skoruna göre gösterir; analiz edilmemiş ve simüle edilmiş kayıtlar
+açıkça işaretlenir. Liste en fazla 500 kayıt içerir, daha fazla kayıt varsa
+uyarı verir. Skor çalışma kaydındaki son analiz veya rapor bilgisinden gelir; bulgu gerekçesi, bağımsız
+karar kaydı ve gerçek zamanlı güvenlik ağı bu sürümde yoktur. İş durumu ile
+rapor durumu farklı olabilir ve ayrı gösterilir. Statik demo sunucu kuyruğunu
+desteklemez. AI sıralaması klinik olarak doğrulanmış değildir ve bir çalışma
+listede yoksa veya düşük sıralanmışsa güvenli olduğu anlamına gelmez.
+
 ## 0. Nasıl okunur
 
 | Öncelik | Anlamı |
