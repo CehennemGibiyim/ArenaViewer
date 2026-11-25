@@ -465,6 +465,7 @@ Anahtar üretme: `node -e "console.log(require('crypto').randomBytes(32).toStrin
 | `npx next typegen` | Rota tipleri |
 | `npm run typecheck` | TypeScript kontrolü |
 | `npm run build` / `npm start` | Üretim derlemesi / sunucusu |
+| `npm run build:pages` | GitHub Pages statik derlemesini yerelde sınar (`scripts/prepare-pages.sh` + `next build`, geçici kopyada) |
 | `npx drizzle-kit push` | Şemayı yerel DB'ye uygula |
 | `npm run hl7:mllp` | HL7 v2 (MLLP) sipariş alıcısını başlatır (`HIS_API_KEY` gerekir) |
 | `npm run mwl:cfind` | Modality Worklist DIMSE C-FIND köprüsü (`MWL_PACS_HOST`/`MWL_PACS_AET` gerekir) |
@@ -565,7 +566,10 @@ git push -u origin main
 
 > Not: GitHub Pages yalnızca statik site sunar; sunucu + veritabanı gerektiren bu
 > uygulamanın tamamını çalıştıramaz. Gerekçe ve alternatifler yayınlama
-> kılavuzundadır.
+> kılavuzundadır. Statik demoda `/ayna` (ikinci ekran) oturum kapısı olmadan,
+> **demo** etiketiyle istemci tarafında çalışır; `/giris`, `/yonetim`,
+> `/tercihler`, `/paylas/*` ve API uçları derlemeden çıkarılır. Derleme yerelde
+> `npm run build:pages` ile sınanır.
 
 ## Proje yapısı
 

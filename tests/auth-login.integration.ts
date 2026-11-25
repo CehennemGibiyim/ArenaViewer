@@ -56,23 +56,32 @@ async function main() {
     // ── Sunucu taraflı oturum kaydı + iptal + kilitleme ─────────────────────
     await db.update(users).set({ twoFactorEnabled: true }).where(eq(users.id, id));
     const { userSessions } = await import("../src/db/schema");
-    const { checkSession, revokeSession, listSessions, loginLocked, recordAttempt } = await import("../src/lib/server/sessionStore");
+    const { checkSession, revokeSession, listSessions, loginLocked, recordAttempt, hashSessionId, sessionRowMatchesSid } =
+      await import("../src/lib/server/sessionStore");
     const { sessionFromRequest } = await import("../src/lib/server/session");
+    const sessionsOf = () => db.select().from(userSessions).where(eq(userSessions.userId, id!));
+    // Bu kullanıcının daha önceki başarılı girişleri kendi satırlarını açtı; sayaç
+    // "1" değil "önceki + 1" olmalı (her giriş ayrı oturum, öncekiler korunur).
+    const before = (await sessionsOf()).length;
     const login2 = await login(password, await generate({ secret }));
     assert.equal(login2.status, 200);
     const cookie = login2.cookies.get(SESSION_COOKIE)!.value;
     const ctx = sessionFromRequest(new NextRequest("http://localhost/api/x", { headers: { cookie: `${SESSION_COOKIE}=${cookie}` } }));
     assert.ok(ctx?.sid, "çerez oturum kimliği (sid) taşımalı");
-    const rows = await db.select().from(userSessions).where(eq(userSessions.userId, id));
-    assert.equal(rows.length, 1, "giriş başına bir oturum kaydı");
-    assert.equal("sid" in rows[0], false, "veritabanında çerez kimliği düz metin tutulmamalı");
+    const rows = await sessionsOf();
+    assert.equal(rows.length, before + 1, "her başarılı giriş yeni bir oturum satırı eklemeli");
+    assert.equal("sid" in (rows[0] as object), false, "veritabanında çerez kimliği düz metin tutulmamalı");
+    const ownRow = rows.find((r) => sessionRowMatchesSid(r, ctx!.sid));
+    assert.ok(ownRow, "çerezdeki sid hash'lenmiş oturum satırıyla eşleşmeli");
+    assert.equal(ownRow!.idHash, hashSessionId(ctx!.sid), "satırda sid'in yalnız SHA-256 özeti tutulmalı");
+    assert.equal(ownRow!.idHash.includes(cookie), false, "çerez değeri satırda düz metin bulunmamalı");
     assert.equal((await checkSession(ctx!.sid, id)).ok, true, "kayıtlı oturum geçerli");
     assert.equal(await revokeSession(ctx!.sid, id), true, "oturum iptal edilebilmeli");
     assert.deepEqual(await checkSession(ctx!.sid, id), { ok: false, reason: "iptal" }, "iptal edilen oturum çerezle reddedilmeli");
-    assert.equal((await login2.status), 200);
-    const own = await listSessions({ userId: id, includeExpired: true });
-    assert.ok(own.length >= 1);
-    assert.equal(own[0].revokedAt !== null || own[0].expiresAt.getTime() > Date.now(), true);
+    assert.equal(login2.status, 200);
+    const listed = await listSessions({ userId: id, includeExpired: true });
+    assert.ok(listed.length >= 1, "oturum listesi kayıtları döndürmeli");
+    assert.equal(listed[0].revokedAt !== null || listed[0].expiresAt.getTime() > Date.now(), true);
     // Kilitleme: 5 hatalı denemeden sonra kilit; başarılı kayıt kilidi kaldırır.
     const uname = `lock-${randomUUID()}`;
     for (let i = 0; i < 5; i++) await recordAttempt(uname, "127.0.0.1", false, "test");
