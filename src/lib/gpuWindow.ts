@@ -14,6 +14,8 @@
  *    ve gri seviye `windowToRGBA` + `buildWindowLUT` ile birebir eşleşir.
  */
 
+import { AtlasSlots, AtlasTexture, bytesPerTexelFor, planLayers, type LayerPlan } from "./gpuAtlas";
+
 export interface GpuDecisionInput {
   /** WebGL2 bağlamı kurulabildi mi? */
   webgl2: boolean;
@@ -109,7 +111,47 @@ void main() {
 }`;
 }
 
+/** Dizi dokusu (atlas) varyantı: katman `u_layer` uniform'undan gelir. */
+function fragArray(sampler: string, read: string): string {
+  return `#version 300 es
+precision highp float;
+precision highp int;
+uniform ${sampler} u_tex;
+uniform int u_layer;
+uniform float u_lo;
+uniform float u_scale;
+uniform float u_span;
+uniform int u_invert;
+in vec2 v_uv;
+out vec4 outColor;
+void main() {
+  ivec2 p = ivec2(v_uv * vec2(textureSize(u_tex, 0).xy));
+  float v = ${read};
+  float t = floor(v - u_lo);
+  float g = t >= u_span ? 255.0 : floor(t * u_scale);
+  g = clamp(g, 0.0, 255.0) / 255.0;
+  if (u_invert == 1) g = 1.0 - g;
+  outColor = vec4(g, g, g, 1.0);
+}`;
+}
+
+const FRAG_ARRAY_INT16 = fragArray("isampler2DArray", "float(texelFetch(u_tex, ivec3(p, u_layer), 0).r)");
+const FRAG_ARRAY_UINT16 = fragArray("usampler2DArray", "float(texelFetch(u_tex, ivec3(p, u_layer), 0).r)");
+const FRAG_ARRAY_FLOAT = fragArray("sampler2DArray", "texelFetch(u_tex, ivec3(p, u_layer), 0).r");
+
 const FRAG_INT16 = frag("isampler2D", "float(texelFetch(u_tex, p, 0).r)");
+
+/**
+ * Shader kaynakları (test/tanılama için dışa aktarılır): doku atlası varyantları
+ * `windowToRGBA` ile aynı pencere formülünü kullanır, yalnız doku türü ve
+ * katman seçimi farklıdır.
+ */
+export const GPU_SHADERS = {
+  int16: FRAG_INT16,
+  arrayInt16: FRAG_ARRAY_INT16,
+  arrayUint16: FRAG_ARRAY_UINT16,
+  arrayFloat: FRAG_ARRAY_FLOAT,
+} as const;
 const FRAG_UINT16 = frag("usampler2D", "float(texelFetch(u_tex, p, 0).r)");
 const FRAG_FLOAT = frag("sampler2D", "texelFetch(u_tex, p, 0).r");
 
@@ -160,6 +202,14 @@ export class GpuWindower {
   private texKey = "";
   private fmt: TextureFormat = "r16i";
   private lost = false;
+  // ── Doku atlası (v-perf): çok kesitli serilerde tek TEXTURE_2D_ARRAY ──
+  private progsArray: Record<TextureFormat, WebGLProgram | null> = { r16i: null, r16ui: null, r32f: null };
+  private maxArrayLayers = 0;
+  private atlas: AtlasTexture | null = null;
+  private atlasSlots: AtlasSlots | null = null;
+  private atlasKey = "";
+  private atlasPlan: LayerPlan | null = null;
+  private arrayBroken = false;
 
   constructor(canvas?: HTMLCanvasElement) {
     this.canvas = canvas ?? null;
@@ -183,11 +233,27 @@ export class GpuWindower {
           r32f: link(gl, VERT, FRAG_FLOAT),
         };
         if (!this.progs.r16i || !this.progs.r16ui || !this.progs.r32f) this.gl = null;
+        // Dizi dokusu desteği: sınırı öğren, programları bağla; başarısızsa atlas kapalı.
+        try {
+          const max = gl.getParameter(gl.MAX_ARRAY_TEXTURE_LAYERS) as number | null;
+          this.maxArrayLayers = typeof max === "number" ? max : 0;
+        } catch { this.maxArrayLayers = 0; }
+        if (this.maxArrayLayers >= 2) {
+          this.progsArray = {
+            r16i: link(gl, VERT, FRAG_ARRAY_INT16),
+            r16ui: link(gl, VERT, FRAG_ARRAY_UINT16),
+            r32f: link(gl, VERT, FRAG_ARRAY_FLOAT),
+          };
+          if (!this.progsArray.r16i || !this.progsArray.r16ui || !this.progsArray.r32f) this.arrayBroken = true;
+        }
         gl.canvas.addEventListener("webglcontextlost", () => {
           this.lost = true;
           this.gl = null;
           this.tex = null;
           this.texKey = "";
+          this.atlas = null;
+          this.atlasSlots = null;
+          this.atlasKey = "";
         });
       }
     } catch {
@@ -217,10 +283,17 @@ export class GpuWindower {
     invert: boolean;
     isInt16: boolean;
     isUint16: boolean;
+    /** Seri kimliği + serideki kesit sayısı: doku atlası için (v-perf). */
+    seriesKey?: string;
+    sliceIndex?: number;
+    sliceCount?: number;
   }): HTMLCanvasElement | null {
     const gl = this.gl;
     if (!gl || this.lost || !this.canvas) return null;
     const { key, pixels, width, height, wl, ww, invert, isInt16, isUint16 } = opts;
+    // Doku atlası yolu (çok kesitli serilerde her kaydırmada yeniden yükleme yok).
+    const atlasDrawn = this.renderAtlas(opts);
+    if (atlasDrawn) return atlasDrawn;
     if (this.canvas.width !== width || this.canvas.height !== height) {
       this.canvas.width = width;
       this.canvas.height = height;
@@ -277,12 +350,116 @@ export class GpuWindower {
     return this.canvas;
   }
 
+  /**
+   * Atlas (TEXTURE_2D_ARRAY) yolu. Uygun değilse ya da herhangi bir adımda hata
+   * olursa `null` döner ve çağıran mevcut tek doku yoluna düşer — davranış değişmez.
+   */
+  private renderAtlas(opts: {
+    pixels: ArrayLike<number>;
+    width: number;
+    height: number;
+    wl: number;
+    ww: number;
+    invert: boolean;
+    isInt16: boolean;
+    isUint16: boolean;
+    seriesKey?: string;
+    sliceIndex?: number;
+    sliceCount?: number;
+  }): HTMLCanvasElement | null {
+    const gl = this.gl;
+    if (!gl || this.arrayBroken || this.maxArrayLayers < 2) return null;
+    const { pixels, width, height, wl, ww, invert, isInt16, isUint16, seriesKey, sliceIndex, sliceCount } = opts;
+    if (seriesKey === undefined || sliceIndex === undefined || (sliceCount ?? 0) < 2) return null;
+    const fmt = pickTextureFormat(isInt16, isUint16);
+    const prog = this.progsArray[fmt];
+    if (!prog) return null;
+
+    const plan = planLayers({
+      sliceCount: sliceCount ?? 1,
+      maxLayers: this.maxArrayLayers,
+      width,
+      height,
+      bytesPerTexel: bytesPerTexelFor(fmt),
+    });
+    if (plan.layers < 2) return null;
+
+    const atlasKey = `${seriesKey}|${width}x${height}|${fmt}|${plan.layers}`;
+    if (atlasKey !== this.atlasKey) {
+      this.atlas?.dispose();
+      this.atlas = new AtlasTexture(gl, plan.layers, width, height,
+        fmt === "r16i" ? gl.R16I : fmt === "r16ui" ? gl.R16UI : gl.R32F);
+      this.atlasSlots = new AtlasSlots(plan.layers);
+      this.atlasKey = atlasKey;
+      this.atlasPlan = plan;
+    }
+    const atlas = this.atlas;
+    const slots = this.atlasSlots;
+    if (!atlas || !slots) return null;
+
+    const got = slots.acquire(sliceIndex);
+    if (got.upload) {
+      const ok = fmt === "r16i"
+        ? atlas.upload(got.slot, gl.RED_INTEGER, gl.SHORT, toInt16(pixels))
+        : fmt === "r16ui"
+          ? atlas.upload(got.slot, gl.RED_INTEGER, gl.UNSIGNED_SHORT, toUint16(pixels))
+          : atlas.upload(got.slot, gl.RED, gl.FLOAT, toFloat32(pixels));
+      if (!ok) {
+        // Atlas yolu bu cihazda çalışmıyor: kalıcı olarak kapat, tek doku yoluna dön.
+        this.arrayBroken = true;
+        atlas.dispose();
+        this.atlas = null;
+        this.atlasSlots = null;
+        this.atlasKey = "";
+        return null;
+      }
+    }
+
+    if (this.canvas!.width !== width || this.canvas!.height !== height) {
+      this.canvas!.width = width;
+      this.canvas!.height = height;
+    }
+    gl.useProgram(prog);
+    gl.viewport(0, 0, width, height);
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(prog, "a_pos");
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+    atlas.bind(0);
+    gl.uniform1i(gl.getUniformLocation(prog, "u_tex"), 0);
+    gl.uniform1i(gl.getUniformLocation(prog, "u_layer"), got.slot);
+    const span = Math.max(1, ww);
+    gl.uniform1f(gl.getUniformLocation(prog, "u_lo"), wl - span / 2);
+    gl.uniform1f(gl.getUniformLocation(prog, "u_scale"), 255 / span);
+    gl.uniform1f(gl.getUniformLocation(prog, "u_span"), span);
+    gl.uniform1i(gl.getUniformLocation(prog, "u_invert"), invert ? 1 : 0);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.deleteBuffer(buf);
+    if (gl.getError() !== gl.NO_ERROR) return null;
+    return this.canvas;
+  }
+
+  /** Atlas planı (tanılama/arayüz: kaç katman, gerekçe). */
+  get atlasInfo(): { plan: LayerPlan | null; stats: { hits: number; misses: number; evictions: number } | null; uploads: number } {
+    return {
+      plan: this.atlasPlan,
+      stats: this.atlasSlots ? this.atlasSlots.stats : null,
+      uploads: this.atlas ? this.atlas.uploadCount : 0,
+    };
+  }
+
   /** Doku önbelleğini bırakır (seri değişimi / bellek baskısı). */
   dispose(): void {
     const gl = this.gl;
     if (gl && this.tex) gl.deleteTexture(this.tex);
     this.tex = null;
     this.texKey = "";
+    this.atlas?.dispose();
+    this.atlas = null;
+    this.atlasSlots = null;
+    this.atlasKey = "";
   }
 }
 
