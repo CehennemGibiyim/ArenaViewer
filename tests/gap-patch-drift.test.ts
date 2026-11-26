@@ -61,6 +61,8 @@ ok(liveText("v-wl").includes("petWindows"), "v-wl satırı PET SUV pencere ön a
 ok(liveText("t-disclaimer").includes("intendedUse"), "t-disclaimer satırı amaçlanan kullanım kaynağını anıyor");
 ok(liveText("r-patient").includes("readability"), "r-patient satırı Ateşman okunabilirlik ölçümünü anıyor");
 ok(liveText("r-link").includes("sentenceLinks"), "r-link satırı cümle bağlama modülünü anıyor");
+ok(liveText("r-struct").includes("measureTable"), "r-struct satırı ölçüm tablosu modülünü anıyor");
+ok(liveText("m-basic").includes("annotationEdit"), "m-basic satırı sürükleyerek düzenleme modülünü anıyor");
 ok(liveText("r-review").includes("findingReview"), "r-review satırı uygulanan gerekçe zorunluluğunu (findingReview.ts) anıyor");
 ok(liveText("r-patient").includes("patientLetter"), "r-patient satırı hasta mektubu modülünü (TR/EN/DE, sade/standart) anıyor");
 ok(liveText("r-export").includes("TID 1500"), "r-export satırı ölçüm SR (TID 1500) çıktısını anıyor");
@@ -97,6 +99,8 @@ const recycledActions: [string, string][] = [
   ["t-disclaimer", "Amaçlanan kullanım (intended use) metni ve sürüm bilgisi"],
   ["r-patient", "kuruma özel terim sözlüğü ve okunabilirlik ölçümü"],
   ["r-link", "Rapor cümlelerine bulgu kimliği iliştir"],
+  ["r-struct", "ölçüm bölümünün sütunlu tablo düzeniyle basılması"],
+  ["m-basic", "ROI ve açı için sürüklenebilir düzenleme"],
   ["f-objects", "SR/PR ayrıştırıcıları, kapsüllenmiş PDF ve MPEG oynatıcı"],
 ];
 for (const [id, phrase] of recycledActions) {

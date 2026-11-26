@@ -239,6 +239,15 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   nesnesi, her anotasyon kendi referans görüntüsüne bağlı). Kesiti kaynak SOP Instance
   ile eşleşmeyen anotasyon atlanır ve menü kaç tanesinin yazıldığını söyler
   (`src/lib/gspsGraphics.ts`). Belge rapor/imza değildir; geri içe aktarma henüz yok.
+- **Sürükleyerek ölçüm düzenleme:** araç çubuğundaki **Düzenle** ile çizilmiş bir ölçümün
+  tutamağı sürüklenir (o nokta taşınır) veya gövdesi sürüklenir (tüm şekil taşınır) —
+  uzunluk, açı, Cobb, ok, sapma ve dikdörtgen/elips/elipsoid/çokgen ROI. ROI
+  istatistikleri bırakınca güncel geometriyle yeniden hesaplanır; ROI taşındığında eski
+  istatistik korunmaz, taşıma görüntü sınırına kırpılır (`src/lib/annotationEdit.ts`).
+- **Ölçüm tablosu:** raporun «Ölçümler» bölümü **sütunlu tablo** olarak basılır
+  (Kesit / Ölçüm / Değer / Ayrıntı) ve başlığında özet satırı («9 ölçüm · 4 kesit ·
+  Uzunluk 5 · ROI 4») yer alır; ROI istatistikleri/SUV değerleri «Ayrıntı» sütununa
+  taşınır, ayrıştırılamayan serbest satır kaybolmaz (`src/lib/measureTable.ts`).
 - **Cümle → bulgu bağlantısı:** rapor metni cümlelere bölünür ve her cümle bir
   bulguya bağlanır (önce metindeki «Kesit N», yoksa bulgu etiketiyle ortak sözcük;
   eşleşme yoksa bağ kurulmaz). Rapor ekranında cümle listesi tıklanabilir: kesiti

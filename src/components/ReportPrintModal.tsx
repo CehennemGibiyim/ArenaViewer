@@ -12,6 +12,7 @@ import { fmtConf } from "@/lib/format";
 import StructuredScorePanel from "@/components/StructuredScorePanel";
 import PatientLetterModal from "@/components/PatientLetterModal";
 import LinkedFindingsText from "@/components/LinkedFindingsText";
+import { measureSummary, measureSummaryText, parseMeasurements } from "@/lib/measureTable";
 import { PEER_RESULTS, RESULT_LABELS, type PeerResult } from "@/lib/peerReview";
 import { SHARE_TTL_HOURS, shareState } from "@/lib/share";
 import { MACRO_GROUPS, macroById, macrosByGroup, type MacroGroup } from "@/lib/macros";
@@ -718,7 +719,36 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                           )}
                         </div>
                       )}
-                      {report.measurementsText && <div><div className="font-bold uppercase text-slate-900">Ölçümler</div><p className="mt-0.5 whitespace-pre-wrap font-mono text-[10.5px]">{report.measurementsText}</p></div>}
+                      {report.measurementsText && (() => {
+                        const rows = parseMeasurements(report.measurementsText);
+                        const sum = measureSummary(rows);
+                        return (
+                          <div>
+                            <div className="font-bold uppercase text-slate-900">Ölçümler</div>
+                            <div className="mt-0.5 text-[9.5px] text-slate-600">{measureSummaryText(sum)}</div>
+                            <table className="mt-1 w-full border-collapse text-[10.5px]">
+                              <thead>
+                                <tr className="border-b border-slate-300 text-left text-[9.5px] uppercase text-slate-600">
+                                  <th className="py-0.5 pr-2 font-bold">Kesit</th>
+                                  <th className="py-0.5 pr-2 font-bold">Ölçüm</th>
+                                  <th className="py-0.5 pr-2 font-bold">Değer</th>
+                                  <th className="py-0.5 font-bold">Ayrıntı</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {rows.map((r, i) => (
+                                  <tr key={i} className="border-b border-slate-100 align-top">
+                                    <td className="py-0.5 pr-2 font-mono">{r.slice ?? "—"}</td>
+                                    <td className="py-0.5 pr-2">{r.kind || "—"}</td>
+                                    <td className="py-0.5 pr-2 font-mono">{r.value || "—"}</td>
+                                    <td className="py-0.5 text-slate-600">{r.detail || r.raw}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })()}
                       <p className="mt-1 text-[10px] italic text-slate-500">{report.engine === "image-review" ? "Bu protokol hastalık sınıflandırması yapmaz; kare başına piksel ölçümleri yazdırma raporuna dahil edilmemiştir. Görüntüler radyolog tarafından değerlendirilmelidir." : "Bu çıktı yapay zeka/kural tabanlı veya DEMO desteklidir; hekim doğrulaması gerekir."}</p>
                     </div>
                     <div className="flex flex-col items-center gap-2 md:col-span-4">
