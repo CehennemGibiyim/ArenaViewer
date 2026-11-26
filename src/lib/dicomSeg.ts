@@ -5,15 +5,15 @@
  * - SEG: segment başına 1 bit/piksel binary maske; tüm segmentler aynı kesit
  *   kümesini paylaşır (çerçeve sayısı = segment × kesit). Renk, segment etiketi
  *   ve algoritma türü (MANUAL/SEMIAUTOMATIC/AUTOMATIC) yazılır.
- * - RTSTRUCT: maske sınırlarından çıkarılan konturlar (CLOSED_PLANAR) + ROI
- *   gözlemleri. Kontur, satır taramasıyla (her satırın sol/sağ sınırı) üretilir:
- *   kapalı çokgen verir, konkav segmentlerde dış zarfa yaklaşır — bu sınır
- *   kullanıcıya belirtilir.
+ * - RTSTRUCT: maske sınırlarından Moore komşuluk izlemesiyle çıkarılan
+ *   konturlar (CLOSED_PLANAR, bileşen başına bir kontur) + ROI gözlemleri;
+ *   noktalar Douglas–Peucker (contourSimplify.ts) ile mm cinsinden sadeleştirilir.
  *
  * Her iki belge de Explicit VR Little Endian, UTF-8 (ISO_IR 192) yazılır.
  */
 import { concat, el, enc, newUid, pad, str, uidEl, us } from "./dicomWrite";
 import type { SegMask, SegmentDef } from "./segmentation";
+import { simplifyClosedContour } from "./contourSimplify";
 
 export const SOP_SEG = "1.2.840.10008.5.1.4.1.1.66.4";
 export const SOP_RTSTRUCT = "1.2.840.10008.5.1.4.1.1.481.5";
@@ -48,6 +48,8 @@ export interface RtStructInput extends Omit<SegInput, "segments"> {
   rois: { def: SegmentDef; mask: SegMask }[];
   /** Kontur başına azami nokta (varsayılan 200) */
   maxPointsPerContour?: number;
+  /** Douglas–Peucker toleransı (mm, varsayılan 0,5); 0 sadeleştirmeyi kapatır */
+  contourToleranceMm?: number;
 }
 
 // ── yazım yardımcıları ──
@@ -312,22 +314,32 @@ export function maskContour(mask: Uint8Array, width: number, height: number): { 
  * CLOSED_PLANAR kontur. RTSTRUCT üretimi ve testler bu yardımcıyı paylaşır.
  */
 export function sliceContourPoints(
-  mask: Uint8Array, width: number, height: number, geometry: SegGeometry, slice: number, maxPoints = 200,
+  mask: Uint8Array, width: number, height: number, geometry: SegGeometry, slice: number, maxPoints = 200, toleranceMm = 0.5,
 ): number[][] {
   return traceContours(mask, width, height)
     .filter((p) => p.length >= 3)
-    .map((p) => contourPoints(p, geometry, slice, maxPoints));
+    .map((p) => contourPoints(p, geometry, slice, maxPoints, toleranceMm));
 }
 
-/** Kontur noktalarını piksel → hasta koordinatına (mm) çevirir ve seyreltir. */
-export function contourPoints(pts: { x: number; y: number }[], g: SegGeometry, slice: number, maxPoints = 200): number[] {
+/**
+ * Kontur noktalarını piksel → hasta koordinatına (mm) çevirir.
+ * Önce Douglas–Peucker (varsayılan ε = 0,5 mm) ile düz kenar/staircase
+ * noktaları elenir; ε ≤ 0 sadeleştirmeyi kapatır. Sadeleştirme sonrası
+ * hâlâ maxPoints aşılırsa tek tip seyreltme emniyet supabı devreye girer.
+ */
+export function contourPoints(pts: { x: number; y: number }[], g: SegGeometry, slice: number, maxPoints = 200, toleranceMm = 0.5): number[] {
   const z = g.origin[2] + slice * g.dz;
-  const stride = Math.max(1, Math.ceil(pts.length / Math.max(8, maxPoints)));
+  const mm = pts.map((p) => ({ x: g.origin[0] + (p.x + 0.5) * g.pxMm, y: g.origin[1] + (p.y + 0.5) * g.pyMm }));
+  let simple = simplifyClosedContour(mm, toleranceMm);
+  if (simple.length > maxPoints) {
+    const stride = Math.max(1, Math.ceil(simple.length / maxPoints));
+    simple = simple.filter((_, i) => i % stride === 0);
+  }
   const out: number[] = [];
-  for (let i = 0; i < pts.length; i += stride) {
+  for (const p of simple) {
     out.push(
-      Number((g.origin[0] + (pts[i].x + 0.5) * g.pxMm).toFixed(3)),
-      Number((g.origin[1] + (pts[i].y + 0.5) * g.pyMm).toFixed(3)),
+      Number(p.x.toFixed(3)),
+      Number(p.y.toFixed(3)),
       Number(z.toFixed(3)),
     );
   }
@@ -339,6 +351,7 @@ export function buildRtStruct(input: RtStructInput): Uint8Array {
   const sop = newUid();
   const forUid = input.frameOfReferenceUid || newUid();
   const maxPts = input.maxPointsPerContour ?? 200;
+  const tol = input.contourToleranceMm ?? 0.5;
 
   const roiSeq: Uint8Array[][] = [];
   const roiContourSeq: Uint8Array[][] = [];
@@ -367,7 +380,7 @@ export function buildRtStruct(input: RtStructInput): Uint8Array {
       const m = roi.mask.slices.get(slice)!;
       if (!m.some((v) => v)) continue;
       // Birden fazla bağlı bileşen varsa her biri ayrı kontur olarak yazılır.
-      for (const data of sliceContourPoints(m, input.width, input.height, input.geometry, slice, maxPts)) {
+      for (const data of sliceContourPoints(m, input.width, input.height, input.geometry, slice, maxPts, tol)) {
         contours.push(item(
           S(0x3006, 0x0042, "CS", "CLOSED_PLANAR"),
           S(0x3006, 0x0046, "IS", String(data.length / 3)),
