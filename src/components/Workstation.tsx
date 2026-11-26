@@ -33,6 +33,7 @@ import { loadWindowPresets, writePreference } from "@/lib/browserPreferences";
 import { SAMPLE_CASE_INFOS, buildSampleCase } from "@/lib/sampleCases";
 import { assertNotAborted, withImportTimeout } from "@/lib/importOperation";
 import { loadMedicalFiles, type ImportStats } from "@/lib/dicom";
+import { loadInWaves } from "@/lib/streamLoad";
 import { resolveProtocol, runEngine } from "@/lib/ai/engine";
 import { runImageReview } from "@/lib/ai/imageReview";
 import { modelCardFor, DEEP_MODEL_CARD, DEEP_BRAIN_MODEL_CARD } from "@/lib/modelCards";
@@ -660,6 +661,41 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
 
   useEffect(() => () => importRef.current?.abort(), []);
 
+  // Kademeli (streaming) yüklemede açılan geçici serilerin kimlikleri: nihai parse
+  // bunların yerini alır, böylece seri listesinde kopya kalmaz.
+  const previewIdsRef = useRef<Set<string>>(new Set());
+
+  /**
+   * Parse edilmiş serileri yerleştirir (rapor + seçim + bildirim). Hem dosya
+   * yüklemesi hem kademeli PACS akışı bu tek yolu kullanır; `previewIdsRef`
+   * geçici önizleme serilerini değiştirir (kopya bırakmaz).
+   */
+  const commitParsed = useCallback((
+    parsed: SeriesData[],
+    total: number,
+    stats: ImportStats | null,
+    warns: string[],
+    source: ImportReport["source"],
+  ) => {
+    const preview = new Set(previewIdsRef.current);
+    previewIdsRef.current.clear();
+    const report: ImportReport = {
+      stats: stats ?? { total, skippedNonMedical: 0, dicom: 0, images: 0, unreadable: 0, noPixel: 0, unsupported: {}, failed: {}, seriesOpened: parsed.length, ms: 0 },
+      warnings: warns,
+      source,
+    };
+    setImportWarnings(warns);
+    setLastReport(report);
+    if (parsed.length === 0) { setToastMsg(""); setImportReport(report); return; }
+    const st = report.stats;
+    // Bazı seriler açıldı ama bir kısmı çözülemediyse sessiz kalma: raporu kendiliğinden göster.
+    if (Object.keys(st.failed).length || Object.keys(st.unsupported).length) setImportReport(report);
+    setLoaded((prev) => [...parsed, ...prev.filter((x) => !preview.has(x.id))]);
+    const sorted = [...parsed].sort((a, b) => b.slices.length - a.slices.length);
+    selectSeries(sorted[0], parsed);
+    toast(`${total} dosyadan ${parsed.length} seri açıldı${warns.length ? "; bazı dosyalar atlandı — ayrıntı için seri listesindeki “Yükleme raporu”." : "."}`, 6000);
+  }, [selectSeries, toast]);
+
   const processFiles = useCallback(async (files: FileList | File[] | null, existing?: AbortController, source: ImportReport["source"] = "dosya") => {
     const arr = Array.from(files ?? []);
     const emptyStats = (): ImportStats => ({ total: 0, skippedNonMedical: 0, dicom: 0, images: 0, unreadable: 0, noPixel: 0, unsupported: {}, failed: {}, seriesOpened: 0, ms: 0 });
@@ -679,17 +715,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         if (importRef.current === controller && !controller.signal.aborted) setProgress({ count: c, total: t });
       }, (w) => warns.push(w), { signal: controller.signal, onStats: (st) => { stats = st; } });
       if (controller.signal.aborted || importRef.current !== controller) return;
-      setImportWarnings(warns);
-      const report: ImportReport = { stats: stats ?? { ...emptyStats(), total: arr.length, seriesOpened: parsed.length }, warnings: warns, source };
-      setLastReport(report);
-      if (parsed.length === 0) { setToastMsg(""); setImportReport(report); return; }
-      const st = report.stats;
-      // Bazı seriler açıldı ama bir kısmı çözülemediyse sessiz kalma: raporu kendiliğinden göster.
-      if (Object.keys(st.failed).length || Object.keys(st.unsupported).length) setImportReport(report);
-      setLoaded((prev) => [...parsed, ...prev]);
-      const sorted = [...parsed].sort((a, b) => b.slices.length - a.slices.length);
-      selectSeries(sorted[0], parsed);
-      toast(`${arr.length} dosyadan ${parsed.length} seri açıldı${warns.length ? "; bazı dosyalar atlandı — ayrıntı için seri listesindeki “Yükleme raporu”." : "."}`, 6000);
+      commitParsed(parsed, arr.length, stats, warns, source);
     } catch (e) {
       setToastMsg("");
       if (!controller.signal.aborted && importRef.current === controller) {
@@ -699,7 +725,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     } finally {
       if (importRef.current === controller) { importRef.current = null; setProgress(null); }
     }
-  }, [selectSeries, beginImport, toast]);
+  }, [beginImport, toast, commitParsed]);
 
   const onDrop = async (e: React.DragEvent) => {
     e.preventDefault(); setDragging(false);
@@ -815,19 +841,67 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
       const li = await withImportTimeout(apiFetch(`/api/pacs/instances?studyUid=${encodeURIComponent(s.studyUid)}`, { signal }), signal);
       const list = (await li.json()) as { seriesUid: string; sopUid: string }[] | { error: string };
       if (!li.ok || !Array.isArray(list)) throw new Error((list as { error: string }).error ?? "PACS hatası");
-      const files: File[] = [];
-      for (let i = 0; i < list.length; i += 4) {
-        assertNotAborted(signal);
-        const part = await Promise.all(list.slice(i, i + 4).map(async (x) => {
+      // Kademeli (streaming) yükleme: geometrik dalgalar; ilk dalga gelir gelmez
+      // görüntü açılır, kalan kesitler arka planda sürer (v-perf).
+      const idBySeriesKey = new Map<string, string>();
+      let previewShown = false;
+      const res = await loadInWaves<File>({
+        total: list.length,
+        concurrency: 4,
+        first: 12,
+        factor: 4,
+        maxWaves: 4,
+        signal,
+        fetchOne: async (i) => {
+          const x = list[i];
           const r = await withImportTimeout(apiFetch(`/api/pacs/instance?${new URLSearchParams({ studyUid: s.studyUid, seriesUid: x.seriesUid, sopUid: x.sopUid })}`, { signal }), signal, 60000);
           if (!r.ok) throw new Error("Görüntü alınamadı");
           return new File([await r.blob()], `${x.sopUid}.dcm`);
-        }));
-        files.push(...part);
-        if (importRef.current === controller) setProgress({ count: files.length, total: list.length });
-      }
+        },
+        onWave: async ({ items, loaded }) => {
+          if (importRef.current !== controller || signal.aborted) return;
+          setProgress({ count: loaded, total: list.length });
+          const arrived = items.filter((f): f is File => !!f);
+          if (!arrived.length) return;
+          // Önizleme: yalnız seri kimliği korunarak yerinde güncellenir (aktif seri
+          // kimliği değişmez, seri listesinde kopya oluşmaz).
+          const parsed = await loadMedicalFiles(arrived, undefined, undefined, { signal });
+          if (importRef.current !== controller || signal.aborted) return;
+          const mapped = parsed.map((p) => {
+            const key = p.seriesUid ?? `id:${p.id}`;
+            const extant = idBySeriesKey.get(key);
+            if (extant) return { ...p, id: extant };
+            idBySeriesKey.set(key, p.id);
+            return p;
+          });
+          if (!mapped.length) return;
+          const newIds = new Set(mapped.map((m) => m.id));
+          setLoaded((prev) => [...mapped, ...prev.filter((x) => !previewIdsRef.current.has(x.id))]);
+          previewIdsRef.current = newIds;
+          if (!previewShown) {
+            previewShown = true;
+            const big = [...mapped].sort((a, b) => b.slices.length - a.slices.length)[0];
+            selectSeries(big, mapped);
+            toast(`İlk ${loaded}/${list.length} kesit açıldı — kalan yükleniyor…`, 4000);
+          }
+        },
+      });
+      const files = res.ordered;
       if (!files.length) throw new Error("PACS çalışmasında görüntü bulunamadı");
-      await processFiles(files, controller, "PACS");
+      if (res.aborted || importRef.current !== controller) return;
+      // Yarıdan fazlası alınamadıysa "eksik çalışma" sessizce açılmaz: net hata verilir.
+      if (res.failed.length > files.length) {
+        throw new Error(`PACS yanıtı eksik: ${res.failed.length}/${list.length} kesit alınamadı`);
+      }
+      if (res.failed.length) {
+        toast(`${res.failed.length} kesit alınamadı — çalışma kalan ${files.length} kesitle açıldı.`, 8000);
+      }
+      let stats: ImportStats | null = null;
+      const warns: string[] = [];
+      const parsed = await loadMedicalFiles(files, undefined, (w) => warns.push(w), { signal, onStats: (st) => { stats = st; } });
+      if (parsed.length === 0) throw new Error("PACS çalışmasında görüntü bulunamadı");
+      if (importRef.current !== controller) return;
+      commitParsed(parsed, files.length, stats, warns, "PACS");
     } catch (e) { if (!signal.aborted) toast(e instanceof Error ? e.message : "PACS hatası", 8000); }
     finally { if (importRef.current === controller) { importRef.current = null; setProgress(null); } }
   };
