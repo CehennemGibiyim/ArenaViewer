@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { audit } from "@/lib/server/audit";
 import { authorize } from "@/lib/server/auth";
-import { isUid, qidoInstances, qidoStudies, testConnection, wadoFrames, wadoInstance } from "@/lib/server/pacs";
+import { fetchBulkdata, isAllowedBulkdataUri, isUid, qidoInstances, qidoStudies, testConnection, wadoFrames, wadoInstance, wadoMetadata } from "@/lib/server/pacs";
 import { loadPacsConfig } from "@/lib/server/pacsConfig";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +25,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ acti
       const result = await testConnection(cfg);
       await audit(a.user, "pacs.test", "pacs", "", { ok: result.ok, steps: result.steps.map((s) => `${s.name}:${s.http ?? "ağ"}`) });
       return NextResponse.json(result);
+    }
+    if (action === "metadata") {
+      // OHIF uyumu: örnek metadata'sı (PixelData çoğu sunucuda BulkDataURI olarak gelir).
+      const seriesUid = sp.get("seriesUid") ?? "";
+      const sopUid = sp.get("sopUid") ?? "";
+      const studyUid = sp.get("studyUid") ?? "";
+      if (!isUid(studyUid) || !isUid(seriesUid) || !isUid(sopUid)) return NextResponse.json({ error: "Geçersiz UID" }, { status: 400 });
+      const meta = await wadoMetadata(cfg, studyUid, seriesUid, sopUid);
+      await audit(a.user, "pacs.retrieve_metadata", "pacs", studyUid, { sop: sopUid });
+      return NextResponse.json(meta, { headers: { "Cache-Control": "no-store" } });
+    }
+    if (action === "bulkdata") {
+      // SSRF koruması: URI yalnız yapılandırılan PACS host'una işaret edebilir.
+      const uri = sp.get("uri") ?? "";
+      const check = isAllowedBulkdataUri(uri, cfg);
+      if (!check.ok) return NextResponse.json({ error: check.error }, { status: 400 });
+      const bytes = await fetchBulkdata(cfg, uri);
+      await audit(a.user, "pacs.retrieve_bulkdata", "pacs", "", { host: check.url.host, bytes: bytes.length });
+      return new NextResponse(new Uint8Array(bytes), { headers: { "Content-Type": "application/octet-stream", "Cache-Control": "no-store" } });
     }
     const studyUid = sp.get("studyUid") ?? "";
     if (!isUid(studyUid)) return NextResponse.json({ error: "Geçersiz StudyInstanceUID" }, { status: 400 });

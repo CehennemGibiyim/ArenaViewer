@@ -7,6 +7,8 @@
  * `AbortController` ile iptal edilebilir.
  */
 
+import { decodeInlineBinary, extractPixelSource } from "./bulkdata";
+
 export interface FrameKey {
   studyUid: string;
   seriesUid: string;
@@ -105,6 +107,37 @@ export async function fetchFrames(
     });
   }
   return { loaded, failed };
+}
+
+export interface PixelDataResult {
+  bytes: Uint8Array;
+  source: "inline" | "bulkdata";
+  vr: string;
+}
+
+/**
+ * metadata içinden piksel verisini getirir (OHIF uyumu):
+ *  - PixelData BulkDataURI ise `/api/pacs/bulkdata` vekilinden indirilir
+ *    (vekil, URI'nin PACS ile aynı sunucuda olduğunu doğrular — diğer adreslere istek yapılmaz);
+ *  - InlineBinary ise yerelde çözülür;
+ *  - aksi hâlde açıklayıcı hata fırlatır.
+ */
+export async function fetchPixelData(
+  metadata: unknown,
+  opts: { metadataUrl: string; baseUrl?: string; signal?: AbortSignal },
+): Promise<PixelDataResult> {
+  const src = extractPixelSource(metadata, opts.metadataUrl);
+  if (src.kind === "inline-binary") return { bytes: decodeInlineBinary(src.base64), source: "inline", vr: src.vr };
+  if (src.kind === "unsupported") throw new Error(src.reason);
+  if (src.kind === "missing") throw new Error("Piksel verisi metadata içinde bulunamadı (7FE0,0010).");
+  const base = opts.baseUrl ?? "";
+  const res = await fetch(`${base}/api/pacs/bulkdata?uri=${encodeURIComponent(src.uri)}`, { signal: opts.signal });
+  if (!res.ok) {
+    let msg = `BulkDataURI indirilemedi (${res.status})`;
+    try { const d = (await res.json()) as { error?: string }; if (d.error) msg = d.error; } catch { /* gövde JSON değil */ }
+    throw new Error(msg);
+  }
+  return { bytes: new Uint8Array(await res.arrayBuffer()), source: "bulkdata", vr: src.vr };
 }
 
 /** Ön getirme penceresi: geçerli kare ±`radius` (sınırlar içinde). */

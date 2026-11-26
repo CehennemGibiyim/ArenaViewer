@@ -312,6 +312,13 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   raporda «Hekim gözden geçirme gerekçeleri» olarak basılır ve `findings_reason`
   sütununda saklanır), sürümleme,
   addendum (ek, imza kaydıyla ilişkilendirilebilir), A4 yazdırma, FHIR R4 DiagnosticReport dışa aktarma, ikinci okuma (peer review) kaydı
+- **Metadata + BulkDataURI (OHIF uyumu):** `/api/pacs/metadata` örnek DICOMweb
+  metadata'sını döndürür; pikseli `BulkDataURI` olarak veren sunucularda baytlar
+  `/api/pacs/bulkdata` vekilinden indirilir. Vekil yalnız yapılandırılan PACS
+  host'una istek yapar (şema/host/port/userinfo denetimi — SSRF koruması), her
+  indirme denetime yazılır; istemci yardımcısı `wadoClient.fetchPixelData()`
+  (`src/lib/bulkdata.ts`). Görüntüleyicinin içe aktarma hattı henüz instance
+  WADO ile tam indirme yapıyor; metadata-first geçiş ayrı iştir.
 - **Sürüm geçmişi ve geri yükleme:** her kayıt/onay sürüm olarak anlık görüntüsüyle
   saklanır; rapor ekranındaki «Sürüm geçmişi» panelinde iki sürüm arasında
   **satır bazlı metin farkı** (teknik/bulgular/izlenim/öneri; klinik anlam
@@ -595,6 +602,7 @@ npm run test:icd10                   # ICD-10 öneri + istem uygunluğu
 npm run test:msk                     # MSK protokol hesapları + nokta yapışması
 npm run test:esign                   # imza kaydı + NES sınır etiketi
 npm run test:report-version       # sürüm diff/geri yükleme + ek imza kaydı ilişkisi
+npm run test:bulkdata          # metadata-içi PixelData (BulkDataURI) + SSRF koruması
 npm run test:xref                    # 3B imleç: en yakın kesit + panel güncellemeleri
 npm run test:perf                   # pencere/seviye doğruluğu + önbellek ön-işleme
 npm run test:gpu                    # GPU pencereleme kararı + shader≡CPU eşdeğerliği
