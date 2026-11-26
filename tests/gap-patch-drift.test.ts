@@ -57,6 +57,11 @@ ok(liveText("f-pixel").includes("photometric"), "f-pixel satırı fotometri mod�
 ok(liveText("r-dictate").includes("dictate"), "r-dictate satırı dikte modülünü anıyor");
 ok(liveText("m-persist").includes("TID 1500"), "m-persist satırı ölçümlerin TID 1500 SR dışa aktarımını anıyor");
 ok(liveText("r-review").includes("findingReview"), "r-review satırı uygulanan gerekçe zorunluluğunu (findingReview.ts) anıyor");
+ok(liveText("r-patient").includes("patientLetter"), "r-patient satırı hasta mektubu modülünü (TR/EN/DE, sade/standart) anıyor");
+ok(liveText("r-export").includes("TID 1500"), "r-export satırı ölçüm SR (TID 1500) çıktısını anıyor");
+ok(liveText("t-automation").includes("findingsReason"), "t-automation satırı hekim kararının ayrı saklandığını (findingsReason) anıyor");
+ok(liveText("a-feedback").includes("aiDisagreement"), "a-feedback satırı uyuşmazlık panosunu (aiDisagreement.ts) anıyor");
+ok(!liveText("r-review").includes("panosunda (a-feedback) kategori bazlı gösterilmesi"), "r-review aksiyonu tamamlanan pano işini yeniden istemiyor");
 ok(!liveText("m-persist").includes("Ölçümleri veritabanına kaydet"), "m-persist satırı \"ölçümleri veritabanına kaydet\" (zaten yapılan) işini aksiyon olarak önermiyor");
 
 // 2b) Aksiyon metni, "bizde şu an" bölümünde VAR olan işi hâlâ yapılacak gibi önermemeli.
@@ -73,6 +78,11 @@ const recycledActions: [string, string][] = [
   ["r-version", "Değiştirilemez sürüm tablosu, addendum akışı"],
   ["w-worklist", "Tetkik tablosu: durum (bekliyor/okunuyor/taslak/onaylı)"],
   ["w-deid", "araştırma/paylaşım için anonim dışa aktarma"],
+  ["r-struct", "Ölçüm tablosunu rapora ekleme"],
+  ["r-patient", "Okuma düzeyi ayarı ve çok dilli çıktı"],
+  ["a-loc", "Model çıktısını (bbox/maske) aynı Finding yapısına eşle"],
+  ["r-export", "SR içinde yapılandırılmış ölçümler (TID 1500)"],
+  ["t-automation", "Hekim kararlarının AI önerisinden ayrı kaydı ve uyuşmazlık raporu"],
 ];
 for (const [id, phrase] of recycledActions) {
   const action = GAP_ITEMS.find((x) => x.id === id)?.action ?? "";

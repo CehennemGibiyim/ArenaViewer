@@ -74,6 +74,10 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   `test:fusion-deform` (50). **Sınır:** 2B kesit içi; kesitler arası (z) kayma, 3B
   hacim kaydı, simetrik kayıt ve çok modaliteli (BT↔MR) MI metriği yoktur. Sonuç
   tanı aracı değildir, görsel doğrulama gerekir.
+- **AI ↔ hekim uyuşmazlık panosu:** Yönetim → Yapay Zeka sekmesinde kategori bazlı
+  karar/ret/düzenleme sayıları, **uyuşmazlık oranı** ve hekimlerin yazdığı
+  **gerekçe metinleri** (`src/lib/aiDisagreement.ts`). Oran yalnız hekim
+  kararlarına dayanır — duyarlılık/özgüllük değildir.
 - **İkinci okuma (RADPEER):** rapor ekranındaki uyum kaydına ek olarak Yönetim →
   İş akışı'nda **RADPEER panosu**: deterministik **örneklem** (oran ayarlanabilir,
   varsayılan %5), hedef takibi (beklenen/kalan), uyum oranı, puan dağılımı,

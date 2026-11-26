@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { reports } from "@/db/schema";
 import { authorize } from "@/lib/server/auth";
 import { calibrationBins, expectedCalibrationError, type CalibrationBin } from "@/lib/modelOps";
+import { disagreementByCategory, disagreementTally, reasonDigest } from "@/lib/aiDisagreement";
 import type { Finding, FindingApprovalStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +24,7 @@ interface Row {
 export async function GET(req: NextRequest) {
   const a = await authorize(req, ["radyolog", "yonetici"]);
   if ("error" in a) return a.error;
-  const rs = await db.select({ f: reports.findingsJson, ap: reports.findingsApproval, e: reports.engine, st: reports.status }).from(reports);
+  const rs = await db.select({ f: reports.findingsJson, ap: reports.findingsApproval, rs: reports.findingsReason, e: reports.engine, st: reports.status }).from(reports);
   const map = new Map<string, Row>();
   for (const r of rs) {
     const findings = (r.f as Finding[]) ?? [];
@@ -65,9 +66,21 @@ export async function GET(req: NextRequest) {
   });
 
   const rows = [...map.values()].map((r) => ({ ...r, ppv: r.approved + r.rejected > 0 ? r.approved / (r.approved + r.rejected) : null }));
+
+  // AI önerisi ↔ hekim kararı uyuşmazlığı: kategori bazlı oran + gerekçe metinleri.
+  const sources = rs.map((r) => ({
+    findings: (r.f as Finding[]) ?? [],
+    approvals: (r.ap as Record<string, FindingApprovalStatus>) ?? {},
+    reasons: (r.rs as Record<string, string>) ?? {},
+    engine: r.e,
+  }));
+  const disagreements = disagreementByCategory(sources);
+  const reasons = reasonDigest(sources, 20);
+
   return NextResponse.json({
     rows,
     calibration,
+    disagreement: { categories: disagreements, reasons, tally: disagreementTally(disagreements, reasons) },
     note: "Kesinlik (PPV) yalnızca hekim kararlarına dayanır. Duyarlılık için 'AI'nın kaçırdığı bulgu' girişleri (manualAdded) gerekir; bu, kontrollü bir klinik doğrulama çalışmasının yerini tutmaz.",
   });
 }
