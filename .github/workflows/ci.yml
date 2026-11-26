@@ -130,6 +130,15 @@ jobs:
             exit 1
           }
 
+      - name: Lazy-pixel zinciri (STOW→QIDO→iskelet→WADO→doldurma)
+        run: |
+          set -o pipefail
+          npm run test:pacs-lazy 2>&1 | tee /tmp/pacs-lazy.log || {
+            tail -40 /tmp/pacs-lazy.log
+            echo "::error title=Lazy-pixel e2e çıktısı::Lazy-pixel PACS zinciri başarısız — günlüğü iş log'unda görün"
+            exit 1
+          }
+
   # Güvenlik açısından bağımlılık denetimi (G3): PR'da yeni/ değişen bağımlılıklar
   # bilinen kritik açıkları ve denetimin çalışamamasını başarısız gösterir.
   dependency-review:

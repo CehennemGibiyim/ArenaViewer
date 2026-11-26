@@ -15,6 +15,7 @@ import { randomInt } from "node:crypto";
 import * as dicomParser from "dicom-parser";
 import { parseMultipartRelated, qidoInstances, qidoStudies, stowInstance, wadoInstance } from "../src/lib/server/pacs";
 import { DEFAULT_PACS } from "../src/lib/pacsPresets";
+import { minimalDicom } from "./dicomFactory";
 
 const BASE = (process.env.ORTHANC_URL ?? "").replace(/\/$/, "");
 const USER = process.env.ORTHANC_USER ?? "orthanc";
@@ -27,85 +28,6 @@ if (!BASE) {
 
 const auth = "Basic " + Buffer.from(`${USER}:${PASS}`).toString("base64");
 const uid = (root: string) => `${root}.${randomInt(0, 1_000_000)}.${Date.now()}`;
-
-// ───────── Minimal Explicit VR Little Endian DICOM üreteci ─────────
-
-function element(group: number, elem: number, vr: string, value: Uint8Array): Uint8Array {
-  const long = ["OB", "OW", "OF", "SQ", "UC", "UR", "UT", "UN"].includes(vr);
-  const paddedLength = value.length + (value.length % 2);
-  const head = long ? 12 : 8;
-  const out = new Uint8Array(head + paddedLength);
-  const dv = new DataView(out.buffer);
-  dv.setUint16(0, group, true);
-  dv.setUint16(2, elem, true);
-  out.set(vr.split("").map((c) => c.charCodeAt(0)), 4);
-  if (long) { dv.setUint32(8, paddedLength, true); } else { dv.setUint16(6, paddedLength, true); }
-  out.set(value, head);
-  if (paddedLength !== value.length && vr !== "UI" && vr !== "OB" && vr !== "OW") out[out.length - 1] = 0x20;
-  return out;
-}
-
-const strVal = (s: string) => new TextEncoder().encode(s);
-const uiVal = (s: string) => new TextEncoder().encode(s);
-
-function minimalDicom(meta: { patientId: string; patientName: string; studyUid: string; seriesUid: string; sopUid: string }): Uint8Array {
-  const sopClass = "1.2.840.10008.5.1.4.1.1.7"; // Secondary Capture Image Storage
-  const parts: Uint8Array[] = [];
-
-  // Preamble + DICM
-  parts.push(new Uint8Array(128), strVal("DICM"));
-
-  // Dosya meta grubu (0002)
-  const metaElems: Uint8Array[] = [
-    element(0x0002, 0x0001, "OB", new Uint8Array([0, 1])),
-    element(0x0002, 0x0002, "UI", uiVal(sopClass)),
-    element(0x0002, 0x0003, "UI", uiVal(meta.sopUid)),
-    element(0x0002, 0x0010, "UI", uiVal("1.2.840.10008.1.2.1")),
-    element(0x0002, 0x0012, "UI", uiVal("1.2.3.4.5.6.7.8.9")),
-    element(0x0002, 0x0013, "SH", strVal("ARENA-E2E")),
-  ];
-  const metaLen = metaElems.reduce((n, e) => n + e.length, 0);
-  parts.push(element(0x0002, 0x0000, "UL", new Uint8Array(4)));
-  // grup uzunluğu elemanını doğru değerle yeniden yaz
-  {
-    const dv = new DataView(parts[parts.length - 1].buffer);
-    dv.setUint32(8, metaLen, true);
-  }
-  parts.push(...metaElems);
-
-  // Veri kümesi
-  const px = new Uint8Array(32);
-  const dvpx = new DataView(px.buffer);
-  for (let i = 0; i < px.length / 2; i++) dvpx.setUint16(i * 2, 16 + i, true);
-  parts.push(
-    element(0x0008, 0x0016, "UI", uiVal(sopClass)),
-    element(0x0008, 0x0018, "UI", uiVal(meta.sopUid)),
-    element(0x0008, 0x0020, "DA", strVal("20260101")),
-    element(0x0008, 0x0030, "TM", strVal("120000")),
-    element(0x0008, 0x0060, "CS", strVal("OT")),
-    element(0x0010, 0x0010, "PN", strVal(meta.patientName)),
-    element(0x0010, 0x0020, "LO", strVal(meta.patientId)),
-    element(0x0020, 0x000d, "UI", uiVal(meta.studyUid)),
-    element(0x0020, 0x000e, "UI", uiVal(meta.seriesUid)),
-    element(0x0020, 0x0011, "IS", strVal("1")),
-    element(0x0020, 0x0013, "IS", strVal("1")),
-    element(0x0028, 0x0002, "US", new Uint8Array([1, 0])),
-    element(0x0028, 0x0004, "CS", strVal("MONOCHROME2")),
-    element(0x0028, 0x0010, "US", new Uint8Array([4, 0])),
-    element(0x0028, 0x0011, "US", new Uint8Array([4, 0])),
-    element(0x0028, 0x0100, "US", new Uint8Array([16, 0])),
-    element(0x0028, 0x0101, "US", new Uint8Array([16, 0])),
-    element(0x0028, 0x0102, "US", new Uint8Array([15, 0])),
-    element(0x0028, 0x0103, "US", new Uint8Array([0, 0])),
-    element(0x7fe0, 0x0010, "OW", px),
-  );
-
-  const total = parts.reduce((n, p) => n + p.length, 0);
-  const out = new Uint8Array(total);
-  let off = 0;
-  for (const p of parts) { out.set(p, off); off += p.length; }
-  return out;
-}
 
 // ───────── HTTP yardımcıları ─────────
 

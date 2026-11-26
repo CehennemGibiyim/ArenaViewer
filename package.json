@@ -30,6 +30,7 @@
     "test:templates": "tsx tests/templates.test.ts",
     "test:structured-report": "tsx tests/structured-report.test.ts",
     "test:pacs-e2e": "tsx tests/pacs.orthanc.e2e.ts",
+    "test:pacs-lazy": "tsx tests/pacs-lazy.e2e.ts",
     "test:quant": "tsx tests/quant.test.ts",
     "test:tracking": "tsx tests/lesion-tracking.test.ts",
     "test:model-ops": "tsx tests/model-ops.test.ts",
