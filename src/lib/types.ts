@@ -31,7 +31,9 @@ export type ToolName =
   /** Adlandırılmış MSK protokol noktaları (ölçüm yardımcısı; kalıcı ek açkaydı yapılmaz). */
   | "msk"
   /** 3B imleç: tıklanan noktada aynı çerçevedeki diğer panellerin kesidini senkronlar. */
-  | "xref";
+  | "xref"
+  /** Düzenleme: çizilmiş ölçümün tutamağını veya gövdesini sürükle. */
+  | "edit";
 
 export type Layout = "1x1" | "1x2" | "2x1" | "2x2" | "1x3" | "3x1" | "2x3" | "3x2";
 

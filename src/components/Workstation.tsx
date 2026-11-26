@@ -87,6 +87,7 @@ const TOOLS: { id: ToolName; label: string; hint: string }[] = [
   { id: "ellipsoid", label: "Elipsoid", hint: "Elips çiz, 3. çapı gir → hacim (mL) = π/6·d1·d2·d3" },
   { id: "deviation", label: "Sapma", hint: "2 nokta referans doğrusu + 1 nokta: dik uzaklık (mm)" },
   { id: "xref", label: "İmleç", hint: "3B imleç: tıklanan noktada aynı çerçevedeki diğer panellerin kesidi güncellenir" },
+  { id: "edit", label: "Düzenle", hint: "Çizilmiş ölçümü düzenle: tutamağı sürükle → nokta taşınır, gövdeyi sürükle → tümü taşınır" },
 ];
 
 const ts = () => new Date().toLocaleTimeString("tr-TR", { hour12: false });
@@ -1825,7 +1826,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
                   scan={scan} findings={liveFindings} revealedIds={revealed} activeFindingId={activeFinding} overlay={overlay} showDicomOverlays={showOverlays} annotations={annotations}
                   mskPointCount={mskProtocolId ? findMskProtocol(mskProtocolId)?.points.length ?? 0 : 0} onMskPoints={onMskPoints} snapRadius={4}
                   onSlice={setSlice} onWL={(a, b) => { setWl(a); setWw(b); }} onZoom={setZoom} onPan={setPan}
-                  onAddAnnotation={addAnnotation} onCalibrate={calibrate} onHover={setHoverVal} panelId="main" fusion={fusion}
+                  onAddAnnotation={addAnnotation} onUpdateAnnotation={(a) => setAnnotations((prev) => prev.map((x) => (x.id === a.id ? a : x)))} onCalibrate={calibrate} onHover={setHoverVal} panelId="main" fusion={fusion}
                 />
                 {series && (
                   <>

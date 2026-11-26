@@ -206,8 +206,8 @@ export const BASE_ITEMS: GapItem[] = [
     id: "m-basic", category: "measure", title: "Uzunluk, açı, dikdörtgen ROI (ort/SS/min/max), ok notu",
     status: "var", priority: "P3", effort: "S",
     market: ["RadiAnt", "OHIF", "Weasis", "Horos"],
-    ours: "Hepsi var; ROI istatistikleri AI isteğine ROI odağı olarak gönderiliyor.",
-    action: "ROI ve açı için sürüklenebilir düzenleme.",
+    ours: "Hepsi var; ROI istatistikleri AI isteğine ROI odağı olarak gönderiliyor. **Sürükleyerek düzenleme:** «Düzenle» aracıyla çizilmiş ölçümün tutamağı sürüklenince o nokta, gövdesi sürüklenince tüm şekil taşınır (uzunluk/açı/Cobb/ok/sapma, dikdörtgen/elips/elipsoid/çokgen); ROI istatistikleri bırakınca güncel geometriyle yeniden hesaplanır, bayat değer kalmaz ve taşıma görüntü sınırına kırpılır (`src/lib/annotationEdit.ts`, `tests/annotation-edit.test.ts`).",
+    action: "Kalan: çok noktalı şekillerde ara tutamak ekleme/silme (şu an yalnız var olan noktalar taşınır) ve anotasyonu kesitler arasında taşıma.",
   },
   {
     id: "m-shapes", category: "measure", title: "Elips / çokgen ROI, Cobb açısı, deviation, hacim hesabı",

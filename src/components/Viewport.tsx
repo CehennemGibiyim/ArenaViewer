@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { snapPoint } from "@/lib/msk";
 import type { Annotation, Finding, SeriesData, ToolName } from "@/lib/types";
 import { annotationSummary, dist, ellipseTest, pointInPolygon, perpendicular, regionStats, type Pt } from "@/lib/geometry";
+import { clampTranslate, hitAnnotation, movePoint, translateAnnotation } from "@/lib/annotationEdit";
 import { buildFusionLayer, type FusionParams } from "@/lib/fusion";
 import { isIdentityRigid, rigidKey } from "@/lib/fusionRigid";
 import { photometricLabel } from "@/lib/photometric";
@@ -85,6 +86,8 @@ interface ViewportProps {
   onZoom: (z: number) => void;
   onPan: (p: { x: number; y: number }) => void;
   onAddAnnotation?: (a: Omit<Annotation, "id">) => void;
+  /** Sürükleyerek düzenleme (m-basic): tutamak/gövde taşındığında güncel anotasyon. */
+  onUpdateAnnotation?: (a: Annotation) => void;
   /** MSK protokol nokta sayısı; tool "msk" iken noktalar bu kadar olunca bildirilir. */
   mskPointCount?: number;
   onMskPoints?: (pts: Pt[], slice: number) => void;
@@ -210,7 +213,7 @@ export default function Viewport(props: ViewportProps) {
     series, slice: requestedSlice, wl, ww, invert, zoom, pan, tool, rotation, flipH, flipV, pxMm, scan = null,
     findings = EMPTY_FINDINGS, revealedIds = EMPTY_SET, activeFindingId = null, overlay = null,
     showDicomOverlays = true, annotations = EMPTY_ANN, readOnly = false, label, panelId, fusion = null,
-    onSlice, onWL, onZoom, onPan, onAddAnnotation, onCalibrate, onHover,
+    onSlice, onWL, onZoom, onPan, onAddAnnotation, onUpdateAnnotation, onCalibrate, onHover,
     mskPointCount = 0, onMskPoints, snapRadius = 0, alignPx = null,
   } = props;
 
@@ -232,6 +235,8 @@ export default function Viewport(props: ViewportProps) {
   const PREFETCH_PIXELS_MAX = 2_000_000; // taban tabanlı ön-işleme bellek kapısı (~2 MP ≈ 8 MB)
   const baseCache = useRef(new Map<string, { key: string; canvas: HTMLCanvasElement }>());
   const ovRef = useRef<{ key: string; canvas: HTMLCanvasElement | null }>({ key: "", canvas: null });
+  /** Sürükleyerek düzenleme durumu: hangi anotasyon, tutamak mı gövde mi, başlangıç noktası. */
+  const editRef = useRef<{ id: string; kind: "handle" | "body"; index: number; start: Pt; original: Annotation } | null>(null);
   const dragRef = useRef<{ button: number; sx: number; sy: number; wl: number; ww: number; zoom: number; pan: { x: number; y: number } } | null>(null);
   // Dokunmatik jest durumu (v-multimon): aktif temas noktaları + son kıstırma.
   const touchesRef = useRef<Map<number, { x: number; y: number }>>(new Map());
@@ -766,6 +771,7 @@ export default function Viewport(props: ViewportProps) {
 
   const onDown = (e: React.PointerEvent) => {
     if (!series) return;
+    editRef.current = null;
     const { cx, cy } = local(e);
     const p = canvasToImg(cx, cy);
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -784,6 +790,20 @@ export default function Viewport(props: ViewportProps) {
       const pl = planeOf(series, slice);
       if (pl && panelId) jumpToPatient(panelId, toPatient(pl, p.x, p.y));
       return;
+    }
+    // Düzenleme aracı: çizilmiş ölçümün tutamağını/gövdesini sürükle (m-basic).
+    if (e.button === 0 && tool === "edit" && onUpdateAnnotation) {
+      const tol = 8 / Math.max(0.05, zoom); // ekranda ~8 px
+      const hit = hitAnnotation(annotations.filter((a) => a.slice === slice), p, tol);
+      if (hit) {
+        const original = annotations.find((a) => a.id === hit.id);
+        if (original) {
+          editRef.current = {
+            id: hit.id, kind: hit.kind, index: hit.kind === "handle" ? hit.index : -1, start: p, original,
+          };
+          return;
+        }
+      }
     }
     if (e.button === 0 && annTool && e.pointerType !== "touch") {
       if (DRAG_TOOLS.includes(tool)) setDraft({ mode: "drag", tool, a: p, b: p });
@@ -840,6 +860,15 @@ export default function Viewport(props: ViewportProps) {
         return;
       }
     }
+    const ed = editRef.current;
+    if (ed && onUpdateAnnotation) {
+      if (ed.kind === "handle") onUpdateAnnotation(movePoint(ed.original, ed.index, p));
+      else {
+        const t = clampTranslate(ed.original, p.x - ed.start.x, p.y - ed.start.y, series.width, series.height);
+        onUpdateAnnotation(translateAnnotation(ed.original, t.dx, t.dy));
+      }
+      return;
+    }
     if (draft?.mode === "multi") setDraft({ ...draft, cursor: p });
     else if (draft?.mode === "drag") setDraft({ ...draft, b: p });
     const d = dragRef.current;
@@ -852,6 +881,25 @@ export default function Viewport(props: ViewportProps) {
   };
 
   const onUp = (e?: React.PointerEvent) => {
+    const ed = editRef.current;
+    editRef.current = null;
+    // Düzenleme bitti: ROI ise istatistikleri güncel geometriyle yeniden hesapla
+    // (taşınan/hareket eden ROI'nin ort/SS/min/maks değerleri eski kalmasın).
+    if (ed && e && onUpdateAnnotation && series) {
+      const cur = annotations.find((a) => a.id === ed.id);
+      if (cur && (cur.kind === "rect" || cur.kind === "ellipse" || cur.kind === "ellipsoid" || cur.kind === "polygon")) {
+        const P = cur.points;
+        const xs = P.map((q) => q.x), ys = P.map((q) => q.y);
+        const box = { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) };
+        const test = cur.kind === "polygon"
+          ? (x: number, y: number) => pointInPolygon(x, y, P)
+          : cur.kind === "rect"
+            ? () => true
+            : ellipseTest((P[0].x + P[1].x) / 2, (P[0].y + P[1].y) / 2, Math.abs(P[1].x - P[0].x) / 2, Math.abs(P[1].y - P[0].y) / 2);
+        const st = regionStats(series, cur.slice, box, test);
+        if (st) onUpdateAnnotation({ ...cur, stats: st });
+      }
+    }
     if (e) {
       touchesRef.current.delete(e.pointerId);
       if (touchesRef.current.size < 2) pinchRef.current = null;
