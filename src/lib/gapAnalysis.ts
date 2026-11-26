@@ -120,8 +120,8 @@ export const BASE_ITEMS: GapItem[] = [
     id: "v-wl", category: "viewing", title: "WL/WW, hazır ve özel pencere presetleri, negatif mod",
     status: "var", priority: "P3", effort: "S",
     market: ["RadiAnt", "OHIF", "Weasis", "Horos"],
-    ours: "Sürükleyerek WL/WW, BT presetleri, kullanıcı preset kaydı, invert.",
-    action: "Kalan: presetlerin kullanıcı hesabında (sunucu) saklanması — şu an tarayıcıda `atik_presets` — ve PET SUV penceresi.",
+    ours: "Sürükleyerek WL/WW, BT presetleri, kullanıcı preset kaydı, invert. **PET SUV pencereleri:** seride SUV factor varsa pencere çubuğuna SUV biriminde hazır ön ayarlar (0–2,5 / 0–5 / 0–10 / 0–15) eklenir; SUV aralığı modality penceresine çevrilir (`src/lib/petWindows.ts`, 22 assert). Factor yoksa ön ayarlar hiç gösterilmez.",
+    action: "Kalan: presetlerin kullanıcı hesabında (sunucu) saklanması (şu an `atik_presets` tarayıcıda) ve SUVmaks'a göre oransal pencere (ör. SUVmaks %40 alt sınır) — ekranda SUVmaks otomatik hesaplanmıyor.",
   },
   {
     id: "v-geo", category: "viewing", title: "Zoom, pan, döndür, çevir (flip), cine",
