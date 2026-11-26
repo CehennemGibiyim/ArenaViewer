@@ -5,6 +5,7 @@ import {
   checkCsrf,
   clientKey,
   CSRF_COOKIE,
+  CSP_REPORT_PATH,
   hstsHeader,
   httpsUrlFor,
   isStateChanging,
@@ -46,6 +47,7 @@ function allowedOrigin(req: NextRequest): string | null {
 function isPublic(pathname: string): boolean {
   if (
     pathname === "/api/health" ||
+    pathname === CSP_REPORT_PATH || // tarayıcı CSP raporları çerezsiz/jetonsuz gelir
     pathname === "/giris" ||
     pathname === "/api/auth/login" ||
     pathname === "/api/auth/logout" ||
@@ -119,7 +121,9 @@ export function proxy(req: NextRequest) {
   }
 
   // ── 2) CSRF: durum değiştiren API istekleri ──
-  if (path.startsWith("/api/") && isStateChanging(req.method)) {
+  // CSP rapor ucu tarayıcılardan çerezsiz ve jetonsuz POST alır; kendi doğrulamasını
+  // (16 KB sınırı + gürültü filtresi) yapar — CSRF/jeton kontrolü buraya uygulanmaz.
+  if (path.startsWith("/api/") && path !== CSP_REPORT_PATH && isStateChanging(req.method)) {
     const csrf = checkCsrf({ method: req.method, headers: req.headers, selfOrigin: selfOrigin(req) });
     if (!csrf.ok) {
       return NextResponse.json({ error: csrf.reason ?? "CSRF koruması", needsCsrfToken: !!csrf.needsToken }, { status: 403 });

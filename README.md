@@ -312,6 +312,13 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   raporda «Hekim gözden geçirme gerekçeleri» olarak basılır ve `findings_reason`
   sütununda saklanır), sürümleme,
   addendum (ek, imza kaydıyla ilişkilendirilebilir), A4 yazdırma, FHIR R4 DiagnosticReport dışa aktarma, ikinci okuma (peer review) kaydı
+- **CSP ihlal raporları → denetim/SIEM:** CSP'ye `report-uri` eklendi; tarayıcı
+  raporları `/api/csp-report` ucuna düşer, `csp.report` denetim satırı olarak
+  zincire yazılır ve `audit_delivery` kuyruğuyla (CEF, `AUDIT_SIEM_URL` varsa
+  HMAC imzalı POST) SIEM'e akar. Kimliksiz uç olduğundan gürültü filtresi
+  (IP başına 30/dk + aynı satır 60 sn bastırma) ve kontrol-karakteri temizliği
+  uygulanır; rapor gövdesinin tamamı yerine yalnız özet (yönerge|engellenen|köken)
+  saklanır. Tek örnekli süreç-içi filtre; çok örnekli dağıtımda Redis sayacı yoktur.
 - **Metadata + BulkDataURI (OHIF uyumu):** `/api/pacs/metadata` örnek DICOMweb
   metadata'sını döndürür; pikseli `BulkDataURI` olarak veren sunucularda baytlar
   `/api/pacs/bulkdata` vekilinden indirilir. Vekil yalnız yapılandırılan PACS
@@ -603,6 +610,7 @@ npm run test:msk                     # MSK protokol hesapları + nokta yapışma
 npm run test:esign                   # imza kaydı + NES sınır etiketi
 npm run test:report-version       # sürüm diff/geri yükleme + ek imza kaydı ilişkisi
 npm run test:bulkdata          # metadata-içi PixelData (BulkDataURI) + SSRF koruması
+npm run test:csp-siem          # CSP raporları → denetim/SIEM + gürültü filtresi
 npm run test:xref                    # 3B imleç: en yakın kesit + panel güncellemeleri
 npm run test:perf                   # pencere/seviye doğruluğu + önbellek ön-işleme
 npm run test:gpu                    # GPU pencereleme kararı + shader≡CPU eşdeğerliği
