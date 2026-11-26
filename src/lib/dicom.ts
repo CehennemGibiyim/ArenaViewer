@@ -29,6 +29,8 @@ import {
   upsampleSubsampled,
 } from "./photometric";
 
+import { decodeGrayNative, grayFrameBytes, type GrayNativeParams } from "./pixelDecode";
+import { decodeGrayNativeAsync, pixelWorkerReady } from "./pixelWorker";
 const TAG_NAMES: Record<string, string> = {
   x00020010: "Transfer Syntax UID", x00080008: "Image Type", x00080016: "SOP Class UID",
   x00080018: "SOP Instance UID", x00080020: "Study Date", x00080030: "Study Time",
@@ -236,6 +238,46 @@ function packPixels(f: Float32Array): Pixels {
   return f;
 }
 
+/**
+ * Sıkıştırılmamış **gri** çerçeveleri worker'da (yoksa eşzamanlı) çözer (v-perf).
+ * `readNative` ile aynı ofset/limit kuralları; kapsam dışı durumda `null` döner ve
+ * çağıran eski yola düşer (davranış değişmez).
+ */
+async function decodeGrayFrames(
+  ds: DicomDataSet,
+  info: PixelInfo,
+  bigEndian: boolean,
+  slope: number,
+  intercept: number
+): Promise<Pixels[] | null> {
+  const el = ds.elements["x7fe00010"];
+  if (!el) return null;
+  if (info.bitsAllocated !== 8 && info.bitsAllocated !== 16) return null;
+  const params: GrayNativeParams = {
+    rows: info.rows, cols: info.cols,
+    bitsAllocated: info.bitsAllocated, bitsStored: info.bitsStored,
+    pixelRep: info.pixelRep, bigEndian, slope, intercept,
+  };
+  const frameBytes = grayFrameBytes(params);
+  if (frameBytes <= 0) return null;
+  const base = ds.byteArray.byteOffset + el.dataOffset;
+  const limit = ds.byteArray.byteOffset + ds.byteArray.byteLength;
+  const useWorker = pixelWorkerReady();
+  const out: Pixels[] = [];
+  for (let f = 0; f < info.frames; f++) {
+    const offset = base + f * frameBytes;
+    if (offset + frameBytes > limit) break; // readNative ile aynı davranış
+    const r = useWorker
+      ? await decodeGrayNativeAsync(ds.byteArray, offset, params)
+      : decodeGrayNative(ds.byteArray, offset, params);
+    // Worker sonucu reddederse (aralık dışı vb.) eşzamanlı yolu dene.
+    const res = r ?? decodeGrayNative(ds.byteArray, offset, params);
+    if (!res) return null;
+    out.push(res.pixels);
+  }
+  return out.length ? out : null;
+}
+
 async function decodePixels(
   ds: DicomDataSet,
   ts: string | undefined,
@@ -247,6 +289,11 @@ async function decodePixels(
   const slope = ds.floatString("x00281053") ?? 1;
   const intercept = ds.floatString("x00281052") ?? 0;
   const encapsulated = !!el.encapsulatedPixelData;
+  // Tek örnekli (gri), paletsiz ve sıkıştırılmamış çerçeveler: sayısal iş worker'da.
+  if (!encapsulated && info.samples === 1 && info.photometric !== "PALETTE COLOR" && !paletteLut) {
+    const grayFrames = await decodeGrayFrames(ds, info, ts === TS_EXPLICIT_BE, slope, intercept);
+    if (grayFrames) return { frames: grayFrames, rgbaFrames: undefined, isColor: false, width: info.cols, height: info.rows };
+  }
   const raws = encapsulated
     ? await decodeEncapsulatedFrames(ds, el, ts ?? "", info)
     : readNative(ds, info, ts === TS_EXPLICIT_BE);
