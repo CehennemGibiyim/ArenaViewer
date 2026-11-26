@@ -247,11 +247,13 @@ Metin kutusu/select içindeyken kısayollar çalışmaz.
 |---|---|---|
 | `/` | Ana iş istasyonu | Bu belge |
 | `/kiyaslama` | Özellik kıyaslaması | GAP tablosu + `Önerilen aday modüller — henüz kod yok` |
+| `/yardim` | Yardım / S.S.S. | En çok sorulan sorular ve cevapları (docs/SSS.md ile bire bir eşlenik) |
 | `/yonetim` | Yönetim | Kullanıcılar, roller, oturumlar/MFA, denetim kaydı, uyum listesi, AI performans |
 | `/tercihler` | Tercihler | Düzen/pencere ön ayarı + `Klavye kısayolları` |
 | `/paketler` | Kurulum paketleri | Windows/Linux/macOS/Docker yolları ve dosya adları |
 | `/ayna` | İkinci ekran | BroadcastChannel ile salt ayna; statik demoda demo etiketiyle |
 | `/gizlilik` | KVKK aydınlatma | Şablon metin |
+| `/yardim` | Yardım / S.S.S. | Kurulum, worker, AI kullanımı, sık sorulanlar (docs/SSS.md ile eşlenik) |
 | `/paylas/<token>` | Salt okunur paylaşım | Süre sınırlı bağlantı; her erişim denetlenir |
 | `/giris` | Oturum | `AUTH_MODE=hesap` ise kurulum/giriş; MFA |
 

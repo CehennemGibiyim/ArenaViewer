@@ -7,6 +7,7 @@
  * panoya kopyalanabilir. Amaç, ürünün ne olmadığını (tıbbi cihaz değil, klinik
  * karar için kullanılamaz) tek ekranda eksiksiz göstermek.
  */
+import Link from "next/link";
 import { INTENDED_USE, intendedUseText, SHORT_DISCLAIMER, versionLine } from "@/lib/intendedUse";
 import { useEscapeKey } from "@/lib/useEscapeKey";
 
@@ -60,7 +61,10 @@ export default function IntendedUseModal({ onClose }: { onClose: () => void }) {
           <Section title="Bilinen sınırlar" items={INTENDED_USE.limits} tone="text-amber-200/90" />
         </div>
 
-        <p className="mt-3 border-t border-[#22303f] pt-2 text-[10.5px] text-slate-500">{INTENDED_USE.regulatory}</p>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[#22303f] pt-2 text-[10.5px] text-slate-500">
+          <span>{INTENDED_USE.regulatory}</span>
+          <Link href="/yardim" className="shrink-0 font-bold text-cyan-400 hover:underline">Yardım / S.S.S. →</Link>
+        </div>
       </div>
     </div>
   );
