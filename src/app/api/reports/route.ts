@@ -7,6 +7,7 @@ import { authorize, sha256 } from "@/lib/server/auth";
 import { createFollowupFromReport } from "@/lib/server/closeLoop";
 import { authRequired } from "@/lib/server/auth";
 import { encryptText } from "@/lib/server/crypto";
+import { missingReviewReasons, sanitizeReviewReasons } from "@/lib/findingReview";
 import { mapReport, upsertStudy, type StudyMeta } from "@/lib/server/studyRepo";
 import { reportHistoryQueryLimit, selectReportHistory } from "@/lib/reportHistory";
 import type { Finding, FindingApprovalStatus } from "@/lib/types";
@@ -37,6 +38,7 @@ interface SaveBody {
   report: {
     mode: string; clinicalInfo: string; technique: string; findingsText: string; impression: string; recommendation: string;
     findingsJson: Finding[]; findingsApproval: Record<string, FindingApprovalStatus>;
+    findingsReason?: Record<string, string>;
     triageLevel: string; triageScore: number; aiModel: string; engine: string; modelCard: string;
     keyImageDataUrl: string; institution?: string;
   };
@@ -51,6 +53,8 @@ export async function POST(req: NextRequest) {
   const r = body.report;
   const findings = Array.isArray(r.findingsJson) ? r.findingsJson : [];
   const approvals = r.findingsApproval ?? {};
+  // Gerekçe yalnız reddedilen/düzenlenen bulgular için ve yalnız temizlenmiş hâlde saklanır.
+  const reasons = sanitizeReviewReasons(r.findingsReason, approvals);
   const approve = body.action === "approve";
 
   const { id: studyId } = await upsertStudy(body.study, "yerel");
@@ -70,6 +74,8 @@ export async function POST(req: NextRequest) {
     if (!user.fullName.trim()) return err("Onay için Yönetim → Hekim profili bölümünde ad soyad tanımlı olmalı.");
     const pending = findings.filter((f) => (approvals[f.id] ?? "bekliyor") === "bekliyor").length;
     if (pending > 0) return err(`${pending} bulgu henüz gözden geçirilmedi`);
+    const missing = missingReviewReasons(findings, approvals, reasons);
+    if (missing.length > 0) return err(`Reddedilen/düzenlenen ${missing.length} bulgu için gerekçe yazılmalı`);
     approvedAt = new Date();
   }
 
@@ -95,7 +101,7 @@ export async function POST(req: NextRequest) {
   const values = {
     studyId, status: approve ? "onaylandi" : "taslak", version, mode: r.mode,
     clinicalInfo: encryptText(r.clinicalInfo ?? ""), technique: r.technique, findingsText: r.findingsText,
-    impression: r.impression, recommendation: r.recommendation, findingsJson: findings, findingsApproval: approvals,
+    impression: r.impression, recommendation: r.recommendation, findingsJson: findings, findingsApproval: approvals, findingsReason: reasons,
     triageLevel: r.triageLevel, triageScore: r.triageScore, aiModel: r.aiModel, engine: r.engine, modelCard: r.modelCard,
     approvedBy: approve ? user.fullName : "", doctorTitle: approve ? user.title : "", doctorRegNo: approve ? user.regNo : "",
     institution: r.institution ?? "", approvedAt, contentHash, signatureMeta,
@@ -115,7 +121,7 @@ export async function POST(req: NextRequest) {
     snapshot: JSON.stringify({
       status: values.status, technique: r.technique, findingsText: r.findingsText, impression: r.impression,
       recommendation: r.recommendation, findings: findings.map((f) => ({ id: f.id, label: f.label, slice: f.keySliceNumber, severity: f.severity })),
-      approvals, engine: r.engine, keyImageSha: sha256(r.keyImageDataUrl ?? ""),
+      approvals, reasons, engine: r.engine, keyImageSha: sha256(r.keyImageDataUrl ?? ""),
     }),
   });
   await db.update(studies).set({

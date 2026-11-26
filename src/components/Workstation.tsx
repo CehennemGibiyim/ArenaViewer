@@ -1476,7 +1476,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
       studyDate: s.studyDate, modality: s.modality, bodyPart: s.bodyPart, seriesDescription: s.description, institution: s.institution, sliceCount: s.slices.length,
       technique: r?.technique ?? `${s.description} serisi (${s.slices.length} kesit${s.sliceThickness ? `, ${s.sliceThickness} mm` : ""}) değerlendirildi.`,
       findingsText: r?.findingsText ?? "", impression: r?.impression ?? "", recommendation: r?.recommendation ?? "",
-      clinicalInfo: clinicalNote, findings: r?.findings ?? [], findingsApproval: approvals, engine,
+      clinicalInfo: clinicalNote, findings: r?.findings ?? [], findingsApproval: approvals, findingsReason: {}, engine,
       aiModel: r?.model ?? "Model bağlı değil", modelCard: JSON.stringify(r?.modelCard ?? modelCardFor("no-model")),
       triageLevel: r?.triage.level ?? "", triageScore: r?.triage.score ?? 0, approvedBy: "", doctorTitle: "", doctorRegNo: "", approvedAt: null,
       keyImageDataUrl: "", keyImages, measurementsText, createdAt: new Date().toISOString(),
@@ -1503,7 +1503,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
       id: x.id, status: x.status, version: x.version, studyUid: x.studyUid, patientName: x.patientName, patientId: x.patientId, patientAge: x.patientAge, patientSex: x.patientSex,
       studyDate: x.studyDate, modality: x.modality, bodyPart: x.bodyPart, seriesDescription: x.seriesDescription, institution: x.institution, sliceCount: 0,
       technique: x.technique, findingsText: x.findingsText, impression: x.impression, recommendation: x.recommendation, clinicalInfo: x.clinicalInfo,
-      findings: x.findingsJson, findingsApproval: x.findingsApproval, engine: x.engine, aiModel: x.aiModel, modelCard: x.modelCard, triageLevel: x.triageLevel, triageScore: x.triageScore,
+      findings: x.findingsJson, findingsApproval: x.findingsApproval, findingsReason: x.findingsReason ?? {}, engine: x.engine, aiModel: x.aiModel, modelCard: x.modelCard, triageLevel: x.triageLevel, triageScore: x.triageScore,
       approvedBy: x.approvedBy, doctorTitle: x.doctorTitle, doctorRegNo: x.doctorRegNo, approvedAt: x.approvedAt, contentHash: x.contentHash,
       keyImageDataUrl: single, keyImages: kis, measurementsText: "", createdAt: x.createdAt,
     });
@@ -1525,7 +1525,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         body: JSON.stringify({
           reportId: r.id, action,
           study: { studyUid: r.studyUid, patientName: r.patientName, patientId: r.patientId, patientAge: r.patientAge, patientSex: r.patientSex, studyDate: r.studyDate, institution: r.institution, modality: r.modality, bodyPart: r.bodyPart, seriesDescription: r.seriesDescription, sliceCount: r.sliceCount || 1 },
-          report: { mode, clinicalInfo: r.clinicalInfo, technique: r.technique, findingsText, impression: r.impression, recommendation: r.recommendation, findingsJson: r.findings, findingsApproval: r.findingsApproval, triageLevel: r.triageLevel, triageScore: r.triageScore, aiModel: r.aiModel, engine: r.engine, modelCard: r.modelCard, keyImageDataUrl: kiPayload, institution: r.institution },
+          report: { mode, clinicalInfo: r.clinicalInfo, technique: r.technique, findingsText, impression: r.impression, recommendation: r.recommendation, findingsJson: r.findings, findingsApproval: r.findingsApproval, findingsReason: r.findingsReason, triageLevel: r.triageLevel, triageScore: r.triageScore, aiModel: r.aiModel, engine: r.engine, modelCard: r.modelCard, keyImageDataUrl: kiPayload, institution: r.institution },
         }),
       });
     } catch { return { ok: false, error: "Sunucuya ulaşılamadı" }; }

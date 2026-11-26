@@ -6,6 +6,7 @@ import { appropriatenessFor, isValidIcd10, suggestIcd10 } from "@/lib/icd10";
 import { SIGNATURE_METHODS, signatureNote, type SignatureMethod, type SignatureRecord } from "@/lib/esign";
 import { reportPlaceholders } from "@/lib/templateMacro";
 import { pickStyleSample } from "@/lib/styleProfile";
+import { REVIEW_REASON_MAX, missingReviewReasons, needsReviewReason, normalizeReviewReason, reviewReasonLines } from "@/lib/findingReview";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fmtConf } from "@/lib/format";
 import StructuredScorePanel from "@/components/StructuredScorePanel";
@@ -40,6 +41,8 @@ export interface ReportData {
   clinicalInfo: string;
   findings: Finding[];
   findingsApproval: Record<string, FindingApprovalStatus>;
+  /** Reddedilen/düzenlenen bulgu gerekçeleri (bulgu id → metin); onay için zorunlu. */
+  findingsReason: Record<string, string>;
   engine: string;
   aiModel: string;
   modelCard: string;
@@ -278,6 +281,11 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
   const approved = report.status === "onaylandi";
   const canWrite = true;
   const pending = report.findings.filter((f) => (report.findingsApproval[f.id] ?? "bekliyor") === "bekliyor").length;
+  const missingReasons = missingReviewReasons(report.findings, report.findingsApproval, report.findingsReason);
+  const reasonLines = reviewReasonLines(report.findings, report.findingsApproval, report.findingsReason);
+  // Yazarken ham metin tutulur (boşluk silinmesin); kırpma/sadeleştirme kayıt ve çıktı anında yapılır.
+  const setReason = (id: string, text: string) =>
+    set("findingsReason", { ...report.findingsReason, [id]: text.slice(0, REVIEW_REASON_MAX) });
   const set = <K extends keyof ReportData>(k: K, v: ReportData[K]) => setReport((r) => ({ ...r, [k]: v }));
   const append = (k: "technique" | "findingsText" | "impression" | "recommendation") => (t: string) => setReport((r) => ({ ...r, [k]: (r[k] + (r[k] && !r[k].endsWith(" ") && !r[k].endsWith("\n") ? " " : "") + t).trimStart() }));
 
@@ -523,10 +531,11 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
           </div>
         </div>
 
-        {(error || (!approved && canWrite && pending > 0)) && (
+        {(error || (!approved && canWrite && (pending > 0 || missingReasons.length > 0))) && (
           <div className="shrink-0 space-y-1 border-b border-[#1e2735] bg-[#0b0f16] px-4 py-2 text-[11px] print:hidden">
             {error && <div className="font-semibold text-rose-300">⚠ {error}</div>}
             {!approved && pending > 0 && <div className="text-amber-300">{pending} bulgu henüz gözden geçirilmedi — tablodaki durum düğmesine tıklayarak Onayla/Reddet/Düzenlendi olarak işaretleyin. Onay için hepsi işaretlenmeli.</div>}
+            {!approved && missingReasons.length > 0 && <div className="text-rose-300">{missingReasons.length} reddedilen/düzenlenen bulgu için gerekçe yazılmalı (tablodaki kutu) — gerekçe yoksa rapor onaylanamaz (taslak kaydı yapılabilir).</div>}
           </div>
         )}
 
@@ -734,12 +743,35 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                               {!approved && canWrite ? (
                                 <button type="button" onClick={() => cycle(f.id)} className={`cursor-pointer rounded border px-2 py-0.5 text-[10px] font-bold print:border-none ${st === "onaylandi" ? "border-emerald-300 bg-emerald-50 text-emerald-800" : st === "reddedildi" ? "border-rose-300 bg-rose-50 text-rose-800" : st === "duzenlendi" ? "border-amber-300 bg-amber-50 text-amber-800" : "border-slate-300 bg-slate-100 text-slate-700"}`}>{STATUS_TR[st]}</button>
                               ) : <span>{STATUS_TR[st]}</span>}
+                              {!approved && canWrite && needsReviewReason(st) && (
+                                <div className="mt-1 print:hidden">
+                                  <textarea
+                                    value={report.findingsReason[f.id] ?? ""}
+                                    onChange={(e) => setReason(f.id, e.target.value)}
+                                    rows={2}
+                                    maxLength={REVIEW_REASON_MAX}
+                                    placeholder={st === "reddedildi" ? "Ret gerekçesi (zorunlu)" : "Düzenleme gerekçesi (zorunlu)"}
+                                    aria-label={`${f.label} için gözden geçirme gerekçesi`}
+                                    className={`w-40 max-w-full resize-y rounded border px-1.5 py-1 text-left text-[10px] font-normal ${normalizeReviewReason(report.findingsReason[f.id]) ? "border-slate-300 text-slate-700" : "border-amber-400 bg-amber-50 text-amber-900"}`}
+                                  />
+                                </div>
+                              )}
                             </td>
                           </tr>
                         );
                       })}
                     </tbody>
                   </table>}
+                  {reasonLines.length > 0 && (
+                    <div className="mt-2 text-[10px] leading-snug text-slate-600">
+                      <div className="font-bold uppercase text-slate-700">Hekim gözden geçirme gerekçeleri</div>
+                      <ul className="mt-0.5 list-disc pl-4">
+                        {reasonLines.map((r) => (
+                          <li key={r.id}><b>{r.label}</b> — {r.status === "reddedildi" ? "reddedildi" : "düzenlendi"}: {r.reason}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
 
                 {card && (
@@ -887,9 +919,10 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
             {error && <div className="mt-2 text-xs font-semibold text-rose-300">{error}</div>}
             <div className="mt-4 flex justify-end gap-2">
               <button onClick={() => { setDialog(false); setError(""); }} className="cursor-pointer rounded-lg border border-[#232e40] px-3.5 py-1.5 text-xs text-slate-300 hover:bg-[#1a2330]">İptal</button>
-              <button disabled={busy || pending > 0 || !user.fullName.trim()} onClick={() => void save("approve")} className="cursor-pointer rounded-lg bg-emerald-500 px-4 py-1.5 text-xs font-bold text-slate-950 hover:bg-emerald-400 disabled:opacity-40">{busy ? "Onaylanıyor…" : "✓ Onayla ve kilitle"}</button>
+              <button disabled={busy || pending > 0 || missingReasons.length > 0 || !user.fullName.trim()} onClick={() => void save("approve")} className="cursor-pointer rounded-lg bg-emerald-500 px-4 py-1.5 text-xs font-bold text-slate-950 hover:bg-emerald-400 disabled:opacity-40">{busy ? "Onaylanıyor…" : "✓ Onayla ve kilitle"}</button>
             </div>
             {pending > 0 && <div className="mt-2 text-[11px] text-amber-300">{pending} bulgu gözden geçirilmedi.</div>}
+            {missingReasons.length > 0 && <div className="mt-2 text-[11px] text-rose-300">{missingReasons.length} bulgu için ret/düzenleme gerekçesi eksik; onay için gerekçe zorunlu.</div>}
           </div>
         </div>
       )}

@@ -12,6 +12,7 @@
  * Yalnızca scripts/prepare-pages.sh tarafından Pages derlemesine eklenir.
  */
 import type { AnalyzeBody } from "@/lib/analyze";
+import { missingReviewReasons, sanitizeReviewReasons } from "@/lib/findingReview";
 import type { Finding, FindingApprovalStatus, SavedReport } from "@/lib/types";
 
 const OPERATOR = { fullName: "Demo Radyolog", title: "Uzm. Dr.", regNo: "" };
@@ -53,6 +54,7 @@ interface SaveBody {
   report: {
     mode: string; clinicalInfo: string; technique: string; findingsText: string; impression: string; recommendation: string;
     findingsJson: Finding[]; findingsApproval: Record<string, FindingApprovalStatus>;
+    findingsReason?: Record<string, string>;
     triageLevel: string; triageScore: number; aiModel: string; engine: string; modelCard: string; keyImageDataUrl: string; institution?: string;
   };
 }
@@ -62,6 +64,7 @@ async function handleReportSave(body: SaveBody): Promise<Response> {
   const r = body.report;
   const findings = Array.isArray(r.findingsJson) ? r.findingsJson : [];
   const approvals = r.findingsApproval ?? {};
+  const reasons = sanitizeReviewReasons(r.findingsReason, approvals);
   const approve = body.action === "approve";
   const all = load<SavedReport[]>(K_REPORTS, []);
   const current = body.reportId ? all.find((x) => x.id === body.reportId) : undefined;
@@ -72,6 +75,8 @@ async function handleReportSave(body: SaveBody): Promise<Response> {
   if (approve) {
     const pending = findings.filter((f) => (approvals[f.id] ?? "bekliyor") === "bekliyor").length;
     if (pending > 0) return fail(`${pending} bulgu henüz gözden geçirilmedi`);
+    const missing = missingReviewReasons(findings, approvals, reasons);
+    if (missing.length > 0) return fail(`Reddedilen/düzenlenen ${missing.length} bulgu için gerekçe yazılmalı`);
     approvedAt = new Date().toISOString();
   }
   const version = (current?.version ?? 0) + 1;
@@ -86,7 +91,7 @@ async function handleReportSave(body: SaveBody): Promise<Response> {
   const row: SavedReport = {
     id, studyId: id, status: approve ? "onaylandi" : "taslak", version, mode: r.mode,
     clinicalInfo: r.clinicalInfo ?? "", technique: r.technique, findingsText: r.findingsText, impression: r.impression, recommendation: r.recommendation,
-    findingsJson: findings, findingsApproval: approvals, triageLevel: r.triageLevel, triageScore: r.triageScore, aiModel: r.aiModel, engine: r.engine, modelCard: r.modelCard,
+    findingsJson: findings, findingsApproval: approvals, findingsReason: reasons, triageLevel: r.triageLevel, triageScore: r.triageScore, aiModel: r.aiModel, engine: r.engine, modelCard: r.modelCard,
     approvedBy: approve ? OPERATOR.fullName : "", doctorTitle: approve ? OPERATOR.title : "", doctorRegNo: approve ? OPERATOR.regNo : "",
     institution: r.institution ?? body.study.institution ?? "", approvedAt, contentHash, signatureMeta,
     keyImageDataUrl: r.keyImageDataUrl ?? "", createdAt: current?.createdAt ?? now, updatedAt: now,

@@ -343,8 +343,8 @@ export const BASE_ITEMS: GapItem[] = [
     id: "r-review", category: "report", title: "Bulgu bazlı hekim doğrulaması (zorunlu gözden geçirme)",
     status: "var", priority: "P1", effort: "S",
     market: ["Aidoc", "Gleamer"],
-    ours: "AI bulguları artık 'Onay Bekliyor' gelir; bekleyen bulgu varken rapor onaylanamaz.",
-    action: "Red/düzenleme gerekçesi alanı.",
+    ours: "AI bulguları 'Onay Bekliyor' gelir; bekleyen bulgu varken rapor onaylanamaz. **Yeni — gerekçe zorunlu:** reddedilen/düzenlenen her bulgu için hekim gerekçe yazar (`src/lib/findingReview.ts`: normalleştirme, 200 karakter sınırı, eksik gerekçe listesi); gerekçe eksikse onay hem arayüzde hem `/api/reports` tarafında reddedilir. Gerekçeler raporda «Hekim gözden geçirme gerekçeleri» olarak basılır, `findings_reason` sütununda ve sürüm anlık görüntüsünde saklanır (`tests/finding-review.test.ts`, 21 assert). KALAN: gerekçeler serbest metindir — sınıflandırma/NLP ve gerekçe bazlı AI performans raporu yok.",
+    action: "Kalan: gerekçe metinlerinin sınıflandırılıp AI performans panosunda (a-feedback) kategori bazlı gösterilmesi.",
   },
   {
     id: "r-template", category: "report", title: "Şablon kütüphanesi (modalite/bölge/endikasyon), makro ve seçim listeleri",

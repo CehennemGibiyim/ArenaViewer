@@ -97,6 +97,7 @@ export function mapReport(r: Report, s: Study): SavedReport {
     recommendation: r.recommendation,
     findingsJson: (r.findingsJson as Finding[]) ?? [],
     findingsApproval: (r.findingsApproval as Record<string, FindingApprovalStatus>) ?? {},
+    findingsReason: (r.findingsReason as Record<string, string>) ?? {},
     triageLevel: r.triageLevel,
     triageScore: r.triageScore,
     aiModel: r.aiModel,
