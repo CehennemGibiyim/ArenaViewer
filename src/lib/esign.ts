@@ -29,6 +29,8 @@ export interface SignatureRecordInput {
   institution?: string;
   method: SignatureMethod;
   version: number;
+  /** İmzalanan ekin (addendum) kimliği; doluysa kayıt raporun kendisini değil o eki kapsar. */
+  addendumId?: number;
 }
 
 export interface SignatureRecord extends SignatureRecordInput {
@@ -65,5 +67,32 @@ export function signatureNote(r: SignatureRecord): string {
   const q = isQualifiedMethod(r.method)
     ? "Nitelikli elektronik imza (NES)."
     : "Nitelikli elektronik imza (NES) DEĞİLDİR; içerik SHA-256 ile mühürlenir ve imza sahibinin kimliği için oturum bilgisi kullanılır.";
-  return `${r.signerName}${r.signerRegNo ? ` (${r.signerRegNo})` : ""} · ${r.method} · ${r.signedAt} · ${q}`;
+  const ek = r.addendumId !== undefined ? ` · ek #${r.addendumId}` : "";
+  return `${r.signerName}${r.signerRegNo ? ` (${r.signerRegNo})` : ""} · ${r.method} · ${r.signedAt}${ek} · ${q}`;
+}
+
+/**
+ * Denetim kaydının ayrıntı metnini (`details`) imza kaydına çözer.
+ * Geçmiş kayıtlarda `record` alanı kanonik JSON **metni** olarak saklanıyordu;
+ * yeni kayıtlar aynı biçimi korur. Düz (çift-parse edilmiş) biçimi de tolere
+ * eder. Bozuksa null döner — çağıran satırı atlar.
+ */
+export function parseSignatureDetails(details: string): (SignatureRecord & { qualified: boolean }) | null {
+  if (!details) return null;
+  try {
+    const outer: unknown = JSON.parse(details);
+    if (!outer || typeof outer !== "object" || Array.isArray(outer)) return null;
+    const o = outer as Record<string, unknown>;
+    // İç kayıt: `record` alanı string (kanonik) ya da nesne olabilir; yoksa outer'ın kendisi kayıt sayılır.
+    let inner: unknown = o;
+    if (typeof o.record === "string") inner = JSON.parse(o.record);
+    else if (o.record && typeof o.record === "object" && !Array.isArray(o.record)) inner = o.record;
+    if (!inner || typeof inner !== "object" || Array.isArray(inner)) return null;
+    const rec = inner as SignatureRecord;
+    if (typeof rec.reportId !== "number" || typeof rec.signedAt !== "string" || typeof rec.method !== "string") return null;
+    if (rec.addendumId !== undefined && !Number.isFinite(Number(rec.addendumId))) return null;
+    return { ...rec, qualified: o.qualified === true };
+  } catch {
+    return null;
+  }
 }

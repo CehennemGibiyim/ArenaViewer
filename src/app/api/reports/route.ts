@@ -122,6 +122,8 @@ export async function POST(req: NextRequest) {
       status: values.status, technique: r.technique, findingsText: r.findingsText, impression: r.impression,
       recommendation: r.recommendation, findings: findings.map((f) => ({ id: f.id, label: f.label, slice: f.keySliceNumber, severity: f.severity })),
       approvals, reasons, engine: r.engine, keyImageSha: sha256(r.keyImageDataUrl ?? ""),
+      // v2: tam bulgu dizisi — eski sürüme geri yükleme bulgu tablosunu da kapsasın diye.
+      findingsJson: findings,
     }),
   });
   await db.update(studies).set({

@@ -311,7 +311,18 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   gerekçe eksikse onay arayüzde ve `/api/reports` tarafında reddedilir, gerekçeler
   raporda «Hekim gözden geçirme gerekçeleri» olarak basılır ve `findings_reason`
   sütununda saklanır), sürümleme,
-  addendum, A4 yazdırma, FHIR R4 DiagnosticReport dışa aktarma, ikinci okuma (peer review) kaydı
+  addendum (ek, imza kaydıyla ilişkilendirilebilir), A4 yazdırma, FHIR R4 DiagnosticReport dışa aktarma, ikinci okuma (peer review) kaydı
+- **Sürüm geçmişi ve geri yükleme:** her kayıt/onay sürüm olarak anlık görüntüsüyle
+  saklanır; rapor ekranındaki «Sürüm geçmişi» panelinde iki sürüm arasında
+  **satır bazlı metin farkı** (teknik/bulgular/izlenim/öneri; klinik anlam
+  çıkarımı yapılmaz) ve **«Bu sürüme dön»** ile geri yükleme vardır — geri
+  yükleme geçmişi değiştirmez, içeriği YENİ sürüm olarak yazar ve rapor
+  taslağa döner (yeniden onay gerekir). Onaylı rapora geri yükleme 409 ile
+  reddedilir. Eski anlık görüntüler tam bulgu tablosu içermez; yalnız metin
+  geri yüklenirken bulgu tablosu korunur ve kullanıcıya bildirilir. Anlık
+  görüntü, her kayıt anında teknik/bulgular/izlenim/öneri metinlerini,
+  bulgu onay/gerekçe durumunu ve tam bulgu tablosunu (`findingsJson`) içerir
+  (`src/lib/reportDiff.ts`, `POST /api/reports/[id]/restore`).
 - **Süreli paylaşım:** onaylı rapor için süre seçilebilir (1–30 gün), kapatılabilir,
   filigranlı salt okunur bağlantı (`/paylas/<token>`); her erişim denetimde işlenir. Ham görüntü paylaşılmaz.
 - **İş akışı:** çalışma listesi, PACS (DICOMweb QIDO/WADO — hazır sistem ayarları, şifreli kimlik, bağlantı testi), HBYS istem alımı,
@@ -583,6 +594,7 @@ npm run test:pwa                     # manifest + hizmet işçisi kapsamı
 npm run test:icd10                   # ICD-10 öneri + istem uygunluğu
 npm run test:msk                     # MSK protokol hesapları + nokta yapışması
 npm run test:esign                   # imza kaydı + NES sınır etiketi
+npm run test:report-version       # sürüm diff/geri yükleme + ek imza kaydı ilişkisi
 npm run test:xref                    # 3B imleç: en yakın kesit + panel güncellemeleri
 npm run test:perf                   # pencere/seviye doğruluğu + önbellek ön-işleme
 npm run test:gpu                    # GPU pencereleme kararı + shader≡CPU eşdeğerliği

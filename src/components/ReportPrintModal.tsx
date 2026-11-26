@@ -4,6 +4,7 @@ import { buildReportSr, type EvidenceRef } from "@/lib/dicomSr";
 import { processDictation } from "@/lib/dictate";
 import { appropriatenessFor, isValidIcd10, suggestIcd10 } from "@/lib/icd10";
 import { SIGNATURE_METHODS, signatureNote, type SignatureMethod, type SignatureRecord } from "@/lib/esign";
+import ReportDiffView from "@/components/ReportDiffView";
 import { reportPlaceholders } from "@/lib/templateMacro";
 import { pickStyleSample } from "@/lib/styleProfile";
 import { REVIEW_REASON_MAX, missingReviewReasons, needsReviewReason, normalizeReviewReason, reviewReasonLines } from "@/lib/findingReview";
@@ -74,6 +75,8 @@ interface Props {
   onGotoSlice?: (sliceNumber: number) => void;
   /** Cümleye tıklandığında ilgili bulguyu vurgular (r-link). */
   onGotoFinding?: (findingId: string, sliceNumber: number) => void;
+  /** Sürüm geri yüklendiğinde üst bileşeni (Workstation) taze içerikle günceller. */
+  onRestored?: (patch: Partial<ReportData>) => void;
   /** Anahtar kesitlerin DICOM başvuruları (SR kanıt listesi); yoksa SR başvurusuz üretilir. */
   srEvidence?: EvidenceRef | null;
   /** AUTH_MODE=hesap'ta onay sahibi oturumla doğrulanmış sayılır; demo modunda false. */
@@ -166,7 +169,7 @@ function ReportField({ name, rows, value, editing, onChange, onMic, onClear, onG
 
 const STATUS_TR: Record<FindingApprovalStatus, string> = { onaylandi: "✓ Radyolog onayladı", reddedildi: "✗ Reddedildi", duzenlendi: "✎ Düzenlendi", bekliyor: "Onay bekliyor" };
 
-export default function ReportPrintModal({ open, onClose, report: initial, user, onSave, onGotoSlice, onGotoFinding, srEvidence = null, sessionIdentity = false, priorReports = [] }: Props) {
+export default function ReportPrintModal({ open, onClose, report: initial, user, onSave, onGotoSlice, onGotoFinding, srEvidence = null, sessionIdentity = false, priorReports = [], onRestored }: Props) {
   const [report, setReport] = useState<ReportData>(initial);
   const [editing, setEditing] = useState(false);
   const [dialog, setDialog] = useState(false);
@@ -190,6 +193,9 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
   const [addenda, setAddenda] = useState<ReportAddendum[]>([]);
   const [addText, setAddText] = useState("");
   const [showVersions, setShowVersions] = useState(false);
+  const [diffPair, setDiffPair] = useState<number | null>(null);
+  const [restoreBusy, setRestoreBusy] = useState(false);
+  const [restoreMsg, setRestoreMsg] = useState("");
   // ikinci okuma (peer review)
   const [peerList, setPeerList] = useState<{ id: number; result: string; discrepancyType: string; note: string; reviewedByName: string; createdAt: string }[]>([]);
   const [peerResult, setPeerResult] = useState<PeerResult>("uyumlu");
@@ -264,13 +270,14 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
     const d = (await r.json()) as { versions: ReportVersion[]; addenda: ReportAddendum[] };
     setVersions(d.versions);
     setAddenda(d.addenda);
+    void loadSignatures(id);
     apiFetch("/api/shares").then((sr) => (sr.ok ? sr.json() : null)).then((sd: { shares?: typeof shares } | null) => {
       if (sd?.shares) setShares(sd.shares.filter((x) => x.reportId === id));
     }).catch(() => {});
     apiFetch(`/api/reports/${id}/peer-reviews`).then((pr) => (pr.ok ? pr.json() : null)).then((pd: { reviews?: typeof peerList } | null) => {
       if (pd?.reviews) setPeerList(pd.reviews);
     }).catch(() => {});
-  }, []);
+  }, [loadSignatures]);
   useEffect(() => {
     if (!open) return;
     apiFetch("/api/templates").then((r) => (r.ok ? r.json() : [])).then((t: TemplateRow[]) => setTemplates(t)).catch(() => {});
@@ -505,6 +512,47 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
     const r = await apiFetch(`/api/reports/${report.id}/addenda`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: addText }) });
     setBusy(false);
     if (r.ok) { setAddText(""); void loadDetail(report.id); } else setError(((await r.json()) as { error?: string }).error ?? "Addendum eklenemedi");
+  };
+
+  const signAddendum = async (addendumId: number) => {
+    if (!report.id) return;
+    setBusy(true); setError("");
+    try {
+      const r = await apiFetch(`/api/reports/${report.id}/signature`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ method: sigMethod, addendumId }) });
+      const d = (await r.json().catch(() => ({}))) as { error?: string };
+      if (!r.ok) setError(d.error ?? "Ek için imza kaydı oluşturulamadı");
+      else void loadSignatures(report.id);
+    } catch { setError("Ağ hatası — imza kaydı oluşturulamadı"); } finally { setBusy(false); }
+  };
+
+  // Eski sürüme geri yükleme: geçmişe dokunulmaz; içerik YENİ sürüm olarak yazılır ve rapor taslağa döner.
+  const restoreVersion = async (versionNo: number) => {
+    if (!report.id) return;
+    if (!window.confirm(`v${versionNo} içeriğine dönülsün mü? Mevcut içerik silinmez; yeni sürüm olarak kaydedilir ve rapor TASLAĞA döner (yeniden onay gerekir).`)) return;
+    setRestoreBusy(true); setRestoreMsg("");
+    try {
+      const r = await apiFetch(`/api/reports/${report.id}/restore`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ versionNo }) });
+      const d = (await r.json().catch(() => ({}))) as {
+        error?: string; version?: number; restoredFrom?: number; technique?: string; findingsText?: string;
+        impression?: string; recommendation?: string; findingsJson?: Finding[]; findingsApproval?: Record<string, FindingApprovalStatus>;
+        findingsReason?: Record<string, string>; engine?: string; findingsPreserved?: boolean;
+      };
+      if (!r.ok) { setRestoreMsg(d.error ?? "Geri yükleme başarısız"); return; }
+      const patch: Partial<ReportData> = {
+        status: "taslak", version: d.version, technique: d.technique, findingsText: d.findingsText,
+        impression: d.impression, recommendation: d.recommendation,
+        ...(Array.isArray(d.findingsJson) ? { findings: d.findingsJson } : {}),
+        ...(d.findingsApproval ? { findingsApproval: d.findingsApproval } : {}),
+        ...(d.findingsReason ? { findingsReason: d.findingsReason } : {}),
+        ...(d.engine ? { engine: d.engine } : {}),
+        contentHash: "", approvedAt: null, approvedBy: "", doctorTitle: "", doctorRegNo: "", measurementsText: "",
+      };
+      setReport((rr) => ({ ...rr, ...patch }));
+      setEditing(true); setDiffPair(null);
+      onRestored?.(patch);
+      setRestoreMsg(`v${d.restoredFrom} içeriği yeni sürüm v${d.version} olarak geri yüklendi (taslak).${d.findingsPreserved ? " Bu eski sürümde tam bulgu kaydı yok: metin alanları geri yüklendi, bulgu tablosu ve onayları korundu." : " Bulgu tablosu da geri yüklendi; yeniden gözden geçirip onaylayın."}`);
+      void loadDetail(report.id);
+    } catch { setRestoreMsg("Ağ hatası — geri yükleme başarısız"); } finally { setRestoreBusy(false); }
   };
 
   const findingSlices = new Set(report.findings
@@ -838,9 +886,23 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                   <div className="mt-4">
                     <h2 className="text-sm font-black uppercase tracking-wide text-[#0e7490]">Ek raporlar (addendum)</h2>
                     <div className="mt-1 h-0.5 w-full bg-slate-200" />
-                    {addenda.map((a) => (
-                      <div key={a.id} className="mt-2 text-[11px] text-slate-800"><div className="font-mono text-[9.5px] text-slate-500">{new Date(a.createdAt).toLocaleString("tr-TR")} · {a.createdByName}</div><p className="whitespace-pre-wrap">{a.text}</p></div>
-                    ))}
+                    {addenda.map((a) => {
+                      const sigs = sigRecords.filter((r) => r.addendumId === a.id);
+                      return (
+                        <div key={a.id} className="mt-2 text-[11px] text-slate-800">
+                          <div className="font-mono text-[9.5px] text-slate-500">{new Date(a.createdAt).toLocaleString("tr-TR")} · {a.createdByName}</div>
+                          <p className="whitespace-pre-wrap">{a.text}</p>
+                          {sigs.length > 0 ? (
+                            <div className="mt-0.5 font-mono text-[9px] leading-snug text-emerald-800">{sigs.map((sg, i) => <div key={i}>✍ {signatureNote(sg)}</div>)}</div>
+                          ) : (
+                            <div className="mt-0.5 flex flex-wrap items-center gap-2 print:hidden">
+                              <span className="font-mono text-[9px] text-amber-700">İmza kaydı yok</span>
+                              {canWrite && <button onClick={() => void signAddendum(a.id)} disabled={busy} className="cursor-pointer rounded border border-emerald-600 px-1.5 py-0.5 text-[9.5px] font-bold text-emerald-800 hover:bg-emerald-50 disabled:opacity-40" title={`Yöntem: ${sigMethod}`}>✍ Bu eki imzala</button>}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -941,7 +1003,41 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
             {report.id && (
               <div className="rounded-lg border border-[#1e2735] bg-[#0b0f16] p-3 text-xs text-slate-300">
                 <button onClick={() => setShowVersions((v) => !v)} className="font-bold text-slate-200">{showVersions ? "▾" : "▸"} Sürüm geçmişi ({versions.length})</button>
-                {showVersions && <ul className="mt-2 space-y-1 font-mono text-[10.5px]">{versions.map((v) => <li key={v.id}>v{v.versionNo} · {v.action} · {v.createdByName} · {new Date(v.createdAt).toLocaleString("tr-TR")}</li>)}</ul>}
+                {showVersions && (
+                  <>
+                    <ul className="mt-2 space-y-1.5 text-[10.5px]">
+                      {versions.map((v) => {
+                        const prev = versions.find((x) => x.versionNo === v.versionNo - 1);
+                        const canDiff = !!v.snapshot && !!prev?.snapshot;
+                        const isCurrent = v.versionNo === report.version;
+                        const canRestore = !isCurrent && !!v.snapshot && report.status !== "onaylandi" && !restoreBusy;
+                        return (
+                          <li key={v.id} className="rounded border border-[#1a2230] bg-[#0e141d] p-1.5">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span className="font-mono text-slate-300">v{v.versionNo} · {v.action} · {v.createdByName} · {new Date(v.createdAt).toLocaleString("tr-TR")}{isCurrent && <span className="ml-1 rounded bg-cyan-500/20 px-1 text-[9px] text-cyan-300">GÜNCEL</span>}</span>
+                              <span className="flex shrink-0 items-center gap-1.5">
+                                {canDiff && (
+                                  <button onClick={() => setDiffPair((cur) => (cur === v.versionNo ? null : v.versionNo))} title={`v${v.versionNo - 1} ile metin farkı`} className="cursor-pointer rounded border border-[#2d3b4e] px-1.5 py-0.5 text-[9.5px] font-bold text-slate-200 hover:bg-[#1a2330]">{diffPair === v.versionNo ? "Farkı kapat" : "↔ Öncekiyle fark"}</button>
+                                )}
+                                {!isCurrent && (
+                                  <button onClick={() => void restoreVersion(v.versionNo)} disabled={!canRestore} title={report.status === "onaylandi" ? "Onaylı rapor geri yüklenemez; addendum ekleyin" : !v.snapshot ? "Bu sürümün anlık görüntüsü yok" : `v${v.versionNo} içeriğini yeni sürüm olarak geri yükle`} className="cursor-pointer rounded border border-amber-600/60 px-1.5 py-0.5 text-[9.5px] font-bold text-amber-300 hover:bg-amber-500/10 disabled:cursor-not-allowed disabled:opacity-40">↩ Bu sürüme dön</button>
+                                )}
+                              </span>
+                            </div>
+                            {diffPair === v.versionNo && prev && (
+                              <div className="mt-1.5 border-t border-[#1e2735] pt-1.5">
+                                <div className="mb-1 font-mono text-[9px] text-slate-500">v{(v.versionNo - 1)} → v{v.versionNo}</div>
+                                <ReportDiffView aRaw={prev.snapshot} bRaw={v.snapshot} />
+                              </div>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    {restoreMsg && <p className="mt-2 rounded border border-amber-500/40 bg-amber-500/10 p-1.5 text-[10px] leading-snug text-amber-200">{restoreMsg}</p>}
+                    <p className="mt-1.5 text-[9px] leading-snug text-slate-500">«Bu sürüme dön» geçmişi değiştirmez; seçilen içerik yeni bir sürüm olarak kaydedilir ve rapor taslağa döner. Fark, teknik/bulgular/izlenim/öneri metinlerini karşılaştırır; klinik anlam çıkarımı yapılmaz.</p>
+                  </>
+                )}
               </div>
             )}
           </div>

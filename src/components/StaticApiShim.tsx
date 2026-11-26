@@ -14,12 +14,17 @@
 import type { AnalyzeBody } from "@/lib/analyze";
 import { missingReviewReasons, sanitizeReviewReasons } from "@/lib/findingReview";
 import type { Finding, FindingApprovalStatus, SavedReport } from "@/lib/types";
+import { parseReportSnapshot } from "@/lib/reportDiff";
 
 const OPERATOR = { fullName: "Demo Radyolog", title: "Uzm. Dr.", regNo: "" };
 const K_REPORTS = "atik-demo-reports";
 const K_ADDENDA = "atik-demo-addenda";
 const K_STATE = "atik-demo-state:";
 const K_TEMPLATES = "atik-demo-templates";
+const K_VERSIONS = "atik-demo-report-versions";
+const K_SIGS = "atik-demo-signatures";
+
+interface DemoVersion { id: number; versionNo: number; action: string; createdByName: string; createdAt: string; snapshot: string | null }
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
@@ -98,6 +103,23 @@ async function handleReportSave(body: SaveBody): Promise<Response> {
     patientName: body.study.patientName, patientId: body.study.patientId, patientAge: body.study.patientAge, patientSex: body.study.patientSex,
     studyDate: body.study.studyDate, studyUid: body.study.studyUid, modality: body.study.modality, bodyPart: body.study.bodyPart, seriesDescription: body.study.seriesDescription,
   } as SavedReport;
+  // Sürüm geçmişi (diff + geri yükleme) — sunucu tarafıyla aynı anlık görüntü biçimi (v2).
+  const versions = load<Record<string, DemoVersion[]>>(K_VERSIONS, {});
+  const list = versions[id] ?? [];
+  list.push({
+    id: list.reduce((m, x) => Math.max(m, x.id), 0) + 1,
+    versionNo: version,
+    action: approve ? "onay" : "kayıt",
+    createdByName: `${OPERATOR.title} ${OPERATOR.fullName}`,
+    createdAt: now,
+    snapshot: JSON.stringify({
+      status: row.status, technique: r.technique, findingsText: r.findingsText, impression: r.impression,
+      recommendation: r.recommendation, findings: findings.map((f) => ({ id: f.id, label: f.label, slice: f.keySliceNumber, severity: f.severity })),
+      approvals, reasons, engine: r.engine, findingsJson: findings,
+    }),
+  });
+  versions[id] = list.slice(-50);
+  save(K_VERSIONS, versions);
   const next = current ? all.map((x) => (x.id === id ? row : x)) : [row, ...all];
   // Kota dolarsa anahtar kesit görüntüleri atılıp yeniden denenir.
   if (!save(K_REPORTS, next)) {
@@ -149,7 +171,7 @@ async function route(method: string, url: URL, init?: RequestInit): Promise<Resp
     const { buildFhirReport } = await import("@/lib/fhir");
     return new Response(JSON.stringify(buildFhirReport(rep), null, 2), { headers: { "Content-Type": "application/fhir+json; charset=utf-8" } });
   }
-  const m = /^\/api\/reports\/(\d+)(\/addenda)?$/.exec(p);
+  const m = /^\/api\/reports\/(\d+)(\/addenda|\/restore|\/signature)?$/.exec(p);
   if (m) {
     const id = Number(m[1]);
     const all = load<SavedReport[]>(K_REPORTS, []);
@@ -157,10 +179,13 @@ async function route(method: string, url: URL, init?: RequestInit): Promise<Resp
     const addenda = load<Record<string, { id: number; text: string; createdByName: string; createdAt: string }[]>>(K_ADDENDA, {});
     if (!m[2] && method === "GET") {
       if (!rep) return fail("Rapor bulunamadı", 404);
-      const versions = Array.from({ length: rep.version }, (_, i) => ({ id: i + 1, versionNo: rep.version - i, action: i === 0 && rep.status === "onaylandi" ? "onay" : "kayıt", createdByName: OPERATOR.fullName, createdAt: rep.updatedAt }));
+      const stored = load<Record<string, DemoVersion[]>>(K_VERSIONS, {})[id];
+      const versions = stored && stored.length
+        ? stored.slice().sort((a, b) => b.versionNo - a.versionNo)
+        : Array.from({ length: rep.version }, (_, i) => ({ id: i + 1, versionNo: rep.version - i, action: i === 0 && rep.status === "onaylandi" ? "onay" : "kayıt", createdByName: OPERATOR.fullName, createdAt: rep.updatedAt, snapshot: null as string | null }));
       return json({ report: rep, versions, addenda: (addenda[id] ?? []).slice().reverse() });
     }
-    if (m[2] && method === "POST") {
+    if (m[2] === "/addenda" && method === "POST") {
       const b = await body<{ text?: string }>();
       const text = (b?.text ?? "").trim();
       if (text.length < 3 || text.length > 4000) return fail("Addendum metni 3–4000 karakter olmalı");
@@ -171,6 +196,82 @@ async function route(method: string, url: URL, init?: RequestInit): Promise<Resp
       addenda[id] = list;
       save(K_ADDENDA, addenda);
       return json({ ok: true, id: list.length });
+    }
+    if (m[2] === "/restore" && method === "POST") {
+      const b = await body<{ versionNo?: number }>();
+      if (!rep) return fail("Rapor bulunamadı", 404);
+      if (rep.status === "onaylandi") return fail("Onaylı rapor geri yüklenemez. Düzeltme için addendum ekleyin.", 409);
+      const versionNo = Number(b?.versionNo);
+      const stored = load<Record<string, DemoVersion[]>>(K_VERSIONS, {})[id] ?? [];
+      const target = stored.find((v) => v.versionNo === versionNo);
+      if (!target) return fail("Sürüm bulunamadı", 404);
+      const snap = parseReportSnapshot(target.snapshot);
+      if (!snap) return fail("Bu sürümün anlık görüntüsü okunamadı; geri yükleme yapılamaz.", 409);
+      const hasFindings = Array.isArray(snap.findingsJson);
+      const findingsJson = (hasFindings ? snap.findingsJson : rep.findingsJson) as Finding[];
+      const approvals = (snap.approvals && typeof snap.approvals === "object" && !Array.isArray(snap.approvals) ? snap.approvals : rep.findingsApproval) as Record<string, FindingApprovalStatus>;
+      const reasons = (snap.reasons && typeof snap.reasons === "object" && !Array.isArray(snap.reasons) ? snap.reasons : rep.findingsReason) as Record<string, string>;
+      const now2 = new Date().toISOString();
+      const newVersion = (rep.version ?? 0) + 1;
+      const updated: SavedReport = {
+        ...rep, status: "taslak", version: newVersion,
+        technique: String(snap.technique ?? ""), findingsText: String(snap.findingsText ?? ""),
+        impression: String(snap.impression ?? ""), recommendation: String(snap.recommendation ?? ""),
+        findingsJson, findingsApproval: approvals, findingsReason: reasons,
+        engine: String(snap.engine ?? rep.engine),
+        approvedBy: "", doctorTitle: "", doctorRegNo: "", approvedAt: null, contentHash: "", signatureMeta: "",
+        updatedAt: now2,
+      } as SavedReport;
+      const next = all.map((x) => (x.id === id ? updated : x));
+      save(K_REPORTS, next);
+      stored.push({
+        id: stored.reduce((mm, x) => Math.max(mm, x.id), 0) + 1,
+        versionNo: newVersion, action: "geri-yükleme", createdByName: `${OPERATOR.title} ${OPERATOR.fullName}`, createdAt: now2,
+        snapshot: JSON.stringify({
+          status: "taslak", technique: updated.technique, findingsText: updated.findingsText,
+          impression: updated.impression, recommendation: updated.recommendation,
+          findings: findingsJson.map((f) => ({ id: f.id, label: f.label, slice: f.keySliceNumber, severity: f.severity })),
+          approvals, reasons, engine: updated.engine, findingsJson, restoredFrom: versionNo,
+        }),
+      });
+      const versionsNow = load<Record<string, DemoVersion[]>>(K_VERSIONS, {});
+      versionsNow[id] = stored.slice(-50);
+      save(K_VERSIONS, versionsNow);
+      return json({
+        ok: true, version: newVersion, restoredFrom: versionNo,
+        technique: updated.technique, findingsText: updated.findingsText, impression: updated.impression, recommendation: updated.recommendation,
+        findingsJson, findingsApproval: approvals, findingsReason: reasons, engine: updated.engine,
+        findingsPreserved: !hasFindings,
+      });
+    }
+    if (m[2] === "/signature" && (method === "GET" || method === "POST")) {
+      // Statik demo imza kaydı: yalnızca tarayıcıdaki denetim izidir; nitelikli imza değildir.
+      const sigs = load<Record<string, (Record<string, unknown> & { addendumId?: number })[]>>(K_SIGS, {});
+      const list = sigs[id] ?? [];
+      if (method === "GET") return json({ qualifiedAvailable: false, records: list });
+      if (!rep) return fail("Rapor bulunamadı", 404);
+      const b = await body<{ method?: string; addendumId?: number }>();
+      const addendumId = b?.addendumId === undefined || b.addendumId === null ? null : Number(b.addendumId);
+      let contentHash: string;
+      if (addendumId !== null) {
+        const adden = (addenda[id] ?? []).find((x) => x.id === addendumId);
+        if (!adden) return fail("Ek bulunamadı", 404);
+        contentHash = await sha256(JSON.stringify({ reportId: id, addendumId, text: adden.text }));
+      } else {
+        if (!rep.contentHash) return fail("İmzalanacak onaylı içerik yok (rapor henüz onaylanmadı).", 409);
+        contentHash = rep.contentHash;
+      }
+      const record = {
+        reportId: id, studyUid: rep.studyUid, contentHash,
+        signerName: OPERATOR.fullName, signerRegNo: OPERATOR.regNo, institution: rep.institution ?? "",
+        method: "dahili-anahtar", version: rep.version ?? 0,
+        ...(addendumId !== null ? { addendumId } : {}),
+        algo: "SHA-256", signedAt: new Date().toISOString(),
+      };
+      list.push(record);
+      sigs[id] = list;
+      save(K_SIGS, sigs);
+      return json({ record, qualified: false, note: "Statik demo: kayıt yalnız bu tarayıcıda tutulur; NES değildir." });
     }
   }
 
