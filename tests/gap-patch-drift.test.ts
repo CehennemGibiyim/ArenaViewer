@@ -55,6 +55,8 @@ ok(liveText("v-fusion").includes("fusionDeform") && liveText("v-fusion").include
 ok(liveText("v-fusion").includes("ticRoi"), "v-fusion satırı ROI tabanlı TIC'i anıyor");
 ok(liveText("f-pixel").includes("photometric"), "f-pixel satırı fotometri modülünü anıyor");
 ok(liveText("r-dictate").includes("dictate"), "r-dictate satırı dikte modülünü anıyor");
+ok(liveText("m-persist").includes("TID 1500"), "m-persist satırı ölçümlerin TID 1500 SR dışa aktarımını anıyor");
+ok(!liveText("m-persist").includes("Ölçümleri veritabanına kaydet"), "m-persist satırı \"ölçümleri veritabanına kaydet\" (zaten yapılan) işini aksiyon olarak önermiyor");
 
 // 4) Sayaç/endeks tutarlılığı
 const c = gapProgress(GAP_ITEMS);
