@@ -62,6 +62,7 @@ ok(liveText("r-export").includes("TID 1500"), "r-export satırı ölçüm SR (TI
 ok(liveText("t-automation").includes("findingsReason"), "t-automation satırı hekim kararının ayrı saklandığını (findingsReason) anıyor");
 ok(liveText("a-feedback").includes("aiDisagreement"), "a-feedback satırı uyuşmazlık panosunu (aiDisagreement.ts) anıyor");
 ok(liveText("f-series").includes("sliceGaps"), "f-series satırı kesit aralığı denetimini (sliceGaps.ts) anıyor");
+ok(liveText("v-geo").includes("shortcuts"), "v-geo satırı özelleştirilebilir kısayolları (shortcuts.ts) anıyor");
 ok(!liveText("r-review").includes("panosunda (a-feedback) kategori bazlı gösterilmesi"), "r-review aksiyonu tamamlanan pano işini yeniden istemiyor");
 ok(!liveText("m-persist").includes("Ölçümleri veritabanına kaydet"), "m-persist satırı \"ölçümleri veritabanına kaydet\" (zaten yapılan) işini aksiyon olarak önermiyor");
 
@@ -70,7 +71,7 @@ ok(!liveText("m-persist").includes("Ölçümleri veritabanına kaydet"), "m-pers
 const recycledActions: [string, string][] = [
   ["f-series", "Kesit aralığı (spacing) hesabı ve eksik/çift kesit uyarısı"],
   ["v-wl", "Preset kalıcılığı (veritabanı/localStorage)"],
-  ["v-geo", "Cine FPS kaydırıcısı, özelleştirilebilir kısayollar"],
+  ["v-geo", "özelleştirilebilir kısayollar"],
   ["v-compare", "ImagePositionPatient tabanlı z-senkronu"],
   ["v-hanging", "Viewport ızgara yöneticisi + kural tabanlı protokoller"],
   ["a-heat", "Model çıktısından yarı saydam örtü katmanı ve opaklık kaydırıcısı"],

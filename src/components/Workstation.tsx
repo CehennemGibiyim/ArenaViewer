@@ -45,6 +45,7 @@ import { shadowModeEnabled, splitFindings, toShadowRecord } from "@/lib/shadowMo
 import { KIND_LABEL, annotationSummary } from "@/lib/geometry";
 import { zipAnonymized } from "@/lib/dicomWrite";
 import { findMatchingHangingProtocol, resolveHangingCellSeries } from "@/lib/hangingProtocols";
+import { DEFAULT_SHORTCUTS, loadShortcuts, resolveAction, type ShortcutAction } from "@/lib/shortcuts";
 import { findMskProtocol, type MskMetric } from "@/lib/msk";
 import type {
   AiMode, AiProtocol, AnalysisResult, Annotation, EngineKind, Finding, FindingApprovalStatus,
@@ -213,6 +214,8 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   const [flipH, setFlipH] = useState(false);
   const [flipV, setFlipV] = useState(false);
   const [cine, setCine] = useState(false);
+  // Klavye kısayolları tarayıcı tercihinden okunur (Tercihler sayfasından düzenlenir).
+  const [shortcuts, setShortcuts] = useState<Record<ShortcutAction, string[]>>(DEFAULT_SHORTCUTS);
   const [fps, setFps] = useState(9);
   const [presets, setPresets] = useState<WindowPreset[]>([]);
   const [layout, setLayout] = useState<Layout>("1x1");
@@ -632,16 +635,26 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!series || !isImageSeries || reportOpen || hangingModalOpen || worklistOpen || mpr || pngImage || isTyping(e.target) || e.ctrlKey || e.metaKey) return;
-      if (e.key === "ArrowUp" || e.key === "ArrowLeft") setSlice((p) => Math.max(0, p - 1));
-      else if (e.key === "ArrowDown" || e.key === "ArrowRight") setSlice((p) => Math.min(series.slices.length - 1, p + 1));
-      else if (e.key === "r" || e.key === "R") setRotation((r) => ((r + 90) % 360) as Rot);
-      else if (e.key === "h" || e.key === "H") setFlipH((v) => !v);
-      else if (e.key === "v" || e.key === "V") setFlipV((v) => !v);
-      else if (e.key === "k" || e.key === "K") captureKey();
+      // Kullanıcı tanımlı kısayollar (src/lib/shortcuts.ts); atanmamış tuş yok sayılır.
+      const action = resolveAction(e.key, shortcuts);
+      if (action === "sliceUp") setSlice((p) => Math.max(0, p - 1));
+      else if (action === "sliceDown") setSlice((p) => Math.min(series.slices.length - 1, p + 1));
+      else if (action === "rotate") setRotation((r) => ((r + 90) % 360) as Rot);
+      else if (action === "flipH") setFlipH((v) => !v);
+      else if (action === "flipV") setFlipV((v) => !v);
+      else if (action === "keyImage") captureKey();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [series, captureKey, isImageSeries, reportOpen, hangingModalOpen, worklistOpen, mpr, pngImage]);
+  }, [series, captureKey, isImageSeries, reportOpen, hangingModalOpen, worklistOpen, mpr, pngImage, shortcuts]);
+
+  // Kısayol tercihi açılışta ve sekme geri geldiğinde tazelenir.
+  useEffect(() => {
+    const refresh = () => setShortcuts(loadShortcuts());
+    refresh();
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, []);
 
   // ───── Dosya / Klasör / PACS ─────
   const beginImport = useCallback(() => {
