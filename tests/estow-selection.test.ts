@@ -53,10 +53,10 @@ ok(empty.slices.length === 0 && empty.slicePositions!.length === 0 && empty.sopU
 
 // ── 2) Uçtan uca: yalnız seçili parçadan bayt üretilir ──
 const src = mkSeries();
-const all = buildAnonymizedDicom(src);
+const all = buildAnonymizedDicom(src, "STEST");
 ok(all.length === 8, "tüm seride 8 anonim dosya");
 const rangeSeries = subSeriesForRange(src, 3, 5);
-const rangeFiles = buildAnonymizedDicom(rangeSeries);
+const rangeFiles = buildAnonymizedDicom(rangeSeries, "STEST");
 ok(rangeFiles.length === 3, "aralık seçiminde yalnız 3 anonim dosya üretildi");
 const body = Buffer.concat(rangeFiles.map((f) => Buffer.from(f.bytes))).toString("latin1");
 for (const i of [2, 3, 4]) ok(body.includes(dsOf(positions[i])), `seçili kesit ${i + 1} konumu baytlarda var`);
