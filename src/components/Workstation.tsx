@@ -23,6 +23,7 @@ import ECGViewer from "./ECGViewer";
 import HangingProtocolEditorModal from "./HangingProtocolEditorModal";
 import SegEditor from "./SegEditor";
 import LungQuantPanel from "./LungQuantPanel";
+import KneeSegPanel from "./KneeSegPanel";
 import NuclearPanel from "./NuclearPanel";
 import TicPanel from "./TicPanel";
 import { HIGH_CONTRAST_CLASS, HIGH_CONTRAST_STORAGE_KEY, SKIP_LINK_LABEL } from "@/lib/a11y";
@@ -215,6 +216,8 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   const [ticOpen, setTicOpen] = useState(false);
   // Akciğer kantitasyonu (a-lungquant)
   const [lungQuantOpen, setLungQuantOpen] = useState(false);
+  // Diz MR segmentasyonu (a-knee) — araştırma amaçlı
+  const [kneeSegOpen, setKneeSegOpen] = useState(false);
   const [mskProtocolId, setMskProtocolId] = useState<string | null>(null);
   const [mskPointCount, setMskPointCount] = useState(0);
   const [mskResults, setMskResults] = useState<MskMetric[] | null>(null);
@@ -1986,6 +1989,9 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         {series && series.slices.length > 0 && all.length > 1 && (
           <Btn on={ticOpen} title="ROI tabanlı TIC: aynı bölgeyi dinamik serilerde ölç, wash-out/plato/progresif sınıfla" onClick={() => { if (lazyGate("TIC analizi yapılamaz")) return; setTicOpen((v) => !v); }}>📈 TIC</Btn>
         )}
+        {series && series.modality === "MR" && series.slices.length >= 12 && series.slices.length > 0 && (
+          <Btn on={kneeSegOpen} tone="amber" title="Diz MR segmentasyonu: menisküs/kıkırdak/kemik (nnU-Net, MIT, araştırma amaçlı — yırtık tanısı konmaz)" onClick={() => { if (lazyGate("Diz segmentasyonu yapılamaz")) return; setKneeSegOpen((v) => !v); }}>🦵 Diz MR</Btn>
+        )}
         {series && series.modality === "CT" && series.slices.length > 1 && (
           <Btn on={lungQuantOpen} title="Akciğer kantitasyonu: LAA-950, ortalama HU, PD15, hacim ve kesit dağılımı (kural tabanlı)" onClick={() => { if (lazyGate("Akciğer kantitasyonu yapılamaz")) return; setLungQuantOpen((v) => !v); }}>🫁 Akciğer</Btn>
         )}
@@ -2170,6 +2176,14 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
           series={series}
           onClose={() => setLungQuantOpen(false)}
           onAddToFindings={(text) => { pushFeed(text, "finding"); void navigator.clipboard?.writeText(text).catch(() => {}); toast("Akciğer kantitasyonu akışa yazıldı ve kopyalandı."); }}
+        />
+      )}
+      {series && kneeSegOpen && (
+        <KneeSegPanel
+          series={series}
+          onClose={() => setKneeSegOpen(false)}
+          toast={toast}
+          onAddToFindings={(text) => { pushFeed(text, "finding"); void navigator.clipboard?.writeText(text).catch(() => {}); toast("Diz segmentasyonu özeti akışa yazıldı ve kopyalandı."); }}
         />
       )}
       {segOpen && series && (

@@ -381,7 +381,7 @@ docker compose up --build -d
 Ardından `http://localhost:3000` adresini açın. Veritabanı şeması ilk açılışta
 otomatik uygulanır. Durum: `http://localhost:3000/api/health`
 
-Yerel derin AI (MONAI akciğer + ICH beyin modelleri) **ayrı bir servis**tir:
+Yerel derin AI (MONAI akciğer + ICH beyin + diz MR segmentasyonu modelleri) **ayrı bir servis**tir:
 
 ```bash
 docker compose --profile ai up --build -d   # ilk açılışta ~231 MB model indirir
@@ -417,7 +417,7 @@ uygulanmaz. `.env` ve `.data` korunur. Linux/macOS paketlerinde güncelleme
 özelliği edinmesi için v0.2.0 Setup'ı bir kez elle kurması gerekir; sonraki
 sürümler otomatik alınır.
 
-Ücretsiz yerel yapay zekâ (MONAI akciğer + ICH beyin modelleri) için:
+Ücretsiz yerel yapay zekâ (MONAI akciğer + ICH beyin + diz MR segmentasyonu modelleri) için:
 `ai-worker/setup_model.py` → `ai-worker/server.py` (yalnız `127.0.0.1:8787`,
 hasta verisi dışarı çıkmaz, ücretli servis kullanılmaz).
 
@@ -469,21 +469,33 @@ yalnızca `127.0.0.1:8787`):
 ```bash
 # Python 3.11–3.14 + (tercihen) CUDA'lı torch
 python -m venv .venv
-.venv/Scripts/pip install -r ai-worker/requirements.txt   # torch, monai, cv2, skp…
-python ai-worker/setup_model.py     # iki modeli indirir: akciğer ≈84 MB + beyin ≈147 MB
+.venv/Scripts/pip install -r ai-worker/requirements.txt   # torch, monai, cv2, skp, nnunetv2…
+python ai-worker/setup_model.py     # akciğer ≈84 MB + beyin ≈147 MB
+python ai-worker/setup_knee_model.py # (opsiyonel, diz MR segmentasyonu) ≈5 GB, MIT
 python ai-worker/server.py          # worker'ı başlatır (CPU'da da çalışır, yavaş olur)
 ```
 
 - Windows'ta tüm bu adımları betik yapar: `windows\Kurulum.bat` (bkz. docs/WINDOWS_KURULUM.md §0).
 - Akciğer (BT) modeli: `~/.cache/atikviewer-ai/model/model.pt` (`ATIK_MODEL_DIR` ile değiştirilebilir).
 - Beyin (ICH) modeli: `~/.cache/atikviewer-ai/brain` (7 × `.safetensors`, MIT/RSNA).
+- Diz MR segmentasyonu: `~/.cache/atikviewer-ai/knee` (nnU-Net v2 cascade, `aagatti/nnunet_knee`, MIT, OAI-ZIB;
+  yalnız fold_1 3d_lowres + 3d_cascade_fullres indirilir; `ATIK_KNEE_DIR` ile değiştirilebilir).
+  T2 sagittal diz MR'da 9 yapı (medial/lateral menisküs, 4 kıkırdak, femur/tibia/patella kemiği) maskesi +
+  mL hacim ölçümü + DICOM SEG/RTSTRUCT dışa aktarımı. **Yırtık/dejenerasyon sınıflaması YOKTUR**; araştırma
+  amaçlıdır, radyoloji uzmanı onayı olmadan klinik olarak kullanılamaz. Kendini bildirilen Dice ≈ 0,84
+  (menisküs) / 0,906 (ortalama); prospektif doğrulama yoktur. Ağırlıklar depoda gömülü değildir —
+  `python ai-worker/setup_knee_model.py` ilk kurulumda gereklidir. Çıkarım `nnUNetv2_predict` ile ayrı
+  süreçte koşar; ilk çağrı model yükleme dahil uzun sürebilir (CPU'da ≈80 sn/hacim).
 - Akciğer grafisi (CXR) modeli: repoda `ai-worker/models/cxr_densenet121_medx_320.onnx`
   (Medical_X DenseNet121, Apache-2.0, 28 MB). Öncelik sırası:
   `CXR_MODEL_PATH` → `~/.cache/atikviewer-ai/cxr/` (`ATIK_CXR_DIR`) → depodaki dosya.
   Türetimi: `python ai-worker/tools/export_cxr_onnx.py --verify`;
   kaynak lisansı/bildirim: `ai-worker/models/LICENSE.Medical_X.txt` + `NOTICE.md`.
 - Durum: `GET /api/deep-scan` → `{"worker":"up"|"down", ...}`; worker `/health` içinde
-  `cxr.modelFile` / `cxr.modelLoaded`.
+  `cxr.modelFile` / `cxr.modelLoaded` / `knee.modelFile`. Diz MR uç noktası:
+  `POST /api/deep-scan?protocol=knee` (gzip int16, ham MR sinyali; yanıt gzip(uint8 etiket hacmi)
+  + `x-dims` / `x-elapsed-ms` başlıkları). Uygulamada MR diz serisi açıkken araç çubuğunda
+  **🦵 Diz MR** düğmesi görünür (lazy yükleme sürerken kilitlidir).
 - Uygulama içinde BT toraks analizi otomatik olarak bu uca gider; worker kapalıysa
   kural tabanlı motor devam eder ve uyarı satırı gösterilir.
 - Direkt grafilerde (CR/DX/RG) ise yerel CXR modeli çalışır: 14 torasik bulgu için olasılık

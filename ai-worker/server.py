@@ -5,8 +5,10 @@ Hasta verisi dışarı gönderilmez; tüm çıkarım bu makinede çalışır.
 
 Protokol:
   GET  /health  -> {"ok":true,"modelLoaded":bool,"brain":{...},...}
-  POST /infer?dims=Z,Y,X&spacing=sz,sy,sx[&protocol=ct-chest|ct-head]
+  POST /infer?dims=Z,Y,X&spacing=sz,sy,sx[&protocol=ct-chest|ct-head|cxr|knee]
        başlık yerine query; gövde = gzip(int16 HU dizisi, little-endian)
+       (knee: ham MR sinyali, HU varsayılmaz; yanıt gzip(uint8 etiket hacmi,
+        ikili gövde + x-dims / x-elapsed-ms başlıkları)
        yanıt = {"boxes":[{"x","y","w","h","z0","z1","score"}], "elapsedMs":N, ...}
        Kutular [0,1] normalleştirilmiş (gönderilen hacmin), z0/z1 kesit indisleri.
        protocol=ct-head → yerel ICH modeli (brain_lib) devreye girer; yanıta
@@ -14,8 +16,11 @@ Protokol:
        protocol=cxr   → tek karelik akciğer grafisi (gövde = gzip float32 LE,
        Z=1,Y,X); cxr_lib 14 sınıflık olasılık + pozitif sınıfların ısı
        haritası (64×64 base64) döndürür. Model depoda gömülüdür.
+       protocol=knee  → yerel nnU-Net diz MR segmentasyonu (knee_lib);
+       9 yapı maskesi (SR/RTSTRUCT dışa aktarımı istemcide). Araştırma amaçlıdır.
 
-Kurulum: python ai-worker/setup_model.py (model dosyalarını indirir).
+Kurulum: python ai-worker/setup_model.py (model dosyalarını indirir);
+diz segmentasyonu için: python ai-worker/setup_knee_model.py (≈5 GB, MIT).
 """
 
 import gzip
@@ -46,11 +51,13 @@ MAX_BODY = int(os.environ.get("ATIK_MAX_BODY_MB", "600")) * 1024 * 1024
 import model_lib  # noqa: E402
 import brain_lib  # noqa: E402
 import cxr_lib  # noqa: E402
+import knee_lib  # noqa: E402
 
 _infer_lock = threading.Lock()
 _load_lock = threading.Lock()
 _brain_lock = threading.Lock()
 _cxr_lock = threading.Lock()
+_knee_lock = threading.Lock()
 
 
 def _ensure_model():
@@ -83,6 +90,17 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _send_bytes(self, payload: bytes, status: int, headers: dict):
+        self.send_response(status)
+        self.send_header("Content-Type", "application/octet-stream")
+        self.send_header("Content-Length", str(len(payload)))
+        for k, v in headers.items():
+            self.send_header(k, str(v))
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Expose-Headers", "x-dims,x-elapsed-ms,x-knee-model")
+        self.end_headers()
+        self.wfile.write(payload)
+
     def do_GET(self):  # noqa: N802
         path = urlparse(self.path).path
         if path == "/health":
@@ -96,6 +114,11 @@ class Handler(BaseHTTPRequestHandler):
                 "modelFile": ready,
                 "roi": list(model_lib.ROI_SIZE),
                 "brain": {"modelFile": brain_ready, "modelLoaded": brain_loaded},
+                "knee": {
+                    "modelFile": knee_lib.model_files_ready(),
+                    "modelLoaded": False,  # her çağrıda ayrı süreç (nnUNetv2_predict) koşar
+                    "note": "ayrı süreçte çalışır; ilk çağrı model yükleme dahil uzun sürebilir",
+                },
                 "cxr": {"modelFile": cxr_lib.model_ready(), "modelLoaded": cxr_lib.STATE["session"] is not None},
             })
         else:
@@ -115,7 +138,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         qs = parse_qs(parsed.query)
         protocol = (qs.get("protocol") or ["ct-chest"])[0].strip().lower()
-        if protocol not in ("ct-chest", "ct-head", "cxr"):
+        if protocol not in ("ct-chest", "ct-head", "cxr", "knee"):
             self._send({"error": f"Bilinmeyen protocol: {protocol}"}, 400)
             return
         try:
@@ -165,6 +188,32 @@ class Handler(BaseHTTPRequestHandler):
             self._send({"error": f"Veri boyutu tutmuyor: {len(buf)} != {expected}"}, 400)
             return
         hu = np.frombuffer(buf, dtype="<i2").reshape(z, y, x).astype(np.float32)
+
+        # ───── Diz MR: nnU-Net segmentasyonu (araştırma amaçlı) ─────
+        if protocol == "knee":
+            if z < 4:
+                self._send({"error": f"Diz segmentasyonu için en az 4 kesit gerekir; gelen Z={z}"}, 400)
+                return
+            try:
+                with _knee_lock:
+                    out = knee_lib.run_knee_inference(hu, spacing)
+            except RuntimeError as e:
+                self._send({"error": str(e)}, 503)
+                return
+            except Exception as e:  # noqa: BLE001
+                self._send({"error": f"Diz segmentasyonu hatası: {e}"}, 500)
+                return
+            labels_gz = gzip.compress(out["labels"], 6)
+            self._send_bytes(
+                labels_gz,
+                200,
+                {
+                    "x-dims": ",".join(str(v) for v in out["dims"]),
+                    "x-elapsed-ms": out["elapsedMs"],
+                    "x-knee-model": out["model"],
+                },
+            )
+            return
 
         # ───── BT beyin: yerel ICH derin öğrenme modeli ─────
         if protocol == "ct-head":
@@ -259,6 +308,14 @@ def main():
         print(
             f"UYARI: CXR modeli yok ({cxr_lib.model_path()}); /infer?protocol=cxr 500 döner. "
             f"NOTICE.md ve ai-worker/tools/export_cxr_onnx.py'ye bakın.",
+            flush=True,
+        )
+    if knee_lib.model_files_ready():
+        print(f"Diz MR (nnU-Net) modeli hazır: {knee_lib.MODELS_DIR} · her çağrıda ayrı süreçte koşar.", flush=True)
+    else:
+        print(
+            f"UYARI: diz MR modeli yok ({knee_lib.LOWRES_CKPT}); /infer?protocol=knee 503 döner. "
+            "Kurulum: python ai-worker/setup_knee_model.py (≈5 GB, MIT).",
             flush=True,
         )
     if not model_lib.model_ready():

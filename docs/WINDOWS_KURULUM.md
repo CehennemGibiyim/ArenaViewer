@@ -213,6 +213,21 @@ Bu komut **iki modeli birden** indirir:
 Mevcut dosyalar atlanır; **tekrar çalıştırması güvenlidir** (idempotent) ve
 eksik dosyalar kaldığı yerden tamamlanır.
 
+Diz MR segmentasyonu **isteğe bağlı**dır ve ayrı komuttur (≈5 GB):
+
+```powershell
+python ai-worker/setup_knee_model.py
+```
+
+| Model | Lisans | Boyut | Hedef |
+|---|---|---|---|
+| `aagatti/nnunet_knee` (nnU-Net v2 cascade, OAI-ZIB; yalnız fold_1 düşük+cascade checkpoint'ler) | MIT (atıf istenir) | ≈5 GB | `%USERPROFILE%\.cache\atikviewer-ai\knee` |
+
+Diz MR çıktısı **yalnız yapı sınırıdır** (menisküs/kıkırdak/kemik); yırtık/dejenerasyon
+tanısı konmaz, arayüzde ve raporda araştırma etiketiyle gösterilir. Çıkarım
+`nnUNetv2_predict` ile ayrı süreçte koşar; ilk çağrıdakilerde model yükleme
+dahil dakikalar sürebilir.
+
 ### 4.3 Worker'ı başlatma
 
 ```powershell

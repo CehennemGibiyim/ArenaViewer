@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { gapProgress } from "@/lib/gapProgress";
 import {
+  CANDIDATE_MODULES,
   CATEGORIES,
   COMPETITORS,
   COMPETITOR_SITES,
@@ -173,7 +174,8 @@ export default function GapAnalysis() {
             <li>
               <b className="text-amber-200">Yapay zeka klinik olarak doğrulanmadı.</b> BT beyin (kanama adayı) ve BT toraks (nodül adayı)
               için kural tabanlı motor ve isteğe bağlı yerel modeller bulunur; CXR için de yerel model seçeneği vardır.
-              Modellerin klinik kullanımı doğrulanmış değildir; MR için hastalık dedektörü yoktur ve örnekler DEMO niteliğindedir.
+              Diz MR için <b>araştırma amaçlı</b> bir segmentasyon modeli (menisküs/kıkırdak/kemik; yırtık tanısı konmaz) eklendi — yine de
+              modellerin klinik kullanımı doğrulanmış değildir; MR&apos;da hastalık dedektörü yoktur ve örnekler DEMO niteliğindedir.
             </li>
             <li>
               <b className="text-amber-200">Düzenleyici yol sizin sürecinizdir.</b> Tıbbi cihaz yazılımı sınıflandırması (MDR/TİTCK),
@@ -438,6 +440,39 @@ export default function GapAnalysis() {
                     );
                   })}
                 </ul>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Önerilen aday modüller (kod yok) */}
+        <section className="mt-8">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-sm font-black tracking-wide text-slate-100">Önerilen aday modüller <span className="font-mono text-rose-300">— henüz kod yok</span></h2>
+            <span className="font-mono text-[10px] uppercase tracking-widest text-slate-500">kıyaslama tablosuna dahil değildir</span>
+          </div>
+          <p className="mt-1 text-[11.5px] leading-relaxed text-slate-400">
+            Bu liste, yol haritasını seçerken değerlendirilmek üzere hazırlanmıştır. Buradaki hiçbir madde için satır
+            eklenmedi ve <strong className="text-slate-200">kod yazılmadı</strong>; bir aday ancak kod + test + satırıyla
+            VAR/KISMİ olur. Lisans, kanıt ve önkoşul satırları 2026-11-26&apos;ta incelenmiştir; karar sizinle birlikte verilecektir.
+          </p>
+          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+            {CANDIDATE_MODULES.map((c) => (
+              <div key={c.id} className="flex flex-col rounded-xl border border-[#1e2735] bg-[#0b1018] p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded border border-rose-400/50 bg-rose-400/10 px-2 py-0.5 font-mono text-[9px] font-black text-rose-300">ÖNERİLEN · KOD YOK</span>
+                  {c.nextUp && (
+                    <span className="rounded border border-cyan-400/50 bg-cyan-400/10 px-2 py-0.5 font-mono text-[9px] font-black text-cyan-300">SIRADAKİ</span>
+                  )}
+                  <span className="font-mono text-[10px] text-slate-500">{c.field}</span>
+                </div>
+                <h3 className="mt-2 text-[13px] font-bold leading-snug text-slate-100">{c.title}</h3>
+                <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[11px] leading-relaxed">
+                  <dt className="font-semibold text-amber-300/90">Lisans</dt><dd className="text-slate-300">{c.license}</dd>
+                  <dt className="font-semibold text-slate-500">Kanıt</dt><dd className="text-slate-300">{c.evidence}</dd>
+                  <dt className="font-semibold text-slate-500">Önkoşul</dt><dd className="text-slate-300">{c.blocker}</dd>
+                  <dt className="font-semibold text-cyan-300/90">Değer</dt><dd className="text-slate-300">{c.value}</dd>
+                </dl>
               </div>
             ))}
           </div>

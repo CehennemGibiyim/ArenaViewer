@@ -525,8 +525,15 @@ export const BASE_ITEMS: GapItem[] = [
     id: "a-msk", category: "ai", title: "MSK/X-ışını kırık ve landmarke AI",
     status: "kismi", priority: "P2", effort: "L",
     market: ["Gleamer"],
-    ours: "Ölçüm yardımcısı: src/lib/msk.ts ile 4 protokol (el bileği AP, ayak bileği Böhler+tibiofibular, ayak lateral Meary/pitch, kalça AP CE+indeks); adlandırılmış anatomik noktaları sırayla alma, kenar-yapışmalı (snapPoint) nokta seçimi, mm/derece hesabı ve aralık yorumu. Araç çubuğunda 🦴 MSK ve Ölçüm sekmesinde panel; sonuçlar akışa/panoya kopyalanır. Kırık sınıflandırması ve heatmap için eğitimli model YOKTUR.",
-    action: "El/omurga/ayak landmark ve kırık sınıflandırma modeli (eğitim verisi + heatmap).",
+    ours: "Ölçüm yardımcısı: src/lib/msk.ts ile 4 protokol (el bileği AP, ayak bileği Böhler+tibiofibular, ayak lateral Meary/pitch, kalça AP CE+indeks); adlandırılmış anatomik noktaları sırayla alma, kenar-yapışmalı (snapPoint) nokta seçimi, mm/derece hesabı ve aralık yorumu. Araç çubuğunda 🦴 MSK ve Ölçüm sekmesinde panel; sonuçlar akışa/panoya kopyalanır. Kırık sınıflandırması ve heatmap için eğitimli model YOKTUR. **Yeni — diz MR segmentasyonu (a-knee):** T2 diz MR'da menisküs/kıkırdak/kemik yapı sınırı çıkarımı eklendi (ai-worker/knee_lib.py, src/lib/kneeSeg.ts) — X-ray kırık değildir, rapor panelinde ayrı kalemdir.",
+    action: "El/omurga/ayak landmark ve kırık sınıflandırma modeli (eğitim verisi + heatmap). Diz MR tarafında yırtık/dejenerasyon için bkz. a-knee.",
+  },
+  {
+    id: "a-knee", category: "ai", title: "Diz MR'da menisküs/kıkırdak/kemik segmentasyonu (araştırma)",
+    status: "kismi", priority: "P2", effort: "M",
+    market: ["Incepto (KEROS)"],
+    ours: "**Kısmen (araştırma amaçlı):** `ai-worker/knee_lib.py` + `src/lib/kneeSeg.ts` — T2 diz MR'da 9 yapının (medial/lateral menisküs, 4 kıkırdak bölgesi, femur/tibia/patella kemiği) maskesi; mL hacim istatistikleri (`kneeVolumeStats`) ve DICOM SEG/RTSTRUCT dışa aktarımı (SEG: `src/lib/dicomSeg.ts`, segmentler AUTOMATIC algoritma türüyle). Arayüz: araç çubuğu → 🦵 Diz MR (yalnız MR, ≥12 kesit; `lazyPending` kilidi), panel `src/components/KneeSegPanel.tsx`. Model: `aagatti/nnunet_knee` (**MIT**, OAI-ZIB eğitimi, nnU-Net v2 cascade ResEncUNetM, fold 1); kendini bildirilen Dice ≈ 0,84 (menisküs) / ≈ 0,86 (kıkırdak) / ≈ 0,95 (kemik) / 0,906 ortalama — **prospektif klinik doğrulama YOKTUR**. Ağırlıklar depoda gömülü değildir; `python ai-worker/setup_knee_model.py` ≈5 GB indirir (nnunetv2 Apache-2.0 çerçeve bağımlılığı). **Yırtık/dejenerasyon sınıflaması YAPILMAZ**; çıktı klinik karar için kullanılamaz, arayüzde ve raporda araştırma etiketi zorunludur.",
+    action: "Bağımsız validasyon (SKM-TEA / OAI iMorphics referans maskeleriyle Dice), gölge mod + hekim geri bildirim panosu (a-feedback), kurum içi prospektif değerlendirme; yırtık/derece sınıflaması için MRNet Research Use Agreement eğitimi veya KEROS (Incepto, CE MDR) ticari lisansı ve TİTCK/MDR yolu.",
   },
   {
     id: "a-mg", category: "ai", title: "Mamografi: BI-RADS yoğunluk + DBT (tomosentez) okuma akışı",
@@ -817,14 +824,14 @@ const PATCHES: Record<string, Patch> = {
     "m-persist": { status: "var", ours: "Ölçümler ve anahtar kesitler çalışma+seri bazında sunucuya kaydedilir (autosave, `study_state`), rapora 'Ölçümler' bölümü olarak girer (ReportPrintModal) ve dışa aktarma menüsündeki «Ölçümler → DICOM SR (TID 1500)» ile sayısal ölçüm ağacı olarak yazılır. **PR (GSPS) artık anotasyonları da taşır:** `src/lib/gspsGraphics.ts` her ölçümü grafik nesnesine (uzunluk/açı/ok → POLYLINE, dikdörtgen/poligon → kapalı POLYLINE, elips/elipsoid → ELLIPSE, tek nokta → POINT) çevirir, etiketleri Text Object olarak yazar, anotasyonu kendi referans görüntüsüne (0008,1140) bağlar ve Graphic Layer («ANNOT») tanımlar; kesiti kaynak SOP Instance ile eşleşmeyen anotasyon atlanır ve menü kaç tane yazıldığını söyler (`tests/gsps-annotations.test.ts`, 22 assert; belge dicom-parser ile geri okunup grafik verisi FL olarak doğrulanır)." },
   "m-key": { status: "var", ours: "★ ile anahtar kesit (en fazla 8); rapora ilk 4 görsel, zaman çizelgesinde işaret. Dışa aktarma: DICOM Key Object Selection (TID 2010, KO) VE Grayscale Softcopy Presentation State (GSPS/PR: referans seri+kesitler, VOI LUT WL/WW, döndürme, çevirme; üretilen belgeler dicom-parser ile doğrulanır). PR rapor/imza belgesi değildir.", action: "—" },
   "m-seg": { status: "var", ours: "İnteraktif segmentasyon editörü var (araç çubuğu → 🧩 Segmentasyon, `src/components/SegEditor.tsx` + testli çekirdek `src/lib/segmentation.ts`): **fırça / silgi** (1–40 px yarıçap, sürükleme boyunca ara nokta doldurma), **eşik dolgusu** (HU aralığı, tek tıkla tüm kesit), **tohumdan bölge büyütme** (4-komşuluk flood fill, eşik dışına taşmaz), kesit gezinme, «sonraki kesite kopyala», kesit/tüm maske silme. Hacim **mL ve mm³** olarak canlı hesaplanır (piksel aralığı × kesit kalınlığı; kesit aralığı gösterilir). Maske seri kimliğiyle tarayıcıda saklanır ve **DICOM SEG (1 bit/piksel) / RTSTRUCT** olarak dışa aktarılır; Dışa aktar menüsündeki işaret tabanlı SEG çıktısı elle çizilen maskeyle **birleştirilir** (`unionMasks`, boyut uyuşmazsa sessiz bozulma yok). AI aday örtüsü düzenlenebilir maske değildir. Kalan: geri al/yinele, kesitler arası enterpolasyon ve SAM tabanlı hızlı seçim; hacim hekim onayına tabidir.", action: "Geri al/yinele, kesitler arası enterpolasyon ve (isteğe bağlı) SAM tabanlı ön segmentasyon." },
-  "a-model": { status: "var", priority: "P0", ours: "DERİN ÖĞRENME VAR (yerel, ücretsiz): MONAI lung_nodule_ct_detection bundle (LUNA16 eğitimi, RetinaNet+ResNet50-3D) yerel AI worker'da (127.0.0.1:8787, CUDA) çalışır; BT toraks serilerinin gerçek HU hacmi gzip ile gönderilir, model kesit+boyut döndürür. Sentetik toraks phantoms'ında bilinen 12 mm ve 9 mm nodüller mm düzeyinde konum isabetiyle bulundu (skor 0.96/0.95, e2e API testi geçti). BT beyin hâlâ kural tabanlı (derin öğrenme değil). Diğer modalitelerde (US, MR, CR/DX vb.) kare bazlı nicel ölçüm vardır; bu tanı DEĞİLDİR. Klinik doğrulama YOKTUR — tüm bulgular radyoloji uzmanı onayı gerektirir.", action: "Kendi kohortunuzda klinik doğrulama (duyarlılık/özgüllük); BT beyin kanama için ayrı derin öğrenme modeli." },
+  "a-model": { status: "var", priority: "P0", ours: "DERİN ÖĞRENME VAR (yerel, ücretsiz): `ai-worker`'da dört motor koşar. (1) MONAI lung_nodule_ct_detection bundle (LUNA16, RetinaNet+ResNet50-3D, Apache-2.0) — BT toraks; sentetik fantomlarda 12/9 mm nodüller mm düzeyinde konum isabetiyle bulundu. (2) BT beyin ICH — ianpan/ct-head-hemorrhage-detection (MIT, RSNA): 5 kanama alt tipi + kesit dağılımı; ilgili CT serilerinde dilim olasılıklarından ROI üretir. (3) Akciğer grafisi — Medical_X DenseNet121 (Apache-2.0, NIH ChestX-ray14, 14 sınıf) + Grad-CAM örtüsü. (4) **Diz MR — nnU-Net Knee MRI** (MIT, OAI-ZIB, `ai-worker/knee_lib.py`; a-knee maddesine bakın; araştırma amaçlı, yırtık tanısı YOK). Hasta verisi dış ağa çıkmaz; worker kapalıysa kural tabanlı motor devam eder. Diğer modalitelerde kare bazlı nicel ölçüm vardır; bu tanı DEĞİLDİR. Klinik doğrulama YOKTUR — tüm bulgular radyoloji uzmanı onayı gerektirir.", action: "Kendi kohortunuzda klinik doğrulama (duyarlılık/özgüllük); diz MR segmentasyonunun bağımsız referansla ölçülmesi (SKM-TEA/OAI)." },
   "a-loc": { status: "var", ours: "Kesit bazlı kutu, kesit aralığı, anahtar kesit, z konumu, ölçülen HU/boyut/hacim — BT'de gerçek hesaplanır. Derin öğrenme kutuları (worker → Finding) kesit aralığı + normalize bbox olarak gelir ve otomatik anahtar kesit önerisine girer; MR/CR demo.", action: "Kalan: MR/CR/mamografi için gerçek model çıktısı (şu an demo) ve modelin kutu yerine lezyon sınırı (piksel maskesi) üretmesi." },
   "a-heat": { status: "var", ours: "CXR modeli (Medical_X) pozitif sınıflar için Grad-CAM benzeri aktivasyon haritası döner; Viewport'ta renkli yarı saydam örtü (mavi→yeşil→sarı→kırmızı, düşük aktivasyon eşikli, saydamlık kaydırıcı, tuval önbelleği). 3B maskeler ve derin model aday alanları aynı örtü katmanında (ayarlanabilir opaklıkla) çizilir. src/lib/heat.ts ile paylaşılan kurallar test edilir; örtü KLINİK onay gerektiren görselleştirmedir ve rapora işlenmez." },
   "a-triage": { status: "var", ours: "AI Triaj sekmesi onaylanmamış iş durumundaki çalışmaları mevcut skora göre listeler; analizsiz çalışmalar da görünür. En fazla 500 kayıt gösterilir. Bulguların nedenleri ve bağımsız bulgu kararı saklanmaz; araştırma/demodur, klinik önceliklendirme değildir." },
   "a-notify": { status: "kismi", ours: "Kritik/yüksek aday bulguda uygulama içi bildirim (zil) + masaüstü tarayıcı bildirimi (src/lib/notify.ts). **Yeni — kanal yönlendirici (`src/lib/notifyChannels.ts` + `src/lib/server/notifyDispatch.ts`):** aynı olay **e-posta / SMS / çağrı cihazı / webhook** kanallarına paralel POST edilir; kanal başına önem eşiği (webhook+e-posta `yüksek`, SMS/çağrı `kritik`, ayarlanabilir) ve `enabled` anahtarı var. Yük **kimliksizdir** (önem, çalışma UID, modalite, kısa mesaj; hasta adı/numarası yok — tests/notify-channels.test.ts ile sabitlenir). Eski tek `criticalWebhookUrl` ayarı `legacy-webhook` kanalı olarak korunur (gövde sözleşmesi aynı). Yönetim → Entegrasyon'da kanal JSON'u, kanal başına **test gönderimi** (`POST /api/notifications/test`) ve HTTP durum/kod listesi; her gönderim `notify.critical`/`notify.test` olarak denetim kaydına (kanal bazında ok/hata) yazılır. 8 sn zaman aşımı, bir kanalın hatası diğerlerini engellemez. Kalan: gerçek sağlayıcı sözleşmeleri/anahtarları (SMTP relay, SMS operatörü, FCM/APNs) ve çağrı merkezi entegrasyonu — kurumun ağında tanımlanır, kod tarafı hazır.", action: "Kurumun SMTP/SMS/push ağ geçidi adreslerini ve alıcı listelerini tanımlaması (sözleşme/anahtar kurumda)." },
   "a-prior": { status: "var", ours: "Hasta bazlı geçmiş çalışmalar/raporlar listelenir; önceki çalışma ikinci panele **anatomik senkronla** açılır (paralel serilerde IPP/kesit konumuna göre eşleme, `mapSliceByPosition`) ve bulgu kartında önceki nicel ölçümle çap/hacim farkı gösterilir (`src/lib/priorCompare.ts`, testli). **Yeni — görsel kayıt (registration):** karşılaştırma panelinde 🎯 **Hizala** düğmesi iki kesidi normalize çapraz korelasyonla (NCC) hizalar; katı dönüşüm (öteleme + izotropik ölçek) kabadan inceye aranır (`src/lib/registration.ts`: indirgeme → sentetik kaydırmalarla tam geri kazanım testi, `tests/registration.test.ts`). Sonuç Δx/Δy/ölçek/skor olarak yazılır, skor < 0,55 ise «GÜVENİLİR DEĞİL» uyarısı verilir ve **uygulanmaz**; güvenilir hizada görüntü `alignPx` ile kaydırılır, ölçüm/annotasyon koordinatları değişmez. Farklı matris boyutları (64² ↔ 128²) ve farklı HU ölçeği NCC sayesinde sorun değildir; hesaplama düğmeye basınca yapılır (512²'de ≈0,5 sn). Sınır: **döndürme, elastik/deformable ve 3B hacim kaydı yok**; BT↔MR gibi farklı modalitelerde güvenilmez; uygulama hekim görsel doğrulamasına tabidir.", action: "İsteğe bağlı: döndürme/deformable kayıt ve otomatik (düğmesiz) ön hizalama; farklı modalite için karşılıklı bilgi (MI) tabanlı ölçüt." },
   "a-track": { status: "kismi", ours: "Nodül takibi (`src/components/NoduleTracker.tsx`): nodül başına tarih–çap zaman serisi + grafik, Lung-RADS v2022 özet kategorisi, hacim ikilenme süresi, CSV. RECIST 1.1: bazal/izlem çap toplamı, % değişim, CR/PR/SD/PD, organ/toplam sınırları, «yeni lezyon»/«tümü kayboldu» hekim işareti, lenf nodu kısa eksen kuralı ve non-hedef bileşeni (`recistFull.ts`). **Yeni — çalışmalar arası eşleştirme paneli:** en yeni iki çalışma tarihi otomatik karşılaştırılır; lezyonlar anatomi + lezyon adı imzasıyla eşleştirilir, eşleşenlerin Δ mm / Δ%, yeni ve saptanmayan lezyonlar ile **lenf nodu kısa eksen tablosu** (normal/takip/patolojik) gösterilir ve CSV'ye eklenir (`src/lib/lesionTracking.ts` → `summarizeNoduleTracking`; testler: eşleşme, yeni lezyon, lenf nodu kategorisi, tek tarih/boş girdi). Eşleştirme kural tabanlıdır (aynı lezyon olduğu hekimce doğrulanmalıdır) ve kategori klinik karar aracı değildir. KALAN: veriler yalnız tarayıcıda (`localStorage`) — **sunucuda hasta bazlı saklama/senkron ve çok kullanıcılı ortak liste yok**.", action: "Sunucuda hasta bazlı nodül/lezyon kaydı (çok kullanıcı, denetim izi) ve otomatik ölçüm aktarımı." },
-  "a-quant": { status: "var", ours: "Nicel çıktılar üç kaynaktan gelir. (1) **Aday/ROI bazlı** (`src/lib/analyze.ts`, ROI istatistikleri): hacim (mL/mm³), ortalama/maks HU, çap. (2) **Agatston kalsiyum skoru** (`src/lib/structuredReport.ts`, testli): damar bazlı (LM/LAD/LCx/RCA) pik HU ağırlıkları (130/200/300/400 eşikleri), Σ(alan × ağırlık), kategori ve takip önerisi — Rapor ekranı → Yapılandırılmış skorlar. (3) **Oportünist kemik yoğunluğu**: vertebra trabeküler HU ile normal/sınırda/yüksek-risk kategorisi; DEXA T-skoru OLMADIĞI açıkça yazar. Ek olarak PA akciğer grafisinde kardiyotorasik oran (CTR) hesaplanır. Zaman serisi/trend grafiği ayrı maddede (c-measure-history) izlenir. Sınır: insidental bulgu tarama iş akışı (otomatik kuyruk) ve DEXA eşdeğeri ölçüm yoktur.", action: "Kurumsal: insidental bulgu tarama/triage iş akışı ve DEXA ile korelasyon çalışması." },
+  "a-quant": { status: "var", ours: "Nicel çıktılar dört kaynaktan gelir. (0) **Diz MR segmentasyonu (araştırma):** 9 yapı için mL hacmi (`src/lib/kneeSeg.ts` — menisküs/kıkırdak/kemik; voksel × spacing³); çıktı klinik karar için kullanılamaz. (1) **Aday/ROI bazlı** (`src/lib/analyze.ts`, ROI istatistikleri): hacim (mL/mm³), ortalama/maks HU, çap. (1) **Aday/ROI bazlı** (`src/lib/analyze.ts`, ROI istatistikleri): hacim (mL/mm³), ortalama/maks HU, çap. (2) **Agatston kalsiyum skoru** (`src/lib/structuredReport.ts`, testli): damar bazlı (LM/LAD/LCx/RCA) pik HU ağırlıkları (130/200/300/400 eşikleri), Σ(alan × ağırlık), kategori ve takip önerisi — Rapor ekranı → Yapılandırılmış skorlar. (3) **Oportünist kemik yoğunluğu**: vertebra trabeküler HU ile normal/sınırda/yüksek-risk kategorisi; DEXA T-skoru OLMADIĞI açıkça yazar. Ek olarak PA akciğer grafisinde kardiyotorasik oran (CTR) hesaplanır. Zaman serisi/trend grafiği ayrı maddede (c-measure-history) izlenir. Sınır: insidental bulgu tarama iş akışı (otomatik kuyruk) ve DEXA eşdeğeri ölçüm yoktur.", action: "Kurumsal: insidental bulgu tarama/triage iş akışı ve DEXA ile korelasyon çalışması." },
   "a-feedback": { status: "var", ours: "Bulgu bazlı onay/red/düzenleme + 'AI'nın kaçırdığı bulgu' girişi; Yönetim → AI performans'ta kesinlik (PPV) tablosu. **Yeni — uyuşmazlık panosu:** `src/lib/aiDisagreement.ts` + `/api/ai/performance` yanıtındaki `disagreement` bloğu; Yönetim → AI sekmesinde kategori bazlı karar/ret/düzenleme sayıları, **uyuşmazlık oranı** ve hekim **gerekçe metinleri** (en çok 20 satır) görünür (`tests/ai-disagreement.test.ts`). SINIR: oran yalnız hekim kararlarına dayanır — duyarlılık/özgüllük değildir (kaçırılan bulgu için elle ekleme gerekir)." },
   "a-vlm": { status: "kismi", ours: "İsteğe bağlı LLM (OpenAI uyumlu) yalnızca hekimin doğruladığı bulgu metninden taslak izlenim üretir; görüntü modele verilmez. Canlı LLM ile denenmedi (yapılandırma yok → kural tabanlı yedek denendi)." },
   "a-uncert": { status: "kismi", ours: "Belirsizlik bandı (src/lib/uncertainty.ts): skor−eşik mesafesinden SINIRDA/ORTA/GÜÇLÜ üç bant; CXR skor listesi ve AI bulgu kartlarında not + etiket. Finding.threshold alanı modele özgü eşiği taşır. KALAN GERÇEK EKSİK: kalibrasyon eğrisi/gerçek güven aralığı — doğrulama seti ve klinik süreç gerekir (kurumsal).", action: "Kalibrasyon eğrisi ve güven aralığı: doğrulama seti + klinik süreç (kurumsal)." },
@@ -1025,7 +1032,7 @@ const ROADMAP_OLD: RoadmapPhase[] = [
 export const ROADMAP: RoadmapPhase[] = [
   { id: "done", title: "Bu turda tamamlananlar (test edildi)", timeframe: "Tamam", goal: "Gerçek veri, güvenlik temeli, workstation çekirdeği.", itemIds: ["f-codec", "w-auth", "w-audit", "r-version", "t-privacy", "m-persist", "w-storage", "w-worklist", "v-mip", "v-mpr", "a-model", "a-card", "w-deid", "r-template", "r-structured-score", "a-calcium"] },
   { id: "code", title: "Sıradaki mühendislik işleri (kodla yapılabilir)", timeframe: "1–3 ay", goal: "Kalan teknik boşluklar.", itemIds: ["v-vr", "v-mpr", "f-codec", "m-shapes", "r-export", "w-pacs", "v-perf", "v-hanging", "f-objects"] },
-  { id: "ai", title: "Gerçek model ve doğrulama", timeframe: "3–9 ay", goal: "Lisanslı/doğrulanmış modeller + kendi verinizde ölçüm.", itemIds: ["a-model", "a-heat", "a-uncert", "t-validation", "a-track", "a-prior"] },
+  { id: "ai", title: "Gerçek model ve doğrulama", timeframe: "3–9 ay", goal: "Lisanslı/doğrulanmış modeller + kendi verinizde ölçüm.", itemIds: ["a-model", "a-heat", "a-uncert", "t-validation", "a-track", "a-prior", "a-knee"] },
   { id: "org", title: "Kurum/üretici süreçleri (kodla bitmez)", timeframe: "Sürekli", goal: "Düzenleyici uyum, NES, altyapı ve entegrasyon sözleşmeleri.", itemIds: ["t-mdr", "r-esign", "t-privacy", "w-his", "a-notify", "w-pacs"] },
 ];
 
@@ -1033,3 +1040,114 @@ export const ROADMAP: RoadmapPhase[] = [
  * Eski serbest "kaynak listesi" kaldırıldı: kaynaklar artık satır bazında
  * `src/lib/gapSources.ts` kayıt defterinden gelir (doğrulama tarihi + yöntemi ile).
  */
+
+/**
+ * Önerilen aday modüller — **henüz KOD YOKTUR**.
+ *
+ * Kıyaslama tablosuna (GAP_ITEMS) girmezler: tablo yalnız gerçek kod varsa
+ * "var/kısmi" der. Bu liste, yol haritasını seçerken değerlendirilecek
+ * dürüst adaylardır; her biri ancak kod + test + kaynaklı satır ile tabloya
+ * taşınır. Lisans/kanıt satırları 2026-11-26 tarihinde incelenmiştir.
+ */
+export interface CandidateModule {
+  id: string;
+  /** Kısa ad + ne yapar */
+  title: string;
+  /** Görüntüleme alanı / modalite */
+  field: string;
+  /** Lisans durumu — tabloya girmeden ÖNCE çözülmesi gereken ilk engel */
+  license: string;
+  /** Kanıt/kanıt düzeyi (varsa) */
+  evidence: string;
+  /** Kodla kapanmayan önkoşul */
+  blocker: string;
+  /** Beklenen klinik/operasyonel değer */
+  value: string;
+  /** Sıradaki aday olarak işaretli mi */
+  nextUp?: boolean;
+}
+
+export const CANDIDATE_MODULES: CandidateModule[] = [
+  {
+    id: "skm-tea-validation",
+    title: "Doğrulama hattı — SKM-TEA (Stanford AIMI) / OAI referans maskeleriyle Dice ölçümü",
+    field: "MR diz · segmentasyon validasyonu",
+    license: "SKM-TEA: Stanford AIMI kaydı + ücretsiz araştırma lisansı; OAI (iMorphics 88 tarama): kayıt/DUC gerekli",
+    evidence: "NeurIPS 2021 Datasets & Benchmarks — 155 qDESS MR, 6 yapı maskesi + 16 patoloji kutusu (DICOM/NIfTI/HDF5); OAI 88 iMorphics taraması (nnunet_knee'nin eğitim alanıyla aynı aile)",
+    blocker: "Kayıt + ~15–20 vaka indirme + Dice/HD95 ölçüm betiği (dipnot: sekans farkı nedeniyle skorlar eğitim Dice'ından düşük beklenir)",
+    value: "a-knee modülünün dürüst sayısal kalite ölçümü — sonuç kıyaslama sayfasına ve model kartına yazılır",
+    nextUp: true,
+  },
+  {
+    id: "mrnet-tear",
+    title: "Diz MR menisküs yırtık / anormallik sınıflaması — MRNet (Stanford)",
+    field: "MR diz · yırtık sınıflandırma",
+    license: "Veri: Research Use Agreement (Stanford) — yeniden dağıtım yok; hazır kod/ağırlık kamuya açık değil",
+    evidence: "Bien P., PLOS Medicine 2018;15(11):e1002699 — 1.370 MRM, 508'inde menisküs yırtığı; menisküs AUC ≈ 0,85 (retrospektif, tek merkez, prospektif değil)",
+    blocker: "DUA + GPU eğitimi + kurumsal validasyon; yırtık tanısı klinik kullanım için TİTCK/MDR çerçevesi ister",
+    value: "Rapora 'menisküs yırtığı adayı' satırı; triyajla birlikte iş listesi önceliği — tanı koymaz",
+  },
+  {
+    id: "rsna-knee-2026",
+    title: "RSNA Knee Abnormality Detection 2026 çatısı — 12 bulgu tek model",
+    field: "MR diz · çok-bulgu sınıflandırma",
+    license: "MIRA — yeniden dağıtım ve ticari yeniden kullanım yasak; yarışma 2026-10-22'de kapandı",
+    evidence: "4.407 çalışma, 12 bulgu (ACL, menisküs, kemik iliği ödemi, efüzyon…), 58 etiketli örnek + serbest metin raporlar; Kaggle",
+    blocker: "MIRA katılımcı erişimi + kendi sunucunuzda eğitim + sonuç lisansının hukuki incelemesi",
+    value: "Tek modelden 12 bulgu adayı — triyaj ve rapor taslağı için geniş kapsama",
+  },
+  {
+    id: "keros-due-diligence",
+    title: "Incepto KEROS (ticari, CE MDR) — diz MR AI lisansı karşılaştırması",
+    field: "MR diz · yırtık tespiti (ticari)",
+    license: "Ticari lisans — kaynak kapalı; üreticiyle teklif/entegrasyon sözleşmesi gerekir",
+    evidence: "Physica Medica 2021 (Rizk — dış geçerleme); International Orthopaedics 2025 (artroskopi bağıntılı crossover); SOFCOT/EFFORT 2024 sunumları",
+    blocker: "Ticari due-diligence (fiyat, PACS entegrasyonu, kurumsal doğrulama, sözleşme/KVKK)",
+    value: "Klinik doğrulamalı diz MR AI için en kısa yol — satın alınabilir tek olgun seçenek",
+  },
+  {
+    id: "goyal-cascade-grade",
+    title: "Menisküs dejenerasyon derecesi — Cascade nnU-Net + ResNet-18 (Goyal 2025)",
+    field: "MR diz · yırtık dereceleme",
+    license: "Kod/ağırlık yayınlanmadı — yazarlarla iletişime geçilmesi gerekir",
+    evidence: "medRxiv 2025.02.21.25322094 — 562 hasta / 608 diz; sağlıklı vs dejeneratif vs grade-III; grade-III sensitivite %60 → %80 (asistan etkisi), okuma süresi −%38",
+    blocker: "Yazar izni/hukuk incelemesi; yeniden uygulama veya yazarla iş birliği; kurum validasyonu",
+    value: "Grade-III menisküs yırtığında asistan desteği — literatürde kanıtlı okuma etkisi",
+  },
+  {
+    id: "vindr-mammo",
+    title: "Mamografi yoğunluğu + BI-RADS a–d — VinDr-Mammo (araştırma)",
+    field: "Mamografi · yoğunluk/BI-RADS",
+    license: "CC BY-NC — ticari kullanıma uygun değil; araştırma yalnız",
+    evidence: "VinDr-Mammo: 5.000 mamogram, ACR yoğunluk + 22 bulgu kutusu; MONAI ile eğitilebilir; karşılaştırma Lunit/therapixel (ticari)",
+    blocker: "NC lisansı ticari kullanıma engel; DBT (tomosentez) farkı; kurum validasyonu",
+    value: "Otomatik ACR yoğunluğu + BI-RADS yoğunluk desteği (a-mg satırındaki hesap makinesini modele taşır)",
+  },
+  {
+    id: "aspects-auto",
+    title: "Otomatik ASPECTS (beyin BT — inme)",
+    field: "BT beyin · inme skoru",
+    license: "Açık ağırlık ve adımlı kamu veri seti yok; ISLES vb. çoğunlukla DUA/kayıtlı",
+    evidence: "Şu an elde: elle ASPECTS (src/lib/stroke.ts — 10 bölge işaretleme); otomatik skorlama için eğitim verisi + kurum onayı gerekir",
+    blocker: "Eğitim verisi (ISLES-CTP tarzı) veya ticari lisans (Viz.ai/Aidoc) due-diligence'ı",
+    value: "İnme triyajında dakikalar kazanılır; büyük damar oklüzyon iş akışına bağlanır",
+  },
+  {
+    id: "lung-rads-layer",
+    title: "BT toraks nodül Lung-RADS sınıflama tabakası (tespitin üstüne)",
+    field: "BT toraks · Lung-RADS",
+    license: "MONAI tespit modeli var (a-model, LUNA16); sınıflama katmanı için kurum eşik politikası gerekir",
+    evidence: "a-track: Lung-RADS boyut eşikleri kuralı kodda ve testli; eksik olan çaptan otomatik Lung-RADS dağıtımı + kalibre olasılık",
+    blocker: "Kurum eşik/karar politikası + kalibrasyon (a-uncert) + prospektif ölçüm",
+    value: "Takip aralığı önerisi otomatikleşir; nodül takibi panoya bağlanır",
+  },
+  {
+    id: "seg-stow-return",
+    title: "SEG / RTSTRUCT'u PACS'e STOW-RS ile geri yazma",
+    field: "Entegrasyon · PACS (AI değil)",
+    license: "Açık — mevcut DICOMweb istemcisi (src/lib/stowClient.ts) genişletilir",
+    evidence: "w-pacs: SR/KO/PR STOW gönderimi çalışıyor ve testli; SEG/RTSTRUCT STOW henüz yok — PACS kabul testi (Orthanc e2e) eklenebilir",
+    blocker: "Hedef PACS kabul testi; SEG/RTSTRUCT SOP sınıfı doğrulaması; STOW multipart sözleşmesi",
+    value: "Segmentasyon PACS'te kalıcı olur; OHIF/RadiAnt/Weasis doğrudan açar",
+  },
+];

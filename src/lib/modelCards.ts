@@ -105,6 +105,25 @@ export const DEEP_CXR_MODEL_CARD: ModelCard = {
     "Kaynak projenin doğrulama split'i: makro AUROC 0,851 (sınıf başına AUROC 0,73–0,98; en zayıf sınıf İnfiltrat 0,73). Kaynağın kendi kohortu DIŞINDA ve klinik olarak doğrulanmamıştır.",
 };
 
+export const DEEP_KNEE_MODEL_CARD: ModelCard = {
+  name: "nnU-Net Knee MRI Segmentation (yerel nnUNetv2) — diz MR",
+  version: "MIT · OAI-ZIB · Goyal et al., medRxiv 2025.02.21.25322094",
+  intendedUse:
+    "T2 ağırlıklı sagittal diz MR'da 9 anatomik yapının (medial/lateral menisküs, 4 kıkırdak bölgesi, femur/tibia/patella kemiği) SEGMENTASYONUNU yaparak hacim (mL) ölçümü ve DICOM SEG/RTSTRUCT dışa aktarımı sağlamak. Yırtık veya dejenerasyon derecesi SINIFLAMASI YAPMAZ; tanı koymaz; klinik karar için kullanılamaz.",
+  method:
+    "nnU-Net v2 cascade (3d_lowres → 3d_cascade_fullres, fold 1, ResEncUNetM); girdi T2 diz MR hacmidir (.nii.gz'e dönüştürülerek), nnU-Net kendi yoğunluk normalizasyonu ve yeniden örneklemesini yapar. Çıkarım ayrı bir süreçte (nnUNetv2_predict) koşar; hasta verisi dışarı gönderilmez, ücret yoktur. Çıktı etiket maskesidir; hacimler voksel × spacing³ ile istemcide hesaplanır.",
+  limitations: [
+    "Yalnızca yapı sınırlarını üretir; menisküs YIRTIĞI tespiti/derecesi yoktur.",
+    "T2 sagittal diz MR ile eğitilmiştir (OAI-ZIB); farklı sekans/düzlemlerde kalite düşer.",
+    "Kendini bildirilen Dice: ≈0,84 menisküs / ≈0,86 kıkırdak / ≈0,95 kemik / 0,906 ortalama; PROSPEKTİF klinik doğrulama YOKTUR.",
+    "Model ağırlıkları (~5 GB) bu depoda GÖMÜLÜ DEĞİLDİR; ai-worker/setup_knee_model.py ile indirilir.",
+    "CPU çıkarımı hacim başına dakikalar sürebilir; GPU ile hızlanır.",
+    "Arbitrer oblik düzlemler v1'de desteklenmez (eksen-hizalı sagittal/aksiyel beklenir).",
+  ],
+  validation:
+    "YOK — yazarların kendi test split'i dışında bağımsız/prospektif doğrulama yapılmamıştır. Kurumsal validasyon: SKM-TEA/OAI referans maskeleriyle Dice ölçümü ve gölge mod gerekir.",
+};
+
 export function modelCardFor(engine: EngineKind): ModelCard {
   if (engine === "cv-heuristic") return CV_MODEL_CARD;
   if (engine === "cxr-model") return DEEP_CXR_MODEL_CARD;
