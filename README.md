@@ -96,6 +96,16 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   `role="dialog"`/`aria-modal` + Escape, `aria-live` geri bildirim, **yüksek
   kontrast** teması (◐ Kontrast; tercih cihazda saklanır) ve `prefers-reduced-motion`
   desteği. WCAG kontrast matematiği testlidir (`npm run test:a11y`).
+- **Erişim anomalisi (KVKK):** Yönetim → Güvenlik sekmesindeki «Erişim
+  anomalileri» kartı son 7 günün denetim kaydını ve başarısız giriş
+  denemelerini kural tabanlı tarar: 10 dk'da ≥25 farklı çalışma açma, 1
+  saatte aynı çalışmayı ≥12 kez açma, 22:00–07:00'de ≥15 görüntüleme,
+  ≥6 (yüksek ≥20) dışa aktarım/PACS gönderimi/paylaşım bağlantısı, 15 dk'da
+  ≥8 başarısız giriş (kullanıcı) veya ≥20 (IP). Yüksek önemdeki yeni
+  anomaliler bildirim kanallarına ve denetim kaydına (`security.access_anomaly`)
+  bir kez yazılır (`accessAnomalyAlerted` ile tekrar engellenir).
+  **Sınırlılık:** heuristiktir, suistimal kanıtı değildir — alarm önce
+  kişiye doğrulatılır. `GET /api/security/access-anomaly` yalnız yönetici.
 - **Model kayıt defteri:** Yönetim → AI: model sürümleri (aday/aktif/emekli),
   trafik payı, parmak izi; `/api/ai/registry` deterministik **A/B ataması**
   (tohum → kova) ve aşama değişikliğinde denetim kaydı.
@@ -599,6 +609,7 @@ npm run test:measure-history        # sunucu ölçüm geçmişi serileri + trend
 npm run test:lungquant              # LAA-950, PD15, kesit profili, örnekleme
 npm run test:model-registry         # model kayıt defteri + A/B ataması
 npm run test:model-evaluate      # toplu model değerlendirme (AUC/eşik tablosu/Brier/ECE)
+npm run test:access-anomaly      # erişim anomalisi tespiti (KVKK, heuristik kurallar)
 npm run test:a11y                   # WCAG kontrastı + tema sabitleri
 npm run test:nuclear                # MTV/SUV örnekleme + TIC sınıflandırması
 npm run test:patient-letter         # hasta mektubu: TR/EN/DE, okuma düzeyi, taslak kilidi

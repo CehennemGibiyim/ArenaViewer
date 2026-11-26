@@ -12,6 +12,9 @@ interface SessionRow { id: string; userId: number; username: string; fullName: s
 interface RegistryRow { id?: number; name: string; version: string; modality: string; task: string; stage: "aday" | "aktif" | "emekli"; trafficPercent: number; fingerprint: string; notes: string; updatedAt?: string }
 interface RegistryState { entries: RegistryRow[]; summary: Record<string, number>; issues: string[] }
 interface PerfRow { engine: string; category: string; shown: number; approved: number; rejected: number; edited: number; pending: number; manualAdded: number; ppv: number | null }
+interface AccessAnomalyRow { kind: string; key: string; actor: string; severity: "yuksek" | "orta" | "izle"; title: string; detail: string; count: number; windowMin: number | null; firstAt: string; lastAt: string; entityId?: string }
+interface AccessAnomalyReport { generatedAt: string; windowDays: number; scannedAuditRows: number; scannedAttempts: number; anomalies: AccessAnomalyRow[]; alert: { total: number; high: number; sent: number }; note: string }
+
 interface DisagreementCategory { engine: string; category: string; decided: number; approved: number; rejected: number; edited: number; disagreementRate: number | null }
 interface DisagreementReason { engine: string; category: string; label: string; status: "reddedildi" | "duzenlendi"; reason: string }
 interface ReasonClassDigest { cls: string; label: string; count: number }
@@ -193,6 +196,18 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
     const r = await api<{ current: string; keys: { kid: string; since: string; current: boolean }[]; rotation: { summary: string; pending: number } }>("/api/admin/keyring");
     if (r.ok) setKeyring(r.data);
   }, []);
+  // Erişim anomalileri (KVKK): son 7 günün denetim + giriş denemesi taraması
+  const [anomaly, setAnomaly] = useState<AccessAnomalyReport | null>(null);
+  const [anomalyBusy, setAnomalyBusy] = useState(false);
+  const [anomalyError, setAnomalyError] = useState("");
+  const loadAnomalies = useCallback(async () => {
+    setAnomalyBusy(true);
+    setAnomalyError("");
+    const r = await api<AccessAnomalyReport & { error?: string }>("/api/security/access-anomaly");
+    if (r.ok) setAnomaly(r.data);
+    else setAnomalyError(r.data?.error ?? "Erişim anomalisi raporu alınamadı");
+    setAnomalyBusy(false);
+  }, []);
 
   // oturum yönetimi (w-auth): açık oturumlar, bu cihaz işareti, iptal
   const [sessRows, setSessRows] = useState<SessionRow[]>([]);
@@ -231,9 +246,9 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
       }
       if (tab === "stats") { await loadStats(targetHoursRef.current, trendModalityRef.current); await loadPeer(); }
       if (["security", "integration", "compliance"].includes(tab)) await loadSettings();
-      if (tab === "security") await loadKeyring();
+      if (tab === "security") { await loadKeyring(); await loadAnomalies(); }
     })();
-  }, [tab, loadProfile, loadAudit, loadSiem, loadStats, loadSettings, loadUsers, loadMfa, loadKeyring, loadSessions, loadRegistry, loadPeer]);
+  }, [tab, loadProfile, loadAudit, loadSiem, loadStats, loadSettings, loadUsers, loadMfa, loadKeyring, loadSessions, loadRegistry, loadPeer, loadAnomalies]);
 
   const saveSettings = async (patch: Record<string, unknown>) => {
     const r = await api<{ error?: string }>("/api/settings", json("PUT", patch));
@@ -1004,6 +1019,44 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
               <h2 className="mt-5 text-sm font-bold text-slate-100">Kayıt sayıları</h2>
               <div className="mt-2 grid grid-cols-3 gap-2 text-center text-xs">{Object.entries(status.totals).map(([k, v]) => <div key={k} className="rounded border border-[#1e2735] bg-[#0e141d] p-2"><div className="text-lg font-black text-cyan-300">{v}</div><div className="text-slate-500">{k}</div></div>)}</div>
               <Link href="/gizlilik" className="mt-4 inline-block text-xs text-cyan-400 hover:underline">KVKK aydınlatma metni şablonu →</Link>
+            </div>
+            <div className={`${card} md:col-span-2`} data-testid="access-anomaly-panel">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-sm font-bold text-slate-100">Erişim anomalileri (KVKK)</h2>
+                  <p className="mt-1 text-[10.5px] text-slate-500">Son {anomaly?.windowDays ?? 7} gün tarandı · {anomaly ? `${anomaly.scannedAuditRows} denetim satırı + ${anomaly.scannedAttempts} başarısız giriş` : "yükleniyor…"}</p>
+                </div>
+                <button className={`${btn} border border-slate-600/60 text-slate-200 hover:bg-slate-700/40 disabled:opacity-40`} disabled={anomalyBusy} onClick={() => void loadAnomalies()}>{anomalyBusy ? "Taranıyor…" : "Yeniden tara"}</button>
+              </div>
+              {anomalyError && <p role="alert" className="mt-2 rounded border border-amber-500/40 bg-amber-500/10 p-2 text-[11px] text-amber-200">{anomalyError}</p>}
+              {anomaly && anomaly.alert.sent > 0 && <p role="alert" className="mt-2 rounded border border-rose-500/40 bg-rose-500/10 p-2 text-[10.5px] text-rose-200">{anomaly.alert.sent} yeni yüksek anomalide bildirimler kanallara iletildi (denetim kaydı: «security.access_anomaly»).</p>}
+              {anomaly && anomaly.anomalies.length === 0 && <p className="mt-3 text-xs font-semibold text-emerald-300">Son {anomaly.windowDays} günde kural dışı erişim deseni tespit edilmedi.</p>}
+              {anomaly && anomaly.anomalies.length > 0 && (
+                <ul className="mt-3 space-y-2">
+                  {anomaly.anomalies.map((a) => {
+                    const sev = a.severity === "yuksek"
+                      ? "border-rose-500/50 bg-rose-500/10 text-rose-300"
+                      : a.severity === "orta"
+                        ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
+                        : "border-slate-600/60 bg-slate-700/20 text-slate-300";
+                    return (
+                      <li key={a.key} className="rounded-lg border border-[#1e2735] bg-[#0e141d] p-2.5" data-testid="access-anomaly-item">
+                        <div className="flex flex-wrap items-center gap-2 text-[10.5px]">
+                          <span className={`rounded border px-1.5 py-0.5 font-bold uppercase ${sev}`}>{a.severity}</span>
+                          <b className="text-slate-100">{a.title}</b>
+                          <code className="text-slate-500">{a.actor}</code>
+                          <span className="ml-auto font-mono text-slate-500">{a.count} olay{a.windowMin ? ` / ${a.windowMin} dk` : ""}</span>
+                        </div>
+                        <p className="mt-1.5 text-[10.5px] leading-snug text-slate-400">{a.detail}</p>
+                        {a.firstAt && (
+                          <p className="mt-1 font-mono text-[9.5px] text-slate-600">{new Date(a.firstAt).toLocaleString("tr-TR")} → {new Date(a.lastAt).toLocaleString("tr-TR")}</p>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              {anomaly && <p className="mt-3 text-[9.5px] leading-snug text-slate-600">{anomaly.note}</p>}
             </div>
           </div>
         )}

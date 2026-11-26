@@ -422,6 +422,23 @@ async function route(method: string, url: URL, init?: RequestInit): Promise<Resp
     }
   }
 
+  // Erişim anomalileri (KVKK) — kurgusal örnek: yönetici demoda uyarı bandını görür
+  if (p === "/api/security/access-anomaly" && method === "GET") {
+    return json({
+      generatedAt: new Date().toISOString(),
+      windowDays: 7,
+      scannedAuditRows: 1284,
+      scannedAttempts: 23,
+      anomalies: [
+        { kind: "toplu-okuma", key: "toplu-okuma|ornek.kullanici", actor: "ornek.kullanici", severity: "yuksek", title: "Kısa sürede çok sayıda farklı çalışma açıldı", detail: "10 dakikada 31 farklı çalışma (eşik 25). Nedenini kişiye sorun; öğretici/toplu iş meşru olabilir. (örnek)", count: 31, windowMin: 10, firstAt: iso(3 * HOUR), lastAt: iso(3 * HOUR - 8 * 60_000) },
+        { kind: "tek-hasta-yogun", key: "tek-hasta-yogun|a.demir|3420", actor: "a.demir", severity: "orta", title: "Aynı çalışmayı kısa sürede tekrar tekrar açtı", detail: "1 saatte aynı çalışma (#3420) 13 kez açıldı (eşik 12). Kendi hastası olmayabilir; manuel doğrulama gerekir. (örnek)", count: 13, windowMin: 60, firstAt: iso(26 * HOUR), lastAt: iso(26 * HOUR - 35 * 60_000), entityId: "3420" },
+        { kind: "mesai-disi", key: "mesai-disi|m.kaya", actor: "m.kaya", severity: "izle", title: "Mesai dışı saatlerde çok sayıda görüntüleme", detail: "22:00–07:00 arasında 19 görüntüleme (eşik 15). Nöbet/talebe meşru olabilir; yalnız desen olarak izlenir. (örnek)", count: 19, windowMin: null, firstAt: iso(5 * DAY), lastAt: iso(4 * DAY) },
+      ],
+      alert: { total: 3, high: 1, sent: 1 },
+      note: "DEMO VERİSİ — Heuristik desendir; tek başına suistimal kanıtı değildir. Alarm sesiyle ölçülen her satır için kişiye haber verip denetim kaydındaki gerçek satırları inceleyin. (örnek)",
+    });
+  }
+
   return null;
 }
 
