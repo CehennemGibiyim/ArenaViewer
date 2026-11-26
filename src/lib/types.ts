@@ -346,6 +346,8 @@ export interface SeriesData {
   pixelSpacing: number;
   sliceThickness: number;
   sliceSpacing?: number;
+  /** Sunucudaki depolanmış çalışma kimliği (yalnız storedStudies üzerinden açılırsa; canlı XA/US akışı için). */
+  storedStudyId?: number;
   /** Seri/Acquisition Time (gün başlangıcından saniye) — TIC zaman ekseni için. */
   seriesTime?: number | null;
   slicePositions?: number[];

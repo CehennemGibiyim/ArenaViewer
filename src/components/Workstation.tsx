@@ -35,6 +35,7 @@ import { SAMPLE_CASE_INFOS, buildSampleCase } from "@/lib/sampleCases";
 import { assertNotAborted, withImportTimeout } from "@/lib/importOperation";
 import { loadMedicalFiles, type ImportStats } from "@/lib/dicom";
 import { loadInWaves } from "@/lib/streamLoad";
+import { mergeSeriesData } from "@/lib/dicomIngest";
 import { resolveProtocol, runEngine } from "@/lib/ai/engine";
 import { runImageReview } from "@/lib/ai/imageReview";
 import { modelCardFor, DEEP_MODEL_CARD, DEEP_BRAIN_MODEL_CARD } from "@/lib/modelCards";
@@ -668,12 +669,27 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     return () => window.removeEventListener("focus", refresh);
   }, []);
 
+  // ───── Canlı XA/US akışı (DICOMweb STOW-RS alımı → besleme yoklaması) ─────
+  // Depolanmış bir çalışma Worklistten açıldığında ve içinde XA/US serisi varsa
+  // görünen düğmeyle açılır; ~2 sn'de bir /api/ingest/feed yoklanır, yeni
+  // örnekler çekilip açık seriye ARD ARDA eklenir (id korunur). DIMSE C-STORE
+  // DEĞİLDİR: örnekler modalite/ağ geçidinin STOW-RS POST'uyla gelmelidir.
+  const [liveSource, setLiveSource] = useState<{ studyUid: string; modalities: string[] } | null>(null);
+  const [liveOn, setLiveOn] = useState(false);
+  const [liveCount, setLiveCount] = useState(0);
+  const liveCursorRef = useRef(0);
+  const liveInfoRef = useRef<{ studyUid: string } | null>(null);
+  const liveBusyRef = useRef(false);
+
   // ───── Dosya / Klasör / PACS ─────
   const beginImport = useCallback(() => {
     importRef.current?.abort();
     const controller = new AbortController();
     importRef.current = controller;
     setImportWarnings([]);
+    setLiveOn(false);
+    setLiveSource(null);
+    setLiveCount(0);
     return controller;
   }, []);
 
@@ -685,6 +701,47 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   }, [toast]);
 
   useEffect(() => () => importRef.current?.abort(), []);
+
+  // Canlı akış yoklaması: feed'den yeni storedFiles id'lerini al, baytları çek,
+  // parse et, açık XA/US serisine ARD ARDA ekle (seri id'si korunur).
+  useEffect(() => {
+    if (!liveOn || !liveSource) return;
+    let stop = false;
+    const tick = async () => {
+      if (stop || liveBusyRef.current) return;
+      liveBusyRef.current = true;
+      try {
+        const r = await apiFetch(`/api/ingest/feed?studyUid=${encodeURIComponent(liveSource.studyUid)}&after=${liveCursorRef.current}`);
+        if (!r.ok) return;
+        const body = (await r.json()) as { files?: { id: number; name: string }[] };
+        const files = body.files ?? [];
+        if (files.length === 0) return;
+        liveCursorRef.current = files.reduce((m, f) => Math.max(m, f.id), liveCursorRef.current);
+        const arr: File[] = [];
+        for (let i = 0; i < files.length; i += 4) {
+          const part = await Promise.all(files.slice(i, i + 4).map(async (f) => {
+            const res = await apiFetch(`/api/storage/file/${f.id}`);
+            return res.ok ? new File([await res.blob()], f.name) : null;
+          }));
+          for (const f of part) if (f) arr.push(f);
+        }
+        if (arr.length === 0) return;
+        const parsed = await loadMedicalFiles(arr);
+        if (parsed.length === 0) return;
+        setLoaded((prev) => mergeSeriesData(prev, parsed).series);
+        setLiveCount((c) => c + arr.length);
+        setFeed((f) => [...f, { t: ts(), text: `Canlı akış: ${arr.length} yeni örnek açık seriye eklendi.`, kind: "done" as const }]);
+      } catch {
+        /* yoklama hatası sessiz; bir sonraki turda yine denenir */
+      } finally {
+        liveBusyRef.current = false;
+      }
+    };
+    const t = setInterval(() => { void tick(); }, 2000);
+    void tick();
+    return () => { stop = true; clearInterval(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveOn, liveSource]);
 
   // Kademeli (streaming) yüklemede açılan geçici serilerin kimlikleri: nihai parse
   // bunların yerini alır, böylece seri listesinde kopya kalmaz.
@@ -811,11 +868,12 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     finally { setSavingFiles(false); }
   };
 
-  const loadFromServer = useCallback(async (s: StudyRow, controller: AbortController): Promise<SeriesData[]> => {
+  const loadFromServer = useCallback(async (s: StudyRow, controller: AbortController, onManifest?: (m: { studyUid: string; maxId: number }) => void): Promise<SeriesData[]> => {
     const signal = controller.signal;
     const r = await withImportTimeout(apiFetch(`/api/storage/study/${s.id}`, { signal }), signal);
     if (!r.ok) throw new Error("Çalışma dosyaları alınamadı");
-    const { files } = (await r.json()) as { files: { id: number; name: string }[] };
+    const { files, studyUid } = (await r.json()) as { files: { id: number; name: string }[]; studyUid?: string };
+    onManifest?.({ studyUid: studyUid ?? s.studyUid, maxId: files.reduce((m, f) => Math.max(m, f.id), 0) });
     const out: File[] = [];
     for (let i = 0; i < files.length; i += 4) {
       assertNotAborted(signal);
@@ -834,9 +892,11 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     const controller = beginImport();
     setProgress({ count: 0, total: s.sliceCount || 1 });
     try {
-      const parsed = await loadFromServer(s, controller);
+      const parsed = await loadFromServer(s, controller, (m) => { liveCursorRef.current = m.maxId; liveInfoRef.current = { studyUid: m.studyUid }; });
       if (controller.signal.aborted || importRef.current !== controller) return;
       if (!parsed.length) throw new Error("Çalışma görüntüleri okunamadı");
+      if (parsed.some((p) => p.modality === "XA" || p.modality === "US")) setLiveSource({ studyUid: liveInfoRef.current?.studyUid ?? s.studyUid, modalities: [...new Set(parsed.filter((p) => p.modality === "XA" || p.modality === "US").map((p) => p.modality))] });
+      else setLiveSource(null);
       setLoaded((p) => [...parsed, ...p]);
       selectSeries([...parsed].sort((a, b) => b.slices.length - a.slices.length)[0], parsed);
     } catch (e) { if (!controller.signal.aborted) toast(e instanceof Error ? e.message : "Çalışma açılamadı"); }
@@ -1768,6 +1828,18 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
           title={mirrorOn ? "İkinci ekran yayınını durdur" : "Aktif seriyi ikinci pencerede/ekranda canlı yayınla (WL/WW, kesit, zoom)"}
           className={mirrorOn ? "border-emerald-400/60 text-emerald-200" : undefined}
         >🖥 {mirrorOn ? "Yayın açık" : "İkinci ekran"}</Btn>
+        {liveSource && (
+          <Btn
+            onClick={() => {
+              const next = !liveOn;
+              setLiveOn(next);
+              toast(next ? `Canlı XA/US akışı açık — ${liveSource.modalities.join("/")} örnekleri ~2 sn'de bir eklenir (STOW-RS alımı).` : "Canlı akış durduruldu.", next ? 5000 : 2500);
+            }}
+            title="DICOMweb STOW-RS ile depolanmış çalışmaya gelen yeni XA/US örneklerini ~2 sn'de bir yokla ve açık seriye ekle. DIMSE C-STORE değildir; modalite/ağ geçidi STOW-RS POST kullanmalıdır."
+            className={liveOn ? "border-emerald-400/60 text-emerald-200" : undefined}
+            data-testid="live-flow-toggle"
+          >{liveOn ? "● Canlı" : "○ Canlı XA/US"}{liveCount > 0 ? ` +${liveCount}` : ""}</Btn>
+        )}
         <div className="ml-auto flex min-w-0 flex-wrap items-center gap-2">
           <span className="rounded border border-amber-400/40 bg-amber-400/10 px-2 py-1 text-[9px] font-bold tracking-wide text-amber-300">KLİNİK KARAR İÇİN KULLANILAMAZ</span>
           <Link href="/paketler" prefetch={false} title="Windows · Linux · macOS kurulum paketleri ve dosya yolları" className="rounded-lg border border-emerald-400/50 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-bold text-emerald-200 hover:bg-emerald-500/20">📦 Kurulum</Link>
