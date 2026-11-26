@@ -9,7 +9,7 @@ import { isUid, qidoInstances, stowInstance } from "@/lib/server/pacs";
 import { mapReport } from "@/lib/server/studyRepo";
 import { validateMeasurementSrBytes } from "@/lib/measureSr";
 import { buildKeyObjectSelection, buildPresentationState, buildReportSr } from "@/lib/dicomSr";
-import { summarizeAnonResult, validateAnonStowBody } from "@/lib/stowPayload";
+import { parseAnonSelection, selectionInstanceCountError, summarizeAnonResult, validateAnonStowBody } from "@/lib/stowPayload";
 import { decryptText } from "@/lib/server/crypto";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +18,8 @@ interface StowBody {
   kind?: "sr" | "ko" | "pr" | "anon" | "sr1500";
   /** Anonim gönderim: istemcide sıfırdan üretilmiş DICOM baytları (base64). */
   instances?: { name?: string; data?: string }[];
+  /** Anonim gönderimde istenen kesit aralığı (1 tabanlı kapalı); varsa örnek sayısıyla bire bir uyuşmak zorunda. */
+  selection?: { from?: number; to?: number; total?: number } | null;
   reportId?: number;
   studyUid?: string;
   seriesKey?: string;
@@ -189,8 +191,16 @@ async function stowFromSeries(b: StowBody, user: Parameters<typeof audit>[0]) {
  * Boyut/örnek sayısı sunucuda yeniden doğrulanır; her gönderim denetime yazılır.
  */
 async function stowAnon(b: StowBody, user: Parameters<typeof audit>[0]) {
+  const sel = parseAnonSelection(b.selection);
+  if (!sel.ok) return NextResponse.json({ error: sel.error }, { status: 400 });
   const v = validateAnonStowBody(b);
   if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 });
+  // Seçim bütünlüğü: bildirilen aralığın kesit sayısı gelen örneklere eşit olmalı;
+  // eşit değilse istemci seçim dışı/eksik örnek gönderiyordur — PACS'e iletilmez.
+  if (sel.value) {
+    const countErr = selectionInstanceCountError(sel.value, v.instances.length);
+    if (countErr) return NextResponse.json({ error: countErr }, { status: 400 });
+  }
   const studyUid = (b.studyUid ?? "").trim();
   if (!isUid(studyUid)) return NextResponse.json({ error: "Geçersiz StudyInstanceUID" }, { status: 400 });
 
@@ -214,6 +224,6 @@ async function stowAnon(b: StowBody, user: Parameters<typeof audit>[0]) {
     }
   }
   const sum = summarizeAnonResult(results);
-  await audit(user, sum.ok ? "pacs.send_anon" : "pacs.send_anon_partial", "study", studyUid, { count: v.instances.length, stored: sum.stored, failed: sum.failed, pacs: cfg.name || cfg.kind });
+  await audit(user, sum.ok ? "pacs.send_anon" : "pacs.send_anon_partial", "study", studyUid, { count: v.instances.length, stored: sum.stored, failed: sum.failed, pacs: cfg.name || cfg.kind, ...(sel.value ? { selection: sel.value } : {}) });
   return NextResponse.json({ ...sum, kind: "anon", pacs: cfg.name || cfg.kind }, { status: sum.ok ? 200 : 207 });
 }
