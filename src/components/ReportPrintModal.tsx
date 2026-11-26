@@ -18,6 +18,7 @@ import type {
   Finding, FindingApprovalStatus, KeyImage, ModelCard, ReportAddendum, ReportVersion, SavedReport, TemplateRow, UserInfo,
 } from "@/lib/types";
 import { apiFetch } from "@/lib/csrfClient";
+import { INTENDED_USE, SHORT_DISCLAIMER, versionLine } from "@/lib/intendedUse";
 
 export interface ReportData {
   id?: number;
@@ -815,7 +816,11 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                     <div className="mt-6 w-48 border-b border-slate-400" />
                   </div>
                 </div>
-                <div className="mt-6 border-t border-slate-200 pt-2 text-[9.5px] text-slate-500">Bu rapordaki yapay zeka destekli bölümler taslak niteliğindedir ve sorumlu hekim onayı gerektirir.</div>
+                <div className="mt-6 border-t border-slate-200 pt-2 text-[9.5px] text-slate-500">
+                  <div>Bu rapordaki yapay zeka destekli bölümler taslak niteliğindedir ve sorumlu hekim onayı gerektirir.</div>
+                  <div className="mt-0.5">{SHORT_DISCLAIMER} · {INTENDED_USE.product} sürüm {versionLine()}</div>
+                  <div className="mt-0.5">{INTENDED_USE.regulatory}</div>
+                </div>
               </div>
             </div>
           </div>

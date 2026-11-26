@@ -48,6 +48,8 @@ import { findMatchingHangingProtocol, resolveHangingCellSeries } from "@/lib/han
 import { DEFAULT_SHORTCUTS, loadShortcuts, resolveAction, type ShortcutAction } from "@/lib/shortcuts";
 import { findMskProtocol, type MskMetric } from "@/lib/msk";
 import { suvPresetsForSeries } from "@/lib/petWindows";
+import { SHORT_DISCLAIMER, versionLine } from "@/lib/intendedUse";
+import IntendedUseModal from "@/components/IntendedUseModal";
 import type {
   AiMode, AiProtocol, AnalysisResult, Annotation, EngineKind, Finding, FindingApprovalStatus,
   HangingProtocolRule, ImageReview, KeyImage, Layout, Lesion, SavedReport, SeriesData, StudyRow, ToolName, UserInfo, WindowPreset,
@@ -199,6 +201,8 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   const [highContrast, setHighContrast] = useState(false);
   // Nükleer tıp analizi (a-nm)
   const [nuclearOpen, setNuclearOpen] = useState(false);
+  // Amaçlanan kullanım / Hakkında (t-disclaimer)
+  const [aboutOpen, setAboutOpen] = useState(false);
   // ROI tabanlı TIC (v-fusion)
   const [ticOpen, setTicOpen] = useState(false);
   // Akciğer kantitasyonu (a-lungquant)
@@ -1735,6 +1739,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         {series && series.slices.length > 0 && (series.modality === "PT" || series.modality === "NM" || series.suv) && (
           <Btn on={nuclearOpen} title="Nükleer tıp: eşik tabanlı MTV/SUVpeak ve TIC (zaman-aktivite) sınıflandırması" onClick={() => setNuclearOpen((v) => !v)}>🧪 Nükleer</Btn>
         )}
+        <Btn on={aboutOpen} title="Hakkında: amaçlanan kullanım, amaçlanmayan kullanımlar, sınırlar ve sürüm bilgisi" onClick={() => setAboutOpen((v) => !v)}>ℹ️ Hakkında</Btn>
         {series && series.slices.length > 0 && all.length > 1 && (
           <Btn on={ticOpen} title="ROI tabanlı TIC: aynı bölgeyi dinamik serilerde ölç, wash-out/plato/progresif sınıfla" onClick={() => setTicOpen((v) => !v)}>📈 TIC</Btn>
         )}
@@ -1879,7 +1884,15 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
             {series.overlays && series.overlays.length > 0 && <span className="text-emerald-400">Katman: {series.overlays.length}</span>}
           </>
         )}
-        <span className="ml-auto hidden text-amber-300/80 lg:inline">DEMO / ARAŞTIRMA — kural tabanlı aday bulgular klinik olarak doğrulanmamıştır</span>
+        <button
+          type="button"
+          onClick={() => setAboutOpen(true)}
+          data-testid="status-disclaimer"
+          title="Amaçlanan kullanım ve sürüm bilgisi"
+          className="ml-auto hidden cursor-pointer text-amber-300/80 underline decoration-dotted underline-offset-2 hover:text-amber-200 lg:inline"
+        >
+          {SHORT_DISCLAIMER} · v{versionLine()}
+        </button>
       </footer>
 
       {activeReport && <ReportPrintModal open={reportOpen} onClose={() => setReportOpen(false)} report={activeReport} user={user} onSave={saveReport} onGotoSlice={(n) => setSlice(Math.max(0, n - 1))} srEvidence={srEvidence} sessionIdentity={sessionIdentity} priorReports={patientReports} />}
@@ -1896,6 +1909,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
           onAddToFindings={(text) => { pushFeed(text, "finding"); toast("TIC özeti akışa yazıldı ve kopyalandı."); }}
         />
       )}
+      {aboutOpen && <IntendedUseModal onClose={() => setAboutOpen(false)} />}
       {series && nuclearOpen && (
         <NuclearPanel
           series={series}

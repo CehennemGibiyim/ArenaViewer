@@ -239,6 +239,13 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   nesnesi, her anotasyon kendi referans görüntüsüne bağlı). Kesiti kaynak SOP Instance
   ile eşleşmeyen anotasyon atlanır ve menü kaç tanesinin yazıldığını söyler
   (`src/lib/gspsGraphics.ts`). Belge rapor/imza değildir; geri içe aktarma henüz yok.
+- **Amaçlanan kullanım & sürüm:** «ℹ️ Hakkında» paneli amaçlanan kullanım cümlesini,
+  kullanıcı kitlesini, **amaçlanmayan kullanımları** (klinik tanı, tarama/triyaj, rapor
+  yerine geçme), bilinen sınırları ve düzenleyici durumu (**CE/FDA/IVDR belgesi yoktur**)
+  tek kaynaktan gösterir (`src/lib/intendedUse.ts`); durum çubuğunda sürüm numarası
+  tıklanabilir uyarı olarak durur ve yazdırma raporunun altbilgisine sürüm + düzenleyici
+  durum basılır. Sürüm derlemeden gelmezse `0.1.0-demo (derleme dev)` yazar — uydurma
+  sürüm numarası kullanılmaz.
 - **PET SUV pencereleri:** PET serisinde SUV factor varsa pencere çubuğunda
   **SUV biriminde** hazır ön ayarlar görünür (0–2,5 / 0–5 / 0–10 / 0–15) ve modality
   penceresine çevrilerek uygulanır (`src/lib/petWindows.ts`). Factor yoksa ön ayarlar
