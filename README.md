@@ -531,6 +531,7 @@ npm run test:gap-drift              # yamalar taban metni budamaz; bilinen yanl�
 npm run test:fusion-deform          # elastik kayıt: düğüm alanı, düzleştirme, sentetik geri kazanım
 npm run test:fusion-mi              # çok modaliteli MI hizalaması: NMI, monoton olmayan eşleme, öteleme
 npm run test:window-worker          # pencereleme Web Worker'ı: kaynak ile windowToRGBA bit eşdeğerliği, yedek yol
+npm run test:stream-load            # kademeli yükleme: dalga planı, eşzamanlılık tavanı, hata/iptal muhasebesi
 npm run test:fusion-z               # kesitler arası z kayması: konum eşleme, parabolik incelme, katman
 npm run test:photometric            # fotometri: MONO1/2, RGB/planar, YBR 4:2:2, palet LUT
 npm run test:photometric-e2e        # sentetik DICOM ile renkli/paletli/çok kareli içe aktarma
