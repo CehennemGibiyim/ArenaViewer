@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { StudyRow, UserInfo } from "@/lib/types";
 import { apiFetch } from "@/lib/csrfClient";
 import TriageQueue from "./TriageQueue";
+import { parsePreviewMeta, decodeFrameToRgba } from "@/lib/pacsPreview";
 
 interface PacsStudy {
   studyUid: string;
@@ -73,6 +74,12 @@ export default function WorklistModal({ open, onClose, user, onOpenStudy, onOpen
   const [mwlBusy, setMwlBusy] = useState(false);
   const [mwlNote, setMwlNote] = useState("");
   const [mwlLoaded, setMwlLoaded] = useState(false);
+  // metadata-first «ilk kare» önizlemesi: yalnız 1 kesit indirilir (PACS import değildir)
+  const [preview, setPreview] = useState<{ patientName: string; patientId: string; modality: string } | null>(null);
+  const [previewBusy, setPreviewBusy] = useState(false);
+  const [previewErr, setPreviewErr] = useState("");
+  const [previewShot, setPreviewShot] = useState<{ width: number; height: number; rgba: Uint8Array; wl: number; ww: number; min: number; max: number; frames: number } | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const canAssign = true;
 
   const load = useCallback(async () => {
@@ -121,6 +128,50 @@ export default function WorklistModal({ open, onClose, user, onOpenStudy, onOpen
       setMwlLoaded(true);
     })();
   }, [open, tab, mwlLoaded, loadMwl]);
+
+  // metadata-first önizleme: instances → metadata → frames?raw=1 (yalnız 1 kesit).
+  // Ana görüntüleyici içe aktarma hattına dokunmaz; tam lazy-pixel ayrı iştir.
+  const openPreview = async (s: PacsStudy) => {
+    if (previewBusy) return;
+    setPreviewBusy(true);
+    setPreviewErr("");
+    setPreviewShot(null);
+    setPreview({ patientName: s.patientName, patientId: s.patientId, modality: s.modalities });
+    try {
+      const li = await apiFetch(`/api/pacs/instances?studyUid=${encodeURIComponent(s.studyUid)}`);
+      const list = (await li.json().catch(() => null)) as { seriesUid?: string; sopUid?: string }[] | { error?: string } | null;
+      if (!li.ok || !Array.isArray(list) || list.length === 0 || !list[0]?.seriesUid || !list[0]?.sopUid) {
+        throw new Error((!Array.isArray(list) && list?.error) || "Bu çalışmada görüntü bulunamadı");
+      }
+      const first = list[0] as { seriesUid: string; sopUid: string };
+      const mr = await apiFetch(`/api/pacs/metadata?${new URLSearchParams({ studyUid: s.studyUid, seriesUid: first.seriesUid, sopUid: first.sopUid })}`);
+      const meta = await mr.json().catch(() => null);
+      if (!mr.ok) throw new Error((meta as { error?: string } | null)?.error ?? `Metadata alınamadı (${mr.status})`);
+      const info = parsePreviewMeta(meta);
+      const fr = await apiFetch(`/api/pacs/frames?${new URLSearchParams({ studyUid: s.studyUid, seriesUid: first.seriesUid, sopUid: first.sopUid, frames: "1", raw: "1" })}`);
+      if (!fr.ok) {
+        const d = (await fr.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(d?.error ?? `Kare alınamadı (${fr.status})`);
+      }
+      const bytes = new Uint8Array(await fr.arrayBuffer());
+      const shot = decodeFrameToRgba(info, bytes);
+      setPreviewShot({ width: shot.width, height: shot.height, rgba: shot.rgba, wl: shot.wl, ww: shot.ww, min: shot.sourceMin, max: shot.sourceMax, frames: info.numberOfFrames });
+    } catch (e) {
+      setPreviewErr(e instanceof Error ? e.message : "Önizleme başarısız");
+    } finally {
+      setPreviewBusy(false);
+    }
+  };
+  useEffect(() => {
+    if (!previewShot) return;
+    const c = canvasRef.current;
+    if (!c) return;
+    c.width = previewShot.width;
+    c.height = previewShot.height;
+    const ctx = c.getContext("2d");
+    if (!ctx) return;
+    ctx.putImageData(new ImageData(new Uint8ClampedArray(previewShot.rgba), previewShot.width, previewShot.height), 0, 0);
+  }, [previewShot]);
 
   // "Çalışmaya al": MWL ögesi yerel kayda dönüşür; görüntü PACS'ten geldiğinde
   // aynı StudyInstanceUID ile eşleşir (accession bazlı türetme yalnız yedek).
@@ -259,13 +310,33 @@ export default function WorklistModal({ open, onClose, user, onOpenStudy, onOpen
                       <td className="border-b border-[#141b26] px-3 py-2 font-bold text-cyan-300">{s.modalities}</td>
                       <td className="border-b border-[#141b26] px-3 py-2 text-slate-300">{s.description}</td>
                       <td className="border-b border-[#141b26] px-3 py-2 text-slate-400">{s.instances}</td>
-                      <td className="border-b border-[#141b26] px-3 py-2 text-right"><button onClick={() => { onOpenPacs(s); onClose(); }} className="cursor-pointer rounded bg-cyan-500 px-2.5 py-1 font-bold text-slate-950 hover:bg-cyan-400">Getir ve aç</button></td>
+                      <td className="border-b border-[#141b26] px-3 py-2 text-right"><button onClick={() => void openPreview(s)} title="İlk kare önizleme — yalnız 1 kesit indirilir (tanılama için seriyi açın)" className="mr-1 cursor-pointer rounded border border-[#2d3b4e] bg-[#141b24] px-2 py-1 text-slate-200 hover:border-cyan-400 hover:text-cyan-300">👁</button><button onClick={() => { onOpenPacs(s); onClose(); }} className="cursor-pointer rounded bg-cyan-500 px-2.5 py-1 font-bold text-slate-950 hover:bg-cyan-400">Getir ve aç</button></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           </>
+        )}
+        {preview && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70">
+            <div className="w-[480px] max-w-[92vw] rounded-xl border border-[#232e40] bg-[#0b0f16] p-4 shadow-2xl">
+              <div className="mb-2 flex items-center gap-2">
+                <div className="text-xs font-black tracking-wide text-cyan-300">PACS önizleme — yalnız 1. kare</div>
+                <button onClick={() => { setPreview(null); setPreviewShot(null); }} className="ml-auto cursor-pointer rounded border border-[#2d3b4e] bg-[#141b24] px-2 py-0.5 text-xs text-slate-300 hover:text-white">✕</button>
+              </div>
+              <div className="mb-2 text-[10px] text-slate-500">{preview.patientName || "—"} · {preview.patientId || "—"} · {preview.modality || "—"} — bu görüntü tanı amaçlı değildir; değerlendirme için seriyi açın.</div>
+              {previewBusy && !previewShot && !previewErr && <div className="py-10 text-center text-xs text-slate-400">İlk kesit PACS&apos;ten getiriliyor…</div>}
+              {previewErr && <div className="rounded border border-rose-500/40 bg-rose-500/10 px-3 py-6 text-center text-xs font-semibold text-rose-300">{previewErr}</div>}
+              {previewShot && (
+                <>
+                  <canvas ref={canvasRef} aria-label="İlk kesit önizleme" className="mx-auto block max-h-[52vh] w-auto max-w-full rounded border border-[#1e2735] bg-black [image-rendering:pixelated]" />
+                  <div className="mt-2 text-center font-mono text-[10px] text-slate-500">{previewShot.width}×{previewShot.height}px{previewShot.frames > 1 ? ` · çok kareli (${previewShot.frames}), yalnız 1. kare gösterilir` : ""} · WL {Math.round(previewShot.wl)} / WW {Math.round(previewShot.ww)} · HU [{Math.round(previewShot.min)}, {Math.round(previewShot.max)}] · pencere PACS metadata&apos;sından (yoksa min/max yedeği)</div>
+                </>
+              )}
+              <div className="mt-3 flex justify-end"><button onClick={() => { setPreview(null); setPreviewShot(null); }} className="cursor-pointer rounded bg-cyan-500 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-cyan-400">Kapat</button></div>
+            </div>
+          </div>
         )}
       </div>
     </div>

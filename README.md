@@ -197,6 +197,11 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   eşit** olmasını zorunlu kılar — seçim dışı örnek PACS'e iletilmez ve istek 400 ile
   reddedilir. Seçim denetim kaydına yazılır. Rapor SR'ı bilinçli olarak bu diyalogda
   değil — onaylı rapor ekranından gönderilir. Dürüst sınır: C-STORE (DIMSE) hâlâ yok.
+- **PACS ilk kare önizleme (metadata-first):** Çalışma listesi → PACS sekmesinde
+  satırdaki «👁» düğmesi yalnız **tek kare** getirir (instances → metadata →
+  frames?raw=1): MONOCHROME1/2, 8/16 bit, işaretli 12-bit saklanmış örnekler,
+  slope/intercept, modality WL/WW ya da min/max yedeği. Sıkıştırılmış aktarım ve
+  RGB/palet karelerde açık uyarı verir; tam lazy-pixel görüntüleyici ayrı iştir.
 - **PACS gönderimi (STOW-RS):** Onaylanmış rapor DICOM SR olarak, anahtar
   kesitler KO ve pencere/döndürme ayarı GSPS (PR) olarak PACS'e gönderilebilir.
   KO/PR gönderiminde kesit UID'leri önce QIDO-RS ile PACS'te doğrulanır;
@@ -621,6 +626,7 @@ npm run test:msk                     # MSK protokol hesapları + nokta yapışma
 npm run test:esign                   # imza kaydı + NES sınır etiketi
 npm run test:report-version       # sürüm diff/geri yükleme + ek imza kaydı ilişkisi
 npm run test:bulkdata          # metadata-içi PixelData (BulkDataURI) + SSRF koruması
+npm run test:pacspreview       # metadata-first ilk kare önizleme (monokrom kare → RGBA)
 npm run test:csp-siem          # CSP raporları → denetim/SIEM + gürültü filtresi
 npm run test:xref                    # 3B imleç: en yakın kesit + panel güncellemeleri
 npm run test:perf                   # pencere/seviye doğruluğu + önbellek ön-işleme
