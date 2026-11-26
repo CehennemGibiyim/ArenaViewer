@@ -103,6 +103,8 @@ export const RATE_RULES: { match: RegExp; rule: RateRule; name: string }[] = [
   { name: "ai", match: /^\/api\/(analyze|multi-analyze|ai|deep-scan)\b/, rule: { limit: 30, windowMs: 60_000 } },
   // PACS/HBYS köprüleri: dış sistemlere giden istekler
   { name: "pacs", match: /^\/api\/(pacs|his)\b/, rule: { limit: 60, windowMs: 60_000 } },
+  // CSP rapor ucu: kimliksiz; denetim yazımı zaten CspReportFilter ile sınırlı
+  { name: "csp", match: /^\/api\/csp-report$/, rule: { limit: 60, windowMs: 60_000 } },
   // Genel API
   { name: "api", match: /^\/api\//, rule: { limit: 600, windowMs: 60_000 } },
 ];
@@ -271,6 +273,8 @@ export function buildCsp(opts: CspOptions = {}): string {
     ["base-uri", "'self'"],
     ["form-action", "'self'"],
     ["frame-ancestors", "'self'"],
+    // İhlal raporları /api/csp-report'a düşer (aynı köken; ek kimlik istemez).
+    ["report-uri", "/api/csp-report"],
     ...(opts.dev ? [] : [["upgrade-insecure-requests", ""] as [string, string]]),
   ];
   return directives.map(([k, v]) => (v ? `${k} ${v}` : k)).join("; ");
@@ -279,11 +283,49 @@ export function buildCsp(opts: CspOptions = {}): string {
 /** İsteğe bağlı raporlama: CSP ihlalleri standart rapor ucuna gider (açıksa). */
 export const CSP_REPORT_PATH = "/api/csp-report";
 
+/**
+ * CSP raporu gürültü filtresi (tek örnekli; çok örnekli kurulumda Redis sayacı gerekir):
+ * IP başına kayan pencere + aynı satır için 60 sn yinelenme bastırması.
+ * Amaç: kimlik doğrulaması olmayan rapor ucu ile denetim zincirini/Şifreli SIEM'i
+ * isteyerek/çarpışan CSP gürültüsüyle doldurmak.
+ */
+export class CspReportFilter {
+  private readonly ipHits = new Map<string, number[]>();
+  private readonly lineAt = new Map<string, number>();
+  constructor(
+    private readonly ipPerMinute = 30,
+    private readonly lineWindowMs = 60_000,
+    private readonly maxTrack = 256,
+  ) {}
+  /** İzin ver → true (kayıt düşer); bastır → false. */
+  allow(ip: string, line: string, now = Date.now()): boolean {
+    const hits = (this.ipHits.get(ip) ?? []).filter((t) => now - t < 60_000);
+    if (hits.length >= this.ipPerMinute) {
+      this.ipHits.set(ip, hits);
+      return false;
+    }
+    const last = this.lineAt.get(line);
+    // Yinelenme bastırması IP kotasını tüketmez: yalnız gerçekten denetime yazılacak raporlar sayılır.
+    if (last !== undefined && now - last < this.lineWindowMs) return false;
+    if (this.lineAt.size >= this.maxTrack) this.purge(now);
+    this.lineAt.set(line, now);
+    this.ipHits.set(ip, [...hits, now]);
+    return true;
+  }
+  private purge(now: number) {
+    for (const [k, t] of this.lineAt) if (now - t >= this.lineWindowMs) this.lineAt.delete(k);
+    if (this.lineAt.size < this.maxTrack) return;
+    const sorted = [...this.lineAt.entries()].sort((a, b) => a[1] - b[1]);
+    for (const [k] of sorted.slice(0, Math.ceil(this.maxTrack / 4))) this.lineAt.delete(k);
+  }
+}
+
 /** CSP raporu gövdesini doğrular ve günlük satırına indirger. */
 export function summarizeCspReport(body: unknown): string {
   const b = (body ?? {}) as { "csp-report"?: Record<string, unknown> } & Record<string, unknown>;
   const r = (b["csp-report"] ?? b) as Record<string, unknown>;
-  const str = (k: string) => (typeof r[k] === "string" ? (r[k] as string) : "");
+  // Kontrol karakterleri temizlenir: günlüğe CRLF/log enjeksiyonu yapılamaz.
+  const str = (k: string) => (typeof r[k] === "string" ? (r[k] as string).replace(/[\u0000-\u001f\u007f]+/g, " ").trim() : "");
   const blocked = str("blocked-uri") || str("blockedURL");
   const directive = str("violated-directive") || str("effectiveDirective");
   const doc = str("document-uri") || str("documentURL");
