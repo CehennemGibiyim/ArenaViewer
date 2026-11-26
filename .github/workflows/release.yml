@@ -62,7 +62,7 @@ jobs:
 
       - name: Release yayınla
         if: github.ref_type == 'tag'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: ATIKVIEWER v${{ env.VERSION }}
           generate_release_notes: true
@@ -112,7 +112,7 @@ jobs:
 
       - name: Release yayınla
         if: github.ref_type == 'tag'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: ATIKVIEWER v${{ env.VERSION }} — Linux
           files: |
@@ -155,7 +155,7 @@ jobs:
 
       - name: Release yayınla
         if: github.ref_type == 'tag'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: ATIKVIEWER v${{ env.VERSION }} — macOS
           files: |
