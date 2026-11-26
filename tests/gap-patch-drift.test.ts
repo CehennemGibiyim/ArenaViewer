@@ -61,6 +61,7 @@ ok(liveText("r-patient").includes("patientLetter"), "r-patient satırı hasta me
 ok(liveText("r-export").includes("TID 1500"), "r-export satırı ölçüm SR (TID 1500) çıktısını anıyor");
 ok(liveText("t-automation").includes("findingsReason"), "t-automation satırı hekim kararının ayrı saklandığını (findingsReason) anıyor");
 ok(liveText("a-feedback").includes("aiDisagreement"), "a-feedback satırı uyuşmazlık panosunu (aiDisagreement.ts) anıyor");
+ok(liveText("f-series").includes("sliceGaps"), "f-series satırı kesit aralığı denetimini (sliceGaps.ts) anıyor");
 ok(!liveText("r-review").includes("panosunda (a-feedback) kategori bazlı gösterilmesi"), "r-review aksiyonu tamamlanan pano işini yeniden istemiyor");
 ok(!liveText("m-persist").includes("Ölçümleri veritabanına kaydet"), "m-persist satırı \"ölçümleri veritabanına kaydet\" (zaten yapılan) işini aksiyon olarak önermiyor");
 

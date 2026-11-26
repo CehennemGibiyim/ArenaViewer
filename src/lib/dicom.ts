@@ -4,6 +4,7 @@ import { assertNotAborted, withImportTimeout } from "./importOperation";
 import type { DicomOverlayPlane, DicomTag, MammographyInfo, PaletteColorLUT, Pixels, SeriesData } from "./types";
 import { suvFromDataset, parseTm } from "./suv";
 import { applyCharset } from "./dicomCharset";
+import { analyzeSliceGaps, hasSliceProblem } from "./sliceGaps";
 import { codecName, decodeEncapsulatedFrames, isCodecSupported, type RawFrame } from "./codecs";
 import {
   isSOPClass,
@@ -705,8 +706,11 @@ export async function loadMedicalFiles(
     const diffs = positions ? positions.slice(1).map((p, i) => Math.abs(p - positions[i])).filter((d) => d > 0.01) : [];
     const spacing = diffs.length ? median(diffs) : thickness || 1;
     if (diffs.length > 2) {
-      const bad = diffs.filter((d) => Math.abs(d - spacing) > spacing * 0.25).length;
-      if (bad > 0) onWarning?.(`"${seriesDesc}" serisinde ${bad} kesit aralığı düzensiz (eksik/çift kesit olabilir).`);
+      // Eksik/yinelenen kesit sayısı tahmini (src/lib/sliceGaps.ts); yalnız uyarı üretir.
+      const gaps = analyzeSliceGaps(positions ?? []);
+      if (gaps && hasSliceProblem(gaps)) {
+        onWarning?.(`"${seriesDesc}" serisinde ${gaps.message} — eksik/çift kesit olabilir.`);
+      }
     }
 
     const wl = first.floatString("x00281050");

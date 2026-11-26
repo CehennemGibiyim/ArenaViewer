@@ -97,8 +97,8 @@ export const BASE_ITEMS: GapItem[] = [
     id: "f-series", category: "format", title: "Seri gruplama + anatomik kesit sıralama",
     status: "var", priority: "P3", effort: "S",
     market: ["RadiAnt", "OHIF", "Weasis", "Horos"],
-    ours: "SeriesInstanceUID ile gruplama; ImagePositionPatient/ImageOrientation izdüşümüyle sıralama (yoksa InstanceNumber).",
-    action: "Kalan: beklenen kesit sayısına göre eksik kesit tespiti ve çift kesit ayıklama (şu an yalnız kesit aralığı düzensizliği uyarısı var).",
+    ours: "SeriesInstanceUID ile gruplama; ImagePositionPatient/ImageOrientation izdüşümüyle sıralama (yoksa InstanceNumber). **Yeni — kesit aralığı denetimi:** `src/lib/sliceGaps.ts` medyan aralıktan sapmayı, **tahmini eksik kesit** ve **yinelenen kesit** sayısını hesaplar; seri yüklenirken tek uyarı olarak gösterilir (`tests/slice-gaps.test.ts`, 21 assert).",
+    action: "Kalan: tespit edilen eksik/yinelenen kesitlerin çalışma listesinde rozet olarak gösterilmesi ve eksik kesitlerin PACS tarafından yeniden istenmesi; sayım hâlâ tahmindir (değişken aralıklı serilerde yanılabilir).",
   },
   {
     id: "f-open", category: "format", title: "Klasör / ZIP / çoklu dosya / sürükle-bırak / uzantısız dosyalar",
