@@ -399,8 +399,8 @@ export const BASE_ITEMS: GapItem[] = [
     id: "r-patient", category: "report", title: "Hasta dostu özet",
     status: "var", priority: "P3", effort: "S",
     market: ["Rad AI"],
-    ours: "Hasta mektubu (`src/lib/patientLetter.ts` + rapor ekranındaki «Hasta mektubu»): onaylı rapordan **TR/EN/DE** dillerinde ve **sade/standart** okuma düzeyinde özet; sade düzeyde tıbbi terimler günlük dile çevrilir. Çıktı tanı koymaz, hekim onayı gerektirir.",
-    action: "Kalan: kuruma özel terim sözlüğü ve okunabilirlik ölçümü (cümle uzunluğu/hece) ile düzey doğrulaması.",
+    ours: "Hasta mektubu (`src/lib/patientLetter.ts` + rapor ekranındaki «Hasta mektubu»): onaylı rapordan **TR/EN/DE** dillerinde ve **sade/standart** okuma düzeyinde özet; sade düzeyde tıbbi terimler günlük dile çevrilir. **Kuruma özel terim sözlüğü** (`terim = karşılık` satırları, en uzun terim önce, yerleşik listeden önce uygulanır) ve **okunabilirlik ölçümü** var: Ateşman (1997) indeksi (hece/sözcük, sözcük/cümle), sözel düzey ve hedef karşılaştırması (sade ≥ 70, standart ≥ 50) mektup ekranında uyarı olarak gösterilir (`src/lib/readability.ts`, `tests/readability.test.ts`). Çıktı tanı koymaz, hekim onayı gerektirir; ölçüm yaklaşıktır.",
+    action: "Kalan: sözlüğün kurum düzeyinde (sunucu) saklanıp tüm hekimlere dağıtılması — şu an mektup ekranında elle giriliyor; okunabilirlik hedefi yalnız Türkçe için tanımlı.",
   },
   {
     id: "r-link", category: "report", title: "Rapor–görüntü bağlama (cümleye tıkla → kesite git)",
