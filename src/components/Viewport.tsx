@@ -124,6 +124,10 @@ function buildBaseCanvas(
       invert,
       isInt16: sl instanceof Int16Array,
       isUint16: sl instanceof Uint16Array,
+      // Doku atlası (v-perf): çok kesitli serilerde kesit başına yeniden yükleme yok.
+      seriesKey: series.id,
+      sliceIndex: idx,
+      sliceCount: series.slices.length,
     });
     if (g) return g;
   }
