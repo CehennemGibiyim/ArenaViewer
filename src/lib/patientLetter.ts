@@ -8,6 +8,8 @@
  * gönderilmeden önce hekim onayı gerekir.
  */
 
+import { trLower } from "./readability";
+
 export const LETTER_LANGS = ["tr", "en", "de"] as const;
 export type LetterLang = (typeof LETTER_LANGS)[number];
 
@@ -77,10 +79,45 @@ export const PLAIN_TR: [RegExp, string][] = [
   [/adyacent/gi, "komşu"],
 ];
 
+/**
+ * Kuruma özel terim sözlüğü metnini ayrıştırır: satır başına `terim = karşılık`
+ * (`:` veya `->` de kabul edilir). Boş/tek taraflı satırlar atlanır, tekrarlanan
+ * terimde ilk satır kazanır. Sözlük **sade** düzeyde, yerleşik listeden ÖNCE uygulanır.
+ */
+export function parseGlossary(text: string): [string, string][] {
+  const out: [string, string][] = [];
+  const seen = new Set<string>();
+  for (const raw of (text ?? "").split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    const m = line.match(/^(.+?)\s*(?:=>|->|=|:)\s*(.+)$/);
+    if (!m) continue;
+    const term = m[1].trim();
+    const rep = m[2].trim();
+    if (term.length < 2 || rep.length < 1) continue;
+    const key = trLower(term);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push([term, rep]);
+  }
+  // Uzun terim önce: "kontrastlanma" varken "kontrast" onu bölmesin.
+  return out.sort((a, b) => b[0].length - a[0].length);
+}
+
 /** Sadeleştirilmiş metin (TR). Diğer dillerde metin olduğu gibi kalır. */
-export function plainify(text: string, lang: LetterLang, level: ReadingLevel): string {
+export function plainify(
+  text: string,
+  lang: LetterLang,
+  level: ReadingLevel,
+  glossary: [string, string][] = [],
+): string {
   if (level !== "sade" || lang !== "tr") return text;
   let out = text;
+  for (const [term, rep] of glossary) {
+    if (!term) continue;
+    const esc = term.replace(/[.*+?^${}()|[\]\\]/g, (c) => `\\${c}`);
+    out = out.replace(new RegExp(esc, "gi"), rep);
+  }
   for (const [re, rep] of PLAIN_TR) out = out.replace(re, rep);
   return out;
 }
@@ -174,7 +211,7 @@ const STRINGS: Record<LetterLang, Strings> = { tr: TR, en: EN, de: DE };
  * Mektubu üretir. Boş bölümler atlanmaz; "ek bilgi yok" satırıyla gösterilir
  * (hasta boşluk görmez). Metin uzunluğu `maxChars` ile kısaltılır.
  */
-export function buildPatientLetter(input: LetterInput, opts: { lang: LetterLang; level: ReadingLevel; includeFindings?: boolean; maxChars?: number }): PatientLetter {
+export function buildPatientLetter(input: LetterInput, opts: { lang: LetterLang; level: ReadingLevel; includeFindings?: boolean; maxChars?: number; glossary?: [string, string][] }): PatientLetter {
   const lang = LETTER_LANGS.includes(opts.lang) ? opts.lang : "tr";
   const level: ReadingLevel = opts.level === "sade" ? "sade" : "standart";
   const T = STRINGS[lang];
@@ -185,12 +222,12 @@ export function buildPatientLetter(input: LetterInput, opts: { lang: LetterLang;
 
   const paragraphs: string[] = [T.intro(clean(input.modality) || "—", body, date)];
   if (opts.includeFindings !== false) {
-    const findings = summarizeText(plainify(clean(input.findingsText), lang, level), maxChars);
+    const findings = summarizeText(plainify(clean(input.findingsText), lang, level, opts.glossary ?? []), maxChars);
     paragraphs.push(`${T.findingsHeading}: ${findings || T.none}`);
   }
-  const impression = summarizeText(plainify(clean(input.impression), lang, level), maxChars);
+  const impression = summarizeText(plainify(clean(input.impression), lang, level, opts.glossary ?? []), maxChars);
   paragraphs.push(`${T.impressionHeading}: ${impression || T.none}`);
-  const rec = summarizeText(plainify(clean(input.recommendation), lang, level), maxChars);
+  const rec = summarizeText(plainify(clean(input.recommendation), lang, level, opts.glossary ?? []), maxChars);
   paragraphs.push(`${T.recommendationHeading}: ${rec || T.none}`);
 
   return {

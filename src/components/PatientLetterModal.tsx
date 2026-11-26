@@ -9,9 +9,10 @@
  */
 import { useMemo, useState } from "react";
 import {
-  LANG_LABELS, LETTER_LANGS, READING_LEVELS, buildPatientLetter, letterToText,
+  LANG_LABELS, LETTER_LANGS, READING_LEVELS, buildPatientLetter, letterToText, parseGlossary,
   type LetterLang, type ReadingLevel,
 } from "@/lib/patientLetter";
+import { analyzeReadability, readabilityVerdict } from "@/lib/readability";
 import { useEscapeKey } from "@/lib/useEscapeKey";
 
 export interface PatientLetterSource {
@@ -39,12 +40,20 @@ export default function PatientLetterModal({ source, onClose }: Props) {
   const [level, setLevel] = useState<ReadingLevel>("sade");
   const [includeFindings, setIncludeFindings] = useState(true);
   const [copied, setCopied] = useState("");
+  // Kuruma özel terim sözlüğü (satır başına "terim = karşılık") + okunabilirlik ölçümü.
+  const [glossaryText, setGlossaryText] = useState("");
+  const [glossaryOpen, setGlossaryOpen] = useState(false);
+  const glossary = useMemo(() => parseGlossary(glossaryText), [glossaryText]);
 
   const letter = useMemo(
-    () => buildPatientLetter({ ...source, doctorName: source.approvedBy }, { lang, level, includeFindings }),
-    [source, lang, level, includeFindings],
+    () => buildPatientLetter({ ...source, doctorName: source.approvedBy }, { lang, level, includeFindings, glossary }),
+    [source, lang, level, includeFindings, glossary],
   );
   const text = useMemo(() => letterToText(letter), [letter]);
+
+  // Ateşman indeksi mektubun tamamı üzerinden; hedef düzeyle karşılaştırılır.
+  const readability = useMemo(() => analyzeReadability(text, lang), [text, lang]);
+  const verdict = useMemo(() => readabilityVerdict(readability, level), [readability, level]);
 
   const copy = async () => {
     try {
@@ -96,6 +105,41 @@ export default function PatientLetterModal({ source, onClose }: Props) {
             <div className="mb-2 rounded border border-rose-400/50 bg-rose-400/10 px-2 py-1 font-bold text-rose-200">{letter.draftWarning}</div>
           )}
           {copied && <div role="status" className="mb-2 rounded border border-cyan-400/40 bg-cyan-400/10 px-2 py-1 text-cyan-200">{copied}</div>}
+
+          <div
+            data-testid="letter-readability"
+            className={`mb-2 rounded border px-2 py-1 text-[10.5px] ${readability.index === null ? "border-[#243044] text-slate-400" : verdict.met ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-200" : "border-amber-400/40 bg-amber-400/10 text-amber-200"}`}
+          >
+            <b>Okunabilirlik:</b> {verdict.message}
+            <span className="ml-1 text-slate-500">(Ateşman 1997; ölçüm yaklaşıktır, hekim onayı gerekir)</span>
+            <button
+              type="button"
+              onClick={() => setGlossaryOpen((v) => !v)}
+              className="ml-2 cursor-pointer rounded border border-[#2d3b4e] px-1.5 py-0.5 hover:bg-[#1a2330]"
+              title="Kuruma özel terim sözlüğü: satır başına 'terim = karşılık'"
+            >
+              Terim sözlüğü{glossary.length > 0 ? ` (${glossary.length})` : ""}
+            </button>
+          </div>
+
+          {glossaryOpen && (
+            <div className="mb-2 rounded border border-[#243044] bg-[#0f141c] p-2">
+              <div className="mb-1 text-[10.5px] text-slate-400">
+                Kuruma özel terimler (yalnız <b>sade</b> düzeyde uygulanır). Satır başına <code>terim = karşılık</code>; <code>#</code> ile başlayan satırlar yorumdur.
+              </div>
+              <textarea
+                value={glossaryText}
+                onChange={(e) => setGlossaryText(e.target.value)}
+                rows={4}
+                aria-label="Kuruma özel terim sözlüğü"
+                placeholder={"nodül = küçük yumru\nkontrastlanma = boya tutan alan"}
+                className="w-full rounded border border-[#232e40] bg-[#0b0f16] p-1.5 font-mono text-[10.5px] text-slate-200"
+              />
+              <div className="mt-1 text-[10px] text-slate-500">
+                {glossary.length} terim etkin · örnek: {glossary.slice(0, 3).map(([t, r]) => `${t} → ${r}`).join(" · ") || "—"}
+              </div>
+            </div>
+          )}
 
           <article id="patient-letter-paper" className="rounded-lg border border-[#1e2735] bg-[#0f141c] p-4 leading-relaxed text-slate-200">
             <h2 className="text-sm font-bold text-slate-100">{letter.title}</h2>

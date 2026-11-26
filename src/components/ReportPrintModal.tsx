@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fmtConf } from "@/lib/format";
 import StructuredScorePanel from "@/components/StructuredScorePanel";
 import PatientLetterModal from "@/components/PatientLetterModal";
+import LinkedFindingsText from "@/components/LinkedFindingsText";
 import { PEER_RESULTS, RESULT_LABELS, type PeerResult } from "@/lib/peerReview";
 import { SHARE_TTL_HOURS, shareState } from "@/lib/share";
 import { MACRO_GROUPS, macroById, macrosByGroup, type MacroGroup } from "@/lib/macros";
@@ -69,6 +70,8 @@ interface Props {
   user: UserInfo;
   onSave: (r: ReportData, action: "save" | "approve") => Promise<SaveResult>;
   onGotoSlice?: (sliceNumber: number) => void;
+  /** Cümleye tıklandığında ilgili bulguyu vurgular (r-link). */
+  onGotoFinding?: (findingId: string, sliceNumber: number) => void;
   /** Anahtar kesitlerin DICOM başvuruları (SR kanıt listesi); yoksa SR başvurusuz üretilir. */
   srEvidence?: EvidenceRef | null;
   /** AUTH_MODE=hesap'ta onay sahibi oturumla doğrulanmış sayılır; demo modunda false. */
@@ -161,7 +164,7 @@ function ReportField({ name, rows, value, editing, onChange, onMic, onClear, onG
 
 const STATUS_TR: Record<FindingApprovalStatus, string> = { onaylandi: "✓ Radyolog onayladı", reddedildi: "✗ Reddedildi", duzenlendi: "✎ Düzenlendi", bekliyor: "Onay bekliyor" };
 
-export default function ReportPrintModal({ open, onClose, report: initial, user, onSave, onGotoSlice, srEvidence = null, sessionIdentity = false, priorReports = [] }: Props) {
+export default function ReportPrintModal({ open, onClose, report: initial, user, onSave, onGotoSlice, onGotoFinding, srEvidence = null, sessionIdentity = false, priorReports = [] }: Props) {
   const [report, setReport] = useState<ReportData>(initial);
   const [editing, setEditing] = useState(false);
   const [dialog, setDialog] = useState(false);
@@ -672,6 +675,13 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                       {report.clinicalInfo && <div><div className="font-bold uppercase text-slate-900">Klinik bilgi</div><p className="mt-0.5 whitespace-pre-wrap">{report.clinicalInfo}</p></div>}
                       <ReportField name="Teknik" rows={3} value={report.technique} editing={editing} onChange={(v) => set("technique", v)} onMic={append("technique")} onClear={() => set("technique", "")} onGotoSlice={onGotoSlice} onClose={onClose} />
                       <ReportField name="Kesit bazlı bulgular" rows={8} value={report.findingsText} editing={editing} onChange={(v) => set("findingsText", v)} onMic={append("findingsText")} onClear={() => set("findingsText", "")} onGotoSlice={onGotoSlice} onClose={onClose} />
+                      {onGotoFinding && (
+                        <LinkedFindingsText
+                          text={report.findingsText}
+                          findings={report.findings.map((f) => ({ id: f.id, label: `${f.label} ${f.anatomicalLocation}`, keySliceNumber: f.keySliceNumber, sliceIndex: f.sliceIndex }))}
+                          onGoto={(id, n) => { onGotoFinding(id, n); onClose(); }}
+                        />
+                      )}
                       <ReportField name="Sonuç/İzlenim" rows={3} value={report.impression} editing={editing} onChange={(v) => set("impression", v)} onMic={append("impression")} onClear={() => set("impression", "")} onGotoSlice={onGotoSlice} onClose={onClose} />
                       <ReportField name="Öneri" rows={2} value={report.recommendation} editing={editing} onChange={(v) => set("recommendation", v)} onMic={append("recommendation")} onClear={() => set("recommendation", "")} onGotoSlice={onGotoSlice} onClose={onClose} />
 
