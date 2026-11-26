@@ -762,7 +762,7 @@ src/
 public/codecs/    WASM görüntü çözücüleri (repoda tutulur, CDN değildir)
 ai-worker/        Yerel derin AI worker (MONAI model çıkarımı, Python)
 tests/            Playwright menü + klasör yükleme regresyon testleri
-docs/             Yayınlama ve işletim kılavuzları (görsel + videolu: docs/KURULUM_VE_KULLANIM.md)
+docs/             Yayınlama ve işletim kılavuzları (görsel + videolu: docs/KURULUM_VE_KULLANIM.md; her düğme: docs/MENU_KILAVUZU.md)
 ```
 
 ## Güvenlik notları

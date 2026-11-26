@@ -165,7 +165,10 @@ veritabanısız kullanım yeterlidir. Docker yolunda şema ilk açılışta otom
 
 ## 4. İlk çalıştırma — arayüz turu
 
-![Ana arayüz](img/ekran-ana-arayuz.jpg)
+> **Hangi düğme neye yarar?** Tüm menülerin tek tek açıklaması ve numaralı ekran haritası:
+> **[MENU_KILAVUZU.md](MENU_KILAVUZU.md)** (sürekli güncel tutulur — bkz. [KILAVUZ_BAKIMI.md](KILAVUZ_BAKIMI.md)).
+>
+> ![Ana arayüz](img/ekran-ana-arayuz.jpg)
 
 - **Sol panel — SERİLER:** DICOM klasörünü, dosyayı ya da ZIP'i sürükleyip bırakın; sekanslar
   listelenir ve hasta anahtarı anonim gösterilir.
@@ -230,7 +233,8 @@ Bu kılavuz **depoya yük bindirmeden** görsel ağırlıklıdır; tüm görsell
 
 | Dosya | Boyut |
 |---|---|
-| `docs/img/ekran-ana-arayuz.jpg` (gerçek ekran görüntüsü, anonim) | 68 KB |
+| `docs/img/ekran-ana-arayuz.jpg` (gerçek ekran görüntüsü, anonim) | 64 KB |
+| `docs/img/ekran-menu-haritasi.jpg` (numaralı menü haritası) | 74 KB |
 | `docs/img/diyagram-*.jpg` (6 adet, PIL ile üretildi) | ≈ 390 KB |
 | `docs/media/kurulum-kullanim.mp4` (sesli anlatım, 1280×720) | 2.8 MB |
 | **Toplam** | **≈ 3.3 MB** |
@@ -241,6 +245,8 @@ varlıklar olarak yeterlidir. MP4, standart oynatıcılarda (VLC, tarayıcı, Gi
 **Bağlantılı belgeler**
 
 - [WINDOWS_KURULUM.md](WINDOWS_KURULUM.md) — Windows ayrıntılı kurulum, sık hatalar
+- [MENU_KILAVUZU.md](MENU_KILAVUZU.md) — her düğme/menü tek tek (numaralı ekran haritasıyla)
+- [KILAVUZ_BAKIMI.md](KILAVUZ_BAKIMI.md) — kılavuzu her değişiklikle güncel tutma kuralı
 - [OLLAMA.md](OLLAMA.md) · [GITHUB_YAYINLAMA.md](GITHUB_YAYINLAMA.md) · [YEDEK_VE_DR.md](YEDEK_VE_DR.md)
 - [KLINIK_DOGRULAMA_PLANI.md](KLINIK_DOGRULAMA_PLANI.md) — SKM-TEA sırası ve gölge mod
 - [RISK_YONETIMI.md](RISK_YONETIMI.md) — ISO 14971 risk dosyası

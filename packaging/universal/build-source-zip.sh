@@ -105,6 +105,7 @@ Windows
   windows/atikviewer.iss           Inno Setup betiği
   docs/WINDOWS_KURULUM.md          Windows kurulum rehberi ve hata çözümleri
   docs/KURULUM_VE_KULLANIM.md      tüm işletim sistemleri için görsel+videolu kılavuz
+  docs/MENU_KILAVUZU.md            her düğme/menü için numaralı ekran haritalı kılavuz
 
 Linux
   packaging/linux/install.sh       tek komutla kurulum (Debian/Fedora/Arch)
