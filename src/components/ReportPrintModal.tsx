@@ -235,7 +235,6 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
   const consistencySource = `${report.clinicalInfo ?? ""}\n${report.technique ?? ""}\n${report.findingsText ?? ""}\n${report.impression ?? ""}\n${report.recommendation ?? ""}`;
   const consistency = useMemo(
     () => checkReportConsistency(consistencySource, report.measurementsText ?? ""),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- kaynak dize bağımlılık olarak yeterli
     [consistencySource, report.measurementsText],
   );
 

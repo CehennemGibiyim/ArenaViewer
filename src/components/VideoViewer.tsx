@@ -9,7 +9,7 @@
  * payload'u indirip yerel oynatıcıda açması önerilir (indirme düğmesi codec'ten
  * bağımsız çalışır).
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { DicomVideoSequence } from "@/lib/types";
 import { videoFileExtension } from "@/lib/dicomVideo";
 
@@ -20,17 +20,16 @@ function formatBytes(n: number): string {
 }
 
 export default function VideoViewer({ video }: { video: DicomVideoSequence }) {
-  const [url, setUrl] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    // Payload DICOM parse sırasında bellekte; Blob kopyasını görüntüleyici yönetir.
-    const blob = new Blob([video.payload.slice()], { type: video.mimeType });
-    const objectUrl = URL.createObjectURL(blob);
-    setFailed(false);
-    setUrl(objectUrl);
-    return () => URL.revokeObjectURL(objectUrl);
-  }, [video]);
+  // Blob URL'si render sırasında türetilir (video girdisi değişirse yenisi üretilir);
+  // effect yalnızca ESKİ url'yi serbest bırakır — setState içermez.
+  const url = useMemo(
+    () => URL.createObjectURL(new Blob([video.payload.slice()], { type: video.mimeType })),
+    [video],
+  );
+  useEffect(() => () => URL.revokeObjectURL(url), [url]);
+  // Hata url ile ilişkilendirilir; yeni video → eski hata otomatik düşer.
+  const [failedFor, setFailedFor] = useState<string | null>(null);
+  const failed = failedFor === url;
 
   const fileName = `${(video.title || "dicom-video").replace(/[^\p{L}\p{N}._ -]+/gu, "_").slice(0, 80)}${videoFileExtension(video.mimeType)}`;
 
@@ -44,7 +43,7 @@ export default function VideoViewer({ video }: { video: DicomVideoSequence }) {
             controls
             playsInline
             preload="metadata"
-            onError={() => setFailed(true)}
+            onError={() => setFailedFor(url)}
             className="max-h-[calc(100vh-220px)] max-w-full rounded border border-[#232e40] bg-black"
           />
         ) : failed ? (
