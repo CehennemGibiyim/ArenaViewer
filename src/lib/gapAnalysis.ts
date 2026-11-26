@@ -127,7 +127,7 @@ export const BASE_ITEMS: GapItem[] = [
     id: "v-geo", category: "viewing", title: "Zoom, pan, döndür, çevir (flip), cine",
     status: "var", priority: "P3", effort: "S",
     market: ["RadiAnt", "OHIF", "Weasis", "Horos"],
-    ours: "Hepsi var; kısayollar R/H/V. Cine kare hızı ayarı yok.",
+    ours: "Zoom, pan, döndür, çevir, cine, tam ekran; kısayollar özelleştirilebilir.",
     action: "Kalan: kısayolların kullanıcı tarafından özelleştirilmesi (cine kare hızı kaydırıcısı var).",
   },
   {
@@ -805,7 +805,7 @@ const PATCHES: Record<string, Patch> = {
   "f-uncompressed": { status: "var", ours: "Implicit/Explicit LE ve Explicit BE okunuyor ve doğrulandı; bit maskeleme, işaretli/işaretsiz, Rescale uygulanıyor." },
   "f-open": { status: "var", ours: "Klasör (alt dizinler), ZIP, sürükle-bırak, her uzantı, başlıksız ham DICOM, sunucu depolaması ve PACS (DICOMweb) ile açılır." },
   "f-objects": { status: "var", priority: "P2", ours: "DICOM Yapısal Raporlar (SR - TID ağaç yapısı ve ölçümler), Encapsulated PDF (belge görüntüleyici ve indirme), 12-Derivasyonlu EKG dalga formu (kalibre pembe kağıt ve kaliper ölçüm aracı), DICOM Katmanları (6000-601e) ve GSPS Presentation State anotasyonları tam desteklenir." },
-  "v-geo": { ours: "Zoom, pan, döndür, çevir, cine (kare hızı ayarlı), tam ekran; kısayollar R/H/V/K." },
+  "v-geo": { ours: "Zoom, pan, döndür, çevir, cine (kare hızı ayarlı, 2–30 fps kaydırıcı), tam ekran. **Yeni — özelleştirilebilir kısayollar:** `src/lib/shortcuts.ts` (tuş normalleştirme, eylem başına en çok 4 tuş, çakışma bildirimi, bozuk kayıtta varsayılana dönüş) + Tercihler sayfasında düzenleme; varsayılanlar R/H/V/K ve ok tuşları (`tests/shortcuts.test.ts`, 28 assert).", action: "Kalan: kısayolların hekim hesabına (sunucu) bağlanması — şu an tarayıcıda `atik_shortcuts` — ve tüm görüntüleyici eylemlerinin (zoom/pan/ölçüm araçları) atanabilir olması." },
   "v-compare": { status: "var", ours: "Çok panelde seri karşılaştırma; ImagePositionPatient'a göre anatomik konum senkronu (konum yoksa oransal yedek); önceki çalışma sunucudan yan panelde açılır." },
   "v-hanging": { status: "var", priority: "P1", ours: "1×1, 1×2, 2×1, 2×2, 1×3, 3×1, 2×3, 3×2 düzenler + modalite/bölgeye göre otomatik sistem protokolleri + görsel Kullanıcı Tanımlı Asma Protokolü Editörü (oluşturma, düzenleme, silme, JSON içe/dışa aktarma ve tek tıkla uygulama) tam çalışır durumda." },
   "v-mpr": { status: "var", ours: "Ortogonal MPR (axial/koronal/sagittal) + OBLİK MPR: üç eksende serbest eğim/dönüş, kalın kesit (Ort./MIP/MinIP). Oblik düzlem mm uzayında örneklenir (küre testinde alan hatası <%1). Kavisli (curved) MPR yok.", action: "Kavisli MPR (damar/omurga merkez hattı) ve oblik düzlemin ortogonal panellerde çizgi olarak gösterimi." },
