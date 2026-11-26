@@ -1,4 +1,6 @@
-import { concat, el, enc, newUid, pad, str, uidEl } from "./dicomWrite";
+import { concat, el, enc, newUid, pad, str, uidEl, us } from "./dicomWrite";
+import { annotationsToGsps } from "./gspsGraphics";
+import type { Annotation } from "./types";
 
 /**
  * DICOM Basic Text SR (rapor) ve Key Object Selection (anahtar kesit) belgeleri.
@@ -10,6 +12,14 @@ export const SOP_KEY_OBJECT = "1.2.840.10008.5.1.4.1.1.88.59";
 interface E { t: number; b: Uint8Array }
 const tag = (g: number, e: number) => ((g << 16) | e) >>> 0;
 const S = (g: number, e: number, vr: string, v: string): E => ({ t: tag(g, e), b: vr === "UI" ? uidEl(g, e, v) : str(g, e, vr, v) });
+/** US (tek değer) ve FL (float dizisi) yazıcıları: GSPS grafik verisi için. */
+const US_EL = (g: number, e: number, n: number): E => ({ t: tag(g, e), b: us(g, e, n) });
+const FL_EL = (g: number, e: number, vals: number[]): E => {
+  const b = new Uint8Array(4 * vals.length);
+  const dv = new DataView(b.buffer);
+  vals.forEach((v, i) => dv.setFloat32(i * 4, v, true));
+  return { t: tag(g, e), b: el(g, e, "FL", b) };
+};
 const UT = (g: number, e: number, v: string): E => ({ t: tag(g, e), b: el(g, e, "UT", pad(enc.encode(v), 0x20)) });
 /** Tanımlı uzunluklu dizi (SQ). */
 const SQ = (g: number, e: number, items: Uint8Array[][]): E => {
@@ -147,6 +157,46 @@ export interface PresentationStateInput extends PatientStudy {
   wl: number; ww: number;
   rotation?: 0 | 90 | 180 | 270;
   flipH?: boolean; flipV?: boolean; invert?: boolean;
+  /** Ekran ölçüm/işaretleri: GSPS grafik katmanı olarak yazılır (isteğe bağlı). */
+  annotations?: Annotation[];
+}
+
+/**
+ * Anotasyonlar → GSPS grafik katmanı + grafik/metin nesneleri.
+ * Graphic Layer Sequence (0070,0060) ve Graphic Annotation Sequence (0070,0001);
+ * her anotasyon kendi referans görüntüsüne (0008,1140) bağlanır.
+ */
+function gspsAnnotationEls(p: PresentationStateInput): E[] {
+  const items = annotationsToGsps(p.annotations ?? []).filter((i) => !!p.sopUids[i.slice]);
+  if (items.length === 0) return [];
+  const annots: Uint8Array[][] = items.map((i) =>
+    item(
+      S(0x0070, 0x0002, "CS", "ANNOT"),
+      SQ(0x0008, 0x1140, [item(S(0x0008, 0x1150, "UI", p.sopClassUid), S(0x0008, 0x1155, "UI", p.sopUids[i.slice]))]),
+      SQ(0x0070, 0x0008, i.texts.map((t) => item(
+        S(0x0070, 0x0003, "CS", "PIXEL"), S(0x0070, 0x0004, "CS", "PIXEL"),
+        S(0x0070, 0x0006, "ST", t.text),
+        FL_EL(0x0070, 0x0014, t.anchor),
+        S(0x0070, 0x0018, "CS", "LEFT"),
+      ))),
+      SQ(0x0070, 0x0009, i.graphics.map((g) => item(
+        S(0x0070, 0x0005, "CS", "PIXEL"),
+        US_EL(0x0070, 0x0020, 2),
+        US_EL(0x0070, 0x0021, g.data.length / 2),
+        FL_EL(0x0070, 0x0022, g.data),
+        S(0x0070, 0x0023, "CS", g.type),
+        S(0x0070, 0x0024, "CS", "N"),
+      ))),
+    ),
+  );
+  return [
+    SQ(0x0070, 0x0060, [item(
+      S(0x0070, 0x0002, "CS", "ANNOT"),
+      US_EL(0x0070, 0x0061, 255),
+      S(0x0070, 0x0062, "IS", "1"),
+    )]),
+    SQ(0x0070, 0x0001, annots),
+  ];
 }
 
 /**
@@ -170,6 +220,7 @@ export function buildPresentationState(p: PresentationStateInput): Uint8Array {
     )]),
     S(0x0070, 0x0041, "CS", String(p.rotation ?? 0)),
     S(0x0070, 0x0042, "CS", p.flipH ? "Y" : "N"),
+    ...gspsAnnotationEls(p),
     S(0x0070, 0x0080, "CS", "ATIK-PR"),
     UT(0x0070, 0x0081, `WL=${num(p.wl)} WW=${num(Math.max(1, p.ww))} dondurme=${String(p.rotation ?? 0)} yatayCevir=${p.flipH ? "Y" : "N"} dikeyCevir=${p.flipV ? "Y" : "N"} ters=${p.invert ? "Y" : "N"}`),
   ];
