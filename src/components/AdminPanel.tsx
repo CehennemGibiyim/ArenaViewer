@@ -12,6 +12,13 @@ interface SessionRow { id: string; userId: number; username: string; fullName: s
 interface RegistryRow { id?: number; name: string; version: string; modality: string; task: string; stage: "aday" | "aktif" | "emekli"; trafficPercent: number; fingerprint: string; notes: string; updatedAt?: string }
 interface RegistryState { entries: RegistryRow[]; summary: Record<string, number>; issues: string[] }
 interface PerfRow { engine: string; category: string; shown: number; approved: number; rejected: number; edited: number; pending: number; manualAdded: number; ppv: number | null }
+interface DisagreementCategory { engine: string; category: string; decided: number; approved: number; rejected: number; edited: number; disagreementRate: number | null }
+interface DisagreementReason { engine: string; category: string; label: string; status: "reddedildi" | "duzenlendi"; reason: string }
+interface DisagreementStats {
+  categories: DisagreementCategory[];
+  reasons: DisagreementReason[];
+  tally: { decided: number; rejected: number; edited: number; rate: number | null; withReason: number };
+}
 interface WorkflowStats {
   total: number; byStatus: Record<string, number>; byModality: Record<string, number>;
   approved: number; medianHours: number | null; p90Hours: number | null; meanHours: number | null;
@@ -105,7 +112,7 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
   const loadAudit = useCallback(async () => { const r = await api<AuditRow[]>(`/api/audit?limit=300&q=${encodeURIComponent(aq)}`); if (r.ok) setAudit(r.data); }, [aq]);
   const loadSiem = useCallback(async () => { const r = await api<{ pending: number; failed: number; sent: number; abandoned: number; configured: boolean; maxAttempts: number }>("/api/audit/export?siem=stats"); if (r.ok) setSiem(r.data); }, []);
   // AI
-  const [perf, setPerf] = useState<{ rows: PerfRow[]; note: string } | null>(null);
+  const [perf, setPerf] = useState<{ rows: PerfRow[]; note: string; disagreement?: DisagreementStats } | null>(null);
   // iş akışı istatistikleri (F4)
   const [stats, setStats] = useState<WorkflowStats | null>(null);
   const [statsNote, setStatsNote] = useState("");
@@ -214,7 +221,7 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
       if (tab === "users") await loadUsers();
       if (tab === "audit") { await loadAudit(); await loadSiem(); }
       if (tab === "ai") {
-        const r = await api<{ rows: PerfRow[]; note: string }>("/api/ai/performance");
+        const r = await api<{ rows: PerfRow[]; note: string; disagreement?: DisagreementStats }>("/api/ai/performance");
         if (r.ok) setPerf(r.data);
         await loadRegistry();
       }
@@ -622,6 +629,53 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* AI önerisi ↔ hekim kararı uyuşmazlığı (src/lib/aiDisagreement.ts) */}
+            <div className={`${card} space-y-2`}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <b className="text-xs text-slate-200">AI önerisi ↔ hekim kararı uyuşmazlığı</b>
+                <span className="text-[10.5px] text-slate-500">
+                  {perf?.disagreement
+                    ? `${perf.disagreement.tally.decided} karar · ${perf.disagreement.tally.rejected} ret · ${perf.disagreement.tally.edited} düzenleme · uyuşmazlık ${perf.disagreement.tally.rate === null ? "—" : `%${Math.round(perf.disagreement.tally.rate * 100)}`} · ${perf.disagreement.tally.withReason} gerekçe`
+                    : "veri yok"}
+                </span>
+              </div>
+              <p className="text-[10.5px] leading-snug text-slate-500">
+                Uyuşmazlık = hekimin reddettiği veya düzenlediği bulgu. Bu oran klinik doğruluk (duyarlılık/özgüllük) değildir; yalnız hekim kararlarına dayanır.
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-[11px]">
+                  <thead className="text-left text-slate-500"><tr>{["Motor", "Kategori", "Karar", "Ret", "Düzenleme", "Uyuşmazlık"].map((h) => <th key={h} className="border-b border-[#1a2230] px-3 py-2 font-semibold">{h}</th>)}</tr></thead>
+                  <tbody>
+                    {(perf?.disagreement?.categories ?? []).length === 0 && <tr><td colSpan={6} className="px-3 py-4 text-center text-slate-500">Henüz karar verilmiş bulgu yok. Raporda bulguları Onayla/Reddet/Düzenlendi olarak işaretleyin.</td></tr>}
+                    {(perf?.disagreement?.categories ?? []).map((c) => (
+                      <tr key={`${c.engine}|${c.category}`} className="hover:bg-[#101722]">
+                        <td className="border-b border-[#141b26] px-3 py-2 font-mono text-cyan-300">{c.engine}</td>
+                        <td className="border-b border-[#141b26] px-3 py-2">{c.category}</td>
+                        <td className="border-b border-[#141b26] px-3 py-2">{c.decided}</td>
+                        <td className="border-b border-[#141b26] px-3 py-2 text-rose-300">{c.rejected}</td>
+                        <td className="border-b border-[#141b26] px-3 py-2 text-amber-300">{c.edited}</td>
+                        <td className={`border-b border-[#141b26] px-3 py-2 font-bold ${(c.disagreementRate ?? 0) >= 0.5 ? "text-rose-300" : "text-slate-200"}`}>{c.disagreementRate === null ? "—" : `%${Math.round(c.disagreementRate * 100)}`}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {(perf?.disagreement?.reasons ?? []).length > 0 && (
+                <div className="space-y-1">
+                  <b className="text-[11px] text-slate-300">Hekim gerekçeleri (en çok 20)</b>
+                  <ul className="space-y-0.5 text-[10.5px] leading-snug text-slate-400">
+                    {(perf?.disagreement?.reasons ?? []).map((x, i) => (
+                      <li key={`${x.category}-${i}`}>
+                        <span className="font-mono text-slate-500">{x.engine}</span> · <span className="text-slate-300">{x.category}</span> ·{" "}
+                        <span className={x.status === "reddedildi" ? "text-rose-300" : "text-amber-300"}>{x.status === "reddedildi" ? "ret" : "düzenleme"}</span>{" "}
+                        — <b className="text-slate-300">{x.label}</b>: {x.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </div>
         )}
