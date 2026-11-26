@@ -382,6 +382,8 @@ export interface SeriesData {
   tags: DicomTag[];
   isSample: boolean;
   files?: File[];
+  /** Tam lazy-pixel: henüz indirilmemiş kesit sayısı (0/tanımsızsa tam yüklü). */
+  lazyPending?: number;
 }
 
 // ───────────── Hanging Protocols Engine ─────────────

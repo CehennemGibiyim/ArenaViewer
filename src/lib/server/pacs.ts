@@ -38,6 +38,8 @@ export interface PacsInstance {
   /** Rows/Columns (0028,0010/0011) — iskelet dizi tahsisi için */
   rows?: number;
   cols?: number;
+  /** Pixel Spacing[0] (0028,0030) — mm/px */
+  pixelSpacing?: number;
 }
 
 type DJson = Record<string, { Value?: unknown[] } | undefined>;
@@ -49,6 +51,15 @@ function numVal(o: DJson, tag: string): number | undefined {
   const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
   return Number.isFinite(n) ? n : undefined;
 }
+/** DS/IS dizisinin ilk sayısal ögesi (ör. PixelSpacing ["0.75","0.75"]). */
+function dsFirst(o: DJson, tag: string): number | undefined {
+  const v = o[tag]?.Value;
+  if (!Array.isArray(v)) return undefined;
+  const first = v[0];
+  const n = typeof first === "number" ? first : typeof first === "string" ? Number(first) : NaN;
+  return Number.isFinite(n) ? n : undefined;
+}
+
 /** ImagePositionPatient[2] (z) — Value dizisinin üçüncü ögesi. */
 function ippZ(o: DJson): number | undefined {
   const v = o["00200032"]?.Value;
@@ -74,6 +85,7 @@ export function parseQidoInstances(arr: DJson[]): PacsInstance[] {
       sliceThickness: numVal(o, "00180050"),
       rows: numVal(o, "00280010"),
       cols: numVal(o, "00280011"),
+      pixelSpacing: dsFirst(o, "00280030"),
     });
   }
   return out;
@@ -248,7 +260,7 @@ export async function qidoInstances(cfg: PacsConfig, studyUid: string): Promise<
   if (cfg.includefield) {
     // includefield yoksa (strict PACS) eski iki alanla yetinilir; iskelet tahsisi için
     // rows/cols gerekir — eksikse istemci metadata yoluna düşer.
-    for (const f of ["0020000E", "00080018", "00200013", "00200032", "00201041", "00180050", "00280010", "00280011"]) {
+    for (const f of ["0020000E", "00080018", "00200013", "00200032", "00201041", "00180050", "00280010", "00280011", "00280030"]) {
       params.append("includefield", f);
     }
   }

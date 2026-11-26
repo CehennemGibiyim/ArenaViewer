@@ -181,6 +181,9 @@ async function buildBaseCanvasAsync(
  */
 function ensureGpu(ref: { current: GpuWindower | null }, series: SeriesData | null): GpuWindower | null {
   if (!series || typeof document === "undefined") return null;
+  // lazy-pixel: pikseller yerinde dolduruluyor; doku önbelleği bayat kalır.
+  // İndirme bitene kadar CPU LUT yolu kullanılır (indirme sonrası GPU kaldığı yerden sürer).
+  if (series.lazyPending) return null;
   if (ref.current) return ref.current;
   // WebGL2 desteğini ucuz bir bağlamla sınar; başarısızsa null kalır (CPU yolu).
   let webgl2 = false;
@@ -339,6 +342,8 @@ export default function Viewport(props: ViewportProps) {
   // yalnızca toplam taban katmanı ~8 MB altı (≈2 MP) serilerde çalışır.
   useEffect(() => {
     if (!series || series.isColor) return;
+    // lazy-pixel: komşu kesitler henüz dolmamışken ön-işleme yapmak bayat önbellek yazar.
+    if (series.lazyPending) return;
     // GPU yolu varsa ön-işleme gereksiz: WL/WW değişimi yalnız uniform güncellemesi.
     const gpu = ensureGpu(gpuRef, series);
     if (gpu) return;
@@ -388,7 +393,7 @@ export default function Viewport(props: ViewportProps) {
 
     // 1. Taban katmanı: True Color RGBA veya Monokrom Grayscale LUT
     const isColor = series.isColor && series.rgbaSlices && series.rgbaSlices[sliceIdx];
-    const key = `${series.id}|${slice}|${Math.round(wl)}|${Math.round(ww)}|${invert}|${isColor ? "color" : "mono"}`;
+    const key = `${series.id}|${slice}|${Math.round(wl)}|${Math.round(ww)}|${invert}|${isColor ? "color" : "mono"}|${series.lazyPending ?? 0}`;
 
     // GPU yolu (v-perf): büyük gri serilerde taban katmanı GPU'da pencerelenir.
     // Doku kesit başına bir kez yüklenir; WL/WW/invert yalnız uniform değiştirir.

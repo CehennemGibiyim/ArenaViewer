@@ -9,6 +9,8 @@ import ReportPrintModal, { type ReportData, type SaveResult } from "./ReportPrin
 import WorklistModal from "./WorklistModal";
 import NotificationsBell from "./NotificationsBell";
 import VolumeView from "./VolumeView";
+import { groupInstancesBySeries, orderInstances, buildSeriesSkeleton, skeletonToSeriesData, type LazyPacsInstance } from "@/lib/lazySeries";
+import { fillSkeletonSlice } from "@/lib/lazyFill";
 import ExportMenu from "./ExportMenu";
 import NoduleTracker from "./NoduleTracker";
 import FusionControl, { type FusionConfig } from "./FusionControl";
@@ -291,6 +293,8 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   const all = useMemo(() => E2E_FIXTURES ? [...loaded, ...samples] : loaded, [loaded, samples]);
   const series = all.find((s) => s.id === activeId) ?? null;
   const isImageSeries = !!series && (!series.specialType || series.specialType === "image") && series.slices.length > 0;
+  /** İskelet indiriliyor: ölçüm/export/analiz eylemleri kilitli (lazy-pixel Adım 2) */
+  const lazyPending = series?.lazyPending ?? 0;
   // DICOM SR kanıt listesi: anahtar kesitlerin SOP Instance UID'leri (yalnızca gerçek DICOM serilerinde)
   const srEvidence = useMemo(() => {
     if (!series?.sopUids || !series.sopClassUid || !series.seriesUid) return null;
@@ -349,6 +353,8 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     setToastMsg(m);
     if (ms) setTimeout(() => setToastMsg((c) => (c === m ? "" : c)), ms);
   }, []);
+  /** İskelet indiriliyor: ölçüm/export/analiz eylemleri kilitli (lazy-pixel Adım 2) */
+  const lazyGate = useCallback((what: string) => { if (series?.lazyPending) { toast(`${what} — çalışma yükleniyor (${series.lazyPending} kesit kaldı). Kesitler inmeden yapılamaz.`, 5000); return true; } return false; }, [series?.lazyPending, toast]);
 
   const pushFeed = (text: string, kind: FeedItem["kind"] = "info") => setFeed((f) => [...f, { t: ts(), text, kind }]);
 
@@ -484,6 +490,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   };
 
   const requestMpr = (initialTab: "not" | "3b" = "not") => {
+    if (lazyGate("MPR yapılamaz")) return;
     if (!series || !isImageSeries) { toast("MPR için önce çok kesitli bir BT veya MR görüntü serisi seçin."); return; }
     if (!["CT", "MR"].includes(series.modality) || series.isColor) { toast("MPR yalnızca gri tonlamalı, hacim oluşturan BT/MR serileri için kullanılabilir."); return; }
     if (series.slices.length < 3) { toast("MPR için aynı seride en az 3 kesit gerekir."); return; }
@@ -570,6 +577,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   }, [cine, series, fps]);
 
   const captureKey = useCallback(() => {
+    if (lazyGate("Anahtar kesit eklenemez")) return;
     if (!series || (series.specialType && series.specialType !== "image")) { toast("Anahtar kesit için bir görüntü serisi seçin."); return; }
     if (keyImages.length >= 8) { toast("En fazla 8 anahtar kesit"); return; }
     if (keyImages.some((k) => k.slice === slice)) { toast("Bu kesit zaten anahtar kesit"); return; }
@@ -643,7 +651,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
       setKeyImages((k) => [...k, { id: uid(), slice, note, dataUrl }].sort((a, b) => a.slice - b.slice));
       toast(`★ Kesit ${slice + 1} anahtar kesit olarak eklendi`, 2500);
     }
-  }, [series, keyImages, slice, wl, ww, invert, annotations, liveFindings, revealed, toast]);
+  }, [series, keyImages, slice, wl, ww, invert, annotations, liveFindings, revealed, toast, lazyGate]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -917,7 +925,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     finally { if (importRef.current === controller) { importRef.current = null; setProgress(null); } }
   };
 
-  const openPacs = async (s: { studyUid: string }) => {
+  const openPacsLegacy = async (s: { studyUid: string }) => {
     const controller = beginImport();
     const signal = controller.signal;
     setProgress({ count: 0, total: 1 });
@@ -990,6 +998,112 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     finally { if (importRef.current === controller) { importRef.current = null; setProgress(null); } }
   };
 
+  /**
+   * PACS açılışı (metadata-first iskelet yolu, lazy-pixel Adım 2):
+   * QIDO listesi + sıfır Int16Array iskeletiyle görüntü ANINDA açılır,
+   * pikseller dalgalar hâlinde yerinde doldurulur. Çok serili/karışık çalışmada
+   * ya da iskelet kurulamazsa eski kademeli yola düşülür.
+   */
+  const openPacs = async (s: { studyUid: string; modality?: string; modalities?: string; description?: string; patientName?: string; patientId?: string; studyDate?: string }) => {
+    const controller = beginImport();
+    const signal = controller.signal;
+    setProgress({ count: 0, total: 1 });
+    try {
+      const li = await withImportTimeout(apiFetch(`/api/pacs/instances?studyUid=${encodeURIComponent(s.studyUid)}`, { signal }), signal);
+      const list = (await li.json().catch(() => null)) as LazyPacsInstance[] | { error?: string } | null;
+      if (!li.ok || !Array.isArray(list) || !list.length) throw new Error((list as { error?: string } | null)?.error ?? "PACS hatası");
+      const groups = groupInstancesBySeries(list);
+      const biggest = [...groups.entries()].sort((a, b) => b[1].length - a[1].length)[0];
+      const biggestInstances = biggest?.[1] ?? [];
+      if (groups.size > 1 && biggestInstances.length / list.length < 0.8) {
+        toast("Çok serili/karışık çalışma — kademeli tam yükleme kullanılıyor.", 5000);
+        return await openPacsLegacy(s);
+      }
+      const ordered = orderInstances(biggestInstances);
+      let openedId: string | null = null;
+      try {
+        const skeleton = buildSeriesSkeleton({
+          instances: ordered,
+          studyUid: s.studyUid,
+          modality: (s.modality || s.modalities?.split("\\")[0] || "CT").slice(0, 16),
+          description: s.description || "PACS serisi",
+          rows: ordered[0]?.rows,
+          cols: ordered[0]?.cols,
+          pixelSpacing: ordered.find((i) => i.pixelSpacing)?.pixelSpacing,
+          defaultWL: 40,
+          defaultWW: 400,
+        });
+        const seriesData = skeletonToSeriesData(skeleton, { patientName: s.patientName, patientId: s.patientId, studyDate: s.studyDate });
+        openedId = seriesData.id;
+        setLoaded((p) => [seriesData, ...p]);
+        selectSeries(seriesData, [seriesData]);
+        setProgress({ count: 0, total: ordered.length });
+        toast(`Çalışma açıldı — ${ordered.length} kesit yükleniyor…`, 4000);
+        const sopIndex = new Map((seriesData.sopUids ?? []).map((u, i) => [u, i]));
+        const filled = new Set<number>();
+        let pending = ordered.length;
+        let bad = 0;
+        const res = await loadInWaves<File>({
+          total: ordered.length,
+          concurrency: 4,
+          first: 12,
+          factor: 4,
+          maxWaves: 4,
+          signal,
+          fetchOne: async (i) => {
+            const x = ordered[i];
+            const r = await withImportTimeout(apiFetch(`/api/pacs/instance?${new URLSearchParams({ studyUid: s.studyUid, seriesUid: x.seriesUid, sopUid: x.sopUid })}`, { signal }), signal, 60000);
+            if (!r.ok) throw new Error("Görüntü alınamadı");
+            return new File([await r.blob()], `${x.sopUid}.dcm`);
+          },
+          onWave: async ({ items, loaded }) => {
+            if (importRef.current !== controller || signal.aborted) return;
+            setProgress({ count: loaded, total: ordered.length });
+            let changed = false;
+            // items kümülatif dizidir (dalga 2, dalga 1'i yeniden içerir): yalnız YENİ gelenleri parse et.
+            for (let i = 0; i < items.length; i++) {
+              const f = items[i];
+              if (!f || filled.has(i)) continue;
+              filled.add(i);
+              try {
+                const parsed = await loadMedicalFiles([f], undefined, undefined, { signal, timeoutMs: 30000 });
+                const ps = parsed[0];
+                if (!ps) { bad++; continue; }
+                const sop = ps.sopUids?.[0];
+                const idx = sop ? sopIndex.get(sop) : undefined;
+                // Çok kareli örnek ya da eşleşmeyen SOP → kesit doldurulamaz; uyumsuz sayılır
+                if (idx === undefined || ps.slices.length !== 1) { bad++; continue; }
+                if (ps.width !== skeleton.width || ps.height !== skeleton.height) { bad++; continue; }
+                const out = fillSkeletonSlice(seriesData.slices, idx, ps.slices[0]);
+                if (out === "incompatible") bad++;
+                else { pending--; changed = true; }
+              } catch { /* tek dosya hatası kesit atlanır, sayaç pending'de kalır */ bad++; }
+            }
+            if (changed) {
+              const remaining = pending;
+              setLoaded((prev) => prev.map((x) => (x.id === seriesData.id ? { ...x, lazyPending: remaining } : x)));
+            }
+          },
+        });
+        if (res.aborted || importRef.current !== controller) return;
+        setLoaded((prev) => prev.map((x) => (x.id === seriesData.id ? { ...x, lazyPending: pending } : x)));
+        if (pending > 0) toast(`${pending} kesit indirilip doldurulamadı${bad ? ` (${bad} uyumsuz kesit)` : ""}; eksik kesitler siyah kalır, analiz/dışa aktarım kilitlidir. Çalışmayı yeniden açmayı deneyin.`, 9000);
+        else toast("Çalışma tamamen yüklendi.", 4000);
+        return;
+      } catch (skelErr) {
+        console.warn("[lazy] iskelet yolu başarısız, eski yola düşülüyor:", skelErr);
+        // İskelet seri ekrana açıldıysa eski yolun serisiyle çift kayıt oluşmasın
+        if (openedId) setLoaded((prev) => prev.filter((x) => x.id !== openedId));
+        toast("Hızlı açılış kurulamadı (örn. QIDO'da Rows/Columns yok) — kademeli tam yükleme kullanılıyor.", 5000);
+        return await openPacsLegacy(s);
+      }
+    } catch (e) {
+      if (!signal.aborted) toast(e instanceof Error ? e.message : "PACS hatası", 8000);
+    } finally {
+      if (importRef.current === controller) { importRef.current = null; setProgress(null); }
+    }
+  };
+
   const download = (blob: Blob, name: string) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -997,6 +1111,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     setTimeout(() => URL.revokeObjectURL(url), 10000);
   };
   const exportPng = () => {
+    if (lazyGate("PNG kaydedilemez")) return;
     if (!series || !isImageSeries) { toast("PNG dışa aktarmak için bir görüntü serisi seçin. PDF/SR/EKG bu işlemde görüntü kesiti değildir."); return; }
     try {
       const canvas = renderSlice(series, slice, wl, ww, invert, 2048);
@@ -1004,6 +1119,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     } catch (e) { toast(`PNG hazırlanamadı: ${e instanceof Error ? e.message : "görüntü hatası"}`); }
   };
   const exportAnon = () => {
+    if (lazyGate("Anonim DICOM ZIP kaydedilemez")) return;
     if (!series || !isImageSeries) { toast("Anonim DICOM dışa aktarımı için bir görüntü serisi seçin."); return; }
     if (!window.confirm("Anonimleştirilmiş DICOM (ZIP) oluşturulacak: ad, kimlik, tarih, kurum taşınmaz. Devam?")) return;
     try {
@@ -1067,7 +1183,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     const bc = mirrorChRef.current;
     if (!bc || !mirrorOn || !series) return;
     const idx = Math.max(0, Math.min(slice, series.slices.length - 1));
-    const key = `${series.id}|${idx}`;
+    const key = `${series.id}|${idx}|${series.lazyPending ?? 0}`;
     if (mirrorSliceRef.current === key) return;
     const sl = series.slices[idx];
     if (!sl) return;
@@ -1132,6 +1248,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   };
 
   const startAnalysis = async () => {
+    if (lazyGate("AI analizi yapılamaz")) return;
     if (!series || !isImageSeries) { toast("Belge/EKG için piksel analizi yapılamaz; önce bir görüntü serisi seçin."); return; }
     const s = series;
     const run = ++runRef.current;
@@ -1370,8 +1487,9 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
 
   /** Tüm yüklenen görüntü serilerini birlikte AI ile analiz eder (çoklu-görüntü akışı). */
   const startAnalysisAll = useCallback(async () => {
-    const imageSeries = loaded.filter((s) => !(s.specialType && s.specialType !== "image"));
-    if (imageSeries.length === 0) { toast("Analiz edilebilir görüntü serisi yok."); return; }
+    if (lazyGate("Toplu AI analizi yapılamaz")) return;
+    const imageSeries = loaded.filter((s) => !(s.specialType && s.specialType !== "image") && !s.lazyPending);
+    if (imageSeries.length === 0) { toast(loaded.length ? "Kesitleri inen analiz edilebilir seri yok — indirme sürüyor olabilir." : "Analiz edilebilir görüntü serisi yok."); return; }
     if (imageSeries.length === 1) { await startAnalysis(); return; }
     toast(`Tüm seriler birlikte analiz ediliyor (${imageSeries.length} seri)...`, 3000);
     try {
@@ -1543,7 +1661,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
       toast(e instanceof Error ? e.message : "Birleşik analiz hatası");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded, clinicalNote, series, refreshContext]);
+  }, [loaded, clinicalNote, series, refreshContext, lazyGate]);
 
   const measurementsText = useMemo(() => {
     const unit = series?.unit ?? "SI";
@@ -1666,7 +1784,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   };
 
   const gotoFinding = (f: Finding) => { setSlice(f.sliceIndex); setActiveFinding(f.id); };
-  const addAnnotation = (a: Omit<Annotation, "id">) => setAnnotations((p) => [...p, { ...a, id: uid() }]);
+  const addAnnotation = (a: Omit<Annotation, "id">) => { if (lazyGate("Ölçüm/anotasyon eklenemez")) return; setAnnotations((p) => [...p, { ...a, id: uid() }]); };
   const calibrate = (pxLen: number) => {
     if (!series) return;
     const v = Number((window.prompt("Çizdiğiniz doğrunun gerçek uzunluğu (mm)", "10") ?? "").replace(",", "."));
@@ -1818,8 +1936,8 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         <div className="mx-1 h-6 w-px shrink-0 bg-[#1e2735]" />
         <Btn onClick={exportPng} title="Geçerli kesiti PNG kaydet">PNG</Btn>
         <Btn onClick={exportAnon} title="Anonimleştirilmiş DICOM (ZIP)">Anonim DICOM</Btn>
-        <Btn onClick={() => { if (!series || !isImageSeries) { toast("Önce bir görüntü serisi açın."); return; } setNoduleOpen(true); }} title="Nodül takibi: zaman serisi, Lung-RADS özeti, hacim ikilenme süresi">Nodül takibi</Btn>
-        <Btn onClick={() => { if (!series || !isImageSeries) { toast("Segmentasyon için bir görüntü serisi açın."); return; } setSegOpen(true); }} title="Segmentasyon editörü: fırça/silgi, eşik dolgusu, bölge büyütme, hacim (mL), DICOM SEG/RTSTRUCT">🧩 Segmentasyon</Btn>
+        <Btn onClick={() => { if (lazyGate("Nodül takibi yapılamaz")) return; if (!series || !isImageSeries) { toast("Önce bir görüntü serisi açın."); return; } setNoduleOpen(true); }} title="Nodül takibi: zaman serisi, Lung-RADS özeti, hacim ikilenme süresi">Nodül takibi</Btn>
+        <Btn onClick={() => { if (lazyGate("Segmentasyon yapılamaz")) return; if (!series || !isImageSeries) { toast("Segmentasyon için bir görüntü serisi açın."); return; } setSegOpen(true); }} title="Segmentasyon editörü: fırça/silgi, eşik dolgusu, bölge büyütme, hacim (mL), DICOM SEG/RTSTRUCT">🧩 Segmentasyon</Btn>
         <ExportMenu series={isImageSeries ? series : null} wl={wl} ww={ww} invert={invert} slice={slice} rotation={rotation} flipH={flipH} flipV={flipV} keyImages={keyImages} annotations={annotations} pxMm={pxMm} bodyPart={series?.bodyPart ?? ""} toast={toast} />
         <Btn onClick={() => void toggleFullscreen()} title="Tam ekran">⛶</Btn>
         <Btn
@@ -1859,17 +1977,17 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
       <div aria-label="Görüntü araçları" className="relative z-10 flex shrink-0 flex-wrap items-center gap-1 border-b border-[#1a2230] bg-[#0a0e15] px-2 py-1 print:hidden">
         {TOOLS.map((t) => <Btn key={t.id} on={tool === t.id} title={t.hint} onClick={() => setTool(t.id)}>{t.label}</Btn>)}
         {series && series.modality !== "US" && series.slices.length > 0 && (
-          <Btn on={tool === "msk"} tone="violet" title="MSK ölçüm protokolleri: adlandırılmış noktalar, ölçümler ve aralık yorumu (ölçüm yardımcısı)" onClick={() => mskSelect(tool === "msk" ? null : (mskProtocolId ?? "wrist-pa"))}>🦴 MSK</Btn>
+          <Btn on={tool === "msk"} tone="violet" title="MSK ölçüm protokolleri: adlandırılmış noktalar, ölçümler ve aralık yorumu (ölçüm yardımcısı)" onClick={() => { if (tool !== "msk" && lazyGate("MSK ölçümü yapılamaz")) return; mskSelect(tool === "msk" ? null : (mskProtocolId ?? "wrist-pa")); }}>🦴 MSK</Btn>
         )}
         {series && series.slices.length > 0 && (series.modality === "PT" || series.modality === "NM" || series.suv) && (
-          <Btn on={nuclearOpen} title="Nükleer tıp: eşik tabanlı MTV/SUVpeak ve TIC (zaman-aktivite) sınıflandırması" onClick={() => setNuclearOpen((v) => !v)}>🧪 Nükleer</Btn>
+          <Btn on={nuclearOpen} title="Nükleer tıp: eşik tabanlı MTV/SUVpeak ve TIC (zaman-aktivite) sınıflandırması" onClick={() => { if (lazyGate("Nükleer analiz yapılamaz")) return; setNuclearOpen((v) => !v); }}>🧪 Nükleer</Btn>
         )}
         <Btn on={aboutOpen} title="Hakkında: amaçlanan kullanım, amaçlanmayan kullanımlar, sınırlar ve sürüm bilgisi" onClick={() => setAboutOpen((v) => !v)}>ℹ️ Hakkında</Btn>
         {series && series.slices.length > 0 && all.length > 1 && (
-          <Btn on={ticOpen} title="ROI tabanlı TIC: aynı bölgeyi dinamik serilerde ölç, wash-out/plato/progresif sınıfla" onClick={() => setTicOpen((v) => !v)}>📈 TIC</Btn>
+          <Btn on={ticOpen} title="ROI tabanlı TIC: aynı bölgeyi dinamik serilerde ölç, wash-out/plato/progresif sınıfla" onClick={() => { if (lazyGate("TIC analizi yapılamaz")) return; setTicOpen((v) => !v); }}>📈 TIC</Btn>
         )}
         {series && series.modality === "CT" && series.slices.length > 1 && (
-          <Btn on={lungQuantOpen} title="Akciğer kantitasyonu: LAA-950, ortalama HU, PD15, hacim ve kesit dağılımı (kural tabanlı)" onClick={() => setLungQuantOpen((v) => !v)}>🫁 Akciğer</Btn>
+          <Btn on={lungQuantOpen} title="Akciğer kantitasyonu: LAA-950, ortalama HU, PD15, hacim ve kesit dağılımı (kural tabanlı)" onClick={() => { if (lazyGate("Akciğer kantitasyonu yapılamaz")) return; setLungQuantOpen((v) => !v); }}>🫁 Akciğer</Btn>
         )}
         <div className="mx-1 h-5 w-px shrink-0 bg-[#1e2735]" />
         <Btn on={highContrast} tone="amber" title="Yüksek kontrast teması (ikincil metinleri AA eşiğine çıkarır)" onClick={toggleHighContrast}>◐ Kontrast</Btn>
@@ -1885,7 +2003,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         )}
         {series && series.slices.length > 1 && (
           <>
-            <Btn on={cine} tone="emerald" onClick={() => setCine((c) => !c)}>{cine ? "■ Durdur" : "▶ Cine"}</Btn>
+            <Btn on={cine} tone="emerald" onClick={() => { if (!cine && lazyGate("Cine oynatılamaz")) return; setCine((c) => !c); }}>{cine ? "■ Durdur" : "▶ Cine"}</Btn>
             <label className="flex shrink-0 items-center gap-1 text-[10px] text-slate-400">
               <input type="range" min={2} max={30} value={fps} onChange={(e) => setFps(Number(e.target.value))} className="w-16" />
               {fps} fps
@@ -1898,7 +2016,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         </select>
         <Btn onClick={savePreset}>＋ Ön ayar</Btn>
         <div className="mx-1 h-5 w-px shrink-0 bg-[#1e2735]" />
-        <FusionControl all={all} primary={isImageSeries ? series : null} cfg={fusionCfg} onChange={setFusionCfg} slice={slice} />
+        <FusionControl all={all} primary={isImageSeries ? series : null} cfg={fusionCfg} onChange={(c) => { if (c && lazyGate("Füzyon yapılamaz")) return; setFusionCfg(c); }} slice={slice} />
         <Btn on={refLinesOn} tone="violet" onClick={() => { setRefLinesOn((v) => { setRefLines(!v); return !v; }); }} title="Çapraz referans çizgileri: diğer panellerin kesit düzlemlerini bu görüntüde çizgi olarak göster">Ref. çizgi</Btn>
         <Btn tone="amber" onClick={captureKey} title="Anahtar kesit ekle (K)">★ Anahtar kesit{keyImages.length ? ` (${keyImages.length})` : ""}</Btn>
         {pxOverride[series?.id ?? ""] && <span className="shrink-0 rounded border border-emerald-400/30 px-1.5 py-0.5 text-[10px] text-emerald-300">kalibre</span>}
@@ -1959,6 +2077,8 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
                     <div className="pointer-events-none absolute left-3 top-2 font-mono text-[10.5px] leading-relaxed text-cyan-200/80"><div className="font-bold text-white">{series.patientName}</div><div>{series.modality} · {series.description}</div><div className="text-slate-400">ID: {series.patientId}</div>{series.mammo && (series.mammo.laterality || series.mammo.viewPosition || series.mammo.tomosynthesis) && <div className="font-bold text-emerald-300">{[series.mammo.laterality === "R" ? "SAĞ MEME" : series.mammo.laterality === "L" ? "SOL MEME" : "", series.mammo.viewPosition, series.mammo.tomosynthesis ? "DBT" : ""].filter(Boolean).join(" · ")}</div>}{series.mammo?.implant && <div className="text-amber-300">Meme implantı bildirilmiş</div>}</div>
                     <div className="pointer-events-none absolute right-3 top-2 text-right font-mono text-[10.5px] leading-relaxed text-cyan-200/80"><div className="font-bold text-cyan-300">Kesit {slice + 1}/{series.slices.length}{series.sliceThickness ? ` · ${series.sliceThickness} mm` : ""}</div><div>Zoom %{Math.round(zoom * 100)}</div>{hoverVal !== null && <div className="font-bold text-emerald-300">{hoverVal.toFixed(0)} {series.unit}{series.suv?.factor ? ` · SUV ${(hoverVal * series.suv.factor).toFixed(2)}` : ""}</div>}{series.suv && !series.suv.factor && <div className="text-amber-300" title={series.suv.note}>SUV yok: {series.suv.note}</div>}</div>
                     <div className="pointer-events-none absolute bottom-2 left-3 font-mono text-[10.5px] text-cyan-200/80">{series.isColor ? "True Color (RGB)" : `WL ${Math.round(wl)} · WW ${Math.round(ww)}`}{invert ? " · TERS" : ""} · {pxMm.toFixed(3)} mm/px</div>
+                    {lazyPending > 0 && <div className="pointer-events-none absolute bottom-2 right-3 rounded-lg border border-amber-400/50 bg-amber-400/15 px-2.5 py-1.5 font-mono text-[10.5px] font-bold text-amber-200 shadow-lg shadow-amber-950/40"><span className="inline-block animate-pulse">◉</span> Kesitler indiriliyor — {series.slices.length - lazyPending}/{series.slices.length} · kalan {lazyPending}
+                      <span className="block text-[8.5px] font-normal text-amber-200/70">İnen kesitler yerinde doldurulur; ölçüm/analiz/dışa aktarım kilitlidir</span></div>}
                   </>
                 )}
                 {!series && <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2"><div className="text-xl font-bold text-slate-200">DICOM klasörü / dosya / ZIP sürükleyin veya açın</div><div className="text-xs text-slate-500">Sıkıştırılmış (JPEG, JPEG 2000, JPEG-LS, RLE, True Color) ve DICOM video (MPEG-2/MPEG-4/HEVC), SR, PDF, ECG nesneler desteklenir.</div></div>}

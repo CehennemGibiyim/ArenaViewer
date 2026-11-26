@@ -201,7 +201,20 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   satırdaki «👁» düğmesi yalnız **tek kare** getirir (instances → metadata →
   frames?raw=1): MONOCHROME1/2, 8/16 bit, işaretli 12-bit saklanmış örnekler,
   slope/intercept, modality WL/WW ya da min/max yedeği. Sıkıştırılmış aktarım ve
-  RGB/palet karelerde açık uyarı verir; tam lazy-pixel görüntüleyici ayrı iştir.
+  RGB/palet karelerde açık uyarı verir.
+- **PACS lazy-pixel açılış (iskelet + dalgalı indirme):** PACS çalışmasını açarken
+  görüntüleyici önce yalnız QIDO künye listesini çeker (InstanceNumber, IPP z,
+  kalınlık, Rows/Columns, PixelSpacing), en büyük serinin **sıfır Int16Array
+  iskeletini** tahsis edip görüntüyü **indirme bitmeden** açar; pikseller 4'lü
+  eşzamanlı dalgalar hâlinde yerinde doldurulur (`fillSkeletonSlice`). İndirme
+  sürerken HUD'da «◉ Kesitler indiriliyor — X/N» rozeti görünür; ölçüm/anotasyon,
+  cine, MPR, segmentasyon, analiz ve tüm dışa aktarım işlemleri kilitlidir (eksik
+  kesit üzerinde yanıltıcı ölçüm önlenir). GPU pencereleme ve komşu-kesit
+  ön-işlemesi indirme bitene kadar kapalıdır. Çok serili/%20+ karışık çalışmada ya
+  da iskelette hata (Rows/Columns yok, 2 GiB bellek tavanı) durumunda eski kademeli
+  tam indirme yoluna düşülür. Sınırlar: çok kareli örnekler doldurulamaz (bozuk
+  sayılır, kesit siyah kalır); analiz/export yalnız tüm kesitler inene dek
+  kilitlidir; PACS roundtrip çalışma zamanında gerçek bir PACS ile doğrulanmalıdır.
 - **PACS gönderimi (STOW-RS):** Onaylanmış rapor DICOM SR olarak, anahtar
   kesitler KO ve pencere/döndürme ayarı GSPS (PR) olarak PACS'e gönderilebilir.
   KO/PR gönderiminde kesit UID'leri önce QIDO-RS ile PACS'te doğrulanır;

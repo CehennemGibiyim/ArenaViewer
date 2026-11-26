@@ -20,6 +20,7 @@ export interface LazyPacsInstance {
   sliceThickness?: number;
   rows?: number;
   cols?: number;
+  pixelSpacing?: number;
 }
 
 /** Seriye göre gruplar; grup ve grup-içi sıra QIDO sırasını izler (kararlı). */
@@ -128,5 +129,53 @@ export function buildSeriesSkeleton(input: SkeletonInput): SeriesSkeleton {
     defaultWL: input.defaultWL ?? 40,
     defaultWW: input.defaultWW ?? 400,
     allocatedBytes,
+  };
+}
+
+import type { SeriesData } from "./types";
+
+export interface SkeletonSeriesMeta {
+  patientName?: string;
+  patientId?: string;
+  studyDate?: string;
+  institution?: string;
+}
+
+/**
+ * İskeleti `SeriesData`'ya dönüştürür (görüntüleyiciye bağlama Adım 2).
+ * Slices ZERO-filled sıfır dizilerdir; `lazyPending = slices.length`.
+ * Kimlikler tazedir (iskelet her açılışta yeniden kurulur).
+ */
+export function skeletonToSeriesData(sk: SeriesSkeleton, meta: SkeletonSeriesMeta = {}): SeriesData {
+  const uidTail = sk.studyUid.replace(/\D/g, "").slice(-6) || "pacs";
+  return {
+    id: `lazy-${uidTail}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    seriesUid: sk.seriesUid,
+    modality: sk.modality as SeriesData["modality"],
+    description: sk.description,
+    bodyPart: "",
+    patientName: meta.patientName?.trim() || "ANONİM",
+    patientId: meta.patientId?.trim() || "",
+    patientAge: "-",
+    patientSex: "-",
+    studyDate: meta.studyDate ?? "",
+    institution: meta.institution ?? "",
+    studyUid: sk.studyUid,
+    width: sk.width,
+    height: sk.height,
+    pixelSpacing: sk.pixelSpacing,
+    sliceThickness: sk.sliceThickness,
+    sliceSpacing: sk.sliceThickness,
+    slicePositions: sk.slicePositions.length ? [...sk.slicePositions] : undefined,
+    sopUids: [...sk.sopUids],
+    sopClassUid: sk.sopClassUid,
+    defaultWL: sk.defaultWL,
+    defaultWW: sk.defaultWW,
+    unit: sk.modality === "CT" ? "HU" : "SI",
+    slices: sk.slices,
+    lesions: [],
+    tags: [],
+    isSample: false,
+    lazyPending: sk.slices.length,
   };
 }
