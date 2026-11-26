@@ -186,6 +186,14 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   DICOM baytları tarayıcıda sıfırdan üretilir (özel etiket / orijinal UID / ad
   taşınmaz); sunucu örnek sayısı, toplam boyut ve DICM imzasını yeniden denetler.
   Her gönderim denetime yazılır (`/api/pacs/stow` kind=anon).
+- **Seçimli PACS gönderme (STOW):** Dışa aktarma menüsünde «PACS'e gönder (STOW)…»
+  diyaloğu nesne türünü (KO / PR / anonim seri) seçtirir; anonim gönderimde ayrıca
+  **kesit aralığı** (1 tabanlı, seri parçası) seçilebilir. Dilimler istemde birlikte
+  kesilir (piksel + kesit konumu + SOP UID; dilimler 1'den numaralanır, SliceLocation
+  korunur); sunucu, bildirilen aralığın kesit sayısının gelen örnek sayısına **bire bir
+  eşit** olmasını zorunlu kılar — seçim dışı örnek PACS'e iletilmez ve istek 400 ile
+  reddedilir. Seçim denetim kaydına yazılır. Rapor SR'ı bilinçli olarak bu diyalogda
+  değil — onaylı rapor ekranından gönderilir. Dürüst sınır: C-STORE (DIMSE) hâlâ yok.
 - **PACS gönderimi (STOW-RS):** Onaylanmış rapor DICOM SR olarak, anahtar
   kesitler KO ve pencere/döndürme ayarı GSPS (PR) olarak PACS'e gönderilebilir.
   KO/PR gönderiminde kesit UID'leri önce QIDO-RS ile PACS'te doğrulanır;
@@ -660,6 +668,7 @@ npm run verify:sources              # (ağ gerekir) kaynak adreslerini yeniden d
 npm run test:closeloop              # kapanış döngüsü süre/eskalasyon kuralları
 npm run test:followup               # takip görev kovaları + iade eşleme
 npm run test:stowanon               # anonim seri → PACS (plan + sunucu doğrulaması)
+npm run test:estow                  # seçimli gönderme: kesit aralığı + seçim bütünlüğü
 npm run test:wadoframe              # kare düzeyinde getirme + istemci önbelleği
 npm run test:mwl                    # Modality Worklist (DICOMweb + DIMSE köprüsü)
 npm run test:webhard                # hız sınırı + CSRF + CSP

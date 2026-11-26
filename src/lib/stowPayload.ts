@@ -100,3 +100,36 @@ export function summarizeAnonResult(results: { stored: number; failed: string[];
       : `${stored} örnek gönderildi, ${failed} örnek reddedildi${results.find((r) => r.message)?.message ? ` (${results.find((r) => r.message)!.message})` : ""}.`,
   };
 }
+
+/**
+ * e-stow seçim metaverisi: istemci «hangi kesit aralığını» göndermek istediğini bildirir.
+ * Sunucu istemciye güvenmez ama PLANIN KENDİSİNİ doğrulayabilir: bildirilen aralığın
+ * kesit sayısı, gelen örnek sayısına bire bir eşit olmalıdır — böylece seçim dışı
+ * örnek gönderilmesi yapısal olarak engellenir. 1 tabanlı kapalı aralık.
+ */
+export interface AnonSelection { from: number; to: number; total: number }
+
+export function parseAnonSelection(raw: unknown):
+  | { ok: true; value: AnonSelection | null }
+  | { ok: false; error: string } {
+  if (raw === undefined || raw === null) return { ok: true, value: null };
+  if (typeof raw !== "object") return { ok: false, error: "selection geçersiz (nesne bekleniyor)" };
+  const r = raw as { from?: unknown; to?: unknown; total?: unknown };
+  const from = Number(r.from), to = Number(r.to), total = Number(r.total);
+  if (!Number.isFinite(from) || !Number.isFinite(to) || !Number.isFinite(total)) {
+    return { ok: false, error: "selection alanları sayısal olmalı" };
+  }
+  const f = Math.trunc(from), t = Math.trunc(to), tot = Math.trunc(total);
+  if (f < 1 || t < f || tot < t || tot > 100_000) {
+    return { ok: false, error: "selection aralığı geçersiz (1 ≤ from ≤ to ≤ total ≤ 100000)" };
+  }
+  return { ok: true, value: { from: f, to: t, total: tot } };
+}
+
+/** Bildirilen seçimle gelen örnek sayısı uyuşmuyorsa hata metni; uyuyorsa null. */
+export function selectionInstanceCountError(sel: AnonSelection, count: number): string | null {
+  const expected = sel.to - sel.from + 1;
+  return count === expected
+    ? null
+    : `Seçim ${sel.from}–${sel.to} aralığını (${expected} kesit) bildirirken ${count} örnek gönderildi; istek reddedildi.`;
+}

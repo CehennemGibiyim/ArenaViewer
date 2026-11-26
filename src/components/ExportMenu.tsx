@@ -6,6 +6,7 @@ import { exportPngZip, exportVideoWebm } from "@/lib/exportMedia";
 import { buildKeyObjectSelection, buildPresentationState } from "@/lib/dicomSr";
 import { planKeyObject } from "@/lib/pacsSend";
 import { planAnonStow } from "@/lib/stowPayload";
+import { subSeriesForRange, rangeLength } from "@/lib/anonRange";
 import { buildAnonymizedDicom } from "@/lib/dicomWrite";
 import { annotationsToMeasurements, exportCoverage, siteCode } from "@/lib/measurementExport";
 import { buildMeasurementReportSr } from "@/lib/sr1500";
@@ -48,7 +49,11 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
   const [fps, setFps] = useState(12);
   const [side, setSide] = useState(512);
   const [prog, setProg] = useState<{ done: number; total: number } | null>(null);
-  const [sending, setSending] = useState<"ko" | "pr" | null>(null);
+  const [sending, setSending] = useState<"ko" | "pr" | "anon" | null>(null);
+  const [stowDlg, setStowDlg] = useState(false);
+  const [stowType, setStowType] = useState<"ko" | "pr" | "anon-all" | "anon-range">("anon-all");
+  const [stowFrom, setStowFrom] = useState(1);
+  const [stowTo, setStowTo] = useState(1);
   const [codeMap, setCodeMap] = useState<CodeTable | null>(() => (typeof window === "undefined" ? null : loadCodeTable()?.table ?? null));
   const codeFileRef = useRef<HTMLInputElement | null>(null);
   const abort = useRef<AbortController | null>(null);
@@ -106,23 +111,30 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
    * Anonim seriyi PACS'e gönderir (e-stow). Baytlar TARAYICIDA sıfırdan üretilir
    * (kimlik/özel etiket taşımaz); sunucu yalnız STOW-RS'i çağırır.
    */
-  const sendAnonToPacs = async () => {
+  const sendAnonToPacs = async (range?: { from: number; to: number }) => {
     setOpen(false);
+    setStowDlg(false);
     if (!series) { toast("Önce bir görüntü serisi açın."); return; }
     if (!series.sopUids?.length) { toast("Bu seride SOP Instance UID bilgisi yok; anonim gönderim yalnız gerçek DICOM serilerinde yapılır.", 7000); return; }
+    // Seçili parça (1 tabanlı kapalı aralık) kesilir; dilim sınırları rangeLength/subSeriesForRange içinde düzeltilir.
+    const total = series.slices.length;
+    const from = range ? Math.max(1, Math.trunc(range.from) || 1) : 1;
+    const to = range ? Math.min(total, Math.max(from, Math.trunc(range.to) || total)) : total;
+    const target = range ? subSeriesForRange(series, from, to) : series;
+    const rangeNote = range ? ` — kesit ${from}–${to}` : "";
     try {
       // Baytlar tarayıcıda sıfırdan üretilir: orijinal etiket/UID/kimlik taşınmaz.
-      const anon = buildAnonymizedDicom({ ...series, patientName: "", patientId: "" } as typeof series);
-      const plan = planAnonStow(anon.map((a) => ({ name: a.name, bytes: a.bytes })), series.sopUids);
+      const anon = buildAnonymizedDicom({ ...target, patientName: "", patientId: "" } as typeof series);
+      const plan = planAnonStow(anon.map((a) => ({ name: a.name, bytes: a.bytes })), target.sopUids);
       if (!plan.ok) { toast(plan.reason ?? "Gönderim hazırlanamadı", 7000); return; }
-      setSending("pr");
+      setSending("anon");
       const r = await apiFetch("/api/pacs/stow", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind: "anon", studyUid: series.studyUid, instances: plan.instances }),
+        body: JSON.stringify({ kind: "anon", studyUid: series.studyUid, instances: plan.instances, ...(range ? { selection: { from, to, total } } : {}) }),
       });
       const d = (await r.json().catch(() => ({}))) as { stored?: number; failed?: number; text?: string; error?: string; pacs?: string };
       if (!r.ok && r.status !== 207) throw new Error(d.error ?? "Gönderilemedi");
-      toast(`${d.text ?? `${d.stored ?? 0} örnek gönderildi`} (${d.pacs ?? "PACS"}).`, 8000);
+      toast(`${d.text ?? `${d.stored ?? 0} örnek gönderildi`} (${d.pacs ?? "PACS"})${rangeNote}.`, 8000);
     } catch (e) { toast(`Anonim gönderim başarısız: ${e instanceof Error ? e.message : "hata"}`, 8000); }
     finally { setSending(null); }
   };
@@ -257,6 +269,7 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
   /** KO/PR nesnesini PACS'e STOW-RS ile gönderir (rapor SR'ı rapor penceresinden gider). */
   const sendToPacs = async (kind: "ko" | "pr") => {
     setOpen(false);
+    setStowDlg(false);
     if (!series) { toast("Önce bir görüntü serisi açın."); return; }
     const plan = planKeyObject(keyImages, series);
     if (!plan.ok) { toast(plan.reason ?? "Gönderilemedi", 7000); return; }
@@ -297,14 +310,12 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
           <button className={item} onClick={exportKo}>★ Anahtar kesitler → DICOM KO</button>
           <button className={item} onClick={exportPr} title="Pencere, döndürme ve çevirme ayarlarını GSPS belgesi olarak kaydeder">🖼 Görünüm → DICOM PR (sunum durumu)</button>
           <div className="my-1 border-t border-[#1e2735]" />
-          <button className={item} disabled={sending !== null} onClick={() => void sendToPacs("ko")}>☁ Anahtar kesitler → PACS&apos;e gönder (KO)</button>
-          <button className={item} disabled={sending !== null} onClick={() => void sendAnonToPacs()} title="Seriyi bellekten anonim DICOM olarak üretip PACS'e gönderir (kimlik taşımaz)">☁ Anonim seri → PACS&apos;e gönder</button>
+          <button className={item} disabled={sending !== null} onClick={() => { setStowType("anon-all"); setStowFrom(1); setStowTo(n); setStowDlg(true); setOpen(false); }} title="Nesne türü (KO / PR / anonim seri) ve anonim gönderimde kesit aralığını seçerek gönderir">☁ PACS&apos;e gönder (STOW)…</button>
           <button className={item} onClick={() => exportSeg("seg")} title="İşaretli alanlardan DICOM Segmentasyon (SEG, 1 bit/piksel) üretir">🧩 Segmentasyon → DICOM SEG</button>
           <button className={item} onClick={() => exportSeg("rtstruct")} title="İşaretli alanlardan RTSTRUCT (ROI konturları) üretir">🧩 Segmentasyon → RTSTRUCT</button>
           <button className={item} onClick={exportSr1500} title="Ölçümleri TID 1500 yapılandırılmış rapor (Comprehensive SR) olarak indirir">📐 Ölçümler → DICOM SR (TID 1500)</button>
           <button className={item} onClick={() => codeFileRef.current?.click()} title="Kurumun lisanslı RadLex/SNOMED CT eşleme dosyası (CSV/TSV/JSON) — yalnız özel 99ATIKVIEWER kodları değiştirilir">🔖 Kurum kod eşlemesi yükle…{codeMap ? ` (${codeMap.accepted})` : ""}</button>
           {codeMap && <button className={item} onClick={clearCodeMap} title="Saklanan eşleme tablosunu siler">🗑 Kurum kod eşlemesini kaldır</button>}
-          <button className={item} disabled={sending !== null} onClick={() => void sendToPacs("pr")} title="Pencere/döndürme ayarını GSPS olarak PACS'e yazar">☁ Görünüm (PR) → PACS&apos;e gönder</button>
           <div className="px-3 py-1 text-[10px] leading-relaxed text-slate-500">Video/PNG görüntü verisini olduğu gibi aktarır; kimlik bilgisi içermez ama anonimleştirme/DICOM etiketi taşımaz.</div>
         </div>
       )}
@@ -325,6 +336,43 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
             <div className="mt-4 flex justify-end gap-2">
               <button className="cursor-pointer rounded border border-[#2d3b4e] px-3 py-1" onClick={() => { abort.current?.abort(); setDlg(null); }}>{prog ? "İptal" : "Kapat"}</button>
               <button data-testid="export-run" disabled={!!prog} className="cursor-pointer rounded bg-cyan-500 px-3 py-1 font-bold text-black disabled:opacity-50" onClick={() => void run()}>{prog ? `${prog.done}/${prog.total}` : "Dışa aktar"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {stowDlg && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="w-96 rounded-xl border border-[#2d3b4e] bg-[#0b0f16] p-4 text-xs text-slate-200 shadow-2xl">
+            <div className="mb-3 text-sm font-bold text-cyan-300">PACS&apos;e gönder (STOW-RS)</div>
+            <fieldset className="space-y-1.5">
+              <label className="flex cursor-pointer items-start gap-2 rounded border border-transparent p-1 hover:border-[#1e2735]">
+                <input type="radio" name="stow-type" className="mt-0.5" checked={stowType === "ko"} onChange={() => setStowType("ko")} />
+                <span><b>KO</b> — anahtar kesitler (PACS&apos;te QIDO-RS ile doğrulanır)</span>
+              </label>
+              <label className="flex cursor-pointer items-start gap-2 rounded border border-transparent p-1 hover:border-[#1e2735]">
+                <input type="radio" name="stow-type" className="mt-0.5" checked={stowType === "pr"} onChange={() => setStowType("pr")} />
+                <span><b>PR</b> — görünüm/sunum durumu (pencere, ters, döndürme, çevirme)</span>
+              </label>
+              <label className="flex cursor-pointer items-start gap-2 rounded border border-transparent p-1 hover:border-[#1e2735]">
+                <input type="radio" name="stow-type" className="mt-0.5" checked={stowType === "anon-all"} onChange={() => setStowType("anon-all")} />
+                <span><b>Anonim seri</b> — tüm kesitler ({n}); baytlar tarayıcıda üretilir, kimlik taşınmaz</span>
+              </label>
+              <label className="flex cursor-pointer items-start gap-2 rounded border border-transparent p-1 hover:border-[#1e2735]">
+                <input type="radio" name="stow-type" className="mt-0.5" checked={stowType === "anon-range"} onChange={() => setStowType("anon-range")} />
+                <span><b>Anonim seri</b> — yalnız kesit aralığı (seri parçası)</span>
+              </label>
+              {stowType === "anon-range" && (
+                <div className="flex flex-wrap items-center gap-2 border-l border-[#1e2735] py-1 pl-6">
+                  <label className="flex items-center gap-1">İlk<input aria-label="İlk kesit" type="number" min={1} max={n} value={stowFrom} onChange={(e) => setStowFrom(Number(e.target.value))} className="w-16 rounded border border-[#1e2735] bg-[#0e141d] px-1 py-0.5" /></label>
+                  <label className="flex items-center gap-1">Son<input aria-label="Son kesit" type="number" min={1} max={n} value={stowTo} onChange={(e) => setStowTo(Number(e.target.value))} className="w-16 rounded border border-[#1e2735] bg-[#0e141d] px-1 py-0.5" /></label>
+                  <span className="text-slate-500">{rangeLength(stowFrom, stowTo, n)} kesit gönderilecek</span>
+                </div>
+              )}
+            </fieldset>
+            <p className="mt-2 text-[10px] leading-snug text-slate-500">Rapor SR&apos;ı bu menüden gönderilmez — onaylı rapor ekranındaki «PACS&apos;e gönder» kullanılır. Her gönderim denetim kaydına yazılır. Anonim gönderimde dilimler 1&apos;den numaralanır, kesit konumları korunur.</p>
+            <div className="mt-3 flex justify-end gap-2">
+              <button className="cursor-pointer rounded border border-[#2d3b4e] px-3 py-1" onClick={() => setStowDlg(false)}>Vazgeç</button>
+              <button disabled={sending !== null} className="cursor-pointer rounded bg-cyan-500 px-3 py-1 font-bold text-black disabled:opacity-50" onClick={() => void (stowType === "ko" ? sendToPacs("ko") : stowType === "pr" ? sendToPacs("pr") : stowType === "anon-all" ? sendAnonToPacs() : sendAnonToPacs({ from: stowFrom, to: stowTo }))}>{sending ? "Gönderiliyor…" : "Gönder"}</button>
             </div>
           </div>
         </div>
