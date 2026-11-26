@@ -232,7 +232,6 @@ export default function VolumeView({ series, wl: wl0, ww: ww0, invert, initialTa
   }
 
   // Oblik düzlemin üç panele düşen kesişim çizgisi (yekpare hesapla)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const obliqueLines = useMemo(() => (showObliqueLine ? obliqueLinesFor(series, { x: cur.x, y: cur.y, z: cur.z }, obRot.x, obRot.y, obRot.z) : null), [series, cur.x, cur.y, cur.z, obRot.x, obRot.y, obRot.z, showObliqueLine]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const axG = useMemo(() => planeFor("axial", { index: cur.z }), [series, cur.z, slab, mode]);

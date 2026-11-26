@@ -740,7 +740,6 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     const t = setInterval(() => { void tick(); }, 2000);
     void tick();
     return () => { stop = true; clearInterval(t); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveOn, liveSource]);
 
   // Kademeli (streaming) yüklemede açılan geçici serilerin kimlikleri: nihai parse
