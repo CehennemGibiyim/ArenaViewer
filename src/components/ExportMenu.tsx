@@ -118,8 +118,9 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
     if (!series.sopUids?.length) { toast("Bu seride SOP Instance UID bilgisi yok; anonim gönderim yalnız gerçek DICOM serilerinde yapılır.", 7000); return; }
     // Seçili parça (1 tabanlı kapalı aralık) kesilir; dilim sınırları rangeLength/subSeriesForRange içinde düzeltilir.
     const total = series.slices.length;
-    const from = range ? Math.max(1, Math.trunc(range.from) || 1) : 1;
-    const to = range ? Math.min(total, Math.max(from, Math.trunc(range.to) || total)) : total;
+    const num = (v: number, fallback: number) => (Number.isFinite(v) ? Math.trunc(v) : fallback);
+    const from = range ? Math.max(1, num(range.from, 1)) : 1;
+    const to = range ? Math.min(total, Math.max(from, num(range.to, total))) : total;
     const target = range ? subSeriesForRange(series, from, to) : series;
     const rangeNote = range ? ` — kesit ${from}–${to}` : "";
     try {
@@ -372,7 +373,7 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
             <p className="mt-2 text-[10px] leading-snug text-slate-500">Rapor SR&apos;ı bu menüden gönderilmez — onaylı rapor ekranındaki «PACS&apos;e gönder» kullanılır. Her gönderim denetim kaydına yazılır. Anonim gönderimde dilimler 1&apos;den numaralanır, kesit konumları korunur.</p>
             <div className="mt-3 flex justify-end gap-2">
               <button className="cursor-pointer rounded border border-[#2d3b4e] px-3 py-1" onClick={() => setStowDlg(false)}>Vazgeç</button>
-              <button disabled={sending !== null} className="cursor-pointer rounded bg-cyan-500 px-3 py-1 font-bold text-black disabled:opacity-50" onClick={() => void (stowType === "ko" ? sendToPacs("ko") : stowType === "pr" ? sendToPacs("pr") : stowType === "anon-all" ? sendAnonToPacs() : sendAnonToPacs({ from: stowFrom, to: stowTo }))}>{sending ? "Gönderiliyor…" : "Gönder"}</button>
+              <button disabled={sending !== null || n === 0 || (stowType === "anon-range" && rangeLength(stowFrom, stowTo, n) === 0)} className="cursor-pointer rounded bg-cyan-500 px-3 py-1 font-bold text-black disabled:opacity-50" onClick={() => void (stowType === "ko" ? sendToPacs("ko") : stowType === "pr" ? sendToPacs("pr") : stowType === "anon-all" ? sendAnonToPacs() : sendAnonToPacs({ from: stowFrom, to: stowTo }))}>{sending ? "Gönderiliyor…" : "Gönder"}</button>
             </div>
           </div>
         </div>

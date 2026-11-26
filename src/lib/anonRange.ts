@@ -12,6 +12,10 @@ export interface SliceRangeLike {
 export function subSeriesForRange<T extends SliceRangeLike>(series: T, from1: number, to1: number): T {
   const total = series.slices.length;
   const num = (v: number, fallback: number) => (Number.isFinite(v) ? Math.trunc(v) : fallback);
+  if (total <= 0) {
+    // Boş seride «parça» yoktur: seçim değil, saf boş alt-dizi döner (tanımsız kesit üretilmez).
+    return { ...series, slices: [] as unknown as T["slices"], slicePositions: [], sopUids: [] };
+  }
   const f = Math.max(0, Math.min(total - 1, num(from1, 1) - 1));
   const t = Math.max(f, Math.min(total - 1, num(to1, total) - 1));
   return {

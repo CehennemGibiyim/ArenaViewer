@@ -48,6 +48,8 @@ ok(subSeriesForRange(full, 7, 99).slicePositions?.join() === [positions[6], posi
 ok(subSeriesForRange(full, 6, 2).slices.length === 1, "from > to → tek kesit (from)");
 ok(subSeriesForRange(full, NaN, NaN).slices.length === 8, "sonlu olmayan girişler tüm seriye düşer");
 ok(rangeLength(NaN, NaN, 8) === 8 && rangeLength(5, 2, 8) === 1 && rangeLength(0, 0, 0) === 0, "rangeLength sınırları");
+const empty = subSeriesForRange({ ...full, slices: [], slicePositions: [], sopUids: [] }, 1, 5);
+ok(empty.slices.length === 0 && empty.slicePositions!.length === 0 && empty.sopUids!.length === 0, "boş seride tanımsız kesit üretilmez");
 
 // ── 2) Uçtan uca: yalnız seçili parçadan bayt üretilir ──
 const src = mkSeries();
