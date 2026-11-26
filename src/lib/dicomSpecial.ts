@@ -250,6 +250,20 @@ export function parseOverlayPlanes(ds: DicomDataSet): DicomOverlayPlane[] {
 
 export const SOP_GSPS = "1.2.840.10008.5.1.4.1.1.11.1";
 
+/** FL (float) dizisini ikili okur: Graphic Data (0070,0022) metin VR değildir. */
+function readFloatArray(ds: DicomDataSet, tag: string): number[] {
+  const el = ds.elements[tag];
+  if (!el || el.length < 4) return [];
+  const n = Math.floor(el.length / 4);
+  const dv = new DataView(ds.byteArray.buffer as ArrayBuffer, ds.byteArray.byteOffset + el.dataOffset, n * 4);
+  const out: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const v = dv.getFloat32(i * 4, true);
+    if (Number.isFinite(v)) out.push(Math.round(v * 100) / 100);
+  }
+  return out;
+}
+
 export function parsePresentationState(ds: DicomDataSet): DicomGSPS | null {
   const graphicSeq = ds.elements["x00700001"];
   const graphics: GSPSGraphicObject[] = [];
@@ -276,8 +290,8 @@ export function parsePresentationState(ds: DicomDataSet): DicomGSPS | null {
         for (const gItem of grSeq.items) {
           if (!gItem.dataSet) continue;
           const gType = (gItem.dataSet.string("x00700023") || "POLYLINE").toUpperCase() as GSPSGraphicObject["type"];
-          const dataStr = gItem.dataSet.string("x00700022") || "";
-          const data = dataStr.split("\\").map(Number).filter((n) => !Number.isNaN(n));
+          // Graphic Data (0070,0022) FL'dir: ikili okunur (metin olarak okumak bozuk değer verir).
+          const data = readFloatArray(gItem.dataSet, "x00700022");
           graphics.push({ type: gType, data });
         }
       }

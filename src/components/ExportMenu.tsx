@@ -9,6 +9,7 @@ import { planAnonStow } from "@/lib/stowPayload";
 import { buildAnonymizedDicom } from "@/lib/dicomWrite";
 import { annotationsToMeasurements, exportCoverage, siteCode } from "@/lib/measurementExport";
 import { buildMeasurementReportSr } from "@/lib/sr1500";
+import { writableAnnotationCount } from "@/lib/gspsGraphics";
 import { buildRtStruct, buildSegDocument } from "@/lib/dicomSeg";
 import { emptyMask, makeSegmentDef, maskFromJson, paint, prune, unionMasks, type SegMask } from "@/lib/segmentation";
 import { apiFetch } from "@/lib/csrfClient";
@@ -107,9 +108,12 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
       patientName: series.patientName, patientId: series.patientId, patientSex: series.patientSex, studyUid: series.studyUid, studyDate: series.studyDate, institution: series.institution,
       seriesUid: series.seriesUid, sopClassUid: series.sopClassUid, sopUids: series.sopUids,
       wl, ww, invert, rotation, flipH, flipV,
+      annotations,
     });
     download(new Blob([bytes.slice().buffer as ArrayBuffer], { type: "application/dicom" }), `PR-${series.modality}-sunum-durumu.dcm`);
-    toast("DICOM sunum durumu (GSPS/PR) indirildi — rapor belgesi değildir.", 5000);
+    const written = writableAnnotationCount(annotations, series.sopUids);
+    const skipped = annotations.length - written;
+    toast(`DICOM sunum durumu (GSPS/PR) indirildi — ${written} anotasyon grafik katmanı olarak yazıldı${skipped > 0 ? `, ${skipped} anotasyon atlandı (kesit/UID eşleşmedi)` : ""}. Rapor belgesi değildir.`, 7000);
   };
 
   /**

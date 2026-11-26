@@ -56,6 +56,7 @@ ok(liveText("v-fusion").includes("ticRoi"), "v-fusion satırı ROI tabanlı TIC'
 ok(liveText("f-pixel").includes("photometric"), "f-pixel satırı fotometri modülünü anıyor");
 ok(liveText("r-dictate").includes("dictate"), "r-dictate satırı dikte modülünü anıyor");
 ok(liveText("m-persist").includes("TID 1500"), "m-persist satırı ölçümlerin TID 1500 SR dışa aktarımını anıyor");
+ok(liveText("m-persist").includes("gspsGraphics"), "m-persist satırı anotasyonların GSPS grafik katmanıyla yazıldığını anıyor");
 ok(liveText("r-review").includes("findingReview"), "r-review satırı uygulanan gerekçe zorunluluğunu (findingReview.ts) anıyor");
 ok(liveText("r-patient").includes("patientLetter"), "r-patient satırı hasta mektubu modülünü (TR/EN/DE, sade/standart) anıyor");
 ok(liveText("r-export").includes("TID 1500"), "r-export satırı ölçüm SR (TID 1500) çıktısını anıyor");
@@ -87,6 +88,8 @@ const recycledActions: [string, string][] = [
   ["m-calib", "SUVlbm/SUVbsa (boy, cinsiyet), üretici-özel PET etiketleri"],
   ["r-export", "SR içinde yapılandırılmış ölçümler (TID 1500)"],
   ["t-automation", "Hekim kararlarının AI önerisinden ayrı kaydı ve uyuşmazlık raporu"],
+  ["m-persist", "anotasyonların grafik nesne olarak DICOM PR (GSPS) ile dışa aktarımı"],
+  ["f-objects", "SR/PR ayrıştırıcıları, kapsüllenmiş PDF ve MPEG oynatıcı"],
 ];
 for (const [id, phrase] of recycledActions) {
   const action = GAP_ITEMS.find((x) => x.id === id)?.action ?? "";

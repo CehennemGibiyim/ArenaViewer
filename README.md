@@ -233,6 +233,12 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   **SUVbsa** (Du Bois vücut yüzey alanı) — boy (0010,1020) ve cinsiyet (0010,0040)
   varsa otomatik, yoksa Nükleer tıp panelinde elle girilerek (`src/lib/suvVariants.ts`).
   Hesaplanamayan varyantta nedeni yazılır; değerler ölçüm değil hesaplanmış tahmindir.
+- **Anotasyonlar PR (GSPS) içinde:** dışa aktarma menüsündeki sunum durumu belgesi
+  artık ekrandaki ölçüm/işaretleri **grafik katmanı** olarak yazar (uzunluk/açı/ok →
+  polyline, dikdörtgen/poligon → kapalı polyline, elips → ellipse, etiketler → metin
+  nesnesi, her anotasyon kendi referans görüntüsüne bağlı). Kesiti kaynak SOP Instance
+  ile eşleşmeyen anotasyon atlanır ve menü kaç tanesinin yazıldığını söyler
+  (`src/lib/gspsGraphics.ts`). Belge rapor/imza değildir; geri içe aktarma henüz yok.
 - **Kısayollar:** görüntüleyici tuşları (kesit ileri/geri, döndür, çevir, anahtar kesit)
   Tercihler sayfasından atanabilir (`src/lib/shortcuts.ts`); çakışma uyarılır, bozuk
   kayıt varsayılana döner. Ayar **bu tarayıcıda** saklanır (hesaba bağlı değil).
