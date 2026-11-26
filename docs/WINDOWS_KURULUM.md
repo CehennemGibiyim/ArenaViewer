@@ -26,6 +26,7 @@ PowerShell'den seçenekli çalıştırmak için:
 ```powershell
 powershell -ExecutionPolicy Bypass -File windows\Kurulum.ps1            # tam kurulum
 powershell -ExecutionPolicy Bypass -File windows\Kurulum.ps1 -CpuTorch   # yalnız CPU torch (≈250 MB)
+powershell -ExecutionPolicy Bypass -File windows\Kurulum.ps1 -Knee       # + diz MR segmentasyon modeli (≈1,6 GB, MIT, araştırma amaçlı)
 powershell -ExecutionPolicy Bypass -File windows\Kurulum.ps1 -Build      # + üretim derlemesi
 powershell -ExecutionPolicy Bypass -File windows\Baslat.ps1 -Dev         # geliştirme sunucusuyla başlat
 ```

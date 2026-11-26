@@ -1,4 +1,4 @@
-﻿#Requires -Version 5.1
+#Requires -Version 5.1
 <#
   ATIKVIEWER — Windows otomatik kurulum betiği
   =============================================
@@ -12,6 +12,8 @@
        (torch, monai, opencv, skp — hepsi kendisi çözülür)
     3. Yapay zekâ modellerini indirir: akciğer nodül (MONAI, ≈84 MB) +
        beyin kanama ICH (MIT, ≈147 MB) — ai-worker\setup_model.py
+       (-Knee verilirse ek olarak diz MR segmentasyonu: nnU-Net, MIT, ≈1,6 GB —
+        ai-worker\setup_knee_model.py)
     4. Node bağımlılıklarını kurar (npm ci) ve .env dosyasını hazırlar
     5. -Build ile üretim derlemesi yapar
 
@@ -20,6 +22,8 @@
     -SkipNpm      npm kurulumunu atla (node_modules tazeyse)
     -Build        Derleme de yapılsın (npm run build)
     -CpuTorch     PyTorch'u yalnızca CPU sürümünden kur (≈250 MB, GPU yoksa önerilir)
+    -Knee         Diz MR segmentasyon modelini de indir (≈1,6 GB, MIT; araştırma amaçlı —
+                   yırtık tanısı konmaz; iptal etmek için komuttan çıkarın)
     -DevPort N    Next.js için farklı port (varsayılan 3000)
 
   Betik uçtan uca idempotent'tir: yeniden çalıştırmak güvenlidir, mevcut
@@ -30,6 +34,7 @@ param(
     [switch]$SkipNpm,
     [switch]$Build,
     [switch]$CpuTorch,
+    [switch]$Knee,
     [int]$DevPort = 3000
 )
 
@@ -198,9 +203,11 @@ try {
     # native argümana geçirirken yutuyor ("torch" → torch). Geçici dosyaya yazılır.
     # Python tarafı hatasını yakalayıp exit 1 döndürür; stderr akışı yalnızca toplanır.
     Write-Host "    import denetimi..."
-    $probeCode = @'
+    $probeMods = '"torch", "monai", "numpy", "cv2", "safetensors", "huggingface_hub", "nibabel", "skp"'
+    if ($Knee) { $probeMods += ', "nnunetv2"' }
+    $probeCode = @"
 import importlib, sys, traceback
-mods = ("torch", "monai", "numpy", "cv2", "safetensors", "huggingface_hub", "nibabel", "skp")
+mods = ($probeMods,)
 try:
     for m in mods:
         importlib.import_module(m)
@@ -208,7 +215,7 @@ except Exception:
     traceback.print_exc()
     sys.exit(1)
 print("imports-ok")
-'@
+"@
     $probeFile = Join-Path $env:TEMP 'atikviewer-import-probe.py'
     Set-Content -Path $probeFile -Value $probeCode -Encoding UTF8 -ErrorAction Stop
     $probeOut = (& $VenvPy $probeFile 2>&1 | Out-String)
@@ -220,7 +227,8 @@ print("imports-ok")
         Write-Host $probeOut -ForegroundColor Red
         throw "Import denetimi beklenmedik çıktı verdi."
     }
-    Write-Ok "torch/monai/cv2/nibabel/skp import edilebiliyor"
+    $kneeNote = if ($Knee) { " + nnunetv2" } else { "" }
+    Write-Ok "torch/monai/cv2/nibabel/skp import edilebiliyor$kneeNote"
 
     # ── 3) Yapay zekâ modelleri ──────────────────────────────────────────
     Write-Step "3/6 Yapay zekâ modelleri indiriliyor (akciğer ≈84 MB + beyin ≈147 MB)"
@@ -229,6 +237,20 @@ print("imports-ok")
         throw "Model indirme başarısız (kod $LASTEXITCODE). Ağ/VPN kontrolü yapıp betiği yeniden çalıştırın; dosyalar kaldığı yerden devam eder."
     }
     Write-Ok "Modeller hazır (idempotent: mevcut dosyalar atlandı)"
+
+    if ($Knee) {
+        Write-Step "3b/6 Diz MR segmentasyon modeli indiriliyor (nnU-Net, MIT, ≈1,6 GB — isteğe bağlı)"
+        & $VenvPy (Join-Path $Root 'ai-worker\setup_knee_model.py')
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warn2 "Diz MR modeli indirilemedi (kod $LASTEXITCODE). Kurulumun geri kalanı etkilenmedi."
+            Write-Warn2 "Sonra elle kurabilirsiniz: .venv\Scripts\python ai-worker\setup_knee_model.py"
+            Write-Warn2 "(Bu adım isteğe bağlıdır; atlamak için -Knee vermeden çalıştırın.)"
+        } else {
+            Write-Ok "Diz MR modeli hazır (görüntüleyicide MR diz serisi açıkken 🦵 Diz MR düğmesi görünür)"
+        }
+    } else {
+        Write-Host "    (Diz MR segmentasyonu atlandı; isterseniz -Knee ile ekleyin veya sonra elle: python ai-worker\setup_knee_model.py)" -ForegroundColor DarkGray
+    }
 
     # ── 4) Node bağımlılıkları + .env ────────────────────────────────────
     Write-Step "4/6 Node bağımlılıkları ve .env"
@@ -290,6 +312,7 @@ print("imports-ok")
     Write-Host "  İpuçları:" -ForegroundColor DarkGray
     Write-Host "    - Yeniden kurulum güvenlidir (idempotent); eksik parçalar tamamlanır." -ForegroundColor DarkGray
     Write-Host "    - GPU için torch CUDA'lı kurulur; yalnız CPU isterseniz -CpuTorch ekleyin." -ForegroundColor DarkGray
+    Write-Host "    - Diz MR segmentasyonu için -Knee ekleyin (nnU-Net, MIT, ≈1,6 GB, araştırma amaçlı)." -ForegroundColor DarkGray
     Write-Host "    - Sorun olursa kayıt dosyasına bakın: $LogPath" -ForegroundColor DarkGray
     Write-Host ""
 }
