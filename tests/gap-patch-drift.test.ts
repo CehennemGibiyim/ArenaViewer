@@ -63,6 +63,7 @@ ok(liveText("t-automation").includes("findingsReason"), "t-automation satırı h
 ok(liveText("a-feedback").includes("aiDisagreement"), "a-feedback satırı uyuşmazlık panosunu (aiDisagreement.ts) anıyor");
 ok(liveText("f-series").includes("sliceGaps"), "f-series satırı kesit aralığı denetimini (sliceGaps.ts) anıyor");
 ok(liveText("v-geo").includes("shortcuts"), "v-geo satırı özelleştirilebilir kısayolları (shortcuts.ts) anıyor");
+ok(liveText("m-calib").includes("suvVariants"), "m-calib satırı SUVlbm/SUVbsa varyantlarını (suvVariants.ts) anıyor");
 ok(!liveText("r-review").includes("panosunda (a-feedback) kategori bazlı gösterilmesi"), "r-review aksiyonu tamamlanan pano işini yeniden istemiyor");
 ok(!liveText("m-persist").includes("Ölçümleri veritabanına kaydet"), "m-persist satırı \"ölçümleri veritabanına kaydet\" (zaten yapılan) işini aksiyon olarak önermiyor");
 
@@ -83,6 +84,7 @@ const recycledActions: [string, string][] = [
   ["r-struct", "Ölçüm tablosunu rapora ekleme"],
   ["r-patient", "Okuma düzeyi ayarı ve çok dilli çıktı"],
   ["a-loc", "Model çıktısını (bbox/maske) aynı Finding yapısına eşle"],
+  ["m-calib", "SUVlbm/SUVbsa (boy, cinsiyet), üretici-özel PET etiketleri"],
   ["r-export", "SR içinde yapılandırılmış ölçümler (TID 1500)"],
   ["t-automation", "Hekim kararlarının AI önerisinden ayrı kaydı ve uyuşmazlık raporu"],
 ];

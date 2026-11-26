@@ -284,6 +284,18 @@ export interface MammographyInfo {
   tomosynthesis: boolean;
 }
 
+/** SUVlbm / SUVbsa varyantı (boy ve cinsiyet gerektirir). */
+export interface SuvVariantInfo {
+  /** Piksel (Bq/mL) × factor = SUV varyantı. Hesaplanamadıysa null. */
+  factor: number | null;
+  /** Yağsız kütle (kg) — yalnız SUVlbm için. */
+  lbmKg?: number | null;
+  /** Vücut yüzey alanı (m²) — yalnız SUVbsa için. */
+  bsaM2?: number | null;
+  /** Kısa Türkçe açıklama (hesaplanamadıysa nedeni). */
+  note: string;
+}
+
 export interface SuvInfo {
   /** SUVbw = piksel (Bq/mL) × factor. null ise hesaplanamadı; neden `note` içinde. */
   factor: number | null;
@@ -294,6 +306,14 @@ export interface SuvInfo {
   doseBq?: number;
   halfLifeS?: number;
   deltaS?: number;
+  /** Hasta boyu (cm) — (0010,1020) Patient Size yorumundan. */
+  heightCm?: number | null;
+  /** (0010,1020) yorumu: metre mi cm mi olduğu varsayımı. */
+  heightAssumed?: "m" | "cm" | null;
+  /** Hasta cinsiyeti (0010,0040). */
+  sex?: "M" | "F" | "unknown";
+  /** SUVlbm / SUVbsa varyantları (boy/cinsiyet varsa dolu). */
+  variants?: { lbm: SuvVariantInfo; bsa: SuvVariantInfo };
 }
 
 export interface SeriesData {
