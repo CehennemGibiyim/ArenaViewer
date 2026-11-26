@@ -214,7 +214,7 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   da iskelette hata (Rows/Columns yok, 2 GiB bellek tavanı) durumunda eski kademeli
   tam indirme yoluna düşülür. Sınırlar: çok kareli örnekler doldurulamaz (bozuk
   sayılır, kesit siyah kalır); analiz/export yalnız tüm kesitler inene dek
-  kilitlidir; PACS roundtrip çalışma zamanında gerçek bir PACS ile doğrulanmalıdır.
+  kilitlidir; CI'daki Orthanc'a karşı `test:pacs-lazy` (STOW→QIDO→iskelet→WADO→doldurma) koruması vardır; tarayıcı içi tam akış gerçek bir PACS ile ayrıca doğrulanmalıdır.
 - **PACS gönderimi (STOW-RS):** Onaylanmış rapor DICOM SR olarak, anahtar
   kesitler KO ve pencere/döndürme ayarı GSPS (PR) olarak PACS'e gönderilebilir.
   KO/PR gönderiminde kesit UID'leri önce QIDO-RS ile PACS'te doğrulanır;
