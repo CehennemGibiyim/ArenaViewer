@@ -104,6 +104,7 @@ Windows
   windows/Paket.ps1                Inno Setup ile Setup.exe + portable.zip üretir
   windows/atikviewer.iss           Inno Setup betiği
   docs/WINDOWS_KURULUM.md          Windows kurulum rehberi ve hata çözümleri
+  docs/KURULUM_VE_KULLANIM.md      tüm işletim sistemleri için görsel+videolu kılavuz
 
 Linux
   packaging/linux/install.sh       tek komutla kurulum (Debian/Fedora/Arch)

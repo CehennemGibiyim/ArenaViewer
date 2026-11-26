@@ -450,7 +450,8 @@ npm start
 > ```
 >
 > Elle kurulum, PostgreSQL (opsiyonel), CUDA ve **sık karşılaşılan hataların
-> çözümleri** için **[docs/WINDOWS_KURULUM.md](docs/WINDOWS_KURULUM.md)**:
+> çözümleri** için **[docs/WINDOWS_KURULUM.md](docs/WINDOWS_KURULUM.md)** —
+> tüm işletim sistemleri için görsel + videolu kılavuz: **[docs/KURULUM_VE_KULLANIM.md](docs/KURULUM_VE_KULLANIM.md)**:
 >
 > ```powershell
 > git clone https://github.com/CehennemGibiyim/ArenaViewer.git
@@ -761,7 +762,7 @@ src/
 public/codecs/    WASM görüntü çözücüleri (repoda tutulur, CDN değildir)
 ai-worker/        Yerel derin AI worker (MONAI model çıkarımı, Python)
 tests/            Playwright menü + klasör yükleme regresyon testleri
-docs/             Yayınlama ve işletim kılavuzları
+docs/             Yayınlama ve işletim kılavuzları (görsel + videolu: docs/KURULUM_VE_KULLANIM.md)
 ```
 
 ## Güvenlik notları
