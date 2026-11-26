@@ -163,6 +163,9 @@ export default function NuclearPanel({ series, onClose, onAddToFindings }: Props
               <p className="mt-1 text-[10.5px] text-slate-500">Seride ağırlık/doz/yarı ömür/gecikme bilgisi yok; varyantlar hesaplanamaz.</p>
             )}
             <p className="mt-1 text-[10px] text-slate-500">SUVlbm (Janmahasatian) ve SUVbsa (Du Bois) hesaplanmış değerlerdir; klinik karar için ölçüm değildir.</p>
+            <p className="mt-1 text-[10px] text-slate-500">
+              SUV factor varsa pencere çubuğuna SUV ön ayarları eklenir (SUV 0–2,5 / 0–5 / 0–10 / 0–15); factor yoksa gösterilmez.
+            </p>
           </div>
 
           {sample && sample.sampledVoxels === 0 && (

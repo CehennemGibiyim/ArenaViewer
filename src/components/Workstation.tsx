@@ -47,6 +47,7 @@ import { zipAnonymized } from "@/lib/dicomWrite";
 import { findMatchingHangingProtocol, resolveHangingCellSeries } from "@/lib/hangingProtocols";
 import { DEFAULT_SHORTCUTS, loadShortcuts, resolveAction, type ShortcutAction } from "@/lib/shortcuts";
 import { findMskProtocol, type MskMetric } from "@/lib/msk";
+import { suvPresetsForSeries } from "@/lib/petWindows";
 import type {
   AiMode, AiProtocol, AnalysisResult, Annotation, EngineKind, Finding, FindingApprovalStatus,
   HangingProtocolRule, ImageReview, KeyImage, Layout, Lesion, SavedReport, SeriesData, StudyRow, ToolName, UserInfo, WindowPreset,
@@ -1570,7 +1571,12 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
 
   // Pencere ön ayarları tüm modalitelerde listelenir: aynı isimler MR/US grafide de
   // yardımcı olur; özel AR/Onc olayları kullanıcı kendi ayarını kaydedebilir.
-  const allPresets = useMemo<WindowPreset[]>(() => series ? [...CT_PRESETS, ...presets] : CT_PRESETS, [series, presets]);
+  // PET serisinde SUV factor varsa hazır SUV pencereleri de listelenir (modality birimine çevrilir).
+  const suvWindows = useMemo<WindowPreset[]>(() => suvPresetsForSeries(series?.suv?.factor), [series?.suv?.factor]);
+  const allPresets = useMemo<WindowPreset[]>(
+    () => (series ? [...CT_PRESETS, ...suvWindows, ...presets] : CT_PRESETS),
+    [series, suvWindows, presets],
+  );
   const overlay: OverlayData | null = masks || heats
     ? { masks: masks ?? new Map(), opacity: overlayOpacity, heats: heats ?? undefined, heatOpacity }
     : null;

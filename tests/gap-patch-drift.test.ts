@@ -57,6 +57,7 @@ ok(liveText("f-pixel").includes("photometric"), "f-pixel satırı fotometri mod�
 ok(liveText("r-dictate").includes("dictate"), "r-dictate satırı dikte modülünü anıyor");
 ok(liveText("m-persist").includes("TID 1500"), "m-persist satırı ölçümlerin TID 1500 SR dışa aktarımını anıyor");
 ok(liveText("m-persist").includes("gspsGraphics"), "m-persist satırı anotasyonların GSPS grafik katmanıyla yazıldığını anıyor");
+ok(liveText("v-wl").includes("petWindows"), "v-wl satırı PET SUV pencere ön ayarlarını anıyor");
 ok(liveText("r-review").includes("findingReview"), "r-review satırı uygulanan gerekçe zorunluluğunu (findingReview.ts) anıyor");
 ok(liveText("r-patient").includes("patientLetter"), "r-patient satırı hasta mektubu modülünü (TR/EN/DE, sade/standart) anıyor");
 ok(liveText("r-export").includes("TID 1500"), "r-export satırı ölçüm SR (TID 1500) çıktısını anıyor");
@@ -89,6 +90,7 @@ const recycledActions: [string, string][] = [
   ["r-export", "SR içinde yapılandırılmış ölçümler (TID 1500)"],
   ["t-automation", "Hekim kararlarının AI önerisinden ayrı kaydı ve uyuşmazlık raporu"],
   ["m-persist", "anotasyonların grafik nesne olarak DICOM PR (GSPS) ile dışa aktarımı"],
+  ["v-wl", "ve PET SUV penceresi"],
   ["f-objects", "SR/PR ayrıştırıcıları, kapsüllenmiş PDF ve MPEG oynatıcı"],
 ];
 for (const [id, phrase] of recycledActions) {
