@@ -271,6 +271,53 @@ export async function stowInstance(cfg: PacsConfig, bytes: Uint8Array, timeoutMs
   return { ok: true, failed: [], stored, message: "PACS nesneyi kabul etti." };
 }
 
+// ───────────── metadata + BulkDataURI (OHIF uyumu) ─────────────
+
+/**
+ * BulkDataURI güvenlik denetimi (SSRF koruması): çözülmüş URI yalnızca yapılandırılan
+ * PACS kökleriyle AYNI host (ve port) üzerindeki http/https adreslerine izin verir.
+ * Başka hiçbir adrese — dahili ağ/internet fark etmeksizin — istek yapılmaz.
+ */
+export function isAllowedBulkdataUri(uriStr: string, cfg: PacsConfig): { ok: true; url: URL } | { ok: false; error: string } {
+  let u: URL;
+  try { u = new URL(uriStr); } catch { return { ok: false, error: "Geçersiz BulkDataURI." }; }
+  if (u.protocol !== "http:" && u.protocol !== "https:") return { ok: false, error: "BulkDataURI http/https olmalıdır." };
+  if (u.username || u.password) return { ok: false, error: "BulkDataURI kullanıcı bilgisi içeremez." };
+  if (u.hash) return { ok: false, error: "BulkDataURI fragment içeremez." };
+  const roots = [cfg.qidoRoot, cfg.wadoRoot].map((t) => (t || "").trim()).filter(Boolean);
+  if (!roots.length) return { ok: false, error: "PACS adresi yapılandırılmamış." };
+  const sameHost = roots.some((t) => { try { return new URL(t).host === u.host; } catch { return false; } });
+  if (!sameHost) return { ok: false, error: "BulkDataURI PACS ile aynı sunucuda olmalıdır (harici adres engellendi)." };
+  return { ok: true, url: u };
+}
+
+/** Örnek metadata'sı (application/dicom+json). */
+export async function wadoMetadata(cfg: PacsConfig, studyUid: string, seriesUid: string, sopUid: string): Promise<unknown> {
+  const root = cfg.wadoRoot || cfg.qidoRoot;
+  if (!root) throw new Error("PACS adresi yapılandırılmamış.");
+  const url = `${root}/studies/${studyUid}/series/${seriesUid}/instances/${sopUid}/metadata`;
+  const res = await requestBuffer(url, cfg, "application/dicom+json", 30000);
+  if (res.status >= 400 || !res.status) throw new Error(friendlyStatus(res.status));
+  if (res.body.length > 64 * 1024 * 1024) throw new Error("metadata yanıtı sınırı aşıldı (64 MB).");
+  try {
+    return JSON.parse(res.body.toString("utf8"));
+  } catch {
+    throw new Error("PACS metadata yanıtı JSON değil.");
+  }
+}
+
+const BULKDATA_MAX_BYTES = 256 * 1024 * 1024;
+
+/** BulkDataURI'den ikili veriyi indirir (host denetimli). */
+export async function fetchBulkdata(cfg: PacsConfig, uri: string, timeoutMs = 120000): Promise<Uint8Array> {
+  const check = isAllowedBulkdataUri(uri, cfg);
+  if (!check.ok) throw new Error(check.error);
+  const res = await requestBuffer(check.url.toString(), cfg, "application/octet-stream", timeoutMs);
+  if (res.status >= 400 || !res.status) throw new Error(friendlyStatus(res.status));
+  if (res.body.length > BULKDATA_MAX_BYTES) throw new Error("BulkDataURI yanıtı sınırı aşıldı (256 MB).");
+  return new Uint8Array(res.body);
+}
+
 // ───────────── WADO-RS ─────────────
 
 /** multipart/related gövdesinden ilk parçayı (DICOM nesnesi) çıkarır. */

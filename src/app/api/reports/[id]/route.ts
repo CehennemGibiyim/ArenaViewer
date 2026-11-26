@@ -15,7 +15,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const rr = (await db.select({ r: reports, s: studies }).from(reports).innerJoin(studies, eq(reports.studyId, studies.id)).where(eq(reports.id, id)).limit(1))[0];
   if (!rr) return NextResponse.json({ error: "Rapor bulunamadı" }, { status: 404 });
   const versions = await db
-    .select({ id: reportVersions.id, versionNo: reportVersions.versionNo, action: reportVersions.action, createdByName: reportVersions.createdByName, createdAt: reportVersions.createdAt })
+    .select({ id: reportVersions.id, versionNo: reportVersions.versionNo, action: reportVersions.action, createdByName: reportVersions.createdByName, createdAt: reportVersions.createdAt, snapshot: reportVersions.snapshot })
     .from(reportVersions).where(eq(reportVersions.reportId, id)).orderBy(desc(reportVersions.versionNo));
   const addenda = await db
     .select({ id: reportAddenda.id, text: reportAddenda.text, createdByName: reportAddenda.createdByName, createdAt: reportAddenda.createdAt })

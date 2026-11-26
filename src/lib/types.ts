@@ -462,6 +462,8 @@ export interface ReportVersion {
   action: string;
   createdByName: string;
   createdAt: string;
+  /** report_versions.snapshot — JSON metni; eski sürümlerde findingsJson olmayabilir. */
+  snapshot?: string | null;
 }
 
 export interface ReportAddendum {
