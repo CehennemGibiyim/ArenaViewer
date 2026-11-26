@@ -98,7 +98,7 @@ export const BASE_ITEMS: GapItem[] = [
     status: "var", priority: "P3", effort: "S",
     market: ["RadiAnt", "OHIF", "Weasis", "Horos"],
     ours: "SeriesInstanceUID ile gruplama; ImagePositionPatient/ImageOrientation izdüşümüyle sıralama (yoksa InstanceNumber).",
-    action: "Kesit aralığı (spacing) hesabı ve eksik/çift kesit uyarısı.",
+    action: "Kalan: beklenen kesit sayısına göre eksik kesit tespiti ve çift kesit ayıklama (şu an yalnız kesit aralığı düzensizliği uyarısı var).",
   },
   {
     id: "f-open", category: "format", title: "Klasör / ZIP / çoklu dosya / sürükle-bırak / uzantısız dosyalar",
@@ -121,14 +121,14 @@ export const BASE_ITEMS: GapItem[] = [
     status: "var", priority: "P3", effort: "S",
     market: ["RadiAnt", "OHIF", "Weasis", "Horos"],
     ours: "Sürükleyerek WL/WW, BT presetleri, kullanıcı preset kaydı, invert.",
-    action: "Preset kalıcılığı (veritabanı/localStorage) ve PET SUV penceresi.",
+    action: "Kalan: presetlerin kullanıcı hesabında (sunucu) saklanması — şu an tarayıcıda `atik_presets` — ve PET SUV penceresi.",
   },
   {
     id: "v-geo", category: "viewing", title: "Zoom, pan, döndür, çevir (flip), cine",
     status: "var", priority: "P3", effort: "S",
     market: ["RadiAnt", "OHIF", "Weasis", "Horos"],
     ours: "Hepsi var; kısayollar R/H/V. Cine kare hızı ayarı yok.",
-    action: "Cine FPS kaydırıcısı, özelleştirilebilir kısayollar.",
+    action: "Kalan: kısayolların kullanıcı tarafından özelleştirilmesi (cine kare hızı kaydırıcısı var).",
   },
   {
     id: "v-pins", category: "viewing", title: "Kesit zaman çizelgesinde bulgu işaretleri ve kesite atlama",
@@ -142,14 +142,14 @@ export const BASE_ITEMS: GapItem[] = [
     status: "kismi", priority: "P1", effort: "M",
     market: ["RadiAnt", "OHIF", "Weasis"],
     ours: "İki seri yan yana; senkronizasyon kesit numarasına göre — anatomik konuma göre değil. Farklı kalınlıkta seriler hizalanmaz.",
-    action: "ImagePositionPatient tabanlı z-senkronu; önceki tetkik seçimi.",
+    action: "Kalan: pan/zoom senkron kilidi (şu an yalnız kesit konumu senkronlanıyor) ve önceki tetkikle otomatik hizalama.",
   },
   {
     id: "v-hanging", category: "viewing", title: "Layout / Hanging Protocol (1×2, 2×2, modaliteye göre otomatik düzen)",
     status: "var", priority: "P1", effort: "M",
     market: ["OHIF", "Weasis", "MedDream", "RadiAnt"],
     ours: "**Var:** `src/lib/hangingProtocols.ts` (modalite/protokol/bölge eşleşmesi) + `CELLS` düzen motoru (1×1/1×2/2×2) + `resolveHangingCellSeries`; raporda önerilen sekans/protokol bilgisi yer alır.",
-    action: "Viewport ızgara yöneticisi + kural tabanlı protokoller (BT beyin, akciğer grafisi, MR sekans seti).",
+    action: "Kalan: özel asma protokollerinin tarayıcı yerine kullanıcı hesabında (sunucu) saklanması ve ekipler arası paylaşımı.",
   },
   {
     id: "v-mpr", category: "viewing", title: "MPR (axial / coronal / sagittal) ve oblik MPR",
@@ -265,14 +265,14 @@ export const BASE_ITEMS: GapItem[] = [
     status: "var", priority: "P1", effort: "M",
     market: ["Lunit", "Annalise", "Gleamer"],
     ours: "**Var:** Bu sürümde eklendi — Viewport'ta CXR Grad-CAM örtü katmanı (mavi→kırmızı renklendirme, alfa eşikli, opaklık kaydırıcısı); maske örtüsü mevcut motorlar için de çiziliyor.",
-    action: "Model çıktısından yarı saydam örtü katmanı ve opaklık kaydırıcısı.",
+    action: "Kalan: 3B nodül modeli ve diğer modaliteler için gerçek Grad-CAM ısı haritası (örtü şu an CXR sınıflandırma modelinden geliyor).",
   },
   {
     id: "a-triage", category: "ai", title: "Triyaj skoru + çalışma listesinin yeniden önceliklendirilmesi",
     status: "kismi", priority: "P1", effort: "M",
     market: ["Aidoc", "Viz.ai", "Annalise"],
     ours: "Triyaj seviyesi/skoru hesaplanıyor; ancak çalışma listesi olmadığı için sıralamaya yansımıyor.",
-    action: "Çalışma listesi + triyaj skoruna göre otomatik sıralama ve kırmızı bayrak.",
+    action: "Kalan: bağımsız bulgu kararının ve nedenlerinin saklanması; triyaj eşiklerinin kurum politikasıyla belirlenmesi (şu an araştırma/demo).",
   },
   {
     id: "a-notify", category: "ai", title: "Kritik bulgu bildirimi (mobil push, e-posta, SMS, çağrı)",
@@ -314,7 +314,7 @@ export const BASE_ITEMS: GapItem[] = [
     status: "var", priority: "P0", effort: "S",
     market: ["Aidoc", "Viz.ai", "Lunit", "Annalise", "Gleamer"],
     ours: "**Var:** `src/lib/modelCards.ts` (DEEP_MODEL_CARD / DEEP_BRAIN_MODEL_CARD / DEEP_CXR_MODEL_CARD / CV / DEMO / NO_MODEL) — isim, sürüm, amaç, yöntem, sınırlılıklar, doğrulama; rapora model adı+sürüm ve (panelde) kart ile aktarılır.",
-    action: "Her rapora model sürümü, amaçlanan kullanım ve bilinen sınırlar eklensin.",
+    action: "Kalan: duyarlılık/özgüllük ve doğrulama verisinin kurum verisiyle doldurulması (kartlarda şu an 'bilinmiyor' yazıyor).",
   },
   {
     id: "a-vlm", category: "ai", title: "Çok kipli model: görüntü + klinik not (VLM/LLM)",
@@ -379,7 +379,7 @@ export const BASE_ITEMS: GapItem[] = [
     status: "kismi", priority: "P0", effort: "M",
     market: ["PowerScribe", "Rad AI"],
     ours: "**Kısmen:** Addendum eklenir (`POST /api/reports/[id]/addenda`) ve denetimde kaydedilir. Eksik: revizyon numarası/geçmiş listesi ve 'hangi satır neyle değişti' diff'i.",
-    action: "Değiştirilemez sürüm tablosu, addendum akışı, onay sonrası kilit.",
+    action: "Kalan: sürümler arası fark (diff) görünümü ve eski sürüme dönme; addendumun imza kaydıyla ilişkilendirilmesi.",
   },
   {
     id: "r-esign", category: "report", title: "Kimlik doğrulamalı e-imza (NES / mobil imza / e-Devlet)",
@@ -423,7 +423,7 @@ export const BASE_ITEMS: GapItem[] = [
     status: "kismi", priority: "P1", effort: "M",
     market: ["Aidoc", "OHIF", "MedDream"],
     ours: "Yalnızca kayıtlı raporlar listeleniyor (Geçmiş). Okunmayı bekleyen tetkik kuyruğu yok.",
-    action: "Tetkik tablosu: durum (bekliyor/okunuyor/taslak/onaylı), atama, triyaj sıralaması.",
+    action: "Kalan: kullanıcı bazlı filtre/kolon tercihlerinin sunucuda saklanması ve liste yenilemenin HBYS/PACS olaylarıyla tetiklenmesi.",
   },
   {
     id: "w-auth", category: "workflow", title: "Kullanıcı girişi ve roller (Yönetici / Radyolog / Teknisyen)",
@@ -458,7 +458,7 @@ export const BASE_ITEMS: GapItem[] = [
     status: "var", priority: "P1", effort: "S",
     market: ["RadiAnt", "Weasis"],
     ours: "**Var:** `src/lib/dicomWrite.ts::zipAnonymized` — anonimleştirilmiş DICOM ZIP'i (ad/kimlik/tarih/kurum taşınmaz) ve ExportMenu'de etiket/alan düzenleme.",
-    action: "Profil tabanlı etiket temizleme; araştırma/paylaşım için anonim dışa aktarma.",
+    action: "Kalan: profil tabanlı etiket temizleme (kuruma özel etiket listesi) ve etiket düzenleyici.",
   },
   {
     id: "w-export", category: "workflow", title: "Dışa aktarma: JPEG/PNG, video, DICOM, CD/paylaşım bağlantısı",

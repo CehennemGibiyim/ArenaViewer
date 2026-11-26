@@ -58,6 +58,26 @@ ok(liveText("r-dictate").includes("dictate"), "r-dictate satırı dikte modülü
 ok(liveText("m-persist").includes("TID 1500"), "m-persist satırı ölçümlerin TID 1500 SR dışa aktarımını anıyor");
 ok(!liveText("m-persist").includes("Ölçümleri veritabanına kaydet"), "m-persist satırı \"ölçümleri veritabanına kaydet\" (zaten yapılan) işini aksiyon olarak önermiyor");
 
+// 2b) Aksiyon metni, "bizde şu an" bölümünde VAR olan işi hâlâ yapılacak gibi önermemeli.
+// (2026-11-25 süpürmesi: bu satırlarda aksiyon, tamamlanmış işi tekrar istiyordu.)
+const recycledActions: [string, string][] = [
+  ["f-series", "Kesit aralığı (spacing) hesabı ve eksik/çift kesit uyarısı"],
+  ["v-wl", "Preset kalıcılığı (veritabanı/localStorage)"],
+  ["v-geo", "Cine FPS kaydırıcısı, özelleştirilebilir kısayollar"],
+  ["v-compare", "ImagePositionPatient tabanlı z-senkronu"],
+  ["v-hanging", "Viewport ızgara yöneticisi + kural tabanlı protokoller"],
+  ["a-heat", "Model çıktısından yarı saydam örtü katmanı ve opaklık kaydırıcısı"],
+  ["a-triage", "Çalışma listesi + triyaj skoruna göre otomatik sıralama"],
+  ["a-card", "Her rapora model sürümü"],
+  ["r-version", "Değiştirilemez sürüm tablosu, addendum akışı"],
+  ["w-worklist", "Tetkik tablosu: durum (bekliyor/okunuyor/taslak/onaylı)"],
+  ["w-deid", "araştırma/paylaşım için anonim dışa aktarma"],
+];
+for (const [id, phrase] of recycledActions) {
+  const action = GAP_ITEMS.find((x) => x.id === id)?.action ?? "";
+  ok(!action.includes(phrase) && action.length > 0, `"${id}" aksiyonu tamamlanmış işi yeniden istemiyor (${phrase})`);
+}
+
 // 4) Sayaç/endeks tutarlılığı
 const c = gapProgress(GAP_ITEMS);
 const varCount = GAP_ITEMS.filter((i) => i.status === "var").length;
