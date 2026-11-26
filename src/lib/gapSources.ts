@@ -37,7 +37,7 @@ export interface GapSource {
 }
 
 /** Kaynak kayıtlarının son gözden geçirildiği tarih. */
-export const SOURCES_UPDATED = "2026-11-25";
+export const SOURCES_UPDATED = "2026-11-26";
 
 const s = (src: GapSource): GapSource => src;
 
@@ -176,6 +176,12 @@ export const GAP_SOURCES: Record<string, GapSource> = {
     checkedAt: "2026-11-25", checkMethod: "get",
     note: "Ürünün ayrıntılı özellik iddiaları doğrulanmadı; yalnız ürün kategorisi için kaynak.",
   }),
+  keros: s({
+    key: "keros", label: "Incepto KEROS", kind: "uretici", publisher: "Incepto Medical",
+    url: "https://www.incepto-medical.com/", basis: "Diz MR AI (meniskal yırtık + lezyon tespiti dahil); CE MDR; üretici performans ve düzenleme beyanları",
+    checkedAt: "2026-11-26", checkMethod: "search",
+    note: "Klinik kanıt (dış geçerleme; artroskopi bağıntılı çalışma) Physica Medica 2021 ve International Orthopaedics 2025'te yayımlandı; adres bu derlemede yalnız arama sonucuyla görüldü — ücret/entegrasyon koşulları üreticiyle görüşülmeden doğrulanamaz.",
+  }),
   marketGeneral: s({
     key: "marketGeneral", label: "Genel pazar ifadesi", kind: "ikincil",
     basis: "Tek bir ürüne bağlanmayan toplulaştırılmış ifade (\"tüm kurumsal ürünler\" vb.)",
@@ -215,6 +221,7 @@ export const PRODUCT_SOURCES: Record<string, string> = {
   RadPal: "radpal",
   "Tüm kurumsal ürünler": "marketGeneral",
   "Tüm üreticiler": "marketGeneral",
+  "Incepto (KEROS)": "keros",
   "Kurumsal standart": "dicomStandard",
 };
 

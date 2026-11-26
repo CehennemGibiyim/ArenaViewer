@@ -13,6 +13,11 @@ export const dynamic = "force-dynamic";
  * POST /api/deep-scan?protocol=cxr — tek karelik grafi (gzip float32 LE, Z=1,Y,X);
  *   worker Medical_X DenseNet121 (Apache-2.0) ile 14 sınıflık olasılık + ısı haritası döner.
  *
+ * POST /api/deep-scan?protocol=knee — T2 diz MR hacmi (gzip int16 LE, ham sinyal; HU varsayılmaz);
+ *   worker nnU-Net v2 cascade (aagatti/nnunet_knee, MIT) 9 yapı maskesi döner:
+ *   yanıt application/octet-stream = gzip(uint8 etiket hacmi) + x-dims / x-elapsed-ms başlıkları.
+ *   Araştırma amaçlıdır; yırtık/dejenerasyon sınıflaması yapılmaz, klinik karar için kullanılamaz.
+ *
  * Hasta verisi yalnızca bu makinedeki worker'a gider; harici/ücretli servis yoktur.
  */
 const WORKER = process.env.AI_WORKER_URL ?? "http://127.0.0.1:8787";
@@ -33,11 +38,11 @@ export async function POST(req: NextRequest) {
   if ("error" in a) return a.error;
 
   const protocol = new URL(req.url).searchParams.get("protocol") ?? "ct-chest";
-  if (protocol !== "ct-chest" && protocol !== "ct-head" && protocol !== "cxr") {
-    return err("Geçersiz protocol (ct-chest|ct-head|cxr)");
+  if (protocol !== "ct-chest" && protocol !== "ct-head" && protocol !== "cxr" && protocol !== "knee") {
+    return err("Geçersiz protocol (ct-chest|ct-head|cxr|knee)");
   }
   // Beyin modeli CPU'da dakikalar sürebilir; protokole göre zaman aşımı.
-  const upstreamTimeout = protocol === "ct-head" ? 1_500_000 : protocol === "cxr" ? 120_000 : 300_000;
+  const upstreamTimeout = protocol === "ct-head" ? 1_500_000 : protocol === "cxr" ? 120_000 : protocol === "knee" ? 1_500_000 : 300_000;
   // CXR tek karedir: Z=1 zorunludur (worker da doğrular).
   if (protocol === "cxr" && !req.headers.get("x-dims")?.startsWith("1,")) {
     return err("CXR protokolü için X-Dims '1,Y,X' biçiminde olmalı");
@@ -62,6 +67,31 @@ export async function POST(req: NextRequest) {
     });
   } catch {
     return err("Yerel AI worker'a ulaşılamadı (127.0.0.1:8787). Yerel çıkarım için ai-worker başlatılmalı.", 502);
+  }
+
+  // Diz MR segmentasyonu ikili maske hacmi döner: gzip(uint8) + x-dims/x-elapsed-ms.
+  if (protocol === "knee") {
+    if (!upstream.ok) {
+      const data = (await upstream.json().catch(() => null)) as { error?: string } | null;
+      return err(data?.error ?? `Diz segmentasyonu worker hatası (${upstream.status})`, 502);
+    }
+    const buf = Buffer.from(await upstream.arrayBuffer());
+    const outDims = upstream.headers.get("x-dims") ?? "";
+    const elapsed = upstream.headers.get("x-elapsed-ms") ?? "";
+    try {
+      await audit(a.user, "ai.knee_seg", "study", (req.headers.get("x-study-uid") ?? "").slice(0, 64), {
+        dims, protocol, bytes: buf.length,
+      });
+    } catch { /* denetim kaydı zorunlu değil */ }
+    return new NextResponse(new Uint8Array(buf), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/octet-stream",
+        "Cache-Control": "no-store",
+        "x-dims": outDims,
+        "x-elapsed-ms": elapsed,
+      },
+    });
   }
 
   const data = (await upstream.json().catch(() => null)) as

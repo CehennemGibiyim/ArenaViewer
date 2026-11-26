@@ -29,11 +29,67 @@ export interface PacsStudy {
 export interface PacsInstance {
   seriesUid: string;
   sopUid: string;
+  /** QIDO includefield=00200013 (InstanceNumber) — varsa kesit sıralaması için */
+  instanceNumber?: number;
+  /** ImagePositionPatient[2] (0020,0032); yoksa SliceLocation (0020,1041) */
+  sliceLocation?: number;
+  /** Slice Thickness (0018,0050) */
+  sliceThickness?: number;
+  /** Rows/Columns (0028,0010/0011) — iskelet dizi tahsisi için */
+  rows?: number;
+  cols?: number;
+  /** Pixel Spacing[0] (0028,0030) — mm/px */
+  pixelSpacing?: number;
 }
 
 type DJson = Record<string, { Value?: unknown[] } | undefined>;
 
 export const isUid = (s: string) => /^[0-9]+(\.[0-9]+)*$/.test(s) && s.length <= 64;
+
+function numVal(o: DJson, tag: string): number | undefined {
+  const v = o[tag]?.Value?.[0];
+  const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+  return Number.isFinite(n) ? n : undefined;
+}
+/** DS/IS dizisinin ilk sayısal ögesi (ör. PixelSpacing ["0.75","0.75"]). */
+function dsFirst(o: DJson, tag: string): number | undefined {
+  const v = o[tag]?.Value;
+  if (!Array.isArray(v)) return undefined;
+  const first = v[0];
+  const n = typeof first === "number" ? first : typeof first === "string" ? Number(first) : NaN;
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/** ImagePositionPatient[2] (z) — Value dizisinin üçüncü ögesi. */
+function ippZ(o: DJson): number | undefined {
+  const v = o["00200032"]?.Value;
+  if (!Array.isArray(v)) return undefined;
+  const third = v[2];
+  const n = typeof third === "number" ? third : typeof third === "string" ? Number(third) : NaN;
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/** QIDO instance yanıtını (ham JSON dizisi) alanları saklamadan ayrıştırır — saf işlev, test edilebilir. */
+export function parseQidoInstances(arr: DJson[]): PacsInstance[] {
+  const out: PacsInstance[] = [];
+  for (const o of arr ?? []) {
+    if (!o || typeof o !== "object") continue;
+    const seriesUid = val(o, "0020000E");
+    const sopUid = val(o, "00080018");
+    if (!seriesUid || !sopUid) continue;
+    out.push({
+      seriesUid,
+      sopUid,
+      instanceNumber: numVal(o, "00200013"),
+      sliceLocation: ippZ(o) ?? numVal(o, "00201041"),
+      sliceThickness: numVal(o, "00180050"),
+      rows: numVal(o, "00280010"),
+      cols: numVal(o, "00280011"),
+      pixelSpacing: dsFirst(o, "00280030"),
+    });
+  }
+  return out;
+}
 
 function val(o: DJson, tag: string): string {
   const v = o[tag]?.Value?.[0];
@@ -202,11 +258,14 @@ export async function qidoStudies(cfg: PacsConfig, q: string): Promise<PacsStudy
 export async function qidoInstances(cfg: PacsConfig, studyUid: string): Promise<PacsInstance[]> {
   const params = new URLSearchParams({ limit: "5000" });
   if (cfg.includefield) {
-    params.append("includefield", "0020000E");
-    params.append("includefield", "00080018");
+    // includefield yoksa (strict PACS) eski iki alanla yetinilir; iskelet tahsisi için
+    // rows/cols gerekir — eksikse istemci metadata yoluna düşer.
+    for (const f of ["0020000E", "00080018", "00200013", "00200032", "00201041", "00180050", "00280010", "00280011", "00280030"]) {
+      params.append("includefield", f);
+    }
   }
   const arr = await getJson(`${cfg.qidoRoot}/studies/${studyUid}/instances?${params}`, cfg, 30000);
-  return arr.map((o) => ({ seriesUid: val(o, "0020000E"), sopUid: val(o, "00080018") })).filter((i) => i.seriesUid && i.sopUid);
+  return parseQidoInstances(arr as DJson[]);
 }
 
 // ───────────── STOW-RS (gönderme) ─────────────

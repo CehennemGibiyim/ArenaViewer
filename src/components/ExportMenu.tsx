@@ -61,10 +61,12 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
   const imageOk = !!series && (!series.specialType || series.specialType === "image") && n > 0;
 
   const openDlg = (k: "video" | "zip") => {
+    if (series?.lazyPending) { toast("Çalışma yükleniyor — kesitler inmeden bu işlem yapılamaz.", 6000); return; }
     if (!imageOk) { toast("Önce bir görüntü serisi açın."); return; }
     setFrom(1); setTo(n); setDlg(k); setOpen(false);
   };
   const run = async () => {
+    if (series?.lazyPending) { toast("Çalışma yükleniyor — kesitler inmeden bu işlem yapılamaz.", 6000); return; }
     if (!series || !dlg) return;
     const f = Math.max(1, Math.min(n, from)) - 1, t = Math.max(f + 1, Math.min(n, to)) - 1;
     abort.current = new AbortController();
@@ -78,6 +80,7 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
     finally { setProg(null); }
   };
   const exportKo = () => {
+    if (series?.lazyPending) { toast("Çalışma yükleniyor — kesitler inmeden bu işlem yapılamaz.", 6000); return; }
     setOpen(false);
     if (!series || !imageOk) { toast("Önce bir görüntü serisi açın."); return; }
     if (keyImages.length === 0) { toast("Önce en az bir anahtar kesit (★) ekleyin."); return; }
@@ -92,6 +95,7 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
   };
 
   const exportPr = () => {
+    if (series?.lazyPending) { toast("Çalışma yükleniyor — kesitler inmeden bu işlem yapılamaz.", 6000); return; }
     setOpen(false);
     if (!series || !imageOk) { toast("Önce bir görüntü serisi açın."); return; }
     if (!series.sopUids || !series.sopClassUid || !series.seriesUid) { toast("Bu seride SOP Instance UID bilgisi yok (örnek vaka veya UID'siz görüntü); PR yalnızca gerçek DICOM serileri için üretilir.", 7000); return; }
@@ -113,6 +117,7 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
    */
   const sendAnonToPacs = async (range?: { from: number; to: number }) => {
     setOpen(false);
+    if (series?.lazyPending) { toast("Çalışma yükleniyor — kesitler inmeden bu işlem yapılamaz.", 6000); return; }
     setStowDlg(false);
     if (!series) { toast("Önce bir görüntü serisi açın."); return; }
     if (!series.sopUids?.length) { toast("Bu seride SOP Instance UID bilgisi yok; anonim gönderim yalnız gerçek DICOM serilerinde yapılır.", 7000); return; }
@@ -169,6 +174,7 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
 
   /** Ölçümler → DICOM Comprehensive SR (TID 1500): sayısal ölçüm ağacı. */
   const exportSr1500 = () => {
+    if (series?.lazyPending) { toast("Çalışma yükleniyor — kesitler inmeden bu işlem yapılamaz.", 6000); return; }
     setOpen(false);
     if (!series) { toast("Önce bir görüntü serisi açın."); return; }
     const table = codeMap ?? loadCodeTable()?.table ?? null;
@@ -200,6 +206,7 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
    * işaretlerinin orta noktasına küçük fırça izi. AI örtüsü düzenlenebilir maske değildir.
    */
   const exportSeg = (kind: "seg" | "rtstruct") => {
+    if (series?.lazyPending) { toast("Çalışma yükleniyor — kesitler inmeden bu işlem yapılamaz.", 6000); return; }
     setOpen(false);
     if (!series) { toast("Önce bir görüntü serisi açın."); return; }
     if (!series.seriesUid || !series.sopClassUid || !series.sopUids?.length) {
@@ -271,6 +278,7 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
   const sendToPacs = async (kind: "ko" | "pr") => {
     setOpen(false);
     setStowDlg(false);
+    if (series?.lazyPending) { toast("Çalışma yükleniyor — kesitler inmeden bu işlem yapılamaz.", 6000); return; }
     if (!series) { toast("Önce bir görüntü serisi açın."); return; }
     const plan = planKeyObject(keyImages, series);
     if (!plan.ok) { toast(plan.reason ?? "Gönderilemedi", 7000); return; }

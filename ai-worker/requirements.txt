@@ -4,6 +4,7 @@
 #   .venv\Scripts\python -m pip install -r ai-worker\requirements.txt
 #   .venv\Scripts\python ai-worker\setup_model.py     (BT akciğer + beyin modellerini indirir)
 #   CXR modeli indirmez: ai-worker/models/cxr_densenet121_medx_320.onnx depodadır.
+#   Diz segmentasyonu (opsiyonel, ≈5 GB): python ai-worker/setup_knee_model.py
 #
 # Windows'ta tek komutla:  powershell -ExecutionPolicy Bypass -File windows\Kurulum.ps1
 
@@ -17,7 +18,12 @@ pillow>=10                 # cxr_lib ön işleme (persentil ölçekleme + biline
 opencv-python-headless>=4.9  # cv2: ICH ön işleme (GUI bağımlılığı yok, sunucuya uygun)
 safetensors>=0.4           # .safetensors ağırlık okuma (beyin modeli)
 huggingface_hub>=0.23      # model indirme (ai-worker/setup_model.py)
-nibabel>=5.0               # NIfTI okuma (ich_inference / validate_ich)
+nibabel>=5.0               # NIfTI okuma (ich_inference / validate_ich / knee_lib)
+
+# ── Diz MR segmentasyonu (MIT ağırlıklar, OAI-ZIB; ai-worker/knee_lib.py) ──
+# nnunetv2, SimpleITK'yı bağımlılık olarak getirir. Ağırlıklar setup_knee_model.py
+# ile indirilir (depoda gömülü değildir); Apache-2.0 çerçeve.
+nnunetv2>=2.2              # Apache-2.0; nnU-Net v2 çıkarım çerçevesi (nnUNetv2_predict)
 
 # ── BT beyin ICH model kodu (MIT, ianpan/ct-head-hemorrhage-detection) ────
 # PyPI'da yayınlanmamıştır (pypi.org/pypi/skp → 404); doğrudan depodan,

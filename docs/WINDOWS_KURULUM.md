@@ -26,6 +26,7 @@ PowerShell'den seçenekli çalıştırmak için:
 ```powershell
 powershell -ExecutionPolicy Bypass -File windows\Kurulum.ps1            # tam kurulum
 powershell -ExecutionPolicy Bypass -File windows\Kurulum.ps1 -CpuTorch   # yalnız CPU torch (≈250 MB)
+powershell -ExecutionPolicy Bypass -File windows\Kurulum.ps1 -Knee       # + diz MR segmentasyon modeli (≈1,6 GB, MIT, araştırma amaçlı)
 powershell -ExecutionPolicy Bypass -File windows\Kurulum.ps1 -Build      # + üretim derlemesi
 powershell -ExecutionPolicy Bypass -File windows\Baslat.ps1 -Dev         # geliştirme sunucusuyla başlat
 ```
@@ -212,6 +213,21 @@ Bu komut **iki modeli birden** indirir:
 
 Mevcut dosyalar atlanır; **tekrar çalıştırması güvenlidir** (idempotent) ve
 eksik dosyalar kaldığı yerden tamamlanır.
+
+Diz MR segmentasyonu **isteğe bağlı**dır ve ayrı komuttur (≈1,6 GB):
+
+```powershell
+python ai-worker/setup_knee_model.py
+```
+
+| Model | Lisans | Boyut | Hedef |
+|---|---|---|---|
+| `aagatti/nnunet_knee` (nnU-Net v2 cascade, OAI-ZIB; yalnız fold_1 düşük+cascade checkpoint'ler) | MIT (atıf istenir) | ≈1,6 GB | `%USERPROFILE%\.cache\atikviewer-ai\knee` |
+
+Diz MR çıktısı **yalnız yapı sınırıdır** (menisküs/kıkırdak/kemik); yırtık/dejenerasyon
+tanısı konmaz, arayüzde ve raporda araştırma etiketiyle gösterilir. Çıkarım
+`nnUNetv2_predict` ile ayrı süreçte koşar; ilk çağrıdakilerde model yükleme
+dahil dakikalar sürebilir.
 
 ### 4.3 Worker'ı başlatma
 

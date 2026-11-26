@@ -25,6 +25,8 @@ Bu klasör, Windows · Linux · macOS üzerinde çalışan kurulum paketlerinin
 | `windows/atikviewer.iss` | **Inno Setup 6** kurulum EXE betiği |
 | `windows/Paket.ps1` | `dist\ATIKVIEWER-<sürüm>-Setup.exe` + `portable.zip` üretir |
 | `docs/WINDOWS_KURULUM.md` | Windows kurulum rehberi + sık karşılaşılan hataların çözümleri |
+| `docs/KURULUM_VE_KULLANIM.md` | **Her işletim sistemi** için görsel + videolu kurulum/kullanım kılavuzu (≈3,2 MB varlık) |
+| `docs/MENU_KILAVUZU.md` | Her düğme/menü tek tek — numaralı ekran haritasıyla (CI ile sürekli güncel tutulur) |
 
 ```powershell
 # Üretim (CI'da .github/workflows/release.yml otomatik yapar)

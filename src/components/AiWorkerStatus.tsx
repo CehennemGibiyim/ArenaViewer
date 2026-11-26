@@ -18,6 +18,7 @@ interface WorkerHealth {
   modelFile?: boolean;
   roi?: number[];
   brain?: { modelFile?: boolean; modelLoaded?: boolean };
+  knee?: { modelFile?: boolean; modelLoaded?: boolean };
 }
 
 const Badge = ({ on, label }: { on: boolean | null; label: string }) => (
@@ -101,6 +102,7 @@ export default function AiWorkerStatus() {
         <Badge on={up ? data?.modelLoaded ?? null : null} label="Akciğer modeli bellekte" />
         <Badge on={up ? data?.brain?.modelFile ?? null : null} label="Beyin modeli dosyası (ICH · MIT/RSNA)" />
         <Badge on={up ? data?.brain?.modelLoaded ?? null : null} label="Beyin modeli bellekte" />
+        <Badge on={up ? data?.knee?.modelFile ?? null : null} label="Diz MR modeli dosyası (nnU-Net · MIT)" />
       </div>
 
       <div className="mt-3 rounded-lg border border-[#1a2230] bg-[#0a0e15] p-3 font-mono text-[11px] leading-relaxed text-slate-400">
@@ -114,7 +116,10 @@ export default function AiWorkerStatus() {
               ✓ Çıkarım bu makinede çalışıyor — hasta verisi dışarı çıkmaz, ücretli servis kullanılmaz.
             </div>
             <div className="text-slate-500">
-              Uçlar: POST /api/deep-scan?protocol=ct-chest | ct-head (gzip int16 HU hacmi)
+              Uçlar: POST /api/deep-scan?protocol=ct-chest | ct-head (gzip int16 HU) · cxr (gzip float32) · knee (gzip int16, T2 diz MR)
+            </div>
+            <div className="text-slate-500">
+              Diz MR segmentasyonu (MIT, ≈1,6 GB): .venv/bin/python ai-worker/setup_knee_model.py
             </div>
           </>
         ) : (

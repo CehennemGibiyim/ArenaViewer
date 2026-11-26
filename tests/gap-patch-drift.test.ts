@@ -22,7 +22,7 @@ const ok = (cond: boolean, msg: string) => {
   else { failed++; console.error(`FAIL ${msg}`); }
 };
 
-ok(GAP_ITEMS.length === 100, `tablo 100 madde taşır (${GAP_ITEMS.length})`);
+ok(GAP_ITEMS.length === 101, `tablo 101 madde taşır (${GAP_ITEMS.length})`);
 
 // 1) Yama taban metni budamaz
 const shrunk: string[] = [];
@@ -114,8 +114,8 @@ const varCount = GAP_ITEMS.filter((i) => i.status === "var").length;
 const kismiCount = GAP_ITEMS.filter((i) => i.status === "kismi").length;
 const yokCount = GAP_ITEMS.filter((i) => i.status === "yok").length;
 ok(c.var === varCount && c.kismi === kismiCount && c.yok === yokCount, `sayaçlar durumlarla uyumlu (${c.var}/${c.kismi}/${c.yok})`);
-ok(varCount + kismiCount + yokCount === 100, "durum toplamı 100");
-ok(c.indexPercent === Math.round(varCount + 0.5 * kismiCount), `endeks var + 0,5×kısmi (${c.indexPercent})`);
+ok(varCount + kismiCount + yokCount === 101, "durum toplamı 101");
+ok(c.indexPercent === Math.round((100 * (varCount + 0.5 * kismiCount)) / (varCount + kismiCount + yokCount)), `endeks var + 0,5×kısmi/101 (${c.indexPercent})`);
 ok(c.completedPercent === varCount, `tamamlanan madde oranı yalnız "var" sayar (${c.completedPercent})`);
 
 if (failed) { console.error(`${failed} kıyaslama drift testi başarısız`); process.exit(1); }
