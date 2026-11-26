@@ -784,8 +784,8 @@ export const BASE_ITEMS: GapItem[] = [
     id: "h-model-eval", category: "ai", title: "Model eğitim/değerlendirme hook'u + model kayıt defteri",
     status: "kismi", priority: "P2", effort: "L",
     market: ["MONAI", "Aidoc"],
-    ours: "ai-worker'da validate*.py betikleri var; CI kayıt defteri yok.",
-    action: "evaluate/batch infer API; sonuçlar model kartına ve denetim kaydına yazılır.",
+    ours: "ai-worker'da validate*.py betikleri var. **Yeni — toplu değerlendirme API'si:** `POST /api/ai/evaluate` (yönetici) kayıt defterindeki bir model için skor/etiket listesini kabul eder; ROC-AUC (Mann-Whitney, bağlar ortalama sıra), 0.3/0.5/0.7 eşik tablosu (duyarlılık/özgüllük/PPV/NPV/F1), Brier skoru ve ECE (10 bin, `modelOps.ts`) hesaplar; sonuçlar `model.evaluate` denetim kaydına yazılır, n≥20 ise kayıt defteri notuna `[EVAL …]` satırı EKlenir (mevcut not korunur, 500 karakter sınırı). n<20 ise karta yazılmaz, rapora uyarı eklenir. Çıkarımın kendisi bu uçta çalışmaz (ai-worker/Workstation üretir). Dürüst sınır: örneklem-içi metrik, dış doğrulama YOK, CI kayıt defterine bağlı değil.",
+    action: "CI'ya evaluate adımını bağlamak; dış kohort doğrulaması ve alt grup analizi (kurumsal).",
   },
 ];
 

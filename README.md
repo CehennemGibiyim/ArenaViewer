@@ -99,6 +99,15 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
 - **Model kayıt defteri:** Yönetim → AI: model sürümleri (aday/aktif/emekli),
   trafik payı, parmak izi; `/api/ai/registry` deterministik **A/B ataması**
   (tohum → kova) ve aşama değişikliğinde denetim kaydı.
+- **Toplu model değerlendirme:** `POST /api/ai/evaluate` (yönetici) — kayıt
+  defterindeki bir model sürümü için skor/etiket listesi (`[{score, label}]`)
+  ROC-AUC (Mann-Whitney, bağlar ortalama sıra), 0.3/0.5/0.7 eşik tablosu
+  (duyarlılık/özgüllük/PPV/NPV/F1), Brier skoru ve ECE (10 bin) ile
+  değerlendirilir; sonuç `model.evaluate` denetim kaydına yazılır, `n≥20` ise
+  kayıt defteri notuna `[EVAL …]` satırı eklenir (mevcut not korunur).
+  n<20'de karta yazılmaz. Çıkarımın kendisi bu uçta çalışmaz; skorları
+  ai-worker doğrulama betikleri / etiketli batch üretir. Örneklem-içi
+  metriktir, dış doğrulama yerine geçmez.
 - **RECIST 1.1 (tam):** Hedef lezyon seçim denetimi (≥10 mm; lenf nodu kısa eksen
   ≥15 mm; organ başına ≤2, toplam ≤5), non-hedef bileşkesi ve **genel yanıt
   tablosu** (yeni lezyon → PD; hedef CR + non-hedef CR → CR). Nodül takibi
@@ -589,6 +598,7 @@ npm run test:tracking               # lezyon eşleştirme + nodül takibi köpr�
 npm run test:measure-history        # sunucu ölçüm geçmişi serileri + trend + CSV
 npm run test:lungquant              # LAA-950, PD15, kesit profili, örnekleme
 npm run test:model-registry         # model kayıt defteri + A/B ataması
+npm run test:model-evaluate      # toplu model değerlendirme (AUC/eşik tablosu/Brier/ECE)
 npm run test:a11y                   # WCAG kontrastı + tema sabitleri
 npm run test:nuclear                # MTV/SUV örnekleme + TIC sınıflandırması
 npm run test:patient-letter         # hasta mektubu: TR/EN/DE, okuma düzeyi, taslak kilidi
