@@ -239,6 +239,11 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   nesnesi, her anotasyon kendi referans görüntüsüne bağlı). Kesiti kaynak SOP Instance
   ile eşleşmeyen anotasyon atlanır ve menü kaç tanesinin yazıldığını söyler
   (`src/lib/gspsGraphics.ts`). Belge rapor/imza değildir; geri içe aktarma henüz yok.
+- **Cümle → bulgu bağlantısı:** rapor metni cümlelere bölünür ve her cümle bir
+  bulguya bağlanır (önce metindeki «Kesit N», yoksa bulgu etiketiyle ortak sözcük;
+  eşleşme yoksa bağ kurulmaz). Rapor ekranında cümle listesi tıklanabilir: kesiti
+  açar ve bulgu kutusunu vurgular; kapsam («3/4 cümle bağlı») yazılır
+  (`src/lib/sentenceLinks.ts`). Bağ kalıcı olarak rapora yazılmaz, ekranda hesaplanır.
 - **Okunabilirlik & terim sözlüğü:** hasta mektubu ekranı **Ateşman (1997)** indeksini
   (hece/sözcük, sözcük/cümle) hesaplar, sözel düzeyi ve hedef karşılaştırmasını gösterir
   (sade ≥ 70, standart ≥ 50) — hedef tutmuyorsa uyarır (`src/lib/readability.ts`).
