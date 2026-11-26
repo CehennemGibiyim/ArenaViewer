@@ -1,5 +1,6 @@
 import type { DicomDataSet } from "dicom-parser";
 import type { SuvInfo } from "./types";
+import { heightFromPatientSize, parseSex, suvVariants } from "./suvVariants";
 
 /** DICOM TM ("HHMMSS.frac") → gün içi saniye. */
 export function parseTm(s: string | undefined): number | null {
@@ -60,10 +61,16 @@ export function suvFromDataset(ds: DicomDataSet, seriesTimes: (number | null)[] 
   if (deltaS < 0 && deltaS > -86400) deltaS += 86400; // gece yarısı geçişi (tarih yoksa)
   if (deltaS < 0 || deltaS > 12 * 3600) return { ...base, note: `Enjeksiyon–görüntüleme süresi (${Math.round(deltaS / 60)} dk) beklenmedik; SUV hesaplanmadı.` };
   if (decayCorr && decayCorr !== "START" && decayCorr !== "ADMIN") return { ...base, note: `Bozunma düzeltmesi "${decayCorr}": SUV hesaplanmadı.` };
+  // Boy (0010,1020) ve cinsiyet (0010,0040): varsa SUVlbm/SUVbsa da hesaplanır.
+  const height = heightFromPatientSize(ds.floatString("x00101020"));
+  const sex = parseSex(ds.string("x00101040"));
+  const variants = suvVariants({ weightKg, heightCm: height.heightCm, sex, doseBq, halfLifeS, deltaS });
+  const assumedNote = height.assumed === "m" ? " · boy metre olarak yorumlandı" : "";
   return {
     ...base,
     factor: suvFactor({ weightKg, doseBq, halfLifeS, deltaS }),
     weightKg, doseBq, halfLifeS, deltaS,
-    note: `SUVbw · ${weightKg.toFixed(0)} kg · ${(doseBq / 1e6).toFixed(0)} MBq · ${Math.round(deltaS / 60)} dk · bozunma düzeltmeli`,
+    heightCm: height.heightCm, heightAssumed: height.assumed, sex, variants,
+    note: `SUVbw · ${weightKg.toFixed(0)} kg · ${(doseBq / 1e6).toFixed(0)} MBq · ${Math.round(deltaS / 60)} dk · bozunma düzeltmeli${height.heightCm ? ` · ${height.heightCm} cm${assumedNote}` : " · boy yok (SUVlbm/SUVbsa hesaplanmaz)"}`,
   };
 }

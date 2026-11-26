@@ -229,6 +229,10 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   adaylarla birleştirilir, otomatik anahtar kesit önerir ve rapora model kartıyla girer.
   **Çıkarım tamamen bu makinede çalışır; hasta verisi dışarı çıkmaz, ücretli servis
   kullanılmaz. Klinik doğrulanmamıştır; her bulgu radyoloji uzmanı onayı gerektirir.**
+- **SUV varyantları:** SUVbw'ye ek olarak **SUVlbm** (Janmahasatian yağsız kütle) ve
+  **SUVbsa** (Du Bois vücut yüzey alanı) — boy (0010,1020) ve cinsiyet (0010,0040)
+  varsa otomatik, yoksa Nükleer tıp panelinde elle girilerek (`src/lib/suvVariants.ts`).
+  Hesaplanamayan varyantta nedeni yazılır; değerler ölçüm değil hesaplanmış tahmindir.
 - **Kısayollar:** görüntüleyici tuşları (kesit ileri/geri, döndür, çevir, anahtar kesit)
   Tercihler sayfasından atanabilir (`src/lib/shortcuts.ts`); çakışma uyarılır, bozuk
   kayıt varsayılana döner. Ayar **bu tarayıcıda** saklanır (hesaba bağlı değil).
