@@ -225,7 +225,11 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   adaylarla birleştirilir, otomatik anahtar kesit önerir ve rapora model kartıyla girer.
   **Çıkarım tamamen bu makinede çalışır; hasta verisi dışarı çıkmaz, ücretli servis
   kullanılmaz. Klinik doğrulanmamıştır; her bulgu radyoloji uzmanı onayı gerektirir.**
-- **Raporlama:** taslak → onay akışı, bulgu bazlı hekim doğrulaması, sürümleme,
+- **Raporlama:** taslak → onay akışı, bulgu bazlı hekim doğrulaması (**reddedilen ve
+  düzenlenen her bulgu için hekim gerekçesi zorunlu** — `src/lib/findingReview.ts`;
+  gerekçe eksikse onay arayüzde ve `/api/reports` tarafında reddedilir, gerekçeler
+  raporda «Hekim gözden geçirme gerekçeleri» olarak basılır ve `findings_reason`
+  sütununda saklanır), sürümleme,
   addendum, A4 yazdırma, FHIR R4 DiagnosticReport dışa aktarma, ikinci okuma (peer review) kaydı
 - **Süreli paylaşım:** onaylı rapor için süre seçilebilir (1–30 gün), kapatılabilir,
   filigranlı salt okunur bağlantı (`/paylas/<token>`); her erişim denetimde işlenir. Ham görüntü paylaşılmaz.

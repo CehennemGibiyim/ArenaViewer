@@ -131,6 +131,8 @@ export const reports = pgTable("reports", {
   recommendation: text("recommendation").notNull().default(""),
   findingsJson: jsonb("findings_json").notNull().default([]),
   findingsApproval: jsonb("findings_approval").notNull().default({}),
+  /** Reddedilen/düzenlenen bulgu gerekçeleri (bulgu id → metin). */
+  findingsReason: jsonb("findings_reason").notNull().default({}),
   triageLevel: text("triage_level").notNull().default("rutin"),
   triageScore: real("triage_score").notNull().default(0),
   aiModel: text("ai_model").notNull().default(""),

@@ -450,6 +450,8 @@ export interface SavedReport {
   recommendation: string;
   findingsJson: Finding[];
   findingsApproval: Record<string, FindingApprovalStatus>;
+  /** Reddedilen/düzenlenen bulgu için hekimin yazdığı gerekçe (bulgu id → metin). Eski kayıtlarda yoktur. */
+  findingsReason?: Record<string, string>;
   triageLevel: string;
   triageScore: number;
   aiModel: string;
