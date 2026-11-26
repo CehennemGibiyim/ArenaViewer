@@ -131,10 +131,12 @@ export function serializeChannels(channels: NotifyChannel[]): string {
 }
 
 export interface NotifyEvent {
+  /** critical_finding (varsayılan) | ai_disagreement | security_anomaly — gövde/başlık etiketini belirler. */
+  kind?: "critical_finding" | "ai_disagreement" | "security_anomaly";
   severity: Severity;
-  /** DICOM StudyInstanceUID — hasta kimliği değildir. */
+  /** DICOM StudyInstanceUID — hasta kimliği değildir (ai_disagreement'ta boş olabilir). */
   studyUid: string;
-  /** Kısa, kimliksiz bulgu cümlesi ("aday bulgu, radyolog teyidi gerekir"). */
+  /** Kısa, kimliksiz olay cümlesi. */
   message: string;
   modality?: string;
   at?: string;
@@ -157,10 +159,38 @@ export function smsText(ev: NotifyEvent, max = 160): string {
 
 export function emailSubject(ev: NotifyEvent): string {
   const mod = ev.modality ? `${ev.modality} · ` : "";
+  if (ev.kind === "ai_disagreement") return `[${ev.severity.toUpperCase()}] AI uyuşmazlık uyarısı · ${ev.message.slice(0, 60)}`;
+  if (ev.kind === "security_anomaly") return `[${ev.severity.toUpperCase()}] Erişim anomalisi · ${ev.message.slice(0, 60)}`;
   return `[${ev.severity.toUpperCase()}] Kritik bulgu · ${mod}${ev.studyUid.slice(0, 32)}`;
 }
 
 function emailBody(ev: NotifyEvent): string {
+  if (ev.kind === "ai_disagreement") {
+    return [
+      "ArenaViewer — AI uyuşmazlık uyarısı (yöneticiye)",
+      "",
+      `Önem: ${ev.severity}`,
+      `Zaman: ${ev.at ?? new Date().toISOString()}`,
+      "",
+      ev.message,
+      "",
+      "Bu uyarı, bir kategori için hekim kararlarının modelle uyuşmazlık oranının eşiği aştığına işaret eder.",
+      "Ayrıntı: Yönetim → AI sekmesi. Modelin yeniden eğitilmesi kurumun model sahibi sürecindedir; bu bildirim modeli kendiliğinden değiştirmez.",
+    ].join("\n");
+  }
+  if (ev.kind === "security_anomaly") {
+    return [
+      "ArenaViewer — erişim anomalisi uyarısı (yöneticiye)",
+      "",
+      `Önem: ${ev.severity}`,
+      `Zaman: ${ev.at ?? new Date().toISOString()}`,
+      "",
+      ev.message,
+      "",
+      "Bu uyarı, denetim kaydında olağandışı bir erişim deseni olduğunu gösterir; tek başına suistimal kanıtı değildir.",
+      "Ayrıntı: Yönetim → Güvenlik sekmesi. Kişiye haber vermeden işlem yapmayın; önce denetim kaydındaki ilgili satırları inceleyin.",
+    ].join("\n");
+  }
   return [
     "ArenaViewer — kritik bulgu bildirimi",
     "",
@@ -187,7 +217,8 @@ export interface DispatchRequest {
  * biçimiyle aynıdır — mevcut köprüler bozulmaz.
  */
 export function buildRequest(ch: NotifyChannel, ev: NotifyEvent): DispatchRequest {
-  const base = { event: "critical_finding", severity: ev.severity, studyUid: ev.studyUid, message: ev.message, at: ev.at ?? new Date().toISOString() };
+  const event = ev.kind === "ai_disagreement" ? "ai_disagreement" : ev.kind === "security_anomaly" ? "security_anomaly" : "critical_finding";
+  const base = { event, severity: ev.severity, studyUid: ev.studyUid, message: ev.message, at: ev.at ?? new Date().toISOString() };
   if (ch.kind === "webhook") return { channel: ch, url: ch.url, body: base };
   if (ch.kind === "email") {
     return { channel: ch, url: ch.url, body: { ...base, channel: "email", to: ch.to, subject: emailSubject(ev), text: emailBody(ev) } };

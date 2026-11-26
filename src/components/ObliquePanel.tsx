@@ -4,11 +4,16 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import type { SeriesData } from "@/lib/types";
 import { obliquePlane, type SlabMode } from "@/lib/volume";
 
-interface Props { series: SeriesData; center: { x: number; y: number; z: number }; wl: number; ww: number; invert: boolean }
+interface Props { series: SeriesData; center: { x: number; y: number; z: number }; wl: number; ww: number; invert: boolean; rot?: { x: number; y: number; z: number }; onRotChange?: (r: { x: number; y: number; z: number }) => void }
 
 /** Eğimli (oblik) MPR: merkez, MPR çapraz imlecidir; üç eksen etrafında döndürülür. */
-export default function ObliquePanel({ series, center, wl, ww, invert }: Props) {
-  const [rot, setRot] = useState({ x: 25, y: 0, z: 0 });
+export default function ObliquePanel({ series, center, wl, ww, invert, rot: rotProp, onRotChange }: Props) {
+  const [rotLocal, setRotLocal] = useState({ x: 25, y: 0, z: 0 });
+  const rot = rotProp ?? rotLocal;
+  const setRot = (r: { x: number; y: number; z: number } | ((prev: { x: number; y: number; z: number }) => { x: number; y: number; z: number })) => {
+    const next = typeof r === "function" ? r(rot) : r;
+    setRotLocal(next); onRotChange?.(next);
+  };
   const [slab, setSlab] = useState(0);
   const [mode, setMode] = useState<SlabMode>("avg");
   const rotD = useDeferredValue(rot), slabD = useDeferredValue(slab), cD = useDeferredValue(center);

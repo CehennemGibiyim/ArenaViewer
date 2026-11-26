@@ -167,6 +167,46 @@ async function main() {
   ok(!!pal16 && pal16.paletteLut?.bits === 16, "16-bit palet tanınır");
   ok(!!pal16 && same(rgba(pal16)[0], 255, 0, 0) && same(rgba(pal16)[1], 0, 255, 0), "16-bit palet + firstMapped ofseti doğru");
 
+  // ── 7b. Segmentli palet LUT (art arda üçlü tanımlayıcı) ──
+  const seg = await importOne("palseg.dcm", buildDicom({
+    rows: 1, cols: 4, samples: 1, photo: "PALETTE COLOR", bits: 8,
+    pixels: new Uint8Array([0, 1, 10, 11]),
+    extra: [
+      // tanımlayıcı: 2 segment → [2, first 0, 8 bit][2, first 10, 8 bit]
+      usMulti(0x0028, 0x1101, [2, 0, 8, 2, 10, 8]), usMulti(0x0028, 0x1102, [2, 0, 8, 2, 10, 8]), usMulti(0x0028, 0x1103, [2, 0, 8, 2, 10, 8]),
+      ow(0x0028, 0x1201, [10, 20, 200, 210]), ow(0x0028, 0x1202, [1, 2, 100, 101]), ow(0x0028, 0x1203, [30, 40, 130, 140]),
+    ],
+  }));
+  ok(!!seg && seg.paletteLut?.segments === 2, "segmentli palet tanımlayıcısı 2 segment olarak okunur");
+  ok(!!seg && seg.paletteLut?.numEntries === 12 && seg.paletteLut?.firstMapped === 0, "segmentli palet ortak indeks örgüsüne genişletilir (0–11)");
+  ok(!!seg && same(rgba(seg)[0], 10, 1, 30) && same(rgba(seg)[1], 20, 2, 40), "segment A (indeks 0–1) doğru uygulanır");
+  ok(!!seg && same(rgba(seg)[2], 200, 100, 130) && same(rgba(seg)[3], 210, 101, 140), "segment B (indeks 10–11) doğru uygulanır");
+
+  // ── 7c. Segmentler arası boşluk + karışık bit derinliği ──
+  const gap = await importOne("palgap.dcm", buildDicom({
+    rows: 1, cols: 2, samples: 1, photo: "PALETTE COLOR", bits: 8,
+    pixels: new Uint8Array([0, 5]),
+    extra: [
+      usMulti(0x0028, 0x1101, [1, 0, 8, 1, 5, 8]), usMulti(0x0028, 0x1102, [1, 0, 8, 1, 5, 8]), usMulti(0x0028, 0x1103, [1, 0, 8, 1, 5, 8]),
+      ow(0x0028, 0x1201, [111, 222]), ow(0x0028, 0x1202, [11, 22]), ow(0x0028, 0x1203, [33, 44]),
+    ],
+  }));
+  ok(!!gap && gap.paletteLut?.numEntries === 6, "boşluklu segmentler tek indeks örgüsünde sıfırlarla doldurulur");
+  ok(!!gap && same(rgba(gap)[0], 111, 11, 33) && same(rgba(gap)[1], 222, 22, 44), "boşluklu segmentli palet doğru uygulanır");
+
+  const mixed = await importOne("palmix.dcm", buildDicom({
+    rows: 1, cols: 2, samples: 1, photo: "PALETTE COLOR", bits: 8,
+    pixels: new Uint8Array([0, 10]),
+    extra: [
+      // segment A: 8 bit (0–1), segment B: 16 bit (10–11)
+      usMulti(0x0028, 0x1101, [2, 0, 8, 2, 10, 16]), usMulti(0x0028, 0x1102, [2, 0, 8, 2, 10, 16]), usMulti(0x0028, 0x1103, [2, 0, 8, 2, 10, 16]),
+      ow(0x0028, 0x1201, [10, 20, 0xffff, 0x8000]), ow(0x0028, 0x1202, [1, 2, 0xffff, 0x0000]), ow(0x0028, 0x1203, [30, 40, 0xffff, 0x8000]),
+    ],
+  }));
+  ok(!!mixed && mixed.paletteLut?.bits === 16, "karışık bit derinliğinde genel örgü 16-bit olur");
+  ok(!!mixed && same(rgba(mixed)[0], 10, 1, 30), "karışık palet: 8-bit segment 16-bit örgüye doğru ölçeklenir");
+  ok(!!mixed && same(rgba(mixed)[1], 255, 255, 255), "karışık palet: 16-bit segment doğru uygulanır");
+
   // ── 8. MONOCHROME1 / MONOCHROME2 ──
   const mono1 = await importOne("mono1.dcm", buildDicom({
     rows: 1, cols: 3, samples: 1, photo: "MONOCHROME1", bits: 16,

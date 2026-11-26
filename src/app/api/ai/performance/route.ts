@@ -4,6 +4,7 @@ import { reports } from "@/db/schema";
 import { authorize } from "@/lib/server/auth";
 import { calibrationBins, expectedCalibrationError, type CalibrationBin } from "@/lib/modelOps";
 import { disagreementByCategory, disagreementTally, reasonDigest } from "@/lib/aiDisagreement";
+import { checkAndAlertDisagreement } from "@/lib/server/disagreementAlert";
 import type { Finding, FindingApprovalStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -77,10 +78,21 @@ export async function GET(req: NextRequest) {
   const disagreements = disagreementByCategory(sources);
   const reasons = reasonDigest(sources, 20);
 
+  // Eşiği (≥10 karar, %30 uyuşmazlık) aşan kategorilerde yönetici uyarısı:
+  // kanallara (tanımlıysa, artan oran yükseldiğinde bir kez) ve denetim kaydına yazar.
+  let alert: Awaited<ReturnType<typeof checkAndAlertDisagreement>> | null = null;
+  let alertError: string | null = null;
+  try {
+    alert = await checkAndAlertDisagreement(disagreements, reasons, a.user);
+  } catch (e) {
+    alertError = e instanceof Error ? e.message : "uyarı üretilemedi";
+    console.error("AI uyuşmazlık uyarısı üretilemedi:", e);
+  }
+
   return NextResponse.json({
     rows,
     calibration,
-    disagreement: { categories: disagreements, reasons, tally: disagreementTally(disagreements, reasons) },
+    disagreement: { categories: disagreements, reasons, tally: disagreementTally(disagreements, reasons), alert, alertError },
     note: "Kesinlik (PPV) yalnızca hekim kararlarına dayanır. Duyarlılık için 'AI'nın kaçırdığı bulgu' girişleri (manualAdded) gerekir; bu, kontrollü bir klinik doğrulama çalışmasının yerini tutmaz.",
   });
 }

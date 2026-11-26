@@ -46,6 +46,10 @@ declare module "dicom-parser" {
     fragments?: Fragment[]
   ): Uint8Array;
 
+  /** Çalışma zamanında mevcuttur (endian'a göre bayt okuma); opak bırakıldı. */
+  export const littleEndianByteArrayParser: unknown;
+  export const bigEndianByteArrayParser: unknown;
+
   const dicomParser: { parseDicom: typeof parseDicom };
   export default dicomParser;
 }

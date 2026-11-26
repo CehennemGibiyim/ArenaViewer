@@ -15,6 +15,7 @@ import FusionControl, { type FusionConfig } from "./FusionControl";
 import { setRefLines } from "@/lib/panelRegistry";
 import { notifyCriticalFinding } from "@/lib/notify";
 import SRViewer from "./SRViewer";
+import VideoViewer from "./VideoViewer";
 import PDFViewer from "./PDFViewer";
 import ECGViewer from "./ECGViewer";
 import HangingProtocolEditorModal from "./HangingProtocolEditorModal";
@@ -34,6 +35,7 @@ import { SAMPLE_CASE_INFOS, buildSampleCase } from "@/lib/sampleCases";
 import { assertNotAborted, withImportTimeout } from "@/lib/importOperation";
 import { loadMedicalFiles, type ImportStats } from "@/lib/dicom";
 import { loadInWaves } from "@/lib/streamLoad";
+import { mergeSeriesData } from "@/lib/dicomIngest";
 import { resolveProtocol, runEngine } from "@/lib/ai/engine";
 import { runImageReview } from "@/lib/ai/imageReview";
 import { modelCardFor, DEEP_MODEL_CARD, DEEP_BRAIN_MODEL_CARD } from "@/lib/modelCards";
@@ -56,6 +58,9 @@ import type {
 } from "@/lib/types";
 import { LAYOUTS, WINDOW_PRESETS, type UserPrefs } from "@/lib/prefs";
 import { apiFetch } from "@/lib/csrfClient";
+import { annotationsToMeasurements, siteCode } from "@/lib/measurementExport";
+import { buildMeasurementReportSr } from "@/lib/sr1500";
+import { loadCodeTable } from "@/lib/codeTableClient";
 
 type Rot = 0 | 90 | 180 | 270;
 const CELLS: Record<Layout, number> = { "1x1": 1, "1x2": 2, "2x1": 2, "2x2": 4, "1x3": 3, "3x1": 3, "2x3": 6, "3x2": 6 };
@@ -165,7 +170,7 @@ function SeriesCard({ s, active, onClick }: { s: SeriesData; active: boolean; on
             {s.mammo?.viewPosition ? <span className="ml-1 text-emerald-300">{s.mammo.laterality}{s.mammo.viewPosition}</span> : null}
           </span>
           <span className="font-mono text-[9px] font-bold text-slate-400">
-            {s.specialType === "sr" ? "Yapısal Rapor" : s.specialType === "pdf" ? "PDF Rapor" : s.specialType === "ecg" ? "12-Kanal EKG" : `${s.slices.length} kesit${s.mammo?.tomosynthesis ? " · DBT" : ""}`}
+            {s.specialType === "sr" ? "Yapısal Rapor" : s.specialType === "pdf" ? "PDF Rapor" : s.specialType === "ecg" ? "12-Kanal EKG" : s.specialType === "video" ? "Video" : `${s.slices.length} kesit${s.mammo?.tomosynthesis ? " · DBT" : ""}`}
           </span>
         </div>
         <div className="truncate text-[11px] font-semibold text-slate-200" title={s.description}>{s.description}</div>
@@ -228,6 +233,8 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   const [refIds, setRefIds] = useState<(string | null)[]>([null, null, null, null, null]);
   const [refWins, setRefWins] = useState<({ wl: number; ww: number } | undefined)[]>([undefined, undefined, undefined, undefined, undefined]);
   const [syncPanels, setSyncPanels] = useState(true);
+  // Görünüm kilidi (v-compare): kesit senkronuna ek olarak zoom/kaydırma da paylaşılır.
+  const [viewSync, setViewSync] = useState(false);
   const [autoLayout, setAutoLayout] = useState(true);
   /** Kayıtlı pencere ön ayarı (F3) — protokol belirtmezse uygulanır. */
   const [defaultWindow, setDefaultWindow] = useState<string>("");
@@ -662,12 +669,27 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     return () => window.removeEventListener("focus", refresh);
   }, []);
 
+  // ───── Canlı XA/US akışı (DICOMweb STOW-RS alımı → besleme yoklaması) ─────
+  // Depolanmış bir çalışma Worklistten açıldığında ve içinde XA/US serisi varsa
+  // görünen düğmeyle açılır; ~2 sn'de bir /api/ingest/feed yoklanır, yeni
+  // örnekler çekilip açık seriye ARD ARDA eklenir (id korunur). DIMSE C-STORE
+  // DEĞİLDİR: örnekler modalite/ağ geçidinin STOW-RS POST'uyla gelmelidir.
+  const [liveSource, setLiveSource] = useState<{ studyUid: string; modalities: string[] } | null>(null);
+  const [liveOn, setLiveOn] = useState(false);
+  const [liveCount, setLiveCount] = useState(0);
+  const liveCursorRef = useRef(0);
+  const liveInfoRef = useRef<{ studyUid: string } | null>(null);
+  const liveBusyRef = useRef(false);
+
   // ───── Dosya / Klasör / PACS ─────
   const beginImport = useCallback(() => {
     importRef.current?.abort();
     const controller = new AbortController();
     importRef.current = controller;
     setImportWarnings([]);
+    setLiveOn(false);
+    setLiveSource(null);
+    setLiveCount(0);
     return controller;
   }, []);
 
@@ -679,6 +701,47 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   }, [toast]);
 
   useEffect(() => () => importRef.current?.abort(), []);
+
+  // Canlı akış yoklaması: feed'den yeni storedFiles id'lerini al, baytları çek,
+  // parse et, açık XA/US serisine ARD ARDA ekle (seri id'si korunur).
+  useEffect(() => {
+    if (!liveOn || !liveSource) return;
+    let stop = false;
+    const tick = async () => {
+      if (stop || liveBusyRef.current) return;
+      liveBusyRef.current = true;
+      try {
+        const r = await apiFetch(`/api/ingest/feed?studyUid=${encodeURIComponent(liveSource.studyUid)}&after=${liveCursorRef.current}`);
+        if (!r.ok) return;
+        const body = (await r.json()) as { files?: { id: number; name: string }[] };
+        const files = body.files ?? [];
+        if (files.length === 0) return;
+        liveCursorRef.current = files.reduce((m, f) => Math.max(m, f.id), liveCursorRef.current);
+        const arr: File[] = [];
+        for (let i = 0; i < files.length; i += 4) {
+          const part = await Promise.all(files.slice(i, i + 4).map(async (f) => {
+            const res = await apiFetch(`/api/storage/file/${f.id}`);
+            return res.ok ? new File([await res.blob()], f.name) : null;
+          }));
+          for (const f of part) if (f) arr.push(f);
+        }
+        if (arr.length === 0) return;
+        const parsed = await loadMedicalFiles(arr);
+        if (parsed.length === 0) return;
+        setLoaded((prev) => mergeSeriesData(prev, parsed).series);
+        setLiveCount((c) => c + arr.length);
+        setFeed((f) => [...f, { t: ts(), text: `Canlı akış: ${arr.length} yeni örnek açık seriye eklendi.`, kind: "done" as const }]);
+      } catch {
+        /* yoklama hatası sessiz; bir sonraki turda yine denenir */
+      } finally {
+        liveBusyRef.current = false;
+      }
+    };
+    const t = setInterval(() => { void tick(); }, 2000);
+    void tick();
+    return () => { stop = true; clearInterval(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveOn, liveSource]);
 
   // Kademeli (streaming) yüklemede açılan geçici serilerin kimlikleri: nihai parse
   // bunların yerini alır, böylece seri listesinde kopya kalmaz.
@@ -805,11 +868,12 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     finally { setSavingFiles(false); }
   };
 
-  const loadFromServer = useCallback(async (s: StudyRow, controller: AbortController): Promise<SeriesData[]> => {
+  const loadFromServer = useCallback(async (s: StudyRow, controller: AbortController, onManifest?: (m: { studyUid: string; maxId: number }) => void): Promise<SeriesData[]> => {
     const signal = controller.signal;
     const r = await withImportTimeout(apiFetch(`/api/storage/study/${s.id}`, { signal }), signal);
     if (!r.ok) throw new Error("Çalışma dosyaları alınamadı");
-    const { files } = (await r.json()) as { files: { id: number; name: string }[] };
+    const { files, studyUid } = (await r.json()) as { files: { id: number; name: string }[]; studyUid?: string };
+    onManifest?.({ studyUid: studyUid ?? s.studyUid, maxId: files.reduce((m, f) => Math.max(m, f.id), 0) });
     const out: File[] = [];
     for (let i = 0; i < files.length; i += 4) {
       assertNotAborted(signal);
@@ -828,9 +892,11 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     const controller = beginImport();
     setProgress({ count: 0, total: s.sliceCount || 1 });
     try {
-      const parsed = await loadFromServer(s, controller);
+      const parsed = await loadFromServer(s, controller, (m) => { liveCursorRef.current = m.maxId; liveInfoRef.current = { studyUid: m.studyUid }; });
       if (controller.signal.aborted || importRef.current !== controller) return;
       if (!parsed.length) throw new Error("Çalışma görüntüleri okunamadı");
+      if (parsed.some((p) => p.modality === "XA" || p.modality === "US")) setLiveSource({ studyUid: liveInfoRef.current?.studyUid ?? s.studyUid, modalities: [...new Set(parsed.filter((p) => p.modality === "XA" || p.modality === "US").map((p) => p.modality))] });
+      else setLiveSource(null);
       setLoaded((p) => [...parsed, ...p]);
       selectSeries([...parsed].sort((a, b) => b.slices.length - a.slices.length)[0], parsed);
     } catch (e) { if (!controller.signal.aborted) toast(e instanceof Error ? e.message : "Çalışma açılamadı"); }
@@ -1529,7 +1595,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     setReportOpen(true);
   };
 
-  const saveReport = async (r: ReportData, action: "save" | "approve"): Promise<SaveResult> => {
+  const saveReport = async (r: ReportData, action: "save" | "approve", opts?: { sendMeasurementSr?: boolean }): Promise<SaveResult> => {
     let findingsText = r.findingsText;
     if (r.measurementsText.trim() && !findingsText.includes("ÖLÇÜMLER")) findingsText += `\n\nÖLÇÜMLER\n${r.measurementsText}`;
     // Kayıtta ilk 4 anahtar kesit saklanır; bulgu kesitleri öne alınır ki raporu
@@ -1553,6 +1619,50 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     const data: Partial<ReportData> = { id: d.reportId, status: d.status, version: d.version, approvedAt: d.approvedAt, approvedBy: d.approvedBy, doctorTitle: d.doctorTitle, doctorRegNo: d.doctorRegNo, contentHash: d.contentHash, findingsText, measurementsText: "" };
     setActiveReport({ ...r, ...data });
     void refreshContext();
+    if (action === "approve" && opts?.sendMeasurementSr) {
+      // Onaydan sonra ÖLÇÜM SR'ı (TID 1500) — kullanıcı onay ekranında opt-in işaretledi.
+      // Hata onayı geri almaz; yalnız bildirilir (dışa aktar menüsünden elle de yapılabilir).
+      void (async () => {
+        try {
+          const toB64 = (u8: Uint8Array) => {
+            let s = "";
+            const CHUNK = 0x8000;
+            for (let i = 0; i < u8.length; i += CHUNK) s += String.fromCharCode(...u8.subarray(i, i + CHUNK));
+            return btoa(s);
+          };
+          if (!series) { toast("Onaylandı; seri açık olmadığından TID 1500 SR PACS'e gönderilmedi.", 8000); return; }
+          if (!series.sopUids?.length || !series.seriesUid || !series.sopClassUid) {
+            toast("Onaylandı; seride SOP Instance UID bilgisi yok — TID 1500 SR PACS'e gönderilemedi.", 8000); return;
+          }
+          const lm = loadCodeTable();
+          const table = lm?.table ?? null;
+          const measurements = annotationsToMeasurements(annotations, {
+            pxMm: pxMm > 0 ? pxMm : 1,
+            site: series.bodyPart ? siteCode(series.bodyPart, table) : undefined,
+            series: { seriesUid: series.seriesUid, sopClassUid: series.sopClassUid, sopUids: series.sopUids },
+          });
+          if (!measurements.length) {
+            toast("Onaylandı; sayısal ölçüm (uzunluk/elipsoid/ROI/çokgen) olmadığından TID 1500 SR gönderilmedi.", 8000); return;
+          }
+          const bytes = buildMeasurementReportSr({
+            patientName: series.patientName, patientId: series.patientId, patientSex: series.patientSex,
+            studyUid: series.studyUid, studyDate: series.studyDate, institution: series.institution,
+            title: `${series.modality} ${series.bodyPart || series.description} ölçümleri`,
+            measurements,
+            codeTable: table,
+          });
+          const r2 = await apiFetch("/api/pacs/stow", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ kind: "sr1500", reportId: d.reportId, instances: [{ name: "TID1500.dcm", data: toB64(bytes) }] }),
+          });
+          const d2 = (await r2.json().catch(() => ({}))) as { stored?: number; failed?: number; pacs?: string; error?: string };
+          if (r2.ok) toast(`TID 1500 ölçüm SR'ı PACS'e gönderildi — ${d2.stored ?? 1} nesne (${d2.pacs ?? "PACS"}).`, 7000);
+          else toast(`Onaylandı; ancak TID 1500 SR gönderilemedi: ${d2.error ?? "hata"}. Dışa aktar menüsünden elle gönderin.`, 9000);
+        } catch (e) {
+          toast(`Onaylandı; TID 1500 SR gönderiminde hata: ${e instanceof Error ? e.message : String(e)}`, 9000);
+        }
+      })();
+    }
     return { ok: true, data };
   };
 
@@ -1697,6 +1807,9 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         <Btn on={syncPanels} tone="violet" onClick={() => { setSyncPanels((v) => !v); toast(syncPanels ? "Paneller arası kesit senkronu kapatıldı." : "Paneller arası kesit senkronu açıldı."); }} title="Paneller arası kesit senkronu (anatomik konuma göre)">
           Senkron
         </Btn>
+        <Btn on={viewSync} tone="violet" onClick={() => { setViewSync((v) => !v); toast(viewSync ? "Görünüm kilidi kapatıldı: her panel kendi zoom/kaydırmasını kullanır." : "Görünüm kilidi açıldı: ana panel ve önceki tetkik paneli zoom/kaydırmayı paylaşır."); }} title="Görünüm kilidi (zoom + kaydır): ana panel ve önceki tetkik paneli aynı görünümü paylaşır; iki tarafta da değiştirilebilir">
+          Görünüm
+        </Btn>
         <Btn onClick={() => requestMpr("not")} title="Çok düzlemli yeniden kesit: aksiyel, koronal, sagittal ve MIP">
           MPR
         </Btn>
@@ -1715,6 +1828,18 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
           title={mirrorOn ? "İkinci ekran yayınını durdur" : "Aktif seriyi ikinci pencerede/ekranda canlı yayınla (WL/WW, kesit, zoom)"}
           className={mirrorOn ? "border-emerald-400/60 text-emerald-200" : undefined}
         >🖥 {mirrorOn ? "Yayın açık" : "İkinci ekran"}</Btn>
+        {liveSource && (
+          <Btn
+            onClick={() => {
+              const next = !liveOn;
+              setLiveOn(next);
+              toast(next ? `Canlı XA/US akışı açık — ${liveSource.modalities.join("/")} örnekleri ~2 sn'de bir eklenir (STOW-RS alımı).` : "Canlı akış durduruldu.", next ? 5000 : 2500);
+            }}
+            title="DICOMweb STOW-RS ile depolanmış çalışmaya gelen yeni XA/US örneklerini ~2 sn'de bir yokla ve açık seriye ekle. DIMSE C-STORE değildir; modalite/ağ geçidi STOW-RS POST kullanmalıdır."
+            className={liveOn ? "border-emerald-400/60 text-emerald-200" : undefined}
+            data-testid="live-flow-toggle"
+          >{liveOn ? "● Canlı" : "○ Canlı XA/US"}{liveCount > 0 ? ` +${liveCount}` : ""}</Btn>
+        )}
         <div className="ml-auto flex min-w-0 flex-wrap items-center gap-2">
           <span className="rounded border border-amber-400/40 bg-amber-400/10 px-2 py-1 text-[9px] font-bold tracking-wide text-amber-300">KLİNİK KARAR İÇİN KULLANILAMAZ</span>
           <Link href="/paketler" prefetch={false} title="Windows · Linux · macOS kurulum paketleri ve dosya yolları" className="rounded-lg border border-emerald-400/50 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-bold text-emerald-200 hover:bg-emerald-500/20">📦 Kurulum</Link>
@@ -1812,7 +1937,9 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         {/* Orta: Ana Görüntüleme & Çoklu Izgara / Özel Nesneler */}
         <main id="viewer-main" tabIndex={-1} aria-label="Görüntüleme alanı" className="relative min-w-0 flex-1 outline-none">
           <ViewerErrorBoundary resetKey={series?.id ?? "empty"}>
-          {series?.specialType === "sr" && series.srData ? (
+          {series?.specialType === "video" && series.videoData ? (
+            <VideoViewer video={series.videoData} />
+          ) : series?.specialType === "sr" && series.srData ? (
             <SRViewer sr={series.srData} onJumpToSlice={(s) => setSlice(s - 1)} />
           ) : series?.specialType === "pdf" && series.pdfData ? (
             <PDFViewer pdf={series.pdfData} />
@@ -1835,7 +1962,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
                     <div className="pointer-events-none absolute bottom-2 left-3 font-mono text-[10.5px] text-cyan-200/80">{series.isColor ? "True Color (RGB)" : `WL ${Math.round(wl)} · WW ${Math.round(ww)}`}{invert ? " · TERS" : ""} · {pxMm.toFixed(3)} mm/px</div>
                   </>
                 )}
-                {!series && <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2"><div className="text-xl font-bold text-slate-200">DICOM klasörü / dosya / ZIP sürükleyin veya açın</div><div className="text-xs text-slate-500">Sıkıştırılmış (JPEG, JPEG 2000, JPEG-LS, RLE, True Color, SR, PDF, ECG) nesneler desteklenir.</div></div>}
+                {!series && <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2"><div className="text-xl font-bold text-slate-200">DICOM klasörü / dosya / ZIP sürükleyin veya açın</div><div className="text-xs text-slate-500">Sıkıştırılmış (JPEG, JPEG 2000, JPEG-LS, RLE, True Color) ve DICOM video (MPEG-2/MPEG-4/HEVC), SR, PDF, ECG nesneler desteklenir.</div></div>}
               </div>
               {Array.from({ length: cells - 1 }, (_, i) => (
                 <div key={i} className="min-h-0 min-w-0 bg-[#07090c]">
@@ -1843,6 +1970,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
                     allSeries={all} seriesId={refIds[i]} onSeriesChange={(id) => setRefIds((r) => r.map((x, k) => (k === i ? id : x)))}
                     primary={series} primarySlice={slice} syncSlice={syncPanels} panelId={`ref${i + 1}`} windowOverride={refWins[i]} tool={tool} invert={invert}
                     rotation={rotation} flipH={flipH} flipV={flipV} onPrimarySlice={(n) => series && setSlice(Math.max(0, Math.min(series.slices.length - 1, n)))} label={refLabel[i]}
+                    viewSync={viewSync} syncZoom={zoom} syncPan={pan} onViewSync={(z, pn) => { setZoom(Math.min(12, Math.max(0.15, z))); setPan(pn); }}
                   />
                 </div>
               ))}

@@ -90,10 +90,31 @@ function injectScript(src: string): Promise<void> {
   });
 }
 
+/** Web Worker kapsamı (document yok, importScripts var) mı? */
+function isWorkerScope(): boolean {
+  return (
+    typeof document === "undefined" &&
+    typeof self !== "undefined" &&
+    typeof (self as unknown as { importScripts?: unknown }).importScripts === "function"
+  );
+}
+
+/**
+ * Tarayıcıda WASM köprüsünü yükler. Normal sayfada <script> etiketiyle, Web
+ * Worker içinde importScripts ile yüklenir — iki ortam da Emscripten MODULARIZE
+ * fabrikasını global olarak tanımlar; locateFile mutlak URL döner.
+ */
 const browserWasmLoader: WasmLoader = async (name) => {
   const a = WASM_ASSETS[name];
-  const w = window as unknown as Record<string, unknown>;
-  if (typeof w[a.global] !== "function") await injectScript(a.js);
+  const workerScope = isWorkerScope();
+  const w = (workerScope ? self : window) as unknown as Record<string, unknown>;
+  if (typeof w[a.global] !== "function") {
+    if (workerScope) {
+      (self as unknown as { importScripts: (url: string) => void }).importScripts(a.js);
+    } else {
+      await injectScript(a.js);
+    }
+  }
   const factory = w[a.global] as (o: { locateFile: (f: string) => string }) => Promise<unknown>;
   return factory({ locateFile: (f) => (f.endsWith(".wasm") ? a.wasm : f) });
 };

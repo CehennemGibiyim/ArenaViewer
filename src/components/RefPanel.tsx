@@ -24,6 +24,13 @@ interface Props {
   onPrimarySlice: (i: number) => void;
   label: string;
   panelId?: string;
+  /** Görünüm kilidi (v-compare): true ise zoom/pan ana panelden paylaşılır. */
+  viewSync?: boolean;
+  /** Paylaşılan görünüm (yalnız viewSync açıkken kullanılır). */
+  syncZoom?: number;
+  syncPan?: { x: number; y: number };
+  /** Görünüm kilidi açıkken ref panelindeki zoom/pan değişikliklerini ana panele iletir. */
+  onViewSync?: (zoom: number, pan: { x: number; y: number }) => void;
 }
 
 export default function RefPanel(p: Props) {
@@ -34,6 +41,14 @@ export default function RefPanel(p: Props) {
   const [ww, setWw] = useState(1);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  // Görünüm kilidi: açıkken zoom/pan ana panelden gelir; yerel durum yedekte kalır.
+  const baseZoom = p.viewSync && p.syncZoom !== undefined ? p.syncZoom : zoom;
+  const effPan = p.viewSync && p.syncPan ? p.syncPan : pan;
+  const applyView = (z: number, pn: { x: number; y: number }) => {
+    if (p.viewSync) p.onViewSync?.(z, pn);
+    setZoom(z);
+    setPan(pn);
+  };
   // Kayıt (registration) sonucu: a-prior hizalaması (a-prior).
   const [align, setAlign] = useState<(AlignmentResult & { trusted: boolean }) | null>(null);
   const [alignBusy, setAlignBusy] = useState(false);
@@ -95,8 +110,8 @@ export default function RefPanel(p: Props) {
       <ViewerErrorBoundary resetKey={series?.id ?? "empty"} label={p.label}>
         <Viewport
           series={series} slice={slice} wl={wl} ww={ww} invert={p.invert}
-          zoom={zoom * (align?.trusted ? align.scale : 1)}
-          pan={pan} tool={tool}
+          zoom={baseZoom * (align?.trusted ? align.scale : 1)}
+          pan={effPan} tool={tool}
           alignPx={align?.trusted ? { dx: align.dx, dy: align.dy } : null}
           rotation={p.rotation} flipH={p.flipH} flipV={p.flipV} pxMm={series?.pixelSpacing ?? 1} readOnly panelId={p.panelId}
           label={series ? `${p.label}${synced ? " · senkron" : ""} · Kesit ${slice + 1}/${series.slices.length}` : p.label}
@@ -105,7 +120,7 @@ export default function RefPanel(p: Props) {
             if (synced) p.onPrimarySlice(p.primarySlice + (s > slice ? 1 : -1));
             else setLocal(s);
           }}
-          onWL={(a, b) => { setWl(a); setWw(b); }} onZoom={setZoom} onPan={setPan}
+          onWL={(a, b) => { setWl(a); setWw(b); }} onZoom={(z) => applyView(z / (align?.trusted ? align.scale : 1), effPan)} onPan={(pn) => applyView(baseZoom, pn)}
         />
       </ViewerErrorBoundary>
       <select
@@ -134,6 +149,11 @@ export default function RefPanel(p: Props) {
                 className="rounded border border-[#243044] bg-[#0e141d]/90 px-1.5 py-0.5 text-slate-300 hover:border-rose-400/60 hover:text-rose-200"
               >↺</button>
             )}
+            <button
+              onClick={() => { applyView(1, { x: 0, y: 0 }); }}
+              title={p.viewSync ? "Görünüm kilidi: her iki panelin yakınlaştırma/kaydırmasını sıfırla" : "Bu panelin yakınlaştırma/kaydırmasını sıfırla"}
+              className="rounded border border-[#243044] bg-[#0e141d]/90 px-1.5 py-0.5 text-slate-300 hover:border-cyan-400/60 hover:text-cyan-200"
+            >1:1</button>
           </div>
           {alignMsg && (
             <div className={`rounded px-1.5 py-0.5 text-right ${align?.trusted ? "bg-cyan-500/15 text-cyan-200" : "bg-amber-500/15 text-amber-200"}`}>

@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { SeriesData } from "@/lib/types";
 import ObliquePanel from "./ObliquePanel";
+import CurvedMprPanel from "./CurvedMprPanel";
 import VolumeRender from "./VolumeRender";
+import { obliqueLinesFor, type LineSeg } from "@/lib/obliqueLine";
 import { obliquePlane, sampleTrilinear, type SlabMode } from "@/lib/volume";
 import { renderMprPlane } from "@/lib/mpr";
 
@@ -81,11 +83,13 @@ interface PlaneProps {
   invert: boolean;
   cross: { x: number; y: number };
   color: string;
+  /** Oblik düzlemin bu paneldeki kesişim çizgisi (veri birimlerinde); null → çizilmez. */
+  line?: LineSeg | null;
   onPick: (ix: number, iy: number) => void;
   onWheel: (dir: number) => void;
 }
 
-function Plane({ title, w, rows, rowScale, data, wl, ww, invert, cross, color, onPick, onWheel }: PlaneProps) {
+function Plane({ title, w, rows, rowScale, data, wl, ww, invert, cross, color, line, onPick, onWheel }: PlaneProps) {
   const wrap = useRef<HTMLDivElement>(null);
   const cv = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ w: 300, h: 300 });
@@ -139,8 +143,17 @@ function Plane({ title, w, rows, rowScale, data, wl, ww, invert, cross, color, o
     ctx.moveTo(ox + cross.x * s, oy); ctx.lineTo(ox + cross.x * s, oy + rows * rowScale * s);
     ctx.moveTo(ox, oy + cross.y * rowScale * s); ctx.lineTo(ox + w * s, oy + cross.y * rowScale * s);
     ctx.stroke();
+    if (line) {
+      ctx.strokeStyle = "#a3e635";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(ox + line.x0 * s, oy + line.y0 * rowScale * s);
+      ctx.lineTo(ox + line.x1 * s, oy + line.y1 * rowScale * s);
+      ctx.stroke();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, wl, ww, invert, cross.x, cross.y, size, w, rows, rowScale, color]);
+  }, [data, wl, ww, invert, cross.x, cross.y, size, w, rows, rowScale, color, line]);
 
   const pick = (e: React.PointerEvent) => {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -187,7 +200,9 @@ export default function VolumeView({ series, wl: wl0, ww: ww0, invert, initialTa
   const [mode, setMode] = useState<Mode>("single");
   const [wl, setWl] = useState(wl0);
   const [ww, setWw] = useState(ww0);
-  const [tab, setTab] = useState<"not" | "oblik" | "3b">(initialTab);
+  const [tab, setTab] = useState<"not" | "oblik" | "kavisli" | "3b">(initialTab);
+  const [obRot, setObRot] = useState({ x: 25, y: 0, z: 0 });
+  const [showObliqueLine, setShowObliqueLine] = useState(true);
   const [big, setBig] = useState(false);
   /** Kullanıcının seçtiği kalıcı MPR katsayısı (varsayılan: kalp-damar). */
   const [prefFilter, setPrefFilter] = useState<{ wl: number; ww: number } | null>(null);
@@ -216,6 +231,9 @@ export default function VolumeView({ series, wl: wl0, ww: ww0, invert, initialTa
     return { data: r.data, w: r.w, rows: r.h, rowScale: r.dv / r.du };
   }
 
+  // Oblik düzlemin üç panele düşen kesişim çizgisi (yekpare hesapla)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const obliqueLines = useMemo(() => (showObliqueLine ? obliqueLinesFor(series, { x: cur.x, y: cur.y, z: cur.z }, obRot.x, obRot.y, obRot.z) : null), [series, cur.x, cur.y, cur.z, obRot.x, obRot.y, obRot.z, showObliqueLine]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const axG = useMemo(() => planeFor("axial", { index: cur.z }), [series, cur.z, slab, mode]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -233,6 +251,9 @@ export default function VolumeView({ series, wl: wl0, ww: ww0, invert, initialTa
         <span className="font-mono font-black tracking-widest text-cyan-300">{tab === "3b" ? "3B HACİM" : "MPR"} · {series.description}</span>
         <span className="font-mono text-slate-400">x {cur.x} · y {cur.y} · kesit {cur.z + 1}/{N} · z {zMm.toFixed(1)} mm · değer {val !== undefined ? val.toFixed(0) : "—"} {series.unit}</span>
         <div className="ml-auto flex items-center gap-2">
+          <label className="flex items-center gap-1 text-slate-300" title="Oblik düzlemin aksiyel/koronal/sagital panellerde kesişim çizgisini (lime) gösterir">
+            <input type="checkbox" checked={showObliqueLine} onChange={(e) => setShowObliqueLine(e.target.checked)} />Oblik çizgisi
+          </label>
           <label className="flex items-center gap-1 text-slate-300">Kalın kesit
             <input type="range" min={0} max={40} step={1} value={slab} onChange={(e) => setSlab(Number(e.target.value))} className="w-28" />
             <span className="w-12 font-mono text-cyan-300">{slab} mm</span>
@@ -264,27 +285,31 @@ export default function VolumeView({ series, wl: wl0, ww: ww0, invert, initialTa
       <div className="grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-1 p-1">
         {!big && <>
         <Plane title="AKSİYEL" w={axG.w} rows={axG.rows} rowScale={axG.rowScale} data={ax} wl={wl} ww={ww} invert={invert} color="#22d3ee"
+          line={obliqueLines?.axial}
           cross={{ x: cur.x + 0.5, y: cur.y + 0.5 }}
           onPick={(ix, iy) => setCur((c) => ({ ...c, x: clamp(ix, W), y: clamp(iy, H) }))}
           onWheel={(d) => setCur((c) => ({ ...c, z: clamp(c.z + d, N) }))} />
         <Plane title="KORONAL" w={coG.w} rows={coG.rows} rowScale={coG.rowScale} data={co} wl={wl} ww={ww} invert={invert} color="#fbbf24"
+          line={obliqueLines?.coronal}
           cross={{ x: cur.x + 0.5, y: N - 1 - cur.z + 0.5 }}
           onPick={(ix, iy) => setCur((c) => ({ ...c, x: clamp(ix, W), z: clamp(N - 1 - iy, N) }))}
           onWheel={(d) => setCur((c) => ({ ...c, y: clamp(c.y + d, H) }))} />
         <Plane title="SAGİTAL" w={saG.w} rows={saG.rows} rowScale={saG.rowScale} data={sa} wl={wl} ww={ww} invert={invert} color="#f472b6"
+          line={obliqueLines?.sagittal}
           cross={{ x: cur.y + 0.5, y: N - 1 - cur.z + 0.5 }}
           onPick={(ix, iy) => setCur((c) => ({ ...c, y: clamp(ix, H), z: clamp(N - 1 - iy, N) }))}
           onWheel={(d) => setCur((c) => ({ ...c, x: clamp(c.x + d, W) }))} />
         </>}
         <div className={`flex min-h-0 flex-col overflow-hidden border border-[#1a2230] bg-[#0b0f16] ${big ? "col-span-2 row-span-2" : ""}`}>
           <div className="flex shrink-0 items-center gap-1 border-b border-[#1a2230] px-2 py-1 text-[11px]">
-            {([["not", "Notlar"], ["oblik", "Oblik MPR"], ["3b", "3B hacim"]] as const).map(([k, l]) => (
+            {([["not", "Notlar"], ["oblik", "Oblik MPR"], ["kavisli", "Kavisli MPR"], ["3b", "3B hacim"]] as const).map(([k, l]) => (
               <button key={k} onClick={() => setTab(k)} className={`cursor-pointer rounded px-2 py-0.5 font-bold ${tab === k ? "bg-cyan-400/20 text-cyan-200 ring-1 ring-cyan-400/50" : "bg-[#141b24] text-slate-300 hover:bg-[#1f2937]"}`}>{l}</button>
             ))}
             <button onClick={() => setBig((b) => !b)} className="ml-auto cursor-pointer rounded bg-[#141b24] px-2 py-0.5 font-bold text-slate-300 hover:bg-[#1f2937]">{big ? "▣ Küçült" : "⛶ Büyüt"}</button>
           </div>
           <div className="min-h-0 flex-1">
-          {tab === "oblik" && <ObliquePanel series={series} center={cur} wl={wl} ww={ww} invert={invert} />}
+          {tab === "oblik" && <ObliquePanel series={series} center={cur} wl={wl} ww={ww} invert={invert} rot={obRot} onRotChange={setObRot} />}
+          {tab === "kavisli" && <CurvedMprPanel series={series} wl={wl} ww={ww} invert={invert} />}
           {tab === "3b" && <VolumeRender series={series} />}
           {tab === "not" && <div className="h-full overflow-auto p-3 text-[11px] leading-relaxed text-slate-300">
           <div className="mb-1 text-xs font-bold text-slate-100">MPR notları</div>
@@ -293,7 +318,7 @@ export default function VolumeView({ series, wl: wl0, ww: ww0, invert, initialTa
             <li>Tekerlek: tıklanan düzlemin normali boyunca gezinir.</li>
             <li>Kalın kesit: ortalama / MIP (en parlak) / MinIP (en koyu) projeksiyonu.</li>
             <li>Kesit aralığı <b>{spacing.toFixed(2)} mm</b>, piksel <b>{(series.pixelSpacing || 1).toFixed(2)} mm</b> (dikey ölçek {ratio.toFixed(2)}×).</li>
-            <li><b>Oblik MPR</b> ve <b>3B hacim</b> (VR/MIP, STL) sekmelerinden eğimli düzlem ve hacim görüntüleme kullanılır.</li>
+            <li><b>Oblik MPR</b>, <b>Kavisli MPR</b> (merkez hattını aksiyel kesitte işaretleyip yay boyunca düzleştirir) ve <b>3B hacim</b> (VR/MIP, STL) sekmelerinden eğimli düzlem, kavisli kesit ve hacim görüntüleme kullanılır.</li>
             <li className="text-amber-300">Koronal/sagittal yönelim, kesitlerin kafa yönüne artan sıralandığı varsayımına dayanır.</li>
             {N < 12 && <li className="text-amber-300">Kesit sayısı az ({N}); yeniden kesit görüntüleri kaba görünebilir.</li>}
           </ul>

@@ -315,70 +315,101 @@ export function parsePresentationState(ds: DicomDataSet): DicomGSPS | null {
 // ───────────── 6. Palette Color Lookup Table (LUT) ─────────────
 
 /**
- * Palet tanımlayıcısını (numEntries, firstMapped, bitsPerEntry) okur.
- *
- * Tanımlayıcı **US (bazen SS)** VR'ındadır; `ds.string()` metin olmayan VR'da
- * yalnız ilk baytı döndürdüğü için ikili okuma gerekir. Eski metin biçimi de
- * (test/üretici hatası) desteklenir.
+ * Palet tanımlayıcısı (0028,110x) VR'ı: tek üçlü ya da **segmentli palet**.
+ * Segmentli olduğunda ardışık üçlüler bulunur (ör. 2 segment = 6 US değeri);
+ * her üçlü `(numEntries, firstMappedIndex, bitsPerEntry)` taşır ve LUT verisi
+ * segmentlerin sırayla eklenmesiyle oluşur. Üçlülerin katı 3 katı olmayan
+ * kuyruk yok sayılır (ilk üçlü her zaman alınır). `ds.string()` metin olmayan
+ * VR'da yalnız ilk baytı döndürdüğü için ikili okuma gerekir; eski metin
+ * biçimi de (test/üretici hatası) desteklenir.
  */
-function readLutDescriptor(ds: DicomDataSet, tag: string): [number, number, number] | null {
+export interface LutSegment { entries: number; first: number; bits: number }
+
+function readLutSegments(ds: DicomDataSet, tag: string): LutSegment[] | null {
   const el = ds.elements[tag];
   if (!el) return null;
+  let raw: number[] = [];
   const s = ds.string(tag);
   if (s && s.includes("\\")) {
-    const p = s.split("\\").map((x) => Number(x.trim()));
-    if (p.length >= 3 && p.slice(0, 3).every((n) => Number.isFinite(n))) return [p[0], p[1], p[2]];
-  }
-  if (el.length >= 6) {
+    raw = s.split("\\").map((x) => Number(x.trim())).filter((n) => Number.isFinite(n));
+  } else if (el.length >= 6) {
     const buf = ds.byteArray.buffer as ArrayBuffer;
-    const dv = new DataView(buf, ds.byteArray.byteOffset + el.dataOffset, Math.min(el.length, 6));
+    const words = Math.min(Math.floor(el.length / 2), 3 * 16); // en çok 16 üçlü
+    const dv = new DataView(buf, ds.byteArray.byteOffset + el.dataOffset, words * 2);
     const signed = el.vr === "SS";
-    const rd = (o: number) => (signed ? dv.getInt16(o, true) : dv.getUint16(o, true));
-    return [rd(0), rd(2), rd(4)];
+    for (let i = 0; i < words; i++) raw.push(signed ? dv.getInt16(i * 2, true) : dv.getUint16(i * 2, true));
   }
-  return null;
+  if (raw.length < 3) return null;
+  const segs: LutSegment[] = [];
+  for (let k = 0; k + 3 <= raw.length; k += 3) {
+    const entriesRaw = raw[k], first = raw[k + 1], bitsRaw = raw[k + 2];
+    const entries = entriesRaw === 0 ? 65536 : entriesRaw; // 0 = 65536 giriş (DICOM)
+    if (!(entries > 0)) continue;
+    segs.push({ entries, first: Math.max(0, first | 0), bits: bitsRaw === 16 ? 16 : 8 });
+  }
+  return segs.length > 0 ? segs : null;
 }
 
 export function parsePaletteColorLUT(ds: DicomDataSet): PaletteColorLUT | null {
   const rData = ds.elements["x00281201"];
   const gData = ds.elements["x00281202"];
   const bData = ds.elements["x00281203"];
-  const desc = readLutDescriptor(ds, "x00281101");
-  if (!desc || !rData || !gData || !bData) return null;
+  if (!rData || !gData || !bData) return null;
 
-  const [numEntriesRaw, firstMappedRaw, bitsRaw] = desc;
-  const numEntries = numEntriesRaw === 0 ? 65536 : numEntriesRaw || 256;
-  const firstMapped = firstMappedRaw || 0;
-  const bits = bitsRaw === 16 ? 16 : 8;
+  // Her kanalın kendi tanımlayıcısı olabilir (segmentli palet); yoksa R'ninki
+  // kullanılır (DICOM'da üçü genellikle aynıdır).
+  const rS = readLutSegments(ds, "x00281101");
+  const gS = readLutSegments(ds, "x00281102") ?? rS;
+  const bS = readLutSegments(ds, "x00281103") ?? rS;
+  const segsR = rS ?? gS ?? bS;
+  const segsG = gS ?? rS ?? bS;
+  const segsB = bS ?? rS ?? gS;
+  if (!segsR || !segsG || !segsB) return null;
+
+  // Ortak indeks örgüsü: tüm segmentlerin kapladığı aralık (boşluklar sıfır kalır).
+  const all = [...segsR, ...segsG, ...segsB];
+  const first = all.reduce((m, x) => Math.min(m, x.first), Infinity);
+  const last = all.reduce((m, x) => Math.max(m, x.first + x.entries), 0);
+  const numEntries = Math.max(1, last - first);
+  const bits = all.some((x) => x.bits === 16) ? 16 : 8;
 
   const buf = ds.byteArray.buffer as ArrayBuffer;
-  const rOffset = ds.byteArray.byteOffset + rData.dataOffset;
-  const gOffset = ds.byteArray.byteOffset + gData.dataOffset;
-  const bOffset = ds.byteArray.byteOffset + bData.dataOffset;
-
-  // LUT Data çoğunlukla OW (16-bit kap) olarak yazılır; 8-bit girdiler bu kabın
-  // ALT baytındadır (PS3.3 C.7.6.3.1.6). Kabı VR/uzunluktan çıkarıyoruz.
-  const wide = (d: { vr?: string; length: number }) => bits === 16 || d.length >= numEntries * 2;
-  const readChannel = (offset: number, el: { vr?: string; length: number }): Uint8Array | Uint16Array => {
-    if (wide(el)) {
-      const words = new Uint16Array(buf, offset, Math.min(numEntries, Math.floor(el.length / 2)));
-      if (bits === 16) return words;
-      const bytes = new Uint8Array(numEntries);
-      for (let i = 0; i < Math.min(numEntries, words.length); i++) bytes[i] = words[i] & 0xff;
-      return bytes;
+  const offsetOf = (el: { dataOffset: number }) => ds.byteArray.byteOffset + el.dataOffset;
+  const expand = (segs: LutSegment[], el: { vr?: string; length: number; dataOffset: number }) => {
+    const total = segs.reduce((a, x) => a + x.entries, 0);
+    const chMax16 = segs.some((x) => x.bits === 16);
+    const wide = chMax16 || el.length >= total * 2; // 8-bit değer OW kabında gelebilir
+    const out: Uint8Array | Uint16Array = bits === 16 ? new Uint16Array(numEntries) : new Uint8Array(numEntries);
+    let cursor = 0;
+    for (const seg of segs) {
+      const base = seg.first - first;
+      // Global 16-bit örgüde 8-bit segment ×256 ölçeklenir (255 → 0xff00/256 = 255).
+      const scale = bits === 16 && seg.bits === 8 ? 256 : 1;
+      if (wide) {
+        const maxWords = Math.max(0, Math.floor((el.length - cursor * 2) / 2));
+        const words = new Uint16Array(buf, offsetOf(el) + cursor * 2, Math.min(seg.entries, maxWords));
+        for (let i = 0; i < words.length && base + i < numEntries; i++) out[base + i] = words[i] * scale;
+        cursor += Math.min(seg.entries, maxWords);
+      } else {
+        const maxBytes = Math.max(0, el.length - cursor);
+        const bytes = new Uint8Array(buf, offsetOf(el) + cursor, Math.min(seg.entries, maxBytes));
+        for (let i = 0; i < bytes.length && base + i < numEntries; i++) out[base + i] = bytes[i] * scale;
+        cursor += Math.min(seg.entries, maxBytes);
+      }
     }
-    return new Uint8Array(buf, offset, Math.min(numEntries, el.length));
+    return out;
   };
-  const r = readChannel(rOffset, rData);
-  const g = readChannel(gOffset, gData);
-  const b = readChannel(bOffset, bData);
+  const r = expand(segsR, rData);
+  const g = expand(segsG, gData);
+  const b = expand(segsB, bData);
 
   return {
     numEntries,
-    firstMapped,
+    firstMapped: first,
     bits,
     r,
     g,
     b,
+    segments: Math.max(segsR.length, segsG.length, segsB.length),
   };
 }

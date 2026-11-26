@@ -96,9 +96,28 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   `role="dialog"`/`aria-modal` + Escape, `aria-live` geri bildirim, **yüksek
   kontrast** teması (◐ Kontrast; tercih cihazda saklanır) ve `prefers-reduced-motion`
   desteği. WCAG kontrast matematiği testlidir (`npm run test:a11y`).
+- **Erişim anomalisi (KVKK):** Yönetim → Güvenlik sekmesindeki «Erişim
+  anomalileri» kartı son 7 günün denetim kaydını ve başarısız giriş
+  denemelerini kural tabanlı tarar: 10 dk'da ≥25 farklı çalışma açma, 1
+  saatte aynı çalışmayı ≥12 kez açma, 22:00–07:00'de ≥15 görüntüleme,
+  ≥6 (yüksek ≥20) dışa aktarım/PACS gönderimi/paylaşım bağlantısı, 15 dk'da
+  ≥8 başarısız giriş (kullanıcı) veya ≥20 (IP). Yüksek önemdeki yeni
+  anomaliler bildirim kanallarına ve denetim kaydına (`security.access_anomaly`)
+  bir kez yazılır (`accessAnomalyAlerted` ile tekrar engellenir).
+  **Sınırlılık:** heuristiktir, suistimal kanıtı değildir — alarm önce
+  kişiye doğrulatılır. `GET /api/security/access-anomaly` yalnız yönetici.
 - **Model kayıt defteri:** Yönetim → AI: model sürümleri (aday/aktif/emekli),
   trafik payı, parmak izi; `/api/ai/registry` deterministik **A/B ataması**
   (tohum → kova) ve aşama değişikliğinde denetim kaydı.
+- **Toplu model değerlendirme:** `POST /api/ai/evaluate` (yönetici) — kayıt
+  defterindeki bir model sürümü için skor/etiket listesi (`[{score, label}]`)
+  ROC-AUC (Mann-Whitney, bağlar ortalama sıra), 0.3/0.5/0.7 eşik tablosu
+  (duyarlılık/özgüllük/PPV/NPV/F1), Brier skoru ve ECE (10 bin) ile
+  değerlendirilir; sonuç `model.evaluate` denetim kaydına yazılır, `n≥20` ise
+  kayıt defteri notuna `[EVAL …]` satırı eklenir (mevcut not korunur).
+  n<20'de karta yazılmaz. Çıkarımın kendisi bu uçta çalışmaz; skorları
+  ai-worker doğrulama betikleri / etiketli batch üretir. Örneklem-içi
+  metriktir, dış doğrulama yerine geçmez.
 - **RECIST 1.1 (tam):** Hedef lezyon seçim denetimi (≥10 mm; lenf nodu kısa eksen
   ≥15 mm; organ başına ≤2, toplam ≤5), non-hedef bileşkesi ve **genel yanıt
   tablosu** (yeni lezyon → PD; hedef CR + non-hedef CR → CR). Nodül takibi
@@ -152,6 +171,17 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   veri sunucuya gitmez, alıcı salt izlemedir) — pencereyi başka bir monitöre
   sürükleyin. Dokunmatikte iki parmak kıstırma = zoom, iki parmak = kaydırma,
   tek parmak = kaydırma (`src/lib/gestures.ts`).
+- **Canlı XA/US akışı (STOW-RS alımı):** Modalite/ağ geçidi/Orthanc/dcm4chee,
+  `POST /api/dicomweb/studies` (başlık `x-api-key: <INGEST_API_KEY>`, gövde
+  `multipart/related`, parça başına ≤ 40 MB, istek başına ≤ 64 örnek / 300 MB)
+  ile çok kareli örnekleri okuyucuya **gönderir**; örnekler DICM imzası ve
+  zorunlu UID etiketleri doğrulandıktan sonra **şifreli** depoya yazılır
+  (denetim kaydı: `dicom.ingest`). Worklist'ten açılan XA/US çalışmasında
+  araç çubuğundaki **○ Canlı XA/US** düğmesi açılınca `/api/ingest/feed`
+  ~2 sn'de bir yoklanır; gelen örnek satırları çekilip açık seriye **ard arda**
+  eklenir (seri kimliği ve işaretler korunur). Dürüst sınırlar: bu yol **DIMSE
+  C-STORE değildir** (AE başlığı/C-ECHO yok; DIMSE gerekiyorsa önüne ağ geçidi
+  konmalıdır) ve modalite tarafında gönderim yapılandırması zorunludur.
 - **Anonim seri gönderimi:** Seriyi PACS'e **kimliksiz** göndermek için anonim
   DICOM baytları tarayıcıda sıfırdan üretilir (özel etiket / orijinal UID / ad
   taşınmaz); sunucu örnek sayısı, toplam boyut ve DICM imzasını yeniden denetler.
@@ -505,6 +535,7 @@ ayarı. S3 istemcisi AWS SigV4 kullanır (AWS/MinIO/R2/Wasabi uyumlu).
 | `DATA_ENCRYPTION_KEYS` | Hayır | Virgülle ayrılmış anahtar halkası; **en sağdaki yazar**, soldakiler yalnız çözme (rotasyon) |
 | `PACS_AUTH_HEADER` | Hayır | DICOMweb kimlik başlığı — yalnızca geriye dönük; kimlik/ayarlar Yönetim → Entegrasyon'dan girilir ve sunucuda şifrelenir |
 | `HIS_API_KEY` | Hayır | HBYS istem alımı API anahtarı |
+| `INGEST_API_KEY` | Hayır | DICOMweb STOW-RS alımı API anahtarı (`POST /api/dicomweb/studies`); tanımsızsa alım kapalıdır (503) |
 | `ACCESS_TOKEN` | Hayır | Tek erişim anahtarı (kapı); tanımlıysa `/giris` kapısı ve 401 koruması açılır |
 | `AUTH_MODE` | Hayır | Boş/demo: ACCESS_TOKEN varsa onunla, yoksa tek operatör. `hesap`: kullanıcı adı/parola (+MFA) zorunlu, rol denetimi aktif |
 | `SESSION_SECRET` | Hesap modunda | Oturum çerezini imzalayan gizli anahtar (tanımsızsa `DATA_ENCRYPTION_KEY` kullanılır) |
@@ -577,6 +608,8 @@ npm run test:tracking               # lezyon eşleştirme + nodül takibi köpr�
 npm run test:measure-history        # sunucu ölçüm geçmişi serileri + trend + CSV
 npm run test:lungquant              # LAA-950, PD15, kesit profili, örnekleme
 npm run test:model-registry         # model kayıt defteri + A/B ataması
+npm run test:model-evaluate      # toplu model değerlendirme (AUC/eşik tablosu/Brier/ECE)
+npm run test:access-anomaly      # erişim anomalisi tespiti (KVKK, heuristik kurallar)
 npm run test:a11y                   # WCAG kontrastı + tema sabitleri
 npm run test:nuclear                # MTV/SUV örnekleme + TIC sınıflandırması
 npm run test:patient-letter         # hasta mektubu: TR/EN/DE, okuma düzeyi, taslak kilidi

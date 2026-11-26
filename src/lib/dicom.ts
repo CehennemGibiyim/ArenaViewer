@@ -5,7 +5,9 @@ import type { DicomOverlayPlane, DicomTag, MammographyInfo, PaletteColorLUT, Pix
 import { suvFromDataset, parseTm } from "./suv";
 import { applyCharset } from "./dicomCharset";
 import { analyzeSliceGaps, hasSliceProblem } from "./sliceGaps";
-import { codecName, decodeEncapsulatedFrames, isCodecSupported, type RawFrame } from "./codecs";
+import { codecName, isCodecSupported, type RawFrame } from "./codecs";
+import { decodeEncapsulated } from "./codecClient";
+import { isVideoTransferSyntax, parseDicomVideo } from "./dicomVideo";
 import {
   isSOPClass,
   parseECGWaveform,
@@ -296,7 +298,7 @@ async function decodePixels(
     if (grayFrames) return { frames: grayFrames, rgbaFrames: undefined, isColor: false, width: info.cols, height: info.rows };
   }
   const raws = encapsulated
-    ? await decodeEncapsulatedFrames(ds, el, ts ?? "", info)
+    ? await decodeEncapsulated(ds, el, ts ?? "", info)
     : readNative(ds, info, ts === TS_EXPLICIT_BE);
   if (raws.length === 0) return null;
   const ybrRaw = !encapsulated || ts === "1.2.840.10008.1.2.5";
@@ -594,8 +596,36 @@ export async function loadMedicalFiles(
         }
       }
 
-      // ─── 4. DICOM Image Series ───
+      // ─── 4. DICOM Video (MPEG-2 / MPEG-4 AVC/H.264 / HEVC) — video kareleri piksel kod çözücüye girmez ───
       const ts = ds.string("x00020010");
+      if (ts && isVideoTransferSyntax(ts)) {
+        const video = parseDicomVideo(ds);
+        if (video) {
+          specialSeries.push({
+            id: `dicom-video-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            modality: ds.string("x00080060") || "XC",
+            description: video.title,
+            bodyPart: ds.string("x00180015") || "VİDEO",
+            patientName: ds.string("x00100010")?.replace(/\^/g, " ") || "ANONİM HASTA",
+            patientId: ds.string("x00100020") || `TR-${Math.floor(Math.random() * 900000 + 100000)}`,
+            patientAge: ds.string("x00101010") || "-",
+            patientSex: ds.string("x00100040") || "-",
+            studyDate: ds.string("x00080020") || new Date().toISOString().slice(0, 10),
+            institution: ds.string("x00080080") || "RADYOLOJİ KLİNİĞİ",
+            studyUid: ds.string("x0020000d") || `study-${Date.now()}`,
+            width: ds.uint16("x00280011") || 512, height: ds.uint16("x00280010") || 512,
+            pixelSpacing: 1, sliceThickness: 0,
+            defaultWL: 128, defaultWW: 256, unit: "SI",
+            specialType: "video", videoData: video,
+            slices: [new Int16Array(512 * 512)], lesions: [], tags: collectTags(ds), isSample: false, files: [file],
+          });
+          continue;
+        }
+        unsupported.set(ts, (unsupported.get(ts) ?? 0) + 1);
+        continue;
+      }
+
+      // ─── 5. DICOM Image Series ───
       if (ts && !UNCOMPRESSED.has(ts) && !isCodecSupported(ts)) {
         unsupported.set(ts, (unsupported.get(ts) ?? 0) + 1);
         continue;

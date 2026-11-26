@@ -7,6 +7,7 @@ import { authorize } from "@/lib/server/auth";
 import { loadPacsConfig } from "@/lib/server/pacsConfig";
 import { isUid, qidoInstances, stowInstance } from "@/lib/server/pacs";
 import { mapReport } from "@/lib/server/studyRepo";
+import { validateMeasurementSrBytes } from "@/lib/measureSr";
 import { buildKeyObjectSelection, buildPresentationState, buildReportSr } from "@/lib/dicomSr";
 import { summarizeAnonResult, validateAnonStowBody } from "@/lib/stowPayload";
 import { decryptText } from "@/lib/server/crypto";
@@ -14,7 +15,7 @@ import { decryptText } from "@/lib/server/crypto";
 export const dynamic = "force-dynamic";
 
 interface StowBody {
-  kind?: "sr" | "ko" | "pr" | "anon";
+  kind?: "sr" | "ko" | "pr" | "anon" | "sr1500";
   /** Anonim gönderim: istemcide sıfırdan üretilmiş DICOM baytları (base64). */
   instances?: { name?: string; data?: string }[];
   reportId?: number;
@@ -36,6 +37,7 @@ export async function POST(req: NextRequest) {
   if ("error" in a) return a.error;
   const body = ((await req.json().catch(() => ({}))) ?? {}) as StowBody;
   if (body.kind === "anon") return stowAnon(body, a.user);
+  if (body.kind === "sr1500") return stowMeasurementSr(body, a.user);
   if (body.kind === "ko" || body.kind === "pr") return stowFromSeries(body, a.user);
   const id = Number(body.reportId);
   if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ error: "Geçersiz rapor kimliği" }, { status: 400 });
@@ -64,6 +66,53 @@ export async function POST(req: NextRequest) {
     await audit(a.user, "pacs.send_sr_failed", "report", String(id), { pacs: cfg.name || cfg.kind });
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 502 });
   }
+}
+
+/**
+ * İstemcide üretilmiş TID 1500 ölçüm SR'ını onaylı rapor kimliğiyle STOW-RS gönderir.
+ * İstemci ölçümleri sunucuya göndermez; sunucu yalnız SOP sınıfı Comprehensive SR
+ * olduğunu doğrular, nesneyi PACS'e iletir ve audit'e yazar. Ölçüm içeriği doğrulanmaz.
+ */
+async function stowMeasurementSr(b: StowBody, user: Parameters<typeof audit>[0]) {
+  const reportId = Number(b.reportId);
+  if (!Number.isInteger(reportId) || reportId <= 0) return NextResponse.json({ error: "Geçersiz rapor kimliği" }, { status: 400 });
+
+  const rr = (await db.select({ r: reports, s: studies }).from(reports).innerJoin(studies, eq(reports.studyId, studies.id)).where(eq(reports.id, reportId)).limit(1))[0];
+  if (!rr) return NextResponse.json({ error: "Rapor bulunamadı" }, { status: 404 });
+  const rep = mapReport(rr.r, rr.s);
+  if (rep.status !== "onaylandi") return NextResponse.json({ error: "Yalnızca onaylanmış raporun ölçüm SR'ı PACS'e gönderilebilir" }, { status: 409 });
+
+  const cfg = await loadPacsConfig();
+  if (!cfg) return NextResponse.json({ error: "PACS yapılandırılmamış (Yönetim → Entegrasyon → PACS)" }, { status: 503 });
+
+  const instances = Array.isArray(b.instances) ? b.instances.slice(0, 4) : [];
+  if (!instances.length) return NextResponse.json({ error: "Gönderilecek SR nesnesi yok" }, { status: 400 });
+  const parts: Uint8Array[] = [];
+  for (const inst of instances) {
+    const data = typeof inst?.data === "string" ? inst.data : "";
+    if (!data || data.length > 40_000_000) return NextResponse.json({ error: "SR nesnesi eksik ya da çok büyük (>30 MB)" }, { status: 413 });
+    const buf = Buffer.from(data, "base64");
+    const check = validateMeasurementSrBytes(buf);
+    if (!check.ok) return NextResponse.json({ error: check.error ?? "Geçersiz SR nesnesi" }, { status: 400 });
+    parts.push(new Uint8Array(buf));
+  }
+
+  let stored = 0, failed = 0;
+  const errors: string[] = [];
+  for (const p of parts) {
+    try {
+      const out = await stowInstance(cfg, p);
+      stored += out.stored;
+      failed += out.failed.length;
+      for (const f of out.failed) errors.push(typeof f === "string" ? f : String(f));
+    } catch (e) {
+      failed += 1;
+      errors.push(e instanceof Error ? e.message : String(e));
+    }
+  }
+  await audit(user, "pacs.send_sr1500", "report", String(reportId), { pacs: cfg.name || cfg.kind, stored, failed });
+  if (failed && stored === 0) return NextResponse.json({ error: `Gönderim başarısız: ${errors[0] ?? "PACS reddetti"}`, stored, failed, pacs: cfg.name || cfg.kind }, { status: 502 });
+  return NextResponse.json({ stored, failed, pacs: cfg.name || cfg.kind });
 }
 
 /** Seri durumundaki anahtar kesitler + pencere → KO/PR nesnesi → STOW. */

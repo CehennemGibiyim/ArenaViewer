@@ -258,20 +258,30 @@ export interface DicomECGWaveform {
 export interface DicomVideoSequence {
   id: string;
   title: string;
+  /** İsteğe bağlı önceden oluşturulmuş object URL (bileşenler kendi URL'ini yönetir). */
   videoUrl?: string;
   frameRate: number;
   totalFrames: number;
+  /** Kapsüllenmiş video dosyasının tamamı (fragment'ların birleşimi). */
+  payload: Uint8Array;
+  /** MIME türü (video/mpeg | video/mp4); oynatma tarayıcıya bağlıdır. */
+  mimeType: string;
+  /** İnsan okunur codec etiketi (ör. "MPEG-4 AVC/H.264 (High Profile @L4.1)"). */
+  codecLabel: string;
 }
 
 export type SpecialSeriesType = "image" | "sr" | "pdf" | "ecg" | "video";
 
 export interface PaletteColorLUT {
+  /** İlk–son segment arasını kapsayan genişletilmiş (bitişik) boyut. */
   numEntries: number;
   firstMapped: number;
   bits: number;
   r: Uint8Array | Uint16Array;
   g: Uint8Array | Uint16Array;
   b: Uint8Array | Uint16Array;
+  /** Tanımlayıcıda arka arkaya kaç üçlü (segment) bulundu (tek = 1). Bilgi amaçlıdır. */
+  segments?: number;
 }
 
 /** Mamografi (MG) serisine ait DICOM etiketleri. Etiket yoksa ilgili alan boş kalır (tahmin üretilmez). */
@@ -336,6 +346,8 @@ export interface SeriesData {
   pixelSpacing: number;
   sliceThickness: number;
   sliceSpacing?: number;
+  /** Sunucudaki depolanmış çalışma kimliği (yalnız storedStudies üzerinden açılırsa; canlı XA/US akışı için). */
+  storedStudyId?: number;
   /** Seri/Acquisition Time (gün başlangıcından saniye) — TIC zaman ekseni için. */
   seriesTime?: number | null;
   slicePositions?: number[];
