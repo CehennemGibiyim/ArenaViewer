@@ -229,6 +229,9 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   adaylarla birleştirilir, otomatik anahtar kesit önerir ve rapora model kartıyla girer.
   **Çıkarım tamamen bu makinede çalışır; hasta verisi dışarı çıkmaz, ücretli servis
   kullanılmaz. Klinik doğrulanmamıştır; her bulgu radyoloji uzmanı onayı gerektirir.**
+- **Seri bütünlüğü:** yükleme sırasında kesit aralığı denetlenir; medyan aralığa göre
+  **tahmini eksik kesit** ve **yinelenen kesit** sayısı uyarı olarak gösterilir
+  (`src/lib/sliceGaps.ts`). Sayım tahmindir; kesitler otomatik doldurulmaz.
 - **Raporlama:** taslak → onay akışı, bulgu bazlı hekim doğrulaması (**reddedilen ve
   düzenlenen her bulgu için hekim gerekçesi zorunlu** — `src/lib/findingReview.ts`;
   gerekçe eksikse onay arayüzde ve `/api/reports` tarafında reddedilir, gerekçeler
