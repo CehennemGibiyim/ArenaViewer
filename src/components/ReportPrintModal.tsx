@@ -13,6 +13,7 @@ import StructuredScorePanel from "@/components/StructuredScorePanel";
 import PatientLetterModal from "@/components/PatientLetterModal";
 import LinkedFindingsText from "@/components/LinkedFindingsText";
 import { measureSummary, measureSummaryText, parseMeasurements } from "@/lib/measureTable";
+import { checkReportConsistency } from "@/lib/reportConsistency";
 import { PEER_RESULTS, RESULT_LABELS, type PeerResult } from "@/lib/peerReview";
 import { SHARE_TTL_HOURS, shareState } from "@/lib/share";
 import { MACRO_GROUPS, macroById, macrosByGroup, type MacroGroup } from "@/lib/macros";
@@ -69,7 +70,7 @@ interface Props {
   onClose: () => void;
   report: ReportData;
   user: UserInfo;
-  onSave: (r: ReportData, action: "save" | "approve") => Promise<SaveResult>;
+  onSave: (r: ReportData, action: "save" | "approve", opts?: { sendMeasurementSr?: boolean }) => Promise<SaveResult>;
   onGotoSlice?: (sliceNumber: number) => void;
   /** Cümleye tıklandığında ilgili bulguyu vurgular (r-link). */
   onGotoFinding?: (findingId: string, sliceNumber: number) => void;
@@ -223,6 +224,14 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
     () => (report.clinicalInfo ? appropriatenessFor(report.modality, report.bodyPart, report.clinicalInfo) : null),
     [report.clinicalInfo, report.modality, report.bodyPart],
   );
+  // Rapor metni ↔ kayıtlı ölçümler tutarlılığı (kural tabanlı; onayı engellemez).
+  const [srAutoSend, setSrAutoSend] = useState(false);
+  const consistencySource = `${report.clinicalInfo ?? ""}\n${report.technique ?? ""}\n${report.findingsText ?? ""}\n${report.impression ?? ""}\n${report.recommendation ?? ""}`;
+  const consistency = useMemo(
+    () => checkReportConsistency(consistencySource, report.measurementsText ?? ""),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- kaynak dize bağımlılık olarak yeterli
+    [consistencySource, report.measurementsText],
+  );
 
   const loadSignatures = useCallback(async (id: number) => {
     try {
@@ -302,7 +311,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
 
   const save = async (action: "save" | "approve") => {
     setBusy(true); setError("");
-    const res = await onSave(report, action);
+    const res = await onSave(report, action, action === "approve" ? { sendMeasurementSr: srAutoSend } : undefined);
     setBusy(false);
     if (!res.ok) { setError(res.error ?? "İşlem başarısız"); return; }
     if (res.data) setReport((r) => ({ ...r, ...res.data }));
@@ -951,6 +960,20 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                 ⚠ Raporunda doldurulmamış şablon alanları var: {leftPlaceholders.map((x) => `[${x}]`).join(", ")}. Onaydan önce eksiksiz olması önerilir.
               </p>
             )}
+            {(consistency.unmatchedText.length > 0 || consistency.unmatchedMeasurements.length > 0) ? (
+              <div className="mt-3 rounded-md border border-amber-400/40 bg-amber-400/10 p-2.5 text-[11px] leading-relaxed text-amber-100">
+                <b>⚖ Metin ↔ ölçüm kontrolü:</b> {consistency.note}
+                {consistency.unmatchedText.length > 0 && (
+                  <div className="mt-1">Metinde var, ölçüm bölümünde yok: {consistency.unmatchedText.slice(0, 6).map((x) => x.raw).join(", ")}</div>
+                )}
+                {consistency.unmatchedMeasurements.length > 0 && (
+                  <div className="mt-0.5">Ölçüldü ama metinde geçmiyor: {consistency.unmatchedMeasurements.slice(0, 6).map((x) => x.raw).join(", ")}</div>
+                )}
+                <div className="mt-1 text-[10px] text-amber-200/80">Kural tabanlı ön denetimdir; klinik anlam da taşımayabilir. Onayı engellemez.</div>
+              </div>
+            ) : consistency.textCount + consistency.measurementCount > 0 ? (
+              <p className="mt-3 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-2.5 text-[11px] text-emerald-200">✓ Metindeki ölçüler kayıtlı ölçümlerle uyumlu ({consistency.matched}/{consistency.textCount}).</p>
+            ) : null}
             <div className="mt-3 rounded-md border border-[#232e40] bg-[#141b24] p-2.5 text-xs text-slate-200">
               <div className="font-bold">{user.title} {user.fullName}</div>
               <div className="text-slate-400">Sicil/diploma: {user.regNo || <span className="text-amber-300">tanımlı değil</span>}</div>
@@ -961,6 +984,13 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                 ? <>Onay sahibi <b>{user.fullName}</b> olarak oturumla doğrulanmıştır; rapora bu ad yazılır ve içerik SHA-256 ile mühürlenir. Bu, nitelikli elektronik imza (NES) değildir.</>
                 : <>⚠ Uygulamada oturumsuz demo modundayız: bu onay kimlik doğrulaması yapmaz. Rapora yukarıdaki ad yazılır ve içerik SHA-256 ile mühürlenir; NES değildir.</>}
             </p>
+            {report.measurementsText?.trim() && (
+              <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-md border border-[#232e40] bg-[#141b24] p-2.5 text-[11px] leading-snug text-slate-200 hover:border-cyan-500/50">
+                <input type="checkbox" className="mt-0.5" checked={srAutoSend} onChange={(e) => setSrAutoSend(e.target.checked)} />
+                <span><b>Ölçümleri TID 1500 SR olarak PACS&apos;e gönder (STOW-RS)</b><br />
+                <span className="text-slate-400">Onay başarıyla kaydedildikten sonra, sayısal ölçümlerden Comprehensive SR üretilip PACS&apos;e gönderilir. Sunucu nesneyi iletir ve denetime yazar; ölçüm içeriği doğrulanmaz. Gönderim başarısız olursa rapor yine onaylı kalır.</span></span>
+              </label>
+            )}
             {error && <div className="mt-2 text-xs font-semibold text-rose-300">{error}</div>}
             <div className="mt-4 flex justify-end gap-2">
               <button onClick={() => { setDialog(false); setError(""); }} className="cursor-pointer rounded-lg border border-[#232e40] px-3.5 py-1.5 text-xs text-slate-300 hover:bg-[#1a2330]">İptal</button>

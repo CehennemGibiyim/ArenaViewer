@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SeriesData } from "@/lib/types";
 import { isoSurface, toBinaryStl, volGeo } from "@/lib/volume";
+import { halfExtents, resolveClip } from "@/lib/vrClip";
+import { smoothMesh } from "@/lib/meshSmooth";
 
 /**
  * 3B hacim görüntüleme (WebGL2 ışın izleme): VR (opaklık/renk aktarım işlevi, isteğe bağlı gölgelendirme) ve MIP.
@@ -17,6 +19,8 @@ precision highp float; precision highp sampler3D;
 in vec2 uv; out vec4 o;
 uniform sampler3D uVol; uniform vec3 uHalf; uniform mat3 uRot; uniform vec2 uRes; uniform float uZoom;
 uniform float uThr, uOpac, uShade; uniform int uMode, uPreset; uniform vec3 uTexel;
+uniform float uClipAxis, uClipPos, uClipFlip;
+uniform float uBoneCut; // -1 = kapalı; değer üstü vokseller atlanır (yalnız BT)
 vec3 ramp(float d){
   if(uPreset==0) return mix(vec3(.55,.5,.42), vec3(1.,.97,.9), d);          // kemik
   if(uPreset==1) return mix(vec3(.55,.2,.18), vec3(1.,.8,.7), d);           // yumuşak doku
@@ -40,7 +44,12 @@ void main(){
   vec4 acc = vec4(0.); float mxv = 0.;
   for(int i=0;i<N;i++){
     vec3 q = ro + rd*(t0 + (float(i)+.5)*dt);
+    if(uClipAxis > -0.5){
+      float ca = uClipAxis < 0.5 ? q.x : (uClipAxis < 1.5 ? q.y : q.z);
+      if((uClipFlip < 0.5 && ca > uClipPos) || (uClipFlip > 0.5 && ca < uClipPos)) continue;
+    }
     float d = texture(uVol, tc(q)).r;
+    if(uBoneCut >= 0. && d > uBoneCut) continue;
     if(uMode==1){ mxv = max(mxv,d); continue; }
     float a = smoothstep(uThr, uThr+.22, d) * uOpac * dt * 45.;
     if(a<=0.003) continue;
@@ -104,6 +113,12 @@ export default function VolumeRender({ series }: Props) {
   const [stlBusy, setStlBusy] = useState("");
   const [stlThr, setStlThr] = useState(isCT ? 250 : Math.round(vol.p50 + (vol.p995 - vol.p50) * 0.4));
   const [stlQ, setStlQ] = useState(128);
+  const [smoothOn, setSmoothOn] = useState(false);
+  const [clipAxis, setClipAxis] = useState(-1);
+  const [clipPct, setClipPct] = useState(50);
+  const [clipFlip, setClipFlip] = useState(false);
+  const [boneCut, setBoneCut] = useState(false);
+  const [boneHU, setBoneHU] = useState(300);
 
   const applyPreset = (i: number) => { const p = presets[i]; setPi(i); setLo(p.lo); setHi(p.hi); setThr(p.thr); };
 
@@ -135,7 +150,7 @@ export default function VolumeRender({ series }: Props) {
       ctx.texParameteri(ctx.TEXTURE_3D, ctx.TEXTURE_MIN_FILTER, ctx.LINEAR); ctx.texParameteri(ctx.TEXTURE_3D, ctx.TEXTURE_MAG_FILTER, ctx.LINEAR);
       for (const w of [ctx.TEXTURE_WRAP_S, ctx.TEXTURE_WRAP_T, ctx.TEXTURE_WRAP_R]) ctx.texParameteri(ctx.TEXTURE_3D, w, ctx.CLAMP_TO_EDGE);
       ctx.pixelStorei(ctx.UNPACK_ALIGNMENT, 1);
-      const names = ["uVol", "uHalf", "uRot", "uRes", "uZoom", "uThr", "uOpac", "uShade", "uMode", "uPreset", "uTexel"];
+      const names = ["uVol", "uHalf", "uRot", "uRes", "uZoom", "uThr", "uOpac", "uShade", "uMode", "uPreset", "uTexel", "uClipAxis", "uClipPos", "uClipFlip", "uBoneCut"];
       const u: Record<string, WebGLUniformLocation | null> = {}; for (const n of names) u[n] = ctx.getUniformLocation(prog, n);
       gl.current = { gl: ctx, prog, tex, u };
       setErr("");
@@ -176,9 +191,15 @@ export default function VolumeRender({ series }: Props) {
     ctx.uniform1f(u.uThr, thr); ctx.uniform1f(u.uOpac, opac); ctx.uniform1f(u.uShade, shade ? 1 : 0);
     ctx.uniform1i(u.uMode, mode); ctx.uniform1i(u.uPreset, base.look);
     ctx.uniform3f(u.uTexel, 1 / vol.gx, 1 / vol.gy, 1 / vol.gz);
+    const half = halfExtents(g.w, g.h, g.n, g.sx, g.sy, g.sz);
+    const clip = resolveClip(clipAxis, clipPct, clipFlip, half);
+    ctx.uniform1f(u.uClipAxis, clip.axis); ctx.uniform1f(u.uClipPos, clip.pos); ctx.uniform1f(u.uClipFlip, clip.flip ? 1 : 0);
+    const boneOn = boneCut && series.modality === "CT";
+    const boneNorm = boneOn ? Math.max(0, Math.min(1, (boneHU - lo) / Math.max(1e-6, hi - lo))) : -1;
+    ctx.uniform1f(u.uBoneCut, boneNorm);
     ctx.activeTexture(ctx.TEXTURE0); ctx.bindTexture(ctx.TEXTURE_3D, G.tex); ctx.uniform1i(u.uVol, 0);
     ctx.drawArrays(ctx.TRIANGLES, 0, 3);
-  }, [size, cam, thr, opac, shade, mode, base.look, vol]);
+  }, [size, cam, thr, opac, shade, mode, base.look, vol, clipAxis, clipPct, clipFlip, boneCut, boneHU, lo, hi, series.modality]);
   useEffect(() => { draw(); }, [draw, texTick, err]);
 
   const drag = useRef<{ x: number; y: number; yaw: number; pitch: number } | null>(null);
@@ -187,13 +208,19 @@ export default function VolumeRender({ series }: Props) {
     await new Promise((r) => setTimeout(r, 30));
     try {
       const t0 = performance.now();
-      const mesh = isoSurface(series, stlThr, stlQ);
-      if (mesh.count === 0) { setStlBusy("Bu eşikte yüzey yok; eşiği değiştirin."); return; }
+      const mesh0 = isoSurface(series, stlThr, stlQ);
+      if (mesh0.count === 0) { setStlBusy("Bu eşikte yüzey yok; eşiği değiştirin."); return; }
+      let mesh = mesh0, smoothNote = "";
+      if (smoothOn) {
+        const sm = smoothMesh(mesh0, { iterations: 12 });
+        mesh = sm.mesh;
+        smoothNote = ` · Taubin düzleştirme uygulandı (${sm.uniqueVertices.toLocaleString("tr-TR")} tekil köşe)`;
+      }
       const bytes = toBinaryStl(mesh, `${series.modality}-${series.description}`.slice(0, 60));
       const blob = new Blob([bytes.slice().buffer as ArrayBuffer], { type: "model/stl" });
       const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `yuzey-${series.modality}-${stlThr}.stl`;
       document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 3000);
-      setStlBusy(`STL hazır: ${mesh.count.toLocaleString("tr-TR")} üçgen · ${(bytes.length / 1e6).toFixed(1)} MB · ${Math.round(performance.now() - t0)} ms`);
+      setStlBusy(`STL hazır: ${mesh.count.toLocaleString("tr-TR")} üçgen · ${(bytes.length / 1e6).toFixed(1)} MB · ${Math.round(performance.now() - t0)} ms${smoothNote}`);
     } catch (e) { setStlBusy(`STL oluşturulamadı: ${e instanceof Error ? e.message : "hata"}`); }
   };
 
@@ -210,7 +237,22 @@ export default function VolumeRender({ series }: Props) {
         <label className="flex items-center gap-1">Opaklık<input aria-label="Opaklık" type="range" min={5} max={100} value={Math.round(opac * 100)} onChange={(e) => setOpac(Number(e.target.value) / 100)} className="w-16" /></label>
         <label className="flex items-center gap-1">Alt<input aria-label="Alt değer" type="number" value={Math.round(lo)} onChange={(e) => setLo(Number(e.target.value))} className="w-14 rounded border border-[#1e2735] bg-[#0e141d] px-1" /></label>
         <label className="flex items-center gap-1">Üst<input aria-label="Üst değer" type="number" value={Math.round(hi)} onChange={(e) => setHi(Math.max(lo + 1, Number(e.target.value)))} className="w-14 rounded border border-[#1e2735] bg-[#0e141d] px-1" /></label>
+        {series.modality === "CT" && <label className="flex items-center gap-1" title="BT: verilen eşiğin üstündeki vokselleri (kemik) gizleyerek yumuşak dokuyu gösterir"><input type="checkbox" checked={boneCut} onChange={(e) => setBoneCut(e.target.checked)} />Kemik çıkar
+          {boneCut && <input aria-label="Kemik eşiği (HU)" type="range" min={100} max={1000} step={25} value={boneHU} onChange={(e) => setBoneHU(Number(e.target.value))} className="w-16" />}{boneCut && <span>{boneHU} HU</span>}</label>}
         <button className={btn(false)} onClick={() => setCam({ yaw: 25, pitch: -15, zoom: 2.1 })}>Sıfırla</button>
+        <span className="mx-1 text-slate-600">|</span>
+        <label className="flex items-center gap-1">Kırp
+          <select aria-label="Kırpma düzlemi ekseni" value={clipAxis} onChange={(e) => setClipAxis(Number(e.target.value))} className="rounded border border-[#1e2735] bg-[#0e141d] px-1">
+            <option value={-1}>Kapalı</option>
+            <option value={0}>Sağ/Sol</option>
+            <option value={1}>Üst/Alt</option>
+            <option value={2}>Ön/Arka</option>
+          </select>
+        </label>
+        {clipAxis >= 0 && <>
+          <label className="flex items-center gap-1">Konum<input aria-label="Kırpma düzlemi konumu" type="range" min={0} max={100} value={clipPct} onChange={(e) => setClipPct(Number(e.target.value))} className="w-16" /></label>
+          <button className={btn(clipFlip)} onClick={() => setClipFlip((v) => !v)} title="Düzlemin hangi yarısının görüneceğini değiştirir" aria-pressed={clipFlip}>Yön ⇄</button>
+        </>}
       </div>
       <div ref={wrap} className="relative min-h-0 flex-1 bg-[#05070a]">
         <canvas
@@ -226,6 +268,7 @@ export default function VolumeRender({ series }: Props) {
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-[#1a2230] bg-[#0b0f16] px-2 py-1">
         <span className="font-bold text-cyan-300">STL</span>
         <label className="flex items-center gap-1">Eşik<input aria-label="STL eşiği" type="number" value={stlThr} onChange={(e) => setStlThr(Number(e.target.value))} className="w-16 rounded border border-[#1e2735] bg-[#0e141d] px-1" />{series.unit}</label>
+        <label className="flex items-center gap-1" title="Taubin λ|μ düzleştirme: yüzeyi yumuşatır, hacmi neredeyse korur"><input type="checkbox" checked={smoothOn} onChange={(e) => setSmoothOn(e.target.checked)} />Düzgünleştir</label>
         <label className="flex items-center gap-1">Kalite
           <select aria-label="STL kalitesi" value={stlQ} onChange={(e) => setStlQ(Number(e.target.value))} className="rounded border border-[#1e2735] bg-[#0e141d] px-1">
             <option value={96}>Hızlı</option><option value={128}>Orta</option><option value={192}>İnce (yavaş)</option>

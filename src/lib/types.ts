@@ -266,12 +266,15 @@ export interface DicomVideoSequence {
 export type SpecialSeriesType = "image" | "sr" | "pdf" | "ecg" | "video";
 
 export interface PaletteColorLUT {
+  /** İlk–son segment arasını kapsayan genişletilmiş (bitişik) boyut. */
   numEntries: number;
   firstMapped: number;
   bits: number;
   r: Uint8Array | Uint16Array;
   g: Uint8Array | Uint16Array;
   b: Uint8Array | Uint16Array;
+  /** Tanımlayıcıda arka arkaya kaç üçlü (segment) bulundu (tek = 1). Bilgi amaçlıdır. */
+  segments?: number;
 }
 
 /** Mamografi (MG) serisine ait DICOM etiketleri. Etiket yoksa ilgili alan boş kalır (tahmin üretilmez). */

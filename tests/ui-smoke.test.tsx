@@ -10,6 +10,8 @@ import assert from "node:assert/strict";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import MirrorView from "../src/components/MirrorView";
+import RefPanel from "../src/components/RefPanel";
+import CurvedMprPanel from "../src/components/CurvedMprPanel";
 import SegEditor from "../src/components/SegEditor";
 import NoduleTracker from "../src/components/NoduleTracker";
 import MeasureHistoryPanel from "../src/components/MeasureHistoryPanel";
@@ -33,6 +35,45 @@ const series = {
   width: 4, height: 4, pixelSpacing: 0.5, sliceThickness: 1,
   slices: [new Float32Array(16), new Float32Array(16)],
 } as unknown as SeriesData;
+
+// v-compare: görünüm kilidi (zoom/pan paylaşımı) — referans paneli SSR'da
+// paylaşılan zoom/pan ile çökmeden render edilir ve 1:1 sıfırlama düğmesi taşınır.
+const prior = { ...series, id: "prior-1", description: "Önceki Toraks BT" } as unknown as SeriesData;
+const ref = renderToStaticMarkup(
+  <RefPanel
+    allSeries={[series as unknown as SeriesData, prior]}
+    seriesId="prior-1"
+    onSeriesChange={() => {}}
+    primary={series as unknown as SeriesData}
+    primarySlice={0}
+    syncSlice
+    tool="wl"
+    invert={false}
+    rotation={0}
+    flipH={false}
+    flipV={false}
+    onPrimarySlice={() => {}}
+    label="Önceki tetkik"
+    viewSync
+    syncZoom={1.75}
+    syncPan={{ x: 24, y: -12 }}
+    onViewSync={() => {}}
+  />
+);
+assert.ok(ref.includes("Önceki tetkik"), "referans paneli etiketi render edilir");
+assert.ok(ref.includes("1:1"), "görünüm sıfırlama düğmesi render edilir");
+assert.ok(ref.includes("senkron"), "paylaşılan kesit senkronu etiketi render edilir");
+console.log("PASS referans paneli: görünüm kilidi ile SSR render edilir.");
+
+// v-mpr: kavisli MPR — aksiyel önizleme + düzleştirme düğmeleri SSR'da çökmeden render edilir.
+const curved = renderToStaticMarkup(
+  <CurvedMprPanel series={series as unknown as SeriesData} wl={40} ww={80} invert={false} />
+);
+for (const marker of ["Kavisli MPR", "Düzleştir", "Son noktayı sil", "Yarım genişlik", "Kalın kesit", "görselleştirmedir"]) {
+  assert.ok(curved.includes(marker), `kavisli MPR panelinde "${marker}" bulunmalı`);
+}
+assert.ok(curved.includes('data-testid="curved-src"') && curved.includes('data-testid="curved-out"'), "kaynak ve sonuç kanvasları işaretli render edilir");
+console.log("PASS kavisli MPR: panel kabuk render edilir.");
 
 const seg = renderToStaticMarkup(
   <SegEditor series={series} slice={0} wl={40} ww={80} invert={false} pxMm={0.5} onClose={() => {}} toast={() => {}} />

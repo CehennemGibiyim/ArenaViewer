@@ -56,6 +56,9 @@ import type {
 } from "@/lib/types";
 import { LAYOUTS, WINDOW_PRESETS, type UserPrefs } from "@/lib/prefs";
 import { apiFetch } from "@/lib/csrfClient";
+import { annotationsToMeasurements, siteCode } from "@/lib/measurementExport";
+import { buildMeasurementReportSr } from "@/lib/sr1500";
+import { loadCodeTable } from "@/lib/codeTableClient";
 
 type Rot = 0 | 90 | 180 | 270;
 const CELLS: Record<Layout, number> = { "1x1": 1, "1x2": 2, "2x1": 2, "2x2": 4, "1x3": 3, "3x1": 3, "2x3": 6, "3x2": 6 };
@@ -228,6 +231,8 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   const [refIds, setRefIds] = useState<(string | null)[]>([null, null, null, null, null]);
   const [refWins, setRefWins] = useState<({ wl: number; ww: number } | undefined)[]>([undefined, undefined, undefined, undefined, undefined]);
   const [syncPanels, setSyncPanels] = useState(true);
+  // Görünüm kilidi (v-compare): kesit senkronuna ek olarak zoom/kaydırma da paylaşılır.
+  const [viewSync, setViewSync] = useState(false);
   const [autoLayout, setAutoLayout] = useState(true);
   /** Kayıtlı pencere ön ayarı (F3) — protokol belirtmezse uygulanır. */
   const [defaultWindow, setDefaultWindow] = useState<string>("");
@@ -1529,7 +1534,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     setReportOpen(true);
   };
 
-  const saveReport = async (r: ReportData, action: "save" | "approve"): Promise<SaveResult> => {
+  const saveReport = async (r: ReportData, action: "save" | "approve", opts?: { sendMeasurementSr?: boolean }): Promise<SaveResult> => {
     let findingsText = r.findingsText;
     if (r.measurementsText.trim() && !findingsText.includes("ÖLÇÜMLER")) findingsText += `\n\nÖLÇÜMLER\n${r.measurementsText}`;
     // Kayıtta ilk 4 anahtar kesit saklanır; bulgu kesitleri öne alınır ki raporu
@@ -1553,6 +1558,50 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
     const data: Partial<ReportData> = { id: d.reportId, status: d.status, version: d.version, approvedAt: d.approvedAt, approvedBy: d.approvedBy, doctorTitle: d.doctorTitle, doctorRegNo: d.doctorRegNo, contentHash: d.contentHash, findingsText, measurementsText: "" };
     setActiveReport({ ...r, ...data });
     void refreshContext();
+    if (action === "approve" && opts?.sendMeasurementSr) {
+      // Onaydan sonra ÖLÇÜM SR'ı (TID 1500) — kullanıcı onay ekranında opt-in işaretledi.
+      // Hata onayı geri almaz; yalnız bildirilir (dışa aktar menüsünden elle de yapılabilir).
+      void (async () => {
+        try {
+          const toB64 = (u8: Uint8Array) => {
+            let s = "";
+            const CHUNK = 0x8000;
+            for (let i = 0; i < u8.length; i += CHUNK) s += String.fromCharCode(...u8.subarray(i, i + CHUNK));
+            return btoa(s);
+          };
+          if (!series) { toast("Onaylandı; seri açık olmadığından TID 1500 SR PACS'e gönderilmedi.", 8000); return; }
+          if (!series.sopUids?.length || !series.seriesUid || !series.sopClassUid) {
+            toast("Onaylandı; seride SOP Instance UID bilgisi yok — TID 1500 SR PACS'e gönderilemedi.", 8000); return;
+          }
+          const lm = loadCodeTable();
+          const table = lm?.table ?? null;
+          const measurements = annotationsToMeasurements(annotations, {
+            pxMm: pxMm > 0 ? pxMm : 1,
+            site: series.bodyPart ? siteCode(series.bodyPart, table) : undefined,
+            series: { seriesUid: series.seriesUid, sopClassUid: series.sopClassUid, sopUids: series.sopUids },
+          });
+          if (!measurements.length) {
+            toast("Onaylandı; sayısal ölçüm (uzunluk/elipsoid/ROI/çokgen) olmadığından TID 1500 SR gönderilmedi.", 8000); return;
+          }
+          const bytes = buildMeasurementReportSr({
+            patientName: series.patientName, patientId: series.patientId, patientSex: series.patientSex,
+            studyUid: series.studyUid, studyDate: series.studyDate, institution: series.institution,
+            title: `${series.modality} ${series.bodyPart || series.description} ölçümleri`,
+            measurements,
+            codeTable: table,
+          });
+          const r2 = await apiFetch("/api/pacs/stow", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ kind: "sr1500", reportId: d.reportId, instances: [{ name: "TID1500.dcm", data: toB64(bytes) }] }),
+          });
+          const d2 = (await r2.json().catch(() => ({}))) as { stored?: number; failed?: number; pacs?: string; error?: string };
+          if (r2.ok) toast(`TID 1500 ölçüm SR'ı PACS'e gönderildi — ${d2.stored ?? 1} nesne (${d2.pacs ?? "PACS"}).`, 7000);
+          else toast(`Onaylandı; ancak TID 1500 SR gönderilemedi: ${d2.error ?? "hata"}. Dışa aktar menüsünden elle gönderin.`, 9000);
+        } catch (e) {
+          toast(`Onaylandı; TID 1500 SR gönderiminde hata: ${e instanceof Error ? e.message : String(e)}`, 9000);
+        }
+      })();
+    }
     return { ok: true, data };
   };
 
@@ -1696,6 +1745,9 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         </Btn>
         <Btn on={syncPanels} tone="violet" onClick={() => { setSyncPanels((v) => !v); toast(syncPanels ? "Paneller arası kesit senkronu kapatıldı." : "Paneller arası kesit senkronu açıldı."); }} title="Paneller arası kesit senkronu (anatomik konuma göre)">
           Senkron
+        </Btn>
+        <Btn on={viewSync} tone="violet" onClick={() => { setViewSync((v) => !v); toast(viewSync ? "Görünüm kilidi kapatıldı: her panel kendi zoom/kaydırmasını kullanır." : "Görünüm kilidi açıldı: ana panel ve önceki tetkik paneli zoom/kaydırmayı paylaşır."); }} title="Görünüm kilidi (zoom + kaydır): ana panel ve önceki tetkik paneli aynı görünümü paylaşır; iki tarafta da değiştirilebilir">
+          Görünüm
         </Btn>
         <Btn onClick={() => requestMpr("not")} title="Çok düzlemli yeniden kesit: aksiyel, koronal, sagittal ve MIP">
           MPR
@@ -1843,6 +1895,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
                     allSeries={all} seriesId={refIds[i]} onSeriesChange={(id) => setRefIds((r) => r.map((x, k) => (k === i ? id : x)))}
                     primary={series} primarySlice={slice} syncSlice={syncPanels} panelId={`ref${i + 1}`} windowOverride={refWins[i]} tool={tool} invert={invert}
                     rotation={rotation} flipH={flipH} flipV={flipV} onPrimarySlice={(n) => series && setSlice(Math.max(0, Math.min(series.slices.length - 1, n)))} label={refLabel[i]}
+                    viewSync={viewSync} syncZoom={zoom} syncPan={pan} onViewSync={(z, pn) => { setZoom(Math.min(12, Math.max(0.15, z))); setPan(pn); }}
                   />
                 </div>
               ))}

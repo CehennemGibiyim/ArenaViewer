@@ -13,8 +13,9 @@ import { writableAnnotationCount } from "@/lib/gspsGraphics";
 import { buildRtStruct, buildSegDocument } from "@/lib/dicomSeg";
 import { emptyMask, makeSegmentDef, maskFromJson, paint, prune, unionMasks, type SegMask } from "@/lib/segmentation";
 import { apiFetch } from "@/lib/csrfClient";
-import { parseCodeTable, type CodeTable } from "@/lib/codeMapping";
-import { readPreference, writePreference } from "@/lib/browserPreferences";
+import { type CodeTable, parseCodeTable } from "@/lib/codeMapping";
+import { loadCodeTable, CODE_MAP_KEY } from "@/lib/codeTableClient";
+import { writePreference } from "@/lib/browserPreferences";
 
 interface Props {
   series: SeriesData | null;
@@ -36,21 +37,6 @@ function download(blob: Blob, name: string) {
   a.href = URL.createObjectURL(blob); a.download = name;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-}
-
-/**
- * Kurum kod eşleme tablosu (lisanslı RadLex/SNOMED CT) tarayıcıda saklanır.
- * Dosya kurumdan gelir; yazılım sözlük dağıtmaz, yalnız okur ve doğrular.
- */
-const CODE_MAP_KEY = "codemap:v1";
-
-interface StoredCodeMap { text: string; source: string }
-
-function loadCodeTable(): { table: CodeTable; text: string } | null {
-  const stored = readPreference(CODE_MAP_KEY) as StoredCodeMap | null | undefined;
-  if (!stored || typeof stored.text !== "string" || !stored.text) return null;
-  const table = parseCodeTable(stored.text, { source: stored.source || "kurum sözlüğü" });
-  return table.accepted > 0 ? { table, text: stored.text } : null;
 }
 
 /** Dışa aktarma: cine video (WebM), kesit PNG ZIP, anahtar kesit DICOM KO. */

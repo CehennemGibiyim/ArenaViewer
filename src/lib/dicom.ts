@@ -5,7 +5,8 @@ import type { DicomOverlayPlane, DicomTag, MammographyInfo, PaletteColorLUT, Pix
 import { suvFromDataset, parseTm } from "./suv";
 import { applyCharset } from "./dicomCharset";
 import { analyzeSliceGaps, hasSliceProblem } from "./sliceGaps";
-import { codecName, decodeEncapsulatedFrames, isCodecSupported, type RawFrame } from "./codecs";
+import { codecName, isCodecSupported, type RawFrame } from "./codecs";
+import { decodeEncapsulated } from "./codecClient";
 import {
   isSOPClass,
   parseECGWaveform,
@@ -296,7 +297,7 @@ async function decodePixels(
     if (grayFrames) return { frames: grayFrames, rgbaFrames: undefined, isColor: false, width: info.cols, height: info.rows };
   }
   const raws = encapsulated
-    ? await decodeEncapsulatedFrames(ds, el, ts ?? "", info)
+    ? await decodeEncapsulated(ds, el, ts ?? "", info)
     : readNative(ds, info, ts === TS_EXPLICIT_BE);
   if (raws.length === 0) return null;
   const ybrRaw = !encapsulated || ts === "1.2.840.10008.1.2.5";

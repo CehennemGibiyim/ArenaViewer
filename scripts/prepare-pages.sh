@@ -5,9 +5,12 @@ set -euo pipefail
 # Statik demo: Sunucu/veritabanı gerektiren sayfalar da çıkarılır; aksi halde
 # `output: "export"` derlemesi sayfa verisi toplarken src/db/index.ts'in
 # DATABASE_URL zorunluluğu yüzünden patlar (Pages işi bu yüzden kırılıyordu).
-# Statik demoda olmayan sayfalar: /giris /yonetim /tercihler /paylas/*
+# Statik demoda olmayan sayfalar: /giris /tercihler /paylas/*
 # /ayna (ikinci ekran) sunucu oturum kapısı kullandığı için veritabanı ister;
 # statik demoda oturumsuz istemci sürümü ayrıca yazılır (aşağıda).
+# /yonetim TAMAMEN kaldırılmaz: statik demoda gerçek AdminPanel KURGUSAL örnek
+# veriyle açılır (src/components/StaticAdminShim.tsx — modül düzeyinde bellek;
+# değişiklikler sayfa yenilenince sıfırlanır, hasta verisi yoktur).
 rm -rf src/app/api src/app/yonetim src/app/giris src/proxy.ts src/app/tercihler src/app/paylas src/app/ayna
 # API entegrasyon testleri silinen sunucu uçlarını içe aktarabilir. Statik
 # kopyanın TypeScript denetiminden testleri çıkar; gerçek CI testleri korunur.
@@ -59,17 +62,29 @@ TSX
 
 cat > src/app/yonetim/page.tsx <<'TSX'
 import Link from "next/link";
+import AdminPanel from "@/components/AdminPanel";
+import StaticAdminShim from "@/components/StaticAdminShim";
 
-export default function Yonetim() {
+// Statik demo: kimlik/veritabanı yok, sabit operatör profili ve KURGUSAL
+// örnek veri (StaticAdminShim — bellek içi, yenilemede sıfırlanır).
+const demoUser = { id: 1, username: "demo", fullName: "Demo Radyolog", title: "Uzm. Dr.", regNo: "000000", role: "yonetici" as const };
+
+export const metadata = { title: "Yönetim (demo) · ArenaViewer" };
+
+export default function YonetimDemo() {
   return (
-    <main style={{ maxWidth: 560, margin: "15vh auto", padding: 24, color: "#cbd5e1", fontFamily: "system-ui, sans-serif" }}>
-      <h1 style={{ color: "#22d3ee", fontSize: 22 }}>Yönetim paneli</h1>
-      <p style={{ marginTop: 12, lineHeight: 1.6 }}>
-        Kullanıcılar, denetim kaydı, AI performansı ve ayarlar sunucu ve veritabanı gerektirir; bu statik demoda kapalıdır.
-        Tam sürüm için Docker Compose veya Render ile dağıtın (README).
-      </p>
-      <Link href="/" style={{ display: "inline-block", marginTop: 16, color: "#22d3ee" }}>← Görüntüleyiciye dön</Link>
-    </main>
+    <div className="min-h-screen bg-[#070a0f]">
+      <div className="flex flex-wrap items-center gap-2 border-b border-amber-400/30 bg-amber-400/5 px-3 py-1.5">
+        <Link href="/" className="rounded border border-cyan-400/40 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-bold text-cyan-300">
+          ← Görüntüleyiciye dön
+        </Link>
+        <span className="font-mono text-[10.5px] leading-snug text-amber-300">
+          STATİK DEMO — tüm kayıtlar kurgusal örnek veridir; gerçek hasta verisi yoktur. Değişiklikler yalnızca bu sayfa oturumunda geçerlidir.
+        </span>
+      </div>
+      <StaticAdminShim />
+      <AdminPanel user={demoUser} />
+    </div>
   );
 }
 TSX

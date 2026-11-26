@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { snapPoint } from "@/lib/msk";
 import type { Annotation, Finding, SeriesData, ToolName } from "@/lib/types";
 import { annotationSummary, dist, ellipseTest, pointInPolygon, perpendicular, regionStats, type Pt } from "@/lib/geometry";
+import { suggestEllipsoidD3 } from "@/lib/ellipsoid3d";
 import { clampTranslate, hitAnnotation, movePoint, translateAnnotation } from "@/lib/annotationEdit";
 import { buildFusionLayer, type FusionParams } from "@/lib/fusion";
 import { isIdentityRigid, rigidKey } from "@/lib/fusionRigid";
@@ -920,8 +921,10 @@ export default function Viewport(props: ViewportProps) {
       const cxx = (a.x + b.x) / 2, cyy = (a.y + b.y) / 2;
       const st = regionStats(series, slice, { x0: Math.min(a.x, b.x), y0: Math.min(a.y, b.y), x1: Math.max(a.x, b.x), y1: Math.max(a.y, b.y) }, ellipseTest(cxx, cyy, Math.abs(b.x - a.x) / 2, Math.abs(b.y - a.y) / 2));
       const d1 = Math.abs(b.x - a.x) * pxMm, d2 = Math.abs(b.y - a.y) * pxMm;
-      const def = ((d1 + d2) / 2).toFixed(1);
-      const ans = window.prompt(`Elipsoid hacmi: 3. eksen çapı (mm) — örn. kraniokaudal ölçü.\nBoş bırakılırsa ortalama (${def} mm) kullanılır.`, def);
+      const auto = suggestEllipsoidD3(series, slice, { cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2, rx: Math.abs(b.x - a.x) / 2, ry: Math.abs(b.y - a.y) / 2 });
+      const def = auto ? auto.d3Mm.toFixed(1) : ((d1 + d2) / 2).toFixed(1);
+      const autoNote = auto ? `Otomatik tahmin: ${auto.d3Mm.toFixed(1)} mm (${auto.sliceRun} kesitlik parlak koşu, eşik ${auto.threshold.toFixed(0)} HU).\n` : "";
+      const ans = window.prompt(`Elipsoid hacmi: 3. eksen çapı (mm) — örn. kraniokaudal ölçü.\n${autoNote}Boş bırakılırsa ${auto ? "otomatik tahmin" : "ortalama"} (${def} mm) kullanılır.`, def);
       const d3 = parseFloat((ans ?? "").replace(",", "."));
       onAddAnnotation?.({ kind: "ellipsoid", slice, points: [a, b], text: Number.isFinite(d3) && d3 > 0 ? String(d3) : def, stats: st ?? undefined });
     } else if (t === "ellipse") {

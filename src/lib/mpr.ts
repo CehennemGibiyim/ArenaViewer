@@ -253,17 +253,24 @@ export interface RenderedPlane {
  * satır = -kesit normali → yukarı baş), sagital (sütun = r, satır = -kesit normali).
  * Boyutlar kaynak voksel sayısıyla aynıdır (W×H, W×N, H×N); ölçek bilgisi du/dv'dedir.
  */
-export function renderMprPlane(s: SeriesData, plane: MprPlane, opts: RenderPlaneOptions = {}): RenderedPlane | null {
+export interface PlaneFrame {
+  origin: V3;
+  u: V3;
+  v: V3;
+  w: number;
+  h: number;
+  du: number;
+  dv: number;
+}
+
+/** Panelin hasta uzayındaki afin çerçevesi (oblik kesişim çizgisi hesabı ve renderMprPlane paylaşır). */
+export function planeFrame(s: SeriesData, plane: MprPlane, opts: { index?: number; row?: number; col?: number } = {}): PlaneFrame | null {
   const g = volumeGeometry(s);
   if (!g) return null;
-  const mode = opts.mode ?? "single";
-  const slabMm = Math.max(0, opts.slabMm ?? 0);
-  const idx = Math.max(0, Math.min(g.nSlices - 1, opts.index ?? Math.floor(g.nSlices / 2)));
-
   // Düzlemin merkezi: verilen kesidin ImagePositionPatient'ı (yoksa sentetik orijin).
   // IPP(0,0) piksel merkezidir; bu yüzden (p,q) doğrudan kaynak vokseline denk gelir.
   const topIdx = g.nSlices - 1;
-  const ipp0 = g.ipp?.[idx];
+  const ipp0 = g.ipp?.[Math.max(0, Math.min(g.nSlices - 1, opts.index ?? Math.floor(g.nSlices / 2)))];
   const ippTop = g.ipp?.[topIdx];
   const base: V3 = ipp0 ? [ipp0[0], ipp0[1], ipp0[2]] : [g.o0[0], g.o0[1], g.o0[2]];
   const baseTop: V3 = ippTop ? [ippTop[0], ippTop[1], ippTop[2]] : add(base, mul(g.tvec, topIdx));
@@ -271,20 +278,22 @@ export function renderMprPlane(s: SeriesData, plane: MprPlane, opts: RenderPlane
   const row = Math.max(0, Math.min(g.h - 1, opts.row ?? Math.floor(g.h / 2)));
   const col = Math.max(0, Math.min(g.w - 1, opts.col ?? Math.floor(g.w / 2)));
 
-  let outW: number, outH: number, du: number, dv: number;
-  let origin: V3, U: V3, V: V3;
   if (plane === "axial") {
-    outW = g.w; outH = g.h; du = g.psX; dv = g.psY;
-    origin = base; U = g.c; V = g.r;                       // (p,q) → (j=p, i=q)
+    return { origin: base, u: g.c, v: g.r, w: g.w, h: g.h, du: g.psX, dv: g.psY };
   } else if (plane === "coronal") {
-    outW = g.w; outH = g.nSlices; du = g.psX; dv = g.sliceStepMm;
-    origin = add(baseTop, mul(g.r, row * g.psY));          // satır sabit, k = üstten 0..N-1
-    U = g.c; V = mul(g.n, -1);                             // (p,q) → (j=p, k=N-1-q)
-  } else {
-    outW = g.h; outH = g.nSlices; du = g.psY; dv = g.sliceStepMm;
-    origin = add(baseTop, mul(g.c, col * g.psX));          // sütun sabit, k = üstten 0..N-1
-    U = g.r; V = mul(g.n, -1);                             // (p,q) → (i=p, k=N-1-q)
+    return { origin: add(baseTop, mul(g.r, row * g.psY)), u: g.c, v: mul(g.n, -1), w: g.w, h: g.nSlices, du: g.psX, dv: g.sliceStepMm };
   }
+  return { origin: add(baseTop, mul(g.c, col * g.psX)), u: g.r, v: mul(g.n, -1), w: g.h, h: g.nSlices, du: g.psY, dv: g.sliceStepMm };
+}
+
+export function renderMprPlane(s: SeriesData, plane: MprPlane, opts: RenderPlaneOptions = {}): RenderedPlane | null {
+  const g = volumeGeometry(s);
+  if (!g) return null;
+  const mode = opts.mode ?? "single";
+  const slabMm = Math.max(0, opts.slabMm ?? 0);
+  const frame = planeFrame(s, plane, opts);
+  if (!frame) return null;
+  const { origin, u: U, v: V, w: outW, h: outH, du, dv } = frame;
   const step = dv || g.sliceStepMm;
   const ks = mode === "single" || slabMm <= 0 ? 0 : Math.round(slabMm / 2 / step);
   const out = new Float32Array(outW * outH);
