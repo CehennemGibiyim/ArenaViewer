@@ -12,6 +12,8 @@ import { buildMeasurementReportSr } from "@/lib/sr1500";
 import { buildRtStruct, buildSegDocument } from "@/lib/dicomSeg";
 import { emptyMask, makeSegmentDef, maskFromJson, paint, prune, unionMasks, type SegMask } from "@/lib/segmentation";
 import { apiFetch } from "@/lib/csrfClient";
+import { parseCodeTable, type CodeTable } from "@/lib/codeMapping";
+import { readPreference, writePreference } from "@/lib/browserPreferences";
 
 interface Props {
   series: SeriesData | null;
@@ -35,6 +37,21 @@ function download(blob: Blob, name: string) {
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 
+/**
+ * Kurum kod eşleme tablosu (lisanslı RadLex/SNOMED CT) tarayıcıda saklanır.
+ * Dosya kurumdan gelir; yazılım sözlük dağıtmaz, yalnız okur ve doğrular.
+ */
+const CODE_MAP_KEY = "codemap:v1";
+
+interface StoredCodeMap { text: string; source: string }
+
+function loadCodeTable(): { table: CodeTable; text: string } | null {
+  const stored = readPreference(CODE_MAP_KEY) as StoredCodeMap | null | undefined;
+  if (!stored || typeof stored.text !== "string" || !stored.text) return null;
+  const table = parseCodeTable(stored.text, { source: stored.source || "kurum sözlüğü" });
+  return table.accepted > 0 ? { table, text: stored.text } : null;
+}
+
 /** Dışa aktarma: cine video (WebM), kesit PNG ZIP, anahtar kesit DICOM KO. */
 export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0, flipH = false, flipV = false, keyImages, annotations = [], pxMm = 1, bodyPart = "", toast }: Props) {
   const [open, setOpen] = useState(false);
@@ -45,6 +62,8 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
   const [side, setSide] = useState(512);
   const [prog, setProg] = useState<{ done: number; total: number } | null>(null);
   const [sending, setSending] = useState<"ko" | "pr" | null>(null);
+  const [codeMap, setCodeMap] = useState<CodeTable | null>(() => (typeof window === "undefined" ? null : loadCodeTable()?.table ?? null));
+  const codeFileRef = useRef<HTMLInputElement | null>(null);
   const abort = useRef<AbortController | null>(null);
   const n = series?.slices.length ?? 0;
   const imageOk = !!series && (!series.specialType || series.specialType === "image") && n > 0;
@@ -118,13 +137,41 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
     finally { setSending(null); }
   };
 
+  /** Kurum eşleme dosyasını (CSV/TSV/JSON) okur, doğrular ve tarayıcıda saklar. */
+  const importCodeMap = async (file: File | null | undefined) => {
+    setOpen(false);
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const table = parseCodeTable(text, { source: file.name });
+      if (table.accepted === 0) {
+        toast(`Eşleme dosyası kullanılamadı: ${table.errors.slice(0, 2).join("; ") || "geçerli satır yok"}.`, 9000);
+        return;
+      }
+      writePreference(CODE_MAP_KEY, { text, source: file.name });
+      setCodeMap(table);
+      const warn = table.errors.length ? ` ${table.errors.length} satır reddedildi` : "";
+      const dup = table.warnings.length ? `, ${table.warnings.length} uyarı` : "";
+      toast(`${file.name}: ${table.accepted} kod eşlemesi yüklendi${warn}${dup}. SR çıktısında yalnız özel kodlar bu tabloyla değiştirilir.`, 9000);
+    } catch (e) {
+      toast(`Eşleme dosyası okunamadı: ${e instanceof Error ? e.message : "hata"}`, 8000);
+    }
+  };
+  const clearCodeMap = () => {
+    setOpen(false);
+    writePreference(CODE_MAP_KEY, null);
+    setCodeMap(null);
+    toast("Kurum kod eşlemesi kaldırıldı; SR belgesinde özel kodlar 99ATIKVIEWER olarak yazılır.", 7000);
+  };
+
   /** Ölçümler → DICOM Comprehensive SR (TID 1500): sayısal ölçüm ağacı. */
   const exportSr1500 = () => {
     setOpen(false);
     if (!series) { toast("Önce bir görüntü serisi açın."); return; }
+    const table = codeMap ?? loadCodeTable()?.table ?? null;
     const measurements = annotationsToMeasurements(annotations, {
       pxMm: pxMm > 0 ? pxMm : 1,
-      site: bodyPart ? siteCode(bodyPart) : undefined,
+      site: bodyPart ? siteCode(bodyPart, table) : undefined,
       series: { seriesUid: series.seriesUid, sopClassUid: series.sopClassUid, sopUids: series.sopUids },
     });
     if (measurements.length === 0) {
@@ -136,10 +183,12 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
       studyUid: series.studyUid, studyDate: series.studyDate, institution: series.institution,
       title: `${series.modality} ${bodyPart || series.description} ölçümleri`,
       measurements,
+      codeTable: table,
     });
     download(new Blob([bytes.slice().buffer as ArrayBuffer], { type: "application/dicom" }), `SR1500-${series.modality}-${measurements.length}-olcum.dcm`);
     const cov = exportCoverage(annotations);
-    toast(`TID 1500 SR indirildi: ${measurements.length} sayısal ölçüm${cov.skipped.length ? ` (yazılmayan: ${cov.skipped.join(", ")})` : ""}.`, 6000);
+    const mappedNote = table ? `, kurum kod eşlemesi: ${table.accepted} terim` : ", kod eşlemesi yok (özel kodlar 99ATIKVIEWER)";
+    toast(`TID 1500 SR indirildi: ${measurements.length} sayısal ölçüm${cov.skipped.length ? ` (yazılmayan: ${cov.skipped.join(", ")})` : ""}${mappedNote}.`, 7000);
   };
 
   /**
@@ -242,6 +291,13 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
   const item = "block w-full cursor-pointer px-3 py-1.5 text-left hover:bg-[#1a2330]";
   return (
     <div className="relative shrink-0">
+      <input
+        ref={codeFileRef}
+        type="file"
+        accept=".csv,.tsv,.txt,.json,text/csv,application/json"
+        className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; void importCodeMap(f); }}
+      />
       <button type="button" onClick={() => setOpen((o) => !o)} className="cursor-pointer rounded-md border border-[#2d3b4e] bg-[#111823] px-2 py-1 text-[11px] font-semibold text-slate-300 hover:bg-[#1a2330]">Dışa aktar ▾</button>
       {open && (
         <div className="absolute left-0 top-full z-40 mt-1 w-64 rounded-lg border border-[#2d3b4e] bg-[#0b0f16] py-1 text-[11px] text-slate-200 shadow-2xl">
@@ -255,6 +311,8 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
           <button className={item} onClick={() => exportSeg("seg")} title="İşaretli alanlardan DICOM Segmentasyon (SEG, 1 bit/piksel) üretir">🧩 Segmentasyon → DICOM SEG</button>
           <button className={item} onClick={() => exportSeg("rtstruct")} title="İşaretli alanlardan RTSTRUCT (ROI konturları) üretir">🧩 Segmentasyon → RTSTRUCT</button>
           <button className={item} onClick={exportSr1500} title="Ölçümleri TID 1500 yapılandırılmış rapor (Comprehensive SR) olarak indirir">📐 Ölçümler → DICOM SR (TID 1500)</button>
+          <button className={item} onClick={() => codeFileRef.current?.click()} title="Kurumun lisanslı RadLex/SNOMED CT eşleme dosyası (CSV/TSV/JSON) — yalnız özel 99ATIKVIEWER kodları değiştirilir">🔖 Kurum kod eşlemesi yükle…{codeMap ? ` (${codeMap.accepted})` : ""}</button>
+          {codeMap && <button className={item} onClick={clearCodeMap} title="Saklanan eşleme tablosunu siler">🗑 Kurum kod eşlemesini kaldır</button>}
           <button className={item} disabled={sending !== null} onClick={() => void sendToPacs("pr")} title="Pencere/döndürme ayarını GSPS olarak PACS'e yazar">☁ Görünüm (PR) → PACS&apos;e gönder</button>
           <div className="px-3 py-1 text-[10px] leading-relaxed text-slate-500">Video/PNG görüntü verisini olduğu gibi aktarır; kimlik bilgisi içermez ama anonimleştirme/DICOM etiketi taşımaz.</div>
         </div>

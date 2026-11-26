@@ -533,6 +533,7 @@ npm run test:fusion-mi              # çok modaliteli MI hizalaması: NMI, monot
 npm run test:window-worker          # pencereleme Web Worker'ı: kaynak ile windowToRGBA bit eşdeğerliği, yedek yol
 npm run test:stream-load            # kademeli yükleme: dalga planı, eşzamanlılık tavanı, hata/iptal muhasebesi
 npm run test:gpu-atlas              # doku atlası: katman planı, LRU, sahte GL ile "gereksiz yükleme yok"
+npm run test:code-mapping           # kurum RadLex/SNOMED eşleme dosyası: okuma, doğrulama, SR'da lisanslı kod
 npm run test:pixel-worker           # gri piksel çözme worker'ı: node:vm ile bit eşdeğerliği, yedek yol
 npm run test:gray-e2e               # uçtan uca gri çözme: slope/intercept, Bits Stored maskesi, çok kare sırası
 npm run test:fusion-z               # kesitler arası z kayması: konum eşleme, parabolik incelme, katman

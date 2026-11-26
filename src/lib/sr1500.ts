@@ -22,6 +22,8 @@
  */
 import { concat, el, enc, newUid, pad, str, uidEl } from "./dicomWrite";
 
+import { mapCodeObject, type CodeTable } from "./codeMapping";
+
 export const SOP_COMPREHENSIVE_SR = "1.2.840.10008.5.1.4.1.1.88.33";
 
 export interface Code {
@@ -97,6 +99,11 @@ export interface Sr1500Input {
   title?: string;
   measurements: Measurement[];
   approvedBy?: string; doctorTitle?: string; approvedAt?: string | null;
+  /**
+   * Kurumun lisanslı RadLex/SNOMED CT eşleme tablosu (`src/lib/codeMapping.ts`).
+   * Verilirse yalnız `99ATIKVIEWER` özel kodları eşlenir; standart kodlar korunur.
+   */
+  codeTable?: CodeTable | null;
 }
 
 // ── DICOM yazım yardımcıları (dicomSr ile aynı desen) ──
@@ -162,8 +169,12 @@ export function validateMeasurements(ms: Measurement[]): { ok: Measurement[]; re
  * TID 300 ölçüm grubunun içerik öğesi: (0040,A010) CONTAINS + 125007 konteyneri.
  * Export edilir; testler ve SR incelemesi aynı üreticiyi kullanır.
  */
-export function measurementGroupItem(m: Measurement): Uint8Array[] {
+export function measurementGroupItem(m: Measurement, codeTable?: CodeTable | null): Uint8Array[] {
   const unit = unitCode(m.unit);
+  // Kurum tablosu verildiyse yalnız özel (99ATIKVIEWER) kodlar lisanslı koda çevrilir.
+  const finding = mapCodeObject(m.finding, codeTable).code;
+  const site = m.site ? mapCodeObject(m.site, codeTable).code : undefined;
+  const quantity = mapCodeObject(m.quantity, codeTable).code;
   const children: E[] = [
     // İzleme kimliği (TEXT) ve UID
     S(0x0040, 0xa010, "CS", "HAS OBS CONTEXT"), S(0x0040, 0xa040, "CS", "TEXT"),
@@ -172,18 +183,18 @@ export function measurementGroupItem(m: Measurement): Uint8Array[] {
     S(0x0040, 0xa124, "UI", m.trackingUid ?? newUid()), conceptName(CODES.trackingUid),
     // Bulgu + bölge
     S(0x0040, 0xa010, "CS", "CONTAINS"), S(0x0040, 0xa040, "CS", "CODE"),
-    SQ(0x0040, 0xa168, [codeItem(m.finding)]), conceptName(CODES.finding),
+    SQ(0x0040, 0xa168, [codeItem(finding)]), conceptName(CODES.finding),
   ];
-  if (m.site) {
+  if (site) {
     children.push(
       S(0x0040, 0xa010, "CS", "CONTAINS"), S(0x0040, 0xa040, "CS", "CODE"),
-      SQ(0x0040, 0xa168, [codeItem(m.site)]), conceptName(CODES.findingSite),
+      SQ(0x0040, 0xa168, [codeItem(site)]), conceptName(CODES.findingSite),
     );
   }
   children.push(
     S(0x0040, 0xa010, "CS", "CONTAINS"), S(0x0040, 0xa040, "CS", "NUM"),
     SQ(0x0040, 0xa300, [item(S(0x0040, 0xa30a, "DS", dsValue(m.value)), SQ(0x0040, 0x08ea, [codeItem(unit)]))]),
-    conceptName(m.quantity),
+    conceptName(quantity),
   );
   if (m.image) {
     children.push(
@@ -220,7 +231,7 @@ function wrap(sopClass: string, sopUid: string, body: Uint8Array): Uint8Array {
 export function buildMeasurementReportSr(input: Sr1500Input): Uint8Array {
   const sop = newUid();
   const now = new Date();
-  const groups = input.measurements.map(measurementGroupItem);
+  const groups = input.measurements.map((m) => measurementGroupItem(m, input.codeTable));
   const els: E[] = [
     S(0x0008, 0x0005, "CS", "ISO_IR 192"),
     S(0x0008, 0x0016, "UI", SOP_COMPREHENSIVE_SR), S(0x0008, 0x0018, "UI", sop),

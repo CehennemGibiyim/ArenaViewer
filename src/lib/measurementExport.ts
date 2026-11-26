@@ -9,6 +9,7 @@
  * özel şemasına yazılır. Standart uzunluk/hacim/ortalama kodları DICOM'dandır.
  */
 import { dist, ellipsoidD3 } from "./geometry";
+import { mapTerm, type CodeTable } from "./codeMapping";
 import type { Annotation } from "./types";
 import { atikCode, QUANTITY, SITES, type Code, type Measurement } from "./sr1500";
 
@@ -120,8 +121,10 @@ const SITE_ALIASES: { key: string[]; code: Code }[] = [
  * Bilinen bölge kodu veya 99ATIKVIEWER karşılığı.
  * Uydurma SNOMED kodu yazılmaz: eşleşme yoksa özel şema kullanılır.
  */
-export function siteCode(name: string): Code {
+export function siteCode(name: string, codeTable?: CodeTable | null): Code {
   const key = (name || "").toLocaleLowerCase("tr-TR");
   const hit = SITE_ALIASES.find((a) => a.key.some((k) => key.includes(k)));
-  return hit ? hit.code : atikCode("SITE", name || "belirtilmedi");
+  const base = hit ? hit.code : atikCode("SITE", name || "belirtilmedi");
+  // Kurum tablosu varsa terim adı üzerinden lisanslı koda çevir; yoksa davranış aynı.
+  return mapTerm(name, base, codeTable).code as Code;
 }
