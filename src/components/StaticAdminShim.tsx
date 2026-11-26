@@ -77,7 +77,7 @@ const seedAudit = () =>
 // ── Kurgusal AI performans verisi ────────────────────────────────────────────
 const perfRows = [
   { engine: "cxr-densenet121 (Medical_X)", category: "Akciğer grafisi — 14 sınıf", shown: 214, approved: 161, rejected: 19, edited: 13, pending: 21, manualAdded: 6 },
-  { engine: "monai-lung-nodule-ct", category: "BT toraks — nodül adayı", shown: 87, approved: 59, rejected: 14, edited: 6, pending: 8, manualAdded: 2 },
+  { engine: "monai-lung-nodule-ct", category: "BT toraks — nodül adayı", shown: 87, approved: 59, rejected: 22, edited: 8, pending: 8, manualAdded: 2 },
   { engine: "ct-head-ich", category: "BT beyin — intrakraniyal kanama adayı", shown: 132, approved: 104, rejected: 11, edited: 5, pending: 12, manualAdded: 3 },
   { engine: "kural-tabanli", category: "Kural motoru (yedek)", shown: 390, approved: 201, rejected: 74, edited: 22, pending: 93, manualAdded: 11 },
 ].map((r) => ({ ...r, ppv: r.approved + r.rejected + r.edited > 0 ? r.approved / (r.approved + r.rejected + r.edited) : null }));
@@ -101,6 +101,8 @@ const disagreement = (() => {
       { engine: "monai-lung-nodule-ct", category: "Nodül adayı", label: "Sol üst lob 9 mm aday", status: "duzenlendi" as const, reason: "Vasküler kesit; nodül değil — çap hekime göre 4 mm (örnek)" },
     ],
     tally: { decided, rejected, edited, rate: decided > 0 ? (rejected + edited) / decided : null, withReason: 2 },
+    // Örnek uyarı durumu: statik demoda da yeni banner'ın nasıl göründüğünü göstermek için.
+    alert: { total: 1, sent: 1, threshold: 0.3, minDecided: 10, reasonClasses: [{ cls: "teknik", label: "Teknik/protokol", count: 2 }] },
   };
 })();
 

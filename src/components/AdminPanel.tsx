@@ -14,10 +14,14 @@ interface RegistryState { entries: RegistryRow[]; summary: Record<string, number
 interface PerfRow { engine: string; category: string; shown: number; approved: number; rejected: number; edited: number; pending: number; manualAdded: number; ppv: number | null }
 interface DisagreementCategory { engine: string; category: string; decided: number; approved: number; rejected: number; edited: number; disagreementRate: number | null }
 interface DisagreementReason { engine: string; category: string; label: string; status: "reddedildi" | "duzenlendi"; reason: string }
+interface ReasonClassDigest { cls: string; label: string; count: number }
+interface DisagreementAlertInfo { total: number; sent: number; threshold: number; minDecided: number; reasonClasses: ReasonClassDigest[] }
 interface DisagreementStats {
   categories: DisagreementCategory[];
   reasons: DisagreementReason[];
   tally: { decided: number; rejected: number; edited: number; rate: number | null; withReason: number };
+  alert?: DisagreementAlertInfo | null;
+  alertError?: string | null;
 }
 interface WorkflowStats {
   total: number; byStatus: Record<string, number>; byModality: Record<string, number>;
@@ -631,6 +635,23 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
               </table>
             </div>
 
+            {/* AI uyuşmazlık uyarısı banner'ı (src/lib/disagreementAlert.ts) */}
+            {perf?.disagreement?.alert && perf.disagreement.alert.total > 0 && (
+              <div role="alert" className="rounded-lg border border-rose-500/50 bg-rose-500/10 p-3" data-testid="ai-disagreement-alert">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <b className="text-xs font-black text-rose-300">⚠ {perf.disagreement.alert.total} kategoride AI↔hekim uyuşmazlığı eşiği (%{Math.round(perf.disagreement.alert.threshold * 100)} / ≥{perf.disagreement.alert.minDecided} karar) aşıldı</b>
+                  <span className="text-[10.5px] font-mono text-rose-200/80">{perf.disagreement.alert.sent > 0 ? `${perf.disagreement.alert.sent} bildirim kanallara gönderildi` : "yeni eşik aşımı yok (mevcut uyarılar görüldü)"}</span>
+                </div>
+                <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10.5px] text-rose-200/90">
+                  {perf.disagreement.alert.reasonClasses.map((d) => <span key={d.cls}>{d.label}: <b>{d.count}</b></span>)}
+                </div>
+                <p className="mt-1 text-[9.5px] leading-snug text-rose-200/60">Gerekçe sınıflandırması kural tabanlıdır (LLM yok). Modelin yeniden eğitilmesi kurumun model sahibi sürecindedir; bu uyarı modeli değiştirmez. Ayrıntı: Yönetim → AI ve denetim kaydı «ai.disagreement_alert».</p>
+              </div>
+            )}
+            {perf?.disagreement?.alertError && (
+              <div role="status" className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-[10.5px] text-amber-200">AI uyuşmazlık uyarısı üretilemedi: {perf.disagreement.alertError}</div>
+            )}
+
             {/* AI önerisi ↔ hekim kararı uyuşmazlığı (src/lib/aiDisagreement.ts) */}
             <div className={`${card} space-y-2`}>
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -662,6 +683,12 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
                   </tbody>
                 </table>
               </div>
+              {(perf?.disagreement?.alert?.reasonClasses?.length ?? 0) > 0 && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10.5px] text-slate-400">
+                  <span className="font-semibold text-slate-300">Gerekçe sınıfları (model geri besleme özeti):</span>
+                  {perf!.disagreement!.alert!.reasonClasses.map((d) => <span key={d.cls}>{d.label}: <b className="text-slate-200">{d.count}</b></span>)}
+                </div>
+              )}
               {(perf?.disagreement?.reasons ?? []).length > 0 && (
                 <div className="space-y-1">
                   <b className="text-[11px] text-slate-300">Hekim gerekçeleri (en çok 20)</b>
