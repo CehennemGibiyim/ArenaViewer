@@ -20,7 +20,7 @@ Protokol:
        9 yapı maskesi (SR/RTSTRUCT dışa aktarımı istemcide). Araştırma amaçlıdır.
 
 Kurulum: python ai-worker/setup_model.py (model dosyalarını indirir);
-diz segmentasyonu için: python ai-worker/setup_knee_model.py (≈5 GB, MIT).
+diz segmentasyonu için: python ai-worker/setup_knee_model.py (≈1,6 GB, MIT).
 """
 
 import gzip
@@ -315,7 +315,7 @@ def main():
     else:
         print(
             f"UYARI: diz MR modeli yok ({knee_lib.LOWRES_CKPT}); /infer?protocol=knee 503 döner. "
-            "Kurulum: python ai-worker/setup_knee_model.py (≈5 GB, MIT).",
+            "Kurulum: python ai-worker/setup_knee_model.py (≈1,6 GB, MIT).",
             flush=True,
         )
     if not model_lib.model_ready():

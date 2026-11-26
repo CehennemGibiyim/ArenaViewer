@@ -471,7 +471,7 @@ yalnızca `127.0.0.1:8787`):
 python -m venv .venv
 .venv/Scripts/pip install -r ai-worker/requirements.txt   # torch, monai, cv2, skp, nnunetv2…
 python ai-worker/setup_model.py     # akciğer ≈84 MB + beyin ≈147 MB
-python ai-worker/setup_knee_model.py # (opsiyonel, diz MR segmentasyonu) ≈5 GB, MIT
+python ai-worker/setup_knee_model.py # (opsiyonel, diz MR segmentasyonu) ≈1,6 GB, MIT
 python ai-worker/server.py          # worker'ı başlatır (CPU'da da çalışır, yavaş olur)
 ```
 

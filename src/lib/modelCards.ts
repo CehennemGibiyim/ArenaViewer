@@ -116,7 +116,7 @@ export const DEEP_KNEE_MODEL_CARD: ModelCard = {
     "Yalnızca yapı sınırlarını üretir; menisküs YIRTIĞI tespiti/derecesi yoktur.",
     "T2 sagittal diz MR ile eğitilmiştir (OAI-ZIB); farklı sekans/düzlemlerde kalite düşer.",
     "Kendini bildirilen Dice: ≈0,84 menisküs / ≈0,86 kıkırdak / ≈0,95 kemik / 0,906 ortalama; PROSPEKTİF klinik doğrulama YOKTUR.",
-    "Model ağırlıkları (~5 GB) bu depoda GÖMÜLÜ DEĞİLDİR; ai-worker/setup_knee_model.py ile indirilir.",
+    "Model ağırlıkları (≈1,6 GB) bu depoda GÖMÜLÜ DEĞİLDİR; ai-worker/setup_knee_model.py ile indirilir.",
     "CPU çıkarımı hacim başına dakikalar sürebilir; GPU ile hızlanır.",
     "Arbitrer oblik düzlemler v1'de desteklenmez (eksen-hizalı sagittal/aksiyel beklenir).",
   ],

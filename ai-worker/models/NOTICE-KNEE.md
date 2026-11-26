@@ -10,7 +10,7 @@ kaynaktan indirilir; bildirimi burada tutulur.
 | Lisans | **MIT** (model kartında beyan edilir; depoda ayrıca LICENSE dosyası yoktur) |
 | Sürüm | 1.0 (model kartı, 2025) |
 | SHA (indirme anı) | `6ccfbd6c5756c8f203f8f0170305cfb0d7bb3221` (2026-11-26 listelendi) |
-| Checkpoint'ler | yalnız `Dataset500_KneeMRI/…3d_lowres/fold_1/checkpoint_final.pth` ve `…3d_cascade_fullres/fold_1/checkpoint_final.pth` indirilir (≈5 GB; `3d_fullres` atlanır) |
+| Checkpoint'ler | yalnız `Dataset500_KneeMRI/…3d_lowres/fold_1/checkpoint_final.pth` ve `…3d_cascade_fullres/fold_1/checkpoint_final.pth` indirilir (≈1,6 GB: 816.722.566 + 816.083.685 bayt; `3d_fullres` atlanır) |
 | Eğitim verisi | OAI-ZIB (yalnız akademik/araştırma erişimli; kullanıcı indirdiğinde ayrı şartlara tabidir) |
 | Çerçeve | nnU-Net v2 (Apache-2.0) — `requirements.txt` üzerinden kurulur |
 

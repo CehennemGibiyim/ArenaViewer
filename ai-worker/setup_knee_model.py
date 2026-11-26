@@ -6,7 +6,8 @@ Kullanım:
 İndirilenler (yalnız gerekenler; `3d_fullres` atlanır çünkü çıkarım cascade
 iledir): models/Dataset500_KneeMRI/…3d_lowres + …3d_cascade_fullres
 (fold_1, checkpoint_final.pth) + küçük yapılandırma dosyaları ve iki örnek
-test dosyası. Toplam ≈5 GB (deponun tamamı ≈7,6 GB). Hedef dizin ATIK_KNEE_DIR
+test dosyası atlanır (test_image.nii.gz ≈307 MB). Toplam ≈1,6 GB (yalnız iki
+checkpoint_final.pth; deponun tamamı ≈7,6 GB). Hedef dizin ATIK_KNEE_DIR
 (varsayılan ~/.cache/atikviewer-ai/knee).
 
 Lisans ve atıf: ağırlıklar MIT lisanslıdır (depoda ayrı LICENSE dosyası YOK;
@@ -44,9 +45,9 @@ ALLOW_PATTERNS = [
     "dataset.json",
     "plans.json",
     "README.md",
-    # Küçük örnek vaka: ilk kurulumda duman testi için (~birkaç MB).
-    "test_data/test_image.nii.gz",
-    "test_data/test_ground_truth.nii.gz",
+    # Örnek test vakası (test_image.nii.gz ≈307 MB + ground_truth ≈0,4 MB) bilinçli
+    # olarak atlanır; isterseniz elle indirin:
+    #   hf download aagatti/nnunet_knee test_data/test_image.nii.gz --local-dir %USERPROFILE%\.cache\atikviewer-ai\knee
 ]
 
 EXPECTED_CKPTS = [
@@ -69,7 +70,7 @@ def main() -> int:
         return 2
 
     print(f"nnU-Net diz MR ağırlıkları indiriliyor → {CACHE_DIR}", flush=True)
-    print(f"Kaynak: huggingface.co/{REPO_ID} (MIT; OAI-ZIB; ≈5 GB)", flush=True)
+    print(f"Kaynak: huggingface.co/{REPO_ID} (MIT; OAI-ZIB; ≈1,6 GB)", flush=True)
     snapshot_download(repo_id=REPO_ID, local_dir=CACHE_DIR, allow_patterns=ALLOW_PATTERNS)
 
     missing = [p for p in EXPECTED_CKPTS if not os.path.isfile(p)]

@@ -119,7 +119,7 @@ export default function AiWorkerStatus() {
               Uçlar: POST /api/deep-scan?protocol=ct-chest | ct-head (gzip int16 HU) · cxr (gzip float32) · knee (gzip int16, T2 diz MR)
             </div>
             <div className="text-slate-500">
-              Diz MR segmentasyonu (MIT, ≈5 GB): .venv/bin/python ai-worker/setup_knee_model.py
+              Diz MR segmentasyonu (MIT, ≈1,6 GB): .venv/bin/python ai-worker/setup_knee_model.py
             </div>
           </>
         ) : (

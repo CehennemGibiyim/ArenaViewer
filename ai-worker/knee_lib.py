@@ -5,7 +5,7 @@ Model: `aagatti/nnunet_knee` (MIT lisans, OAI-ZIB eğitimi) — Goyal, Ananya vd
 Open-Source MRI-Based Deep Learning Pipeline", medRxiv 2025.02.21.25322094.
 
 Ağırlıklar depoda GÖMÜLÜ DEĞİLDİR; `python ai-worker/setup_knee_model.py`
-ile indirilir (≈5 GB; yalnız gereken checkpoint'ler). Çıkarım nnunetv2'nin
+ile indirilir (≈1,6 GB; yalnız gereken checkpoint'ler). Çıkarım nnunetv2'nin
 kendi CLI'sı (`nnUNetv2_predict`) ile **ayrı bir süreçte** koşar: model belleği
 işlem bitince serbest kalır, worker belleği şişmez.
 
@@ -77,7 +77,7 @@ def run_knee_inference(vol_zyx: np.ndarray, spacing) -> dict:
     if not model_files_ready():
         raise RuntimeError(
             f"Diz modeli bulunamadı ({LOWRES_CKPT} ve {CASCADE_CKPT}). "
-            "Kurulum: python ai-worker/setup_knee_model.py (≈5 GB, MIT lisans)."
+            "Kurulum: python ai-worker/setup_knee_model.py (≈1,6 GB, MIT lisans)."
         )
     try:
         import nibabel as nib
