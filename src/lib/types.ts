@@ -258,9 +258,16 @@ export interface DicomECGWaveform {
 export interface DicomVideoSequence {
   id: string;
   title: string;
+  /** İsteğe bağlı önceden oluşturulmuş object URL (bileşenler kendi URL'ini yönetir). */
   videoUrl?: string;
   frameRate: number;
   totalFrames: number;
+  /** Kapsüllenmiş video dosyasının tamamı (fragment'ların birleşimi). */
+  payload: Uint8Array;
+  /** MIME türü (video/mpeg | video/mp4); oynatma tarayıcıya bağlıdır. */
+  mimeType: string;
+  /** İnsan okunur codec etiketi (ör. "MPEG-4 AVC/H.264 (High Profile @L4.1)"). */
+  codecLabel: string;
 }
 
 export type SpecialSeriesType = "image" | "sr" | "pdf" | "ecg" | "video";

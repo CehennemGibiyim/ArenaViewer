@@ -15,6 +15,7 @@ import FusionControl, { type FusionConfig } from "./FusionControl";
 import { setRefLines } from "@/lib/panelRegistry";
 import { notifyCriticalFinding } from "@/lib/notify";
 import SRViewer from "./SRViewer";
+import VideoViewer from "./VideoViewer";
 import PDFViewer from "./PDFViewer";
 import ECGViewer from "./ECGViewer";
 import HangingProtocolEditorModal from "./HangingProtocolEditorModal";
@@ -168,7 +169,7 @@ function SeriesCard({ s, active, onClick }: { s: SeriesData; active: boolean; on
             {s.mammo?.viewPosition ? <span className="ml-1 text-emerald-300">{s.mammo.laterality}{s.mammo.viewPosition}</span> : null}
           </span>
           <span className="font-mono text-[9px] font-bold text-slate-400">
-            {s.specialType === "sr" ? "Yapısal Rapor" : s.specialType === "pdf" ? "PDF Rapor" : s.specialType === "ecg" ? "12-Kanal EKG" : `${s.slices.length} kesit${s.mammo?.tomosynthesis ? " · DBT" : ""}`}
+            {s.specialType === "sr" ? "Yapısal Rapor" : s.specialType === "pdf" ? "PDF Rapor" : s.specialType === "ecg" ? "12-Kanal EKG" : s.specialType === "video" ? "Video" : `${s.slices.length} kesit${s.mammo?.tomosynthesis ? " · DBT" : ""}`}
           </span>
         </div>
         <div className="truncate text-[11px] font-semibold text-slate-200" title={s.description}>{s.description}</div>
@@ -1864,7 +1865,9 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         {/* Orta: Ana Görüntüleme & Çoklu Izgara / Özel Nesneler */}
         <main id="viewer-main" tabIndex={-1} aria-label="Görüntüleme alanı" className="relative min-w-0 flex-1 outline-none">
           <ViewerErrorBoundary resetKey={series?.id ?? "empty"}>
-          {series?.specialType === "sr" && series.srData ? (
+          {series?.specialType === "video" && series.videoData ? (
+            <VideoViewer video={series.videoData} />
+          ) : series?.specialType === "sr" && series.srData ? (
             <SRViewer sr={series.srData} onJumpToSlice={(s) => setSlice(s - 1)} />
           ) : series?.specialType === "pdf" && series.pdfData ? (
             <PDFViewer pdf={series.pdfData} />
@@ -1887,7 +1890,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
                     <div className="pointer-events-none absolute bottom-2 left-3 font-mono text-[10.5px] text-cyan-200/80">{series.isColor ? "True Color (RGB)" : `WL ${Math.round(wl)} · WW ${Math.round(ww)}`}{invert ? " · TERS" : ""} · {pxMm.toFixed(3)} mm/px</div>
                   </>
                 )}
-                {!series && <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2"><div className="text-xl font-bold text-slate-200">DICOM klasörü / dosya / ZIP sürükleyin veya açın</div><div className="text-xs text-slate-500">Sıkıştırılmış (JPEG, JPEG 2000, JPEG-LS, RLE, True Color, SR, PDF, ECG) nesneler desteklenir.</div></div>}
+                {!series && <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2"><div className="text-xl font-bold text-slate-200">DICOM klasörü / dosya / ZIP sürükleyin veya açın</div><div className="text-xs text-slate-500">Sıkıştırılmış (JPEG, JPEG 2000, JPEG-LS, RLE, True Color) ve DICOM video (MPEG-2/MPEG-4/HEVC), SR, PDF, ECG nesneler desteklenir.</div></div>}
               </div>
               {Array.from({ length: cells - 1 }, (_, i) => (
                 <div key={i} className="min-h-0 min-w-0 bg-[#07090c]">
