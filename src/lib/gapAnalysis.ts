@@ -336,8 +336,8 @@ export const BASE_ITEMS: GapItem[] = [
     id: "r-struct", category: "report", title: "Yapısal rapor, A4 çıktı, filigran, anahtar kesit görseli",
     status: "var", priority: "P3", effort: "S",
     market: ["PowerScribe", "Rad AI"],
-    ours: "Teknik / Bulgular / Sonuç / Öneri; onaysız taslak filigranı; kanıtsal kesitlerden en fazla 4 anahtar kesit; ölçümler raporda «Ölçümler» bölümü olarak basılır (düz metin satırları).",
-    action: "Kalan: ölçüm bölümünün sütunlu tablo düzeniyle basılması ve filigran/anahtar kesit düzeninin kuruma özelleştirilmesi.",
+    ours: "Teknik / Bulgular / Sonuç / Öneri; onaysız taslak filigranı; kanıtsal kesitlerden en fazla 4 anahtar kesit. **Ölçümler sütunlu tablo olarak basılır** (Kesit / Ölçüm / Değer / Ayrıntı) ve tablo başlığında özet satırı («9 ölçüm · 4 kesit · Uzunluk 5 · ROI 4») yer alır; ayrıştırılamayan serbest satır kaybolmaz, «Ayrıntı» sütununda görünür (`src/lib/measureTable.ts`, `tests/measure-table.test.ts`).",
+    action: "Kalan: filigran metninin ve anahtar kesit düzeninin (kaç görsel, yerleşim) kuruma özelleştirilmesi — ölçüm tablosu artık sütunlu.",
   },
   {
     id: "r-review", category: "report", title: "Bulgu bazlı hekim doğrulaması (zorunlu gözden geçirme)",
