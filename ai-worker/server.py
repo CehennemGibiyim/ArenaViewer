@@ -74,6 +74,30 @@ def _ensure_model():
         return False, f"Model yüklenemedi: {e}"
 
 
+class WorkerHTTPServer(ThreadingHTTPServer):
+    """ThreadingHTTPServer + istemci tarafından aniden kesilen soketlerde
+    tam yığın izi basmayan handle_error geçersiz kılması.
+
+    Neden: HTTP/1.1 keep-alive bağlantısında sağlık denetimi/istemci (ör.
+    Windows Invoke-WebRequest, tarayıcı ön-bağlantısı) yanıtı aldıktan
+    sonra soketi FIN/RST ile kapatınca sunucu bir sonraki isteği beklerken
+    ConnectionResetError (WinError 10054) alır. Bu, işlenecek bir istek
+    olmadığı için zararsızdır; varsayılan handle_error yine de tam traceback
+    basar ve kullanıcıyı yanıltır. Burada tek satır bilanço yazılır.
+    """
+
+    daemon_threads = True
+
+    def handle_error(self, request, client_address):
+        exc = sys.exc_info()[1]
+        if isinstance(exc, (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, TimeoutError)):
+            peer = client_address[0] if client_address else "?"
+            sys.stdout.write(f"{peer} - istemci bağlantıyı kapattı (istek yok, yoksayıldı): {exc}\n")
+            sys.stdout.flush()
+            return
+        super().handle_error(request, client_address)
+
+
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -324,7 +348,7 @@ def main():
         # Modeli şimdiden yükle ki ilk istek beklemesin
         ok, err = _ensure_model()
         print("Model yüklendi." if ok else f"Model yüklenemedi: {err}", flush=True)
-    ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
+    WorkerHTTPServer((HOST, PORT), Handler).serve_forever()
 
 
 if __name__ == "__main__":
