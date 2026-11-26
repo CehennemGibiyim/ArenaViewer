@@ -202,7 +202,8 @@ async function main() {
       });
       if (kind === "cancel-import") await check("Takılan dosya yüklemesi menüleri engellemez ve iptal edilebilir", async () => {
         // Erişilebilir ad <button aria-label="Dosya aç"> üzerinde; dosyalar gizli <input type="file"> verilir.
-        await p.locator('input[type="file"]:not([webkitdirectory])').setInputFiles({ name: "HANG.png", mimeType: "image/png", buffer: Buffer.from(png, "base64") });
+        // Dışa aktarma menüsündeki kurum kod eşlemesi girişi (data-codemap-input) bu seçicinin dışında tutulur.
+        await p.locator('input[type="file"]:not([webkitdirectory]):not([data-codemap-input])').setInputFiles({ name: "HANG.png", mimeType: "image/png", buffer: Buffer.from(png, "base64") });
         await p.getByRole("status", { name: "Dosya yükleme ilerlemesi" }).waitFor();
         await p.locator('aside[aria-label="İnceleme paneli"]').getByRole("button", { name: "DICOM", exact: true }).click();
         assert.equal(await p.locator('aside[aria-label="İnceleme paneli"] table').count(), 1);

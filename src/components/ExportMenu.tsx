@@ -296,6 +296,7 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
         type="file"
         accept=".csv,.tsv,.txt,.json,text/csv,application/json"
         className="hidden"
+        data-codemap-input="1"
         onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; void importCodeMap(f); }}
       />
       <button type="button" onClick={() => setOpen((o) => !o)} className="cursor-pointer rounded-md border border-[#2d3b4e] bg-[#111823] px-2 py-1 text-[11px] font-semibold text-slate-300 hover:bg-[#1a2330]">Dışa aktar ▾</button>
