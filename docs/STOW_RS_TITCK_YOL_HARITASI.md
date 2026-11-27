@@ -25,7 +25,7 @@
 | Canlı XA/US kabulü (modalite → viewer) | Var — `POST /api/dicomweb/studies` (x-api-key + multipart) | `f-objects`; `tests/dicom-ingest.test.ts` |
 | QIDO/WADO (metadata, frames, BulkDataURI vekil + SSRF koruması) | Var | `wadoClient.ts`, `/api/pacs/{metadata,bulkdata,frames}` |
 | Gerçek Orthanc'a karşı uçtan uca | Var — CI `pacs-e2e` işi | `tests/pacs.orthanc.e2e.ts` — **kurumsal PACS uyumunu garanti ETMEZ** (kodda ve kılavuzda açıkça yazar) |
-| SEG / RTSTRUCT'un STOW ile geri yazımı | **Yok** | `gapAnalysis` → aday `seg-stow-return` (nextUp) |
+| SEG / RTSTRUCT'un STOW ile geri yazımı | **Var (A0.1, testli)** — PACS kabulü kuruma bağlı | `/api/pacs/stow` kind=`seg`/`rtstruct` (DICM+SOP Class+Study UID doğrulaması, audit `pacs.send_seg`/`pacs.send_rtstruct`), üç arayüz düğmesi, `tests/seg-stow.test.ts`, Orthanc e2e senaryosu. Gerçek kurum PACS kabul testi YAPILMADI |
 | DIMSE C-STORE / C-FIND / C-MOVE | **Yok** — Orthanc/dcm4chee ağ geçidi kararı gerekir | pazar analizleri, `e-stow` |
 | Tam Presentation State yazma | **Yok** | `f-objects` |
 | Kurumsal/PACS-vendor kabul profili (en az bir dcm4chee + bir ticari PACS) | **Yok** | — |
@@ -35,9 +35,9 @@
 ## 2. Faz A — STOW-RS'i "üretim" seviyesine çıkarmak
 
 ### A0 — Şimdi başlayabilir (yalnız mühendislik; doğrulamaya bağlı değil)
-- **A0.1** `seg-stow-return`: SEG / RTSTRUCT STOW (triyaj/AI maskesi geri yazımı) + Orthanc e2e genişletme; SEG SOP sınıfı doğrulaması.
+- **A0.1** `seg-stow-return`: SEG / RTSTRUCT STOW (triyaj/AI maskesi geri yazımı) + Orthanc e2e genişletme; SEG SOP sınıfı doğrulaması. **2026-11-27: uygulandı ve testli** (mühendislik); kurum PACS kabul testi A1'dedir.
 - **A0.2** Gönderim kimliği sözleşmesi: kurum PACS başına yapılandırılabilir **TLS/mTLS + kullanıcı doğrulama** (bugün QIDO/WADO/STOW aynı presetten çalışır; PACS tarafında AE/IP beyaz liste, Basic/Bearer auth veya VPN kurumu yaygın şarttır).
-- **A0.3** Hata yolu: STOW yanıtının `00081198` detayını kullanıcıya görünür kılmak, kısmi kabul uyarısı, "önce tek kesitle dene" yolu; yeniden deneme kuyruğu (şu an yok).
+- **A0.3** Hata yolu: STOW yanıtının `00081198` detayını kullanıcıya görünür kılmak, kısmi kabul uyarısı, "önce tek kesitle dene" yolu; yeniden deneme kuyruğu (şu an yok). **2026-11-27:** kısmi uygulama — `00081198` Failure Reason (0008,1197) + SOP Instance UID artık hataya gömülür ve ≥400 yanıtlarında da kullanıcıya görünür; kısmi kabul (çok örnekli anon/SR gönderimleri) 207 ile bildirilir. Yeniden deneme kuyruğu ve "önce tek kesit" yolu **başlamadı**.
 - **A0.4** dcm4chee-arc + en az bir ticari PACS profili; worklist bağı (modalite doğru çalışmayı seçince `/api/dicomweb/studies`'e düşüş) için kurumla test senaryosu.
 
 ### A1 — Kurum ile (kabul profili)
@@ -104,7 +104,7 @@ Bugün ATIKVIEWER **tıbbi cihaz değildir**; tanı iddiası yoktur; bu konum bi
 |---|---|
 | SKM-TEA kaydı | **Başlamadı** — kullanıcı kararı bekliyor |
 | Gölge mod | Planlandı, kurum verisi gerekir |
-| A0 (mühendislik) | Planlandı — başladı/bitti işi YOK |
+| A0 (mühendislik) | **Kısmen başladı** — A0.1 uygulandı+testli (2026-11-27); A0.2 (mTLS/AE kabul profili), A0.3 bakiyesi (yeniden deneme kuyruğu) ve A0.4 (dcm4chee/ticari PACS) başlamadı |
 | A1 (kurum kabul profili) | Planlandı — kurum PACS bilgisi gerekir |
 | A2 (klinik akış) | Gölge mod GO'ya bağlı |
 | B0 konum kararı | Kullanıcının kararı bekliyor (bu belge karar vermez) |

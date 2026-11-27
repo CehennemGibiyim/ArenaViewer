@@ -14,6 +14,7 @@ import { writableAnnotationCount } from "@/lib/gspsGraphics";
 import { buildRtStruct, buildSegDocument } from "@/lib/dicomSeg";
 import { emptyMask, makeSegmentDef, maskFromJson, paint, prune, unionMasks, type SegMask } from "@/lib/segmentation";
 import { apiFetch } from "@/lib/csrfClient";
+import { sendDerivedToPacs } from "@/lib/sendDerived";
 import { type CodeTable, parseCodeTable } from "@/lib/codeMapping";
 import { loadCodeTable, CODE_MAP_KEY } from "@/lib/codeTableClient";
 import { writePreference } from "@/lib/browserPreferences";
@@ -49,7 +50,7 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
   const [fps, setFps] = useState(12);
   const [side, setSide] = useState(512);
   const [prog, setProg] = useState<{ done: number; total: number } | null>(null);
-  const [sending, setSending] = useState<"ko" | "pr" | "anon" | null>(null);
+  const [sending, setSending] = useState<"ko" | "pr" | "anon" | "seg" | "rtstruct" | null>(null);
   const [stowDlg, setStowDlg] = useState(false);
   const [stowType, setStowType] = useState<"ko" | "pr" | "anon-all" | "anon-range">("anon-all");
   const [stowFrom, setStowFrom] = useState(1);
@@ -205,7 +206,7 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
    * Kaynak: kapalı şekiller (elips/dikdörtgen/çokgen) ve uzunluk/elipsoid
    * işaretlerinin orta noktasına küçük fırça izi. AI örtüsü düzenlenebilir maske değildir.
    */
-  const exportSeg = (kind: "seg" | "rtstruct") => {
+  const exportSeg = async (kind: "seg" | "rtstruct", destination: "download" | "pacs" = "download") => {
     if (series?.lazyPending) { toast("Çalışma yükleniyor — kesitler inmeden bu işlem yapılamaz.", 6000); return; }
     setOpen(false);
     if (!series) { toast("Önce bir görüntü serisi açın."); return; }
@@ -270,6 +271,18 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
       ? buildSegDocument({ ...base, segments: [{ def, mask }] })
       : buildRtStruct({ ...base, rois: [{ def, mask }] });
     const ext = kind === "seg" ? "SEG" : "RTSTRUCT";
+    if (destination === "pacs") {
+      if (!series.studyUid) { toast("Çalışma UID'si yok; PACS'e gönderilemez.", 6000); return; }
+      setSending(kind);
+      try {
+        const out = await sendDerivedToPacs(kind, bytes, series.studyUid, `${ext}-${series.modality}-${mask.slices.size}-kesit.dcm`);
+        if (out.ok) toast(`${ext} PACS'e gönderildi — ${out.stored} nesne (${out.pacs ?? "PACS"}). Araştırma amaçlıdır; PACS kabulü kurumunuza bağlıdır.`, 7000);
+        else toast(`PACS'e gönderilemedi: ${out.error}`, 9000);
+      } finally {
+        setSending(null);
+      }
+      return;
+    }
     download(new Blob([bytes.slice().buffer as ArrayBuffer], { type: "application/dicom" }), `${ext}-${series.modality}-${mask.slices.size}-kesit.dcm`);
     toast(`${ext} indirildi (${mask.slices.size} kesit). Hekim düzenlemesine açıktır; AI örtüsü maske değildir.`, 7000);
   };
@@ -320,8 +333,10 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
           <button className={item} onClick={exportPr} title="Pencere, döndürme ve çevirme ayarlarını GSPS belgesi olarak kaydeder">🖼 Görünüm → DICOM PR (sunum durumu)</button>
           <div className="my-1 border-t border-[var(--t30)]" />
           <button className={item} disabled={sending !== null} onClick={() => { setStowType("anon-all"); setStowFrom(1); setStowTo(n); setStowDlg(true); setOpen(false); }} title="Nesne türü (KO / PR / anonim seri) ve anonim gönderimde kesit aralığını seçerek gönderir">☁ PACS&apos;e gönder (STOW)…</button>
-          <button className={item} onClick={() => exportSeg("seg")} title="İşaretli alanlardan DICOM Segmentasyon (SEG, 1 bit/piksel) üretir">🧩 Segmentasyon → DICOM SEG</button>
-          <button className={item} onClick={() => exportSeg("rtstruct")} title="İşaretli alanlardan RTSTRUCT (ROI konturları) üretir">🧩 Segmentasyon → RTSTRUCT</button>
+          <button className={item} disabled={sending !== null} onClick={() => void exportSeg("seg", "pacs")} title="İşaretli alanlardan üretilen DICOM SEG'i PACS'e STOW-RS ile geri yazar">☁ SEG → PACS&apos;e gönder (STOW)</button>
+          <button className={item} disabled={sending !== null} onClick={() => void exportSeg("rtstruct", "pacs")} title="İşaretli alanlardan üretilen RTSTRUCT'u PACS'e STOW-RS ile geri yazar">☁ RTSTRUCT → PACS&apos;e gönder (STOW)</button>
+          <button className={item} disabled={sending !== null} onClick={() => void exportSeg("seg")} title="İşaretli alanlardan DICOM Segmentasyon (SEG, 1 bit/piksel) üretir">🧩 Segmentasyon → DICOM SEG</button>
+          <button className={item} disabled={sending !== null} onClick={() => void exportSeg("rtstruct")} title="İşaretli alanlardan RTSTRUCT (ROI konturları) üretir">🧩 Segmentasyon → RTSTRUCT</button>
           <button className={item} onClick={exportSr1500} title="Ölçümleri TID 1500 yapılandırılmış rapor (Comprehensive SR) olarak indirir">📐 Ölçümler → DICOM SR (TID 1500)</button>
           <button className={item} onClick={() => codeFileRef.current?.click()} title="Kurumun lisanslı RadLex/SNOMED CT eşleme dosyası (CSV/TSV/JSON) — yalnız özel 99ATIKVIEWER kodları değiştirilir">🔖 Kurum kod eşlemesi yükle…{codeMap ? ` (${codeMap.accepted})` : ""}</button>
           {codeMap && <button className={item} onClick={clearCodeMap} title="Saklanan eşleme tablosunu siler">🗑 Kurum kod eşlemesini kaldır</button>}

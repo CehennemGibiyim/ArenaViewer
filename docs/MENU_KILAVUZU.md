@@ -99,7 +99,8 @@ Yükleme sırasında `Dosya yükleme ilerlemesi` rozeti görünür; takılırsa 
 | Düğme | İpucu |
 |---|---|
 | 🧩 **Segmentasyon** | `Segmentasyon editörü: fırça/silgi, eşik dolgusu, bölge büyütme, hacim (mL), DICOM SEG/RTSTRUCT` |
-| **Dışa aktar ▾** | Anahtar kesitler ve ölçümlerle TIFF/PNG/DICOM SR çıktı menüsü (`ExportMenu`). |
+| ☁️ **SEG → PACS / RTSTRUCT → PACS** | Üretilen SEG/RTSTRUCT'u PACS'e STOW-RS ile geri yazar (Faz A0.1). Sunucu `/api/pacs/stow`'da DICM + SOP Class + Study Instance UID'yi doğrular; gönderim audit'e `pacs.send_seg` / `pacs.send_rtstruct` olarak yazılır. PACS yapılandırılmamışsa (Yönetim → Entegrasyon → PACS) gönderim yapılamaz; PACS'ın SEG/RTSTRUCT'u kabul edip etmediği kurum PACS'ına bağlıdır. Araştırma amaçlıdır; klinik doğrulama yapılmamıştır. |
+| **Dışa aktar ▾** | Anahtar kesitler ve ölçümlerle TIFF/PNG/DICOM SR çıktı menüsü (`ExportMenu`). Menüde ayrıca `☁ SEG → PACS'e gönder (STOW)` ve `☁ RTSTRUCT → PACS'e gönder (STOW)` düğmeleri vardır; Segmentasyon editöründe `☁ SEG → PACS (STOW)` / `☁ RTSTRUCT → PACS (STOW)` düğmeleri aynı işi yapar. |
 | ⛶ | `Tam ekran` |
 | 🖥 **İkinci ekran** | Aktif seriyi ikinci pencerede/ekranda canlı yayınla (WL/WW, kesit, zoom); `İkinci ekran yayınını durdur` ile kapatılır. |
 | ● **Canlı XA/US** | `DICOMweb STOW-RS ile depolanmış çalışmaya gelen yeni XA/US örneklerini ~2 sn'de bir yokla ve açık seriye ekle. DIMSE C-STORE değildir; modalite/ağ geçidi STOW-RS POST kullanmalıdır.` (yalnız canlı kaynak tanımlıysa görünür) |
@@ -148,7 +149,7 @@ Bu satırın sağındaki bağlama göre görünen düğmeler:
 | 🦴 **MSK** | MR veya BT serisi | `MSK ölçüm protokolleri: adlandırılmış noktalar, ölçümler ve aralık yorumu (ölçüm yardımcısı)` — tanı koymaz, ölçüm yardımcısıdır. |
 | 🧪 **Nükleer** | PT/NM/SUV içeren seriler | `Nükleer tıp: eşik tabanlı MTV/SUVpeak ve TIC (zaman-aktivite) sınıflandırması` |
 | 📈 **TIC** | 2+ seri yüklü dinamik çalışma | `ROI tabanlı TIC: aynı bölgeyi dinamik serilerde ölç, wash-out/plato/progresif sınıfla` |
-| 🦵 **Diz MR** | MR ve ≥ 12 kesit | `Diz MR segmentasyonu: menisküs/kıkırdak/kemik (nnU-Net, MIT, araştırma amaçlı — yırtık tanısı konmaz)` |
+| 🦵 **Diz MR** | MR ve ≥ 12 kesit | `Diz MR segmentasyonu: menisküs/kıkırdak/kemik (nnU-Net, MIT, araştırma amaçlı — yırtık tanısı konmaz)` — paneldeki `☁ SEG → PACS` düğmesi `Üretilen 9 segmentli DICOM SEG'i PACS'e STOW-RS ile geri yazar`; `☁ RTSTRUCT → PACS` düğmesi `Üretilen 9 ROI'li RT Structure Set'i PACS'e STOW-RS ile geri yazar` (Faz A0.1; araştırma amaçlıdır). |
 | 🫁 **Akciğer** | BT ve > 1 kesit | `Akciğer kantitasyonu: LAA-950, ortalama HU, PD15, hacim ve kesit dağılımı (kural tabanlı)` |
 | ℹ️ **Hakkında** | her zaman | `Hakkında: amaçlanan kullanım, amaçlanmayan kullanımlar, sınırlar ve sürüm bilgisi` |
 

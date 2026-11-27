@@ -15,6 +15,8 @@ import { randomInt } from "node:crypto";
 import * as dicomParser from "dicom-parser";
 import { parseMultipartRelated, qidoInstances, qidoStudies, stowInstance, wadoInstance } from "../src/lib/server/pacs";
 import { DEFAULT_PACS } from "../src/lib/pacsPresets";
+import { buildSegDocument } from "../src/lib/dicomSeg";
+import { emptyMask, makeSegmentDef, paint } from "../src/lib/segmentation";
 import { minimalDicom } from "./dicomFactory";
 
 const BASE = (process.env.ORTHANC_URL ?? "").replace(/\/$/, "");
@@ -92,6 +94,20 @@ async function main() {
   } else {
     ok(false, `WADO-RS: instance alınamadı (${wado.status})`);
   }
+
+  // 5) A0.1: SEG geri yazımı — kaynak seriye bağlı minimal SEG → STOW → QIDO'da görünür
+  const segMask = emptyMask(16, 16); paint(segMask, 0, 8, 8, 3);
+  const segBytes = buildSegDocument({
+    patientName: "E2E^PACIENT", patientId, patientSex: "", studyUid, studyDate: "2026-01-01", institution: "E2E",
+    source: { seriesUid, sopClassUid: "1.2.840.10008.5.1.4.1.1.7", sopUids: [sopUid] },
+    geometry: { pxMm: 1, pyMm: 1, dz: 1, origin: [0, 0, 0] }, width: 16, height: 16,
+    segments: [{ def: makeSegmentDef(1, "e2e-segment", "MANUAL"), mask: segMask }],
+  });
+  const segSopUid = dicomParser.parseDicom(segBytes, { untilTag: "x00080018" }).string("x00080018") ?? "";
+  const segStow = await stowInstance(cfg, segBytes);
+  ok(segStow.ok && segStow.stored === 1 && segStow.failed.length === 0, "A0.1 SEG STOW: Orthanc SEG'i kabul etti");
+  const afterSeg = await qidoInstances(cfg, studyUid);
+  ok(afterSeg.some((item) => item.sopUid === segSopUid), "A0.1 SEG STOW: QIDO SEG örneğini listeler");
 
   } finally {
   // Test hata verse de yalnızca bu testin StudyInstanceUID kaydını temizle.

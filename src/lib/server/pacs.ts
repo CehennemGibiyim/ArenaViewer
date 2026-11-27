@@ -323,7 +323,16 @@ export async function stowInstance(cfg: PacsConfig, bytes: Uint8Array, timeoutMs
     req.end(body);
   });
 
-  if (!res.status || res.status >= 400) throw new Error(friendlyStatus(res.status));
+  if (!res.status || res.status >= 400) {
+    // A0.3: Red yanıtının FailedSOPSequence (0008,1198) detayını kullanıcıya ulaştır;
+    // gövde DICOM JSON değilse (ör. proxy HTML'i) eski dostça mesaja düşülür.
+    try {
+      parseStowResponse(res.body.toString("utf8").trim(), sopUid);
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("reddetti")) throw e;
+    }
+    throw new Error(friendlyStatus(res.status));
+  }
   // HTTP 2xx tek başına kabul kanıtı değildir: 202 kısmi red içerebilir.
   // Bir nesne gönderildiği için tam bir Referenced SOP kaydı aranır.
   const { stored } = parseStowResponse(res.body.toString("utf8").trim(), sopUid);

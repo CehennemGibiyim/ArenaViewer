@@ -17,6 +17,24 @@ export function parseStowResponse(text: string, expectedSopUid: string): { store
   }
   const stored = sequence("00081199");
   const failed = sequence("00081198");
+  // Reddedilen her nesne için SOP Instance UID + Failure Reason (0008,1197, US)
+  // kullanıcıya gösterilir — "reddedildi" detaysız bırakılmaz (A0.3).
+  // Failure Reason kodunun anlamı PS3.4 Annex C'dedir; koda isim UYDURULMAZ.
+  const failureDetail = (entry: unknown): string => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return "bilinmeyen nesne";
+    const rec = entry as Record<string, unknown>;
+    const uidField = rec["00081155"];
+    const uid = uidField && typeof uidField === "object" && !Array.isArray(uidField)
+      ? ((uidField as Record<string, unknown>).Value as unknown[] | undefined)?.[0]
+      : undefined;
+    const reasonField = rec["00081197"];
+    const reason = reasonField && typeof reasonField === "object" && !Array.isArray(reasonField)
+      ? ((reasonField as Record<string, unknown>).Value as unknown[] | undefined)?.[0]
+      : undefined;
+    const uidText = typeof uid === "string" && uid ? `SOP Instance ${uid}` : "SOP Instance bilinmiyor";
+    const reasonText = typeof reason === "number" || typeof reason === "string" ? `Failure Reason (0008,1197)=${reason}` : "Failure Reason verilmedi";
+    return `${uidText}, ${reasonText}`;
+  };
   // Tek STOW çağrısı tek nesne gönderir. UID'siz veya hatalı sonuç başarı kanıtı değildir.
   const validReference = (entry: unknown) => {
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) return false;
@@ -25,7 +43,11 @@ export function parseStowResponse(text: string, expectedSopUid: string): { store
     const values = (uid as Record<string, unknown>).Value;
     return Array.isArray(values) && values.length === 1 && typeof values[0] === "string" && values[0] === expectedSopUid && /^[0-9]+(\.[0-9]+)*$/.test(values[0]) && values[0].length <= 64;
   };
-  if (failed.length) throw new Error(`PACS gönderilen nesneyi reddetti (${failed.length} hata).`);
+  if (failed.length) {
+    const shown = failed.slice(0, 3).map(failureDetail).join("; ");
+    const more = failed.length > 3 ? ` (+${failed.length - 3} nesne daha)` : "";
+    throw new Error(`PACS gönderilen nesneyi reddetti (${failed.length} hata): ${shown}${more}`);
+  }
   if (stored.length !== 1 || !validReference(stored[0])) throw new Error("PACS gönderim sonucu doğrulanamadı (kabul edilen nesne bilgisi yok).");
   return { stored: stored.length, failed: 0 };
 }

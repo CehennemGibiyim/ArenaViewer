@@ -1145,9 +1145,9 @@ export const CANDIDATE_MODULES: CandidateModule[] = [
     id: "seg-stow-return",
     title: "SEG / RTSTRUCT'u PACS'e STOW-RS ile geri yazma",
     field: "Entegrasyon · PACS (AI değil)",
-    license: "Açık — mevcut DICOMweb istemcisi (src/lib/stowClient.ts) genişletilir",
-    evidence: "w-pacs: SR/KO/PR STOW gönderimi çalışıyor ve testli; SEG/RTSTRUCT STOW henüz yok — PACS kabul testi (Orthanc e2e) eklenebilir",
-    blocker: "Hedef PACS kabul testi; SEG/RTSTRUCT SOP sınıfı doğrulaması; STOW multipart sözleşmesi",
+    license: "Açık — mevcut DICOMweb istemcisi (src/lib/server/pacs.ts) genişletilir",
+    evidence: "A0.1 uygulandı (2026-11): `/api/pacs/stow` kind=seg/rtstruct (DICM+SOP Class+Study UID doğrulaması), üç arayüzde gönder düğmesi, `tests/seg-stow.test.ts` (mock PACS kabul + 0008,1198 reddetme), Orthanc e2e senaryosu. SR/KO/PR STOW zaten testliydi.",
+    blocker: "Gerçek kurum PACS kabul testi (dcm4chee + ticari PACS; Faz A1); PACS'ın SEG/RTSTRUCT SOP sınıflarını kabul ettiğinin doğrulanması — kod bunu garanti edemez",
     value: "Segmentasyon PACS'te kalıcı olur; OHIF/RadiAnt/Weasis doğrudan açar",
   },
   {

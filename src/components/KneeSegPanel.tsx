@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import type { SeriesData } from "@/lib/types";
 import { useEscapeKey } from "@/lib/useEscapeKey";
 import { buildRtStruct, buildSegDocument } from "@/lib/dicomSeg";
+import { sendDerivedToPacs } from "@/lib/sendDerived";
 import { makeSegmentDef } from "@/lib/segmentation";
 import { DEEP_KNEE_MODEL_CARD } from "@/lib/modelCards";
 import {
@@ -52,6 +53,7 @@ export default function KneeSegPanel({ series, onClose, onAddToFindings, toast }
   const [model, setModel] = useState("");
   const [masks, setMasks] = useState<Map<number, SegMask> | null>(null);
   const [cardOpen, setCardOpen] = useState(false);
+  const [sending, setSending] = useState(false);
   useEscapeKey(onClose);
 
   const pxMm = series.pixelSpacingX && series.pixelSpacingX > 0 ? series.pixelSpacingX : series.pixelSpacing > 0 ? series.pixelSpacing : 1;
@@ -95,7 +97,7 @@ export default function KneeSegPanel({ series, onClose, onAddToFindings, toast }
       .filter((st) => (ms.get(st.id)?.slices.size ?? 0) > 0)
       .map((st) => ({ def: makeSegmentDef(st.id, st.tr, "AUTOMATIC"), mask: ms.get(st.id)! }));
 
-  const exportSeg = (kind: "seg" | "rtstruct") => {
+  const exportSeg = async (kind: "seg" | "rtstruct", destination: "download" | "pacs" = "download") => {
     if (!masks || !canExport) {
       toast?.("Bu seride SOP Instance UID bilgisi yok; SEG/RTSTRUCT yalnızca gerçek DICOM serileri için üretilir.", 7000);
       return;
@@ -114,7 +116,20 @@ export default function KneeSegPanel({ series, onClose, onAddToFindings, toast }
       ? buildSegDocument({ ...base, segments })
       : buildRtStruct({ ...base, rois: segments });
     const ext = kind === "seg" ? "SEG" : "RTSTRUCT";
-    download(new Blob([bytes.slice().buffer as ArrayBuffer], { type: "application/dicom" }), `${ext}-MR-diz-${series.slices.length}-kesit.dcm`);
+    const filename = `${ext}-MR-diz-${series.slices.length}-kesit.dcm`;
+    if (destination === "pacs") {
+      if (!series.studyUid) { toast?.("Çalışma UID'si yok; PACS'e gönderilemez.", 6000); return; }
+      setSending(true);
+      try {
+        const out = await sendDerivedToPacs(kind, bytes, series.studyUid, filename);
+        if (out.ok) toast?.(`${ext} PACS'e gönderildi — ${out.stored} nesne (${out.pacs ?? "PACS"}). Araştırma amaçlıdır; PACS kabulü kurumunuza bağlıdır.`, 8000);
+        else toast?.(`PACS'e gönderilemedi: ${out.error}`, 9000);
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
+    download(new Blob([bytes.slice().buffer as ArrayBuffer], { type: "application/dicom" }), filename);
     toast?.(`${ext} indirildi (${segments.length} segment). Araştırma amaçlıdır; klinik doğrulama yapılmamıştır.`, 8000);
   };
 
@@ -192,20 +207,36 @@ export default function KneeSegPanel({ series, onClose, onAddToFindings, toast }
 
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <button
-                  onClick={() => exportSeg("seg")}
-                  disabled={!canExport}
+                  onClick={() => void exportSeg("seg")}
+                  disabled={!canExport || sending}
                   title={canExport ? "9 segmentli DICOM SEG üretir" : "Gerçek DICOM serisi gerekli (SOP Instance UID yok)"}
                   className="cursor-pointer rounded border border-emerald-400/50 bg-emerald-400/10 px-2 py-1 text-[var(--ac-emerald200)] enabled:hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   🧩 SEG indir
                 </button>
                 <button
-                  onClick={() => exportSeg("rtstruct")}
-                  disabled={!canExport}
+                  onClick={() => void exportSeg("rtstruct")}
+                  disabled={!canExport || sending}
                   title={canExport ? "9 ROI'li RT Structure Set üretir" : "Gerçek DICOM serisi gerekli (SOP Instance UID yok)"}
                   className="cursor-pointer rounded border border-emerald-400/50 bg-emerald-400/10 px-2 py-1 text-[var(--ac-emerald200)] enabled:hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   🗂️ RTSTRUCT indir
+                </button>
+                <button
+                  onClick={() => void exportSeg("seg", "pacs")}
+                  disabled={!canExport || sending}
+                  title="Üretilen 9 segmentli DICOM SEG'i PACS'e STOW-RS ile geri yazar"
+                  className="cursor-pointer rounded border border-cyan-400/50 bg-cyan-400/10 px-2 py-1 text-[var(--ac-cyan200)] enabled:hover:bg-cyan-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  ☁ SEG → PACS
+                </button>
+                <button
+                  onClick={() => void exportSeg("rtstruct", "pacs")}
+                  disabled={!canExport || sending}
+                  title="Üretilen 9 ROI'li RT Structure Set'i PACS'e STOW-RS ile geri yazar"
+                  className="cursor-pointer rounded border border-cyan-400/50 bg-cyan-400/10 px-2 py-1 text-[var(--ac-cyan200)] enabled:hover:bg-cyan-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  ☁ RTSTRUCT → PACS
                 </button>
                 <button onClick={() => setCardOpen((v) => !v)} className="cursor-pointer rounded border border-[var(--t39)] px-2 py-1 text-[var(--sl300)] hover:bg-[var(--t26)]">
                   {cardOpen ? "Model kartını gizle" : "Model kartını göster"}
