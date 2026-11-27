@@ -304,10 +304,10 @@ export const BASE_ITEMS: GapItem[] = [
   },
   {
     id: "a-feedback", category: "ai", title: "Hekim geri bildirim döngüsü ve AI performans panosu",
-    status: "kismi", priority: "P1", effort: "S",
+    status: "var", priority: "P1", effort: "S",
     market: ["Aidoc", "Annalise"],
-    ours: "Bulgu bazlı onay/red/düzenleme kaydediliyor; FP/FN istatistiği ve model değerlendirmesi yok.",
-    action: "Onay/red verisinden duyarlılık/özgüllük panosu; yanlış pozitif listesi.",
+    ours: "Bulgu bazlı onay/red/düzenleme (gerekçeli) kaydediliyor; toplu model değerlendirme (`modelEvaluate.ts` — AUROC/Brier/ECE, eşik tablosu) ve Yönetim → **AI performans** panosunda **yeni (a-feedback):** `GET /api/ai/feedback` + `feedbackLoop.ts` ile **duyarlılık, özgüllük, kesinlik** ve %95 Wilson güven aralıkları; motor ve kategori düzeyinde ayrı satırlar; **yanlış pozitif listesi** (etiket, kesit, skor, hekim gerekçesi) ve **AI'nın kaçırdıkları** listesi (hekimin elle eklediği bulgular); **eşik önerisi** (F1 ızgarası, eşitlikte düşük eşik) + sıkışmışlık uyarıları. Duyarlılık/özgüllük **motor düzeyinde** hesaplanır — elle eklenen bulgu ve temiz çalışma kategoriye bağlanamaz (uydurulmaz). Özgüllük 'onaylı raporda bulgu yok' proxy'siyle hesaplanır ve kaynağı panoda yazılır; **altın standart (patoloji/takip) verisi yoktur**, bu tablo klinik doğrulama çalışmasının yerine geçmez.",
+    action: "Kalan: altın standart (patoloji/takip) etiketleriyle gerçek dış doğrulama, model sahibine kapalı döngü raporlama ve yeniden eğitim sonrası otomatik regresyon eşiği (kurumsal süreç).",
   },
   {
     id: "a-card", category: "ai", title: "Model kartı: sürüm, endikasyon, duyarlılık/özgüllük, doğrulama verisi",

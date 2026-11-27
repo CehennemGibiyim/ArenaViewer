@@ -40,6 +40,30 @@ interface DisagreementCategory { engine: string; category: string; decided: numb
 interface DisagreementReason { engine: string; category: string; label: string; status: "reddedildi" | "duzenlendi"; reason: string }
 interface ReasonClassDigest { cls: string; label: string; count: number }
 interface DisagreementAlertInfo { total: number; sent: number; threshold: number; minDecided: number; reasonClasses: ReasonClassDigest[] }
+/** Hekim geri bildirim döngüsü (a-feedback) — `GET /api/ai/feedback` yanıtı. */
+interface FeedbackEngineRow {
+  engine: string; shown: number; approved: number; rejected: number; edited: number; pending: number;
+  missed: number; decidedAi: number; sensitivity: number | null; specificity: number | null;
+  ppv: number | null; trueNegatives: number | null;
+  sensitivityCI: [number, number] | null; ppvCI: [number, number] | null;
+}
+interface FeedbackCategoryRow {
+  engine: string; category: string; shown: number; approved: number; rejected: number; edited: number;
+  pending: number; decidedAi: number; ppv: number | null; ppvCI: [number, number] | null;
+}
+interface FeedbackReport {
+  engines: FeedbackEngineRow[];
+  rows: FeedbackCategoryRow[];
+  falsePositives: { engine: string; category: string; label: string; reason: string; slice: number | null; studyRef: string | null; at: string | null; score: number | null }[];
+  missed: { engine: string; category: string; label: string; slice: number | null; studyRef: string | null; at: string | null }[];
+  totals: { aiShown: number; decided: number; approved: number; rejected: number; edited: number; missed: number; cleanStudies: number; sensitivity: number | null; specificity: number | null; ppv: number | null };
+  thresholdCurve: { threshold: number; recall: number | null; precision: number | null; kept: number; dropped: number }[];
+  suggestedThreshold: number | null; suggestedThresholdWhy: string;
+  warnings: string[]; note: string; generatedAt?: string;
+  sample?: { reportsScanned: number; reportsApproved: number; findings: number; cleanStudies: number; limit: number };
+  specificitySource?: string;
+}
+
 interface DisagreementStats {
   categories: DisagreementCategory[];
   reasons: DisagreementReason[];
@@ -155,6 +179,8 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
   const loadSiem = useCallback(async () => { const r = await api<{ pending: number; failed: number; sent: number; abandoned: number; configured: boolean; maxAttempts: number }>("/api/audit/export?siem=stats"); if (r.ok) setSiem(r.data); }, []);
   // AI
   const [perf, setPerf] = useState<{ rows: PerfRow[]; note: string; disagreement?: DisagreementStats } | null>(null);
+  const [fb, setFb] = useState<FeedbackReport | null>(null);
+  const [fbError, setFbError] = useState("");
   // Sistem sağlığı (g-metrics + ortam denetimi) — Yönetim → Sağlık
   const [health, setHealth] = useState<HealthOut | null>(null);
   const [healthBusy, setHealthBusy] = useState(false);
@@ -330,6 +356,11 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
       if (tab === "ai") {
         const r = await api<{ rows: PerfRow[]; note: string; disagreement?: DisagreementStats }>("/api/ai/performance");
         if (r.ok) setPerf(r.data);
+        // Duyarlılık/özgüllük + yanlış pozitif listesi (a-feedback). Ayrı uç: pano yükü büyümesin.
+        const f = await api<FeedbackReport>("/api/ai/feedback");
+        if (f.ok) { setFb(f.data); setFbError(""); }
+        else setFbError((f.data as unknown as { error?: string })?.error ?? "Geri bildirim özeti alınamadı.");
+
         await loadRegistry();
         await loadShadow();
       }
@@ -776,6 +807,132 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Hekim geri bildirim döngüsü (a-feedback): duyarlılık / özgüllük + yanlış pozitif listesi.
+                Kaynak: yalnız onaylı raporlardaki hekim kararları. Altın standart yok → "hekimle uyum". */}
+            <div className={`${card} space-y-2`} data-testid="feedback-loop">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <b className="text-xs text-[var(--sl200)]">Duyarlılık · özgüllük · yanlış pozitifler</b>
+                <span className="text-[10.5px] text-[var(--sl500)]">
+                  {fb
+                    ? `${fb.totals.decided} karar · ${fb.totals.missed} "AI kaçırdı" · ${fb.totals.cleanStudies} temiz çalışma`
+                    : fbError || "yükleniyor…"}
+                </span>
+              </div>
+              {fb && fb.warnings.length > 0 && (
+                <ul className="space-y-0.5 text-[10.5px] text-[var(--ac-amber300)]">
+                  {fb.warnings.map((w) => <li key={w}>• {w}</li>)}
+                </ul>
+              )}
+              {fb && (
+                <>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {([
+                      ["Duyarlılık", fb.totals.sensitivity, "AI'nın yakaladığı / (yakaladığı + hekimin eklediği)"],
+                      ["Özgüllük", fb.totals.specificity, "Temiz çalışma / (temiz + reddedilen). Altın standart yok: 'onaylı raporda bulgu yok' proxy'si"],
+                      ["Kesinlik (PPV)", fb.totals.ppv, "(Onay + düzenleme) / (onay + düzenleme + ret)"],
+                    ] as [string, number | null, string][]).map(([label, v, hint]) => (
+                      <div key={label} className="rounded-lg border border-[var(--t25)] bg-[var(--t10)] px-3 py-2" title={hint}>
+                        <div className="text-[10px] uppercase tracking-wide text-[var(--sl500)]">{label}</div>
+                        <div className="font-mono text-lg font-bold text-[var(--sl100)]">{v === null ? "—" : `%${Math.round(v * 100)}`}</div>
+                        <div className="text-[9.5px] leading-tight text-[var(--sl600)]">{hint}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-[11px]">
+                      <thead className="text-left text-[var(--sl500)]"><tr>{["Motor", "Gösterilen", "Duyarlılık (%95 GA)", "Özgüllük", "Kesinlik", "Kaçırdığı"].map((h) => <th key={h} className="border-b border-[var(--t25)] px-2 py-1.5 font-semibold">{h}</th>)}</tr></thead>
+                      <tbody>
+                        {fb.engines.length === 0 && <tr><td colSpan={6} className="px-2 py-3 text-center text-[var(--sl500)]">Onaylı raporda AI adayı yok.</td></tr>}
+                        {fb.engines.map((e) => (
+                          <tr key={e.engine} className="hover:bg-[var(--t14)]">
+                            <td className="border-b border-[var(--t18)] px-2 py-1 font-mono text-[10.5px] text-[var(--ac-cyan300)]">{e.engine}</td>
+                            <td className="border-b border-[var(--t18)] px-2 py-1 font-mono">{e.shown}</td>
+                            <td className="border-b border-[var(--t18)] px-2 py-1 font-mono">
+                              {e.sensitivity === null ? "—" : `%${Math.round(e.sensitivity * 100)}`}
+                              {e.sensitivityCI && <span className="ml-1 text-[9.5px] text-[var(--sl500)]">[%{Math.round(e.sensitivityCI[0] * 100)}–%{Math.round(e.sensitivityCI[1] * 100)}]</span>}
+                            </td>
+                            <td className="border-b border-[var(--t18)] px-2 py-1 font-mono">{e.specificity === null ? "—" : `%${Math.round(e.specificity * 100)}`}</td>
+                            <td className="border-b border-[var(--t18)] px-2 py-1 font-mono">{e.ppv === null ? "—" : `%${Math.round(e.ppv * 100)}`}</td>
+                            <td className="border-b border-[var(--t18)] px-2 py-1 font-mono text-[var(--ac-amber300)]">{e.missed}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {fb.thresholdCurve.length > 0 && (
+                    <div className="space-y-1">
+                      <div className="text-[10.5px] text-[var(--sl400)]">
+                        Eşik eğrisi {fb.suggestedThreshold !== null
+                          ? <>— öneri <b className="font-mono text-[var(--ac-cyan300)]">{fb.suggestedThreshold.toFixed(1)}</b></>
+                          : "— öneri yok"}
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-[10.5px]">
+                          <thead className="text-left text-[var(--sl500)]"><tr>{["Eşik", "Kesinlik", "Duyarlılık", "Tutulan", "Elenen"].map((h) => <th key={h} className="border-b border-[var(--t25)] px-2 py-1 font-semibold">{h}</th>)}</tr></thead>
+                          <tbody>
+                            {fb.thresholdCurve.map((p) => (
+                              <tr key={p.threshold} className={p.threshold === fb.suggestedThreshold ? "bg-cyan-500/10" : ""}>
+                                <td className="border-b border-[var(--t18)] px-2 py-1 font-mono">{p.threshold.toFixed(1)}</td>
+                                <td className="border-b border-[var(--t18)] px-2 py-1 font-mono">{p.precision === null ? "—" : `%${Math.round(p.precision * 100)}`}</td>
+                                <td className="border-b border-[var(--t18)] px-2 py-1 font-mono">{p.recall === null ? "—" : `%${Math.round(p.recall * 100)}`}</td>
+                                <td className="border-b border-[var(--t18)] px-2 py-1 font-mono">{p.kept}</td>
+                                <td className="border-b border-[var(--t18)] px-2 py-1 font-mono text-[var(--sl500)]">{p.dropped}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="text-[10px] leading-snug text-[var(--sl500)]">{fb.suggestedThresholdWhy}</p>
+                    </div>
+                  )}
+                  <div className="grid gap-2 lg:grid-cols-2">
+                    <div>
+                      <div className="mb-1 text-[10.5px] font-semibold text-[var(--ac-rose300)]">Yanlış pozitifler ({fb.falsePositives.length})</div>
+                      <div className="max-h-44 overflow-y-auto rounded border border-[var(--t25)]">
+                        <table className="w-full text-[10.5px]">
+                          <tbody>
+                            {fb.falsePositives.length === 0 && <tr><td className="px-2 py-3 text-center text-[var(--sl500)]">Reddedilen aday yok.</td></tr>}
+                            {fb.falsePositives.map((f, i) => (
+                              <tr key={`${f.engine}${f.label}${i}`} className="hover:bg-[var(--t14)]">
+                                <td className="border-b border-[var(--t18)] px-2 py-1 align-top">
+                                  <div className="font-semibold text-[var(--sl200)]">{f.label}</div>
+                                  <div className="text-[9.5px] text-[var(--sl500)]">{f.engine} · {f.category}{f.slice !== null ? ` · kesit ${f.slice}` : ""}{f.score !== null ? ` · skor ${f.score.toFixed(2)}` : ""}</div>
+                                </td>
+                                <td className="border-b border-[var(--t18)] px-2 py-1 align-top text-[var(--sl400)]">{f.reason}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="mb-1 text-[10.5px] font-semibold text-[var(--ac-amber300)]">AI&apos;nın kaçırdıkları ({fb.totals.missed})</div>
+                      <div className="max-h-44 overflow-y-auto rounded border border-[var(--t25)]">
+                        <table className="w-full text-[10.5px]">
+                          <tbody>
+                            {fb.missed.length === 0 && <tr><td className="px-2 py-3 text-center text-[var(--sl500)]">Hekim henüz &quot;AI kaçırdı&quot; bulgusu eklemedi.</td></tr>}
+                            {fb.missed.map((m, i) => (
+                              <tr key={`${m.engine}${m.label}${i}`} className="hover:bg-[var(--t14)]">
+                                <td className="border-b border-[var(--t18)] px-2 py-1">
+                                  <div className="font-semibold text-[var(--sl200)]">{m.label}</div>
+                                  <div className="text-[9.5px] text-[var(--sl500)]">{m.engine}{m.slice !== null ? ` · kesit ${m.slice}` : ""}</div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-[10px] leading-snug text-[var(--sl500)]">
+                    {fb.note}
+                    {fb.sample && <> Örneklem: {fb.sample.reportsApproved}/{fb.sample.reportsScanned} onaylı rapor.</>}
+                    {fb.specificitySource && fb.specificitySource !== "yok" && <> Özgüllük kaynağı: {fb.specificitySource}.</>}
+                  </p>
+                </>
+              )}
             </div>
 
             {/* AI uyuşmazlık uyarısı banner'ı (src/lib/disagreementAlert.ts) */}

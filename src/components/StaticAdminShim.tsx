@@ -15,6 +15,7 @@
  */
 
 import { evaluateEnv, parsePrometheus, summarizeChecks, type EnvSnapshot } from "@/lib/adminHealth";
+import { summarizeFeedback, type CleanCase, type FeedbackFinding } from "@/lib/feedbackLoop";
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
@@ -75,6 +76,52 @@ const seedAudit = () =>
     details,
     hash: fakeHash(i + 7),
   }));
+
+// ── Hekim geri bildirim döngüsü (a-feedback) — demo verisi AYNI saf hesapla üretilir ──
+// `summarizeFeedback` üretim ucunda da kullanıldığı için demo, gerçek hesabı gösterir;
+// yalnız girdi satırları kurgusaldır (ve ekranda DEMO olarak etiketlenir).
+const demoFeedbackInput: FeedbackFinding[] = (() => {
+  const out: FeedbackFinding[] = [];
+  const add = (engine: string, category: string, n: number, decision: FeedbackFinding["decision"], o: Partial<FeedbackFinding> = {}) => {
+    for (let i = 0; i < n; i++) out.push({ id: `${engine}-${category}-${decision}-${i}`, engine, category, label: o.label ?? "örnek aday", manual: false, score: null, decision, ...o });
+  };
+  // CXR: 14 sınıf — yüksek kesinlik, birkaç kaçırılan
+  add("cxr-densenet121 (Medical_X)", "Akciğer grafisi — 14 sınıf", 161, "onaylandi", { score: 0.92 });
+  add("cxr-densenet121 (Medical_X)", "Akciğer grafisi — 14 sınıf", 13, "duzenlendi", { score: 0.71 });
+  add("cxr-densenet121 (Medical_X)", "Akciğer grafisi — 14 sınıf", 19, "reddedildi", { score: 0.58, reason: "Penetrasyon düşük; grafi teknik olarak yetersiz (örnek)" });
+  add("cxr-densenet121 (Medical_X)", "Akciğer grafisi — 14 sınıf", 21, "bekliyor");
+  add("cxr-densenet121 (Medical_X)", "Hekim", 6, "onaylandi", { manual: true, label: "AI kaçırdı: ince pnömotoraks (örnek)" });
+  // BT nodül: orta kesinlik, daha çok kaçırılan
+  add("monai-lung-nodule-ct", "BT toraks — nodül adayı", 59, "onaylandi", { score: 0.83 });
+  add("monai-lung-nodule-ct", "BT toraks — nodül adayı", 8, "duzenlendi", { score: 0.62 });
+  add("monai-lung-nodule-ct", "BT toraks — nodül adayı", 22, "reddedildi", { score: 0.44, reason: "Vasküler kesit; nodül değil — çap hekime göre 4 mm (örnek)" });
+  add("monai-lung-nodule-ct", "BT toraks — nodül adayı", 8, "bekliyor");
+  add("monai-lung-nodule-ct", "Hekim", 11, "onaylandi", { manual: true, label: "AI kaçırdı: 6 mm solid nodül (örnek)" });
+  // BT beyin ICH
+  add("ct-head-ich", "BT beyin — intrakraniyal kanama adayı", 104, "onaylandi", { score: 0.95 });
+  add("ct-head-ich", "BT beyin — intrakraniyal kanama adayı", 5, "duzenlendi", { score: 0.77 });
+  add("ct-head-ich", "BT beyin — intrakraniyal kanama adayı", 11, "reddedildi", { score: 0.51, reason: "Kalsifikasyon/artefakt; kanama değil (örnek)" });
+  add("ct-head-ich", "BT beyin — intrakraniyal kanama adayı", 12, "bekliyor");
+  add("ct-head-ich", "Hekim", 3, "onaylandi", { manual: true, label: "AI kaçırdı: küçük subdural hematom (örnek)" });
+  return out;
+})();
+const demoFeedback = (() => {
+  const clean: CleanCase[] = [
+    ...Array.from({ length: 38 }, () => ({ engine: "cxr-densenet121 (Medical_X)", category: "—", clean: true })),
+    ...Array.from({ length: 24 }, () => ({ engine: "monai-lung-nodule-ct", category: "—", clean: true })),
+    ...Array.from({ length: 31 }, () => ({ engine: "ct-head-ich", category: "—", clean: true })),
+    // Okunmamış/taslak çalışma "negatif" sayılmaz — bilinçli olarak clean:false
+    ...Array.from({ length: 9 }, () => ({ engine: "ct-head-ich", category: "—", clean: false })),
+  ];
+  const r = summarizeFeedback(demoFeedbackInput, clean);
+  return {
+    ...r,
+    generatedAt: new Date(NOW).toISOString(),
+    sample: { reportsScanned: 260, reportsApproved: 214, findings: demoFeedbackInput.length, cleanStudies: clean.filter((c) => c.clean).length, limit: 5000 },
+    specificitySource: "onaylı-raporda-bulgu-yok (demo)",
+    note: r.note + " Özgüllük 'onaylı raporda bulgu yok' proxy'siyle hesaplanır; altın standart (patoloji/takip) verisi yoktur.",
+  };
+})();
 
 // ── Kurgusal AI performans verisi ────────────────────────────────────────────
 const perfRows = [
@@ -302,6 +349,8 @@ async function route(method: string, url: URL, init?: RequestInit): Promise<Resp
       disagreement,
     });
   }
+  // Hekim geri bildirim döngüsü (a-feedback) — üretimle AYNI saf hesap, kurgusal girdiyle.
+  if (p === "/api/ai/feedback" && method === "GET") return json(demoFeedback);
   if (p === "/api/ai/registry") {
     if (method === "GET") return json(registryState());
     if (method === "POST") {

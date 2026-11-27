@@ -689,6 +689,7 @@ npm run bench:window                # WL/WW dönüşümü kıyaslaması (eski vs
 npm run test:pr                     # GSPS/PR dışa aktarma + parse doğrulama
 npm run test:gsps-import            # PR/GSPS ölçüm içe aktarma (kesit eşleşmesi, uçtan uca)
 npm run test:share-images           # süreli paylaşımda anonim JPEG kesit paketi (doğrulama + uç sözleşmesi)
+npm run test:feedback               # hekim geri bildirim döngüsü: duyarlılık/özgüllük/FP + eşik önerisi
 npm run test:notify                 # masaüstü bildirimi + izin akışı
 npm run test:prior                  # önceki tetkik ölçüm karşılaştırması
 npm run test:uncert                 # belirsizlik bandı + CXR bulgu notu
@@ -861,6 +862,18 @@ docs/             Yayınlama ve işletim kılavuzları (görsel + videolu: docs/
   `Klinik_Dogrulama_LUNA16.md`) ve açıkta kalan CXR modeli için yapılması gerekenleri
   birleştirir; performans izleme `/yonetim → AI performans` üzerindedir (PPV,
   kalibrasyon bölmeleri).
+- **Hekim geri bildirim döngüsü (a-feedback):** `GET /api/ai/feedback` +
+  `src/lib/feedbackLoop.ts`, onaylı raporlardaki hekim kararlarından **duyarlılık,
+  özgüllük ve kesinlik** ile %95 Wilson güven aralıklarını, motor ve kategori
+  düzeyinde ayrı satırlar hâlinde üretir; panoda **yanlış pozitif listesi** (etiket,
+  kesit, skor, hekim gerekçesi), **AI'nın kaçırdıkları** listesi (hekimin elle
+  eklediği bulgular) ve bir **eşik önerisi** tablosu (F1 ızgarası; eşitlikte düşük
+  eşik) gösterilir. Dürüst sınırlar: referans standardı hekimin kendi kararıdır,
+  düzenlenen bulgu gerçek pozitif sayılır, duyarlılık/özgüllük **motor düzeyinde**
+  hesaplanır (elle eklenen bulgu ve temiz çalışma bir kategoriye bağlanamaz),
+  özgüllük "onaylı raporda bulgu yok" proxy'sidir ve kaynağı panoda yazılır —
+  altın standart (patoloji/takip) verisi yoktur, bu tablo klinik doğrulama
+  çalışmasının yerine geçmez. Test: `npm run test:feedback`.
 - **STOW-RS → TİTCK yol haritası:** [docs/STOW_RS_TITCK_YOL_HARITASI.md](docs/STOW_RS_TITCK_YOL_HARITASI.md)
   — PACS'a geri yazmayı üretim seviyesine çıkarma adımları (A0–A3) ve Türkiye'de
   tıbbi cihaz yazılımı regülasyonu (TİTCK/MDR: sınıflandırma, ISO 13485, ISO 14971,
