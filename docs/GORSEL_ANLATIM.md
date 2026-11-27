@@ -227,16 +227,16 @@ hiçbir temadan etkilenmez** (piksel verisi siyahtır; yalnız krom değişir).
 - Klavye: `Tab` sırayla gezinti · `Enter/Space` etkinleştir · `Esc` modal kapat · görüntü üstünde `U/K/V` ölçüm.
 - Yazdırılabilir rapor (`#print-root`) her zaman siyah-beyaz okunur.
 
-### 7.3 Dil — 78 tam çeviri + seçicide 7.027 yaşayan dilin tümü
+### 7.3 Dil — 83 tam çeviri + seçicide 7.027 yaşayan dilin tümü
 
 - Üst çubuktaki **🌐 `Dil seç`** düğmesi → arama kutusu (yazın: "turk", "germ", "日本"…) → dil.
-- **Katman 1 — Çevirisi hazır 78 dil kayıtlıdır:** `tr, en, es, fr, de, it, pt, nl, pl, ru, uk, cs, sv, ro, hu, bg, ar, he, hi, zh, ja, ko, id, th, bn, ur, fa, ta, te, mr, gu, kn, ml, pa, or, vi, ms, fil, ceb, da, fi, el, sk, sl, et, lv, lt, sr, hr, bs, mk, sq, hy, ka, az, kk, ky, uz, mn, sw, ha, yo, ig, zu, af, am, ne, si, my, km, lo, rw, so, mg, ht, ca, eu, gl` — dünyanın en çok konuşulan ~80 dilini (konuşucuların ~%90'ı) kapsar.
+- **Katman 1 — Çevirisi hazır 83 dil kayıtlıdır:** `tr, en, es, fr, de, it, pt, nl, pl, ru, uk, cs, sv, ro, hu, bg, ar, he, hi, zh, ja, ko, id, th, bn, ur, fa, ta, te, mr, gu, kn, ml, pa, or, vi, ms, fil, ceb, da, fi, el, sk, sl, et, lv, lt, sr, hr, bs, mk, sq, hy, ka, az, kk, ky, uz, mn, sw, ha, yo, ig, zu, af, am, ne, si, my, km, lo, rw, so, mg, ht, ca, eu, gl, tuk, tat, uig, bak, crh` — dünyanın en çok konuşulan dillerini (konuşucuların ~%90'ı) kapsar.
 - **Katman 2 — ISO 639-3 canlı dillerinin tümü (7.027) listelenir:** 2+ harf yazınca görünür; çevirisi olmayan dili **seçebilirsiniz** — arayüz **İngilizce yedeğiyle** açılır ve satırda "EN UI" rozeti gösterilir. Katalog `src/i18n/catalog.json`'dur (ISO 639-3 / SIL verisi; `npm run i18n:catalog` ile yeniden üretilir); seçici açıldığında bir kez (~194 KB) lazy yüklenir, başlangıç paketini şişirmez.
 - Paketler `src/i18n/<kod>.json` dosyalarında durur; **yalnız seçtiğiniz dil indirilir** (lazy-load) — ilk açılış yavaşlamaz, paket boyutu ~2 KB/dil. Tamamının diski ~14 MB'dir ama hiç kimse tümünü indirmez.
 - **Yedek:** eksik anahtar İngilizce'ye düşer; o da yoksa anahtarın kendisi (CI yakalar).
 - Kapsam: üst çubuk, durum şeridi, ortak düğmeler ve Tema/Dil seçicileri çevrilir. **Belgeler (`docs/*.md`), AI rapor gövdesi ve modal içerikleri henüz yalnız Türkçe'dir.** `ar`/`he` seçildiğinde `lang` öznitelik doğrudur; yerleşim LTR kalır (RTL görsel denetimi ayrı iştir).
 - **Yeni dil eklemek tek komut:** `npm run i18n:new -- <kod> "<Native>" "<English>"` → `src/i18n/<kod>.json` iskeletini ve `src/lib/i18n.ts` LANGUAGES + registry kayıtlarını otomatik ekler; sonra anahtarlar çevrilir → `npm run test:i18n` PASS. Ayrıntı: [CEVIRI_KATKI.md](CEVIRI_KATKI.md). Katkılar PR ile.
-- **Dürüst sınır:** 7.027 dilin çevirisi **hiçbiri makine çevirisiyle doldurulmaz** — her biri anlamlı, gözden geçirilmiş çeviri + CI paritesiyle girer; bu da zaman/katkı ister. "Tüm diller listede, 78'i tam çeviri" bugünkü durumdur; "tüm diller tam çeviri" kelamı henüz geçerli değildir ve katkı çağrısı açıktır.
+- **Dürüst sınır:** 7.027 dilin çevirisi **hiçbiri makine çevirisiyle doldurulmaz** — her biri anlamlı, gözden geçirilmiş çeviri + CI paritesiyle girer; bu da zaman/katkı ister. "Tüm diller listede, 83'ü tam çeviri" bugünkü durumdur; "tüm diller tam çeviri" kelamı henüz geçerli değildir ve katkı çağrısı açıktır.
 
 ---
 
@@ -284,7 +284,7 @@ Arayüzde **her yeni düğme, sekme, sayfa veya süreç** değiştirildiğinde �
 
 1. **[MENU_KILAVUZU.md](MENU_KILAVUZU.md)** — düğme tablosu/haritası satırı,
 2. **Bu belgede** §4–§7 ilgili adımı (gerekirse görsel),
-3. **Dil paketleri** — yeni görünen tüm metinler `src/i18n/*.json`'a **78 dilde** eklenir ve
+3. **Dil paketleri** — yeni görünen tüm metinler `src/i18n/*.json`'a **83 dilde** eklenir ve
    `npm run test:i18n` çalıştırılır (CI da bunu zorlar). Yeni bir dil eklendiyse katalog
    denetimi (`catalog.json` içinde yaşayan ISO dili) ve kılavuzdaki sayı notları
    [CEVIRI_KATKI.md](CEVIRI_KATKI.md)'ye göre güncellenir.
