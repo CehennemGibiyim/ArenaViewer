@@ -274,7 +274,10 @@ export function buildCsp(opts: CspOptions = {}): string {
     ["form-action", "'self'"],
     ["frame-ancestors", "'self'"],
     // İhlal raporları /api/csp-report'a düşer (aynı köken; ek kimlik istemez).
-    ["report-uri", "/api/csp-report"],
+    // İKİSİ birlikte: `report-uri` eski tarayıcılar için (deprecated), `report-to`
+    // yeni tarayıcılar için (`Reporting-Endpoints` başlığıyla eşleşmeli).
+    ["report-uri", CSP_REPORT_PATH],
+    ["report-to", REPORTING_GROUP],
     ...(opts.dev ? [] : [["upgrade-insecure-requests", ""] as [string, string]]),
   ];
   return directives.map(([k, v]) => (v ? `${k} ${v}` : k)).join("; ");
@@ -334,6 +337,255 @@ export function summarizeCspReport(body: unknown): string {
     try { const u = new URL(doc); return u.origin; } catch { return ""; }
   })();
   return [directive, blocked, host].filter(Boolean).join(" | ").slice(0, 300);
+}
+
+// ───────────────── Paylaşılan hız sınırı deposu (çok örnekli dağıtım) ─────────────────
+
+/**
+ * Neden ayrı depo: `RateLimiter` sayaçları **süreç belleğinde** tutar. Ters vekil
+ * 2+ örneğe yük dağıttığında her örnek kendi sayacını tutar → gerçek sınır
+ * `limit × örnek sayısı` olur (kaba kuvvet koruması seyrelir). Bu arayüz sayaçları
+ * **ortak** bir yere taşır.
+ *
+ * Dürüst sınırlar:
+ *  - `MemoryRateStore`: yalnız tek örnekte doğru; çok örnekli kurulumda **yanlış**
+ *    (sessizce seyreltir) → `shared=false` ile işaretlenir ve açılışta uyarı verilir.
+ *  - `RedisRateStore`: `REDIS_URL` varsa kullanılır. Redis erişilemezse **fail-open**
+ *    (istek geçer) — kullanılabilirlik güvenliğe tercih edilir; ancak bu durum
+ *    sayılır (`degraded`), `/api/health` ve günlükte görünür. Hasta verisi
+ *    sızdırmamak için Redis'e yalnız sayaç anahtarı gider (IP/kullanıcı adı).
+ *  - Redis'te kayan pencere **Lua** ile atomiktir; örnekler arasında yarış yoktur.
+ */
+export interface RateStore {
+  /** Bu depo örnekler arasında paylaşılıyor mu. */
+  readonly shared: boolean;
+  /** Tek adımda say ve sonucu döndür (atomik). */
+  hit(key: string, rule: RateRule, now?: number): Promise<RateResult>;
+  /** Kaydı sil (başarılı girişte). */
+  reset(key: string): Promise<void>;
+  /** Depo sağlığı — fail-open durumunu görünür kılar. */
+  health(): Promise<{ ok: boolean; kind: "memory" | "redis"; detail: string }>;
+}
+
+/** Tek örnek için bellek deposu (mevcut `RateLimiter` davranışı birebir korunur). */
+export class MemoryRateStore implements RateStore {
+  readonly shared = false;
+  private readonly limiter: RateLimiter;
+  constructor(maxKeys = 5000) { this.limiter = new RateLimiter(maxKeys); }
+  async hit(key: string, rule: RateRule, now = Date.now()): Promise<RateResult> {
+    return this.limiter.hit(key, rule, now);
+  }
+  async reset(key: string): Promise<void> { this.limiter.reset(key); }
+  async health() {
+    return { ok: true, kind: "memory" as const, detail: "Süreç belleği (tek örnek). Çok örnekli dağıtımda sayaçlar paylaşılmaz." };
+  }
+}
+
+/**
+ * Redis komutlarının ihtiyaç duyduğu en küçük yüzey. Gerçek istemci enjekte edilir;
+ * bu modül Redis sürücüsüne bağımlı DEĞİLDİR (bağımlılık eklenmez, test edilebilir).
+ */
+export interface RedisLike {
+  /** `EVAL script numkeys key... arg...` → tek sayı/dizi döndürür. */
+  eval(script: string, numKeys: number, ...args: (string | number)[]): Promise<unknown>;
+  /** Basit ping (sağlık). */
+  ping?(): Promise<string>;
+}
+
+/**
+ * Lua: kayan pencere sayacı (atomik).
+ * KEYS[1] = sayaç anahtarı · ARGV = now(ms), windowMs, limit
+ * Dönen: {sayılan istek, pencere içindeki en eski zaman, toplam}
+ */
+export const RATE_LUA = `
+local now = tonumber(ARGV[1])
+local window = tonumber(ARGV[2])
+local limit = tonumber(ARGV[3])
+redis.call('ZREMRANGEBYSCORE', KEYS[1], 0, now - window)
+local total = redis.call('ZCARD', KEYS[1])
+local count = total + 1
+redis.call('ZADD', KEYS[1], now, tostring(now) .. ':' .. tostring(count) .. ':' .. tostring(math.random(1000000)))
+redis.call('PEXPIRE', KEYS[1], window + 1000)
+local oldest = now
+local first = redis.call('ZRANGE', KEYS[1], 0, 0, 'WITHSCORES')
+if first and first[2] then oldest = tonumber(first[2]) end
+return {count, oldest, limit}
+`;
+
+/** Redis destekli depo: sayaçlar örnekler arasında **paylaşılır**. */
+export class RedisRateStore implements RateStore {
+  readonly shared = true;
+  private failCount = 0;
+  private lastOkAt = 0;
+  constructor(private readonly client: RedisLike, private readonly keyPrefix = "av:rate:") {}
+
+  /** Lua sonucunu `RateResult`'a çevirir (saf; test edilir). */
+  static toResult(reply: unknown, rule: RateRule, now: number): RateResult {
+    const arr = Array.isArray(reply) ? reply.map((v) => Number(v)) : [];
+    const [count, oldest] = arr;
+    if (!Number.isFinite(count) || count <= 0) {
+      // Beklenmeyen yanıt: isteği geçir (fail-open), kalan bilinmiyor.
+      return { ok: true, remaining: rule.limit, retryAfterSec: 0, limit: rule.limit };
+    }
+    const remaining = Math.max(0, rule.limit - count);
+    return {
+      ok: count <= rule.limit,
+      remaining,
+      retryAfterSec: count > rule.limit ? Math.max(1, Math.ceil((rule.windowMs - (now - (oldest || now))) / 1000)) : 0,
+      limit: rule.limit,
+    };
+  }
+
+  async hit(key: string, rule: RateRule, now = Date.now()): Promise<RateResult> {
+    try {
+      const reply = await this.client.eval(RATE_LUA, 1, this.keyPrefix + key, now, rule.windowMs, rule.limit);
+      this.failCount = 0;
+      this.lastOkAt = now;
+      return RedisRateStore.toResult(reply, rule, now);
+    } catch {
+      // FAIL-OPEN: Redis yoksa hizmet durmaz; durum sayılır ve health'te görünür.
+      this.failCount++;
+      return { ok: true, remaining: rule.limit, retryAfterSec: 0, limit: rule.limit };
+    }
+  }
+
+  async reset(key: string): Promise<void> {
+    try { await this.client.eval("redis.call('DEL', KEYS[1]) return 1", 1, this.keyPrefix + key); } catch { this.failCount++; }
+  }
+
+  async health() {
+    if (this.failCount > 0) {
+      return { ok: false, kind: "redis" as const, detail: `Redis erişilemiyor (${this.failCount} hata); hız sınırı FAIL-OPEN — sayaçlar paylaşılmıyor.` };
+    }
+    try {
+      if (this.client.ping) await this.client.ping();
+      return { ok: true, kind: "redis" as const, detail: `Sayaçlar Redis'te paylaşılıyor (${this.keyPrefix}); son başarılı sayaç ${this.lastOkAt ? new Date(this.lastOkAt).toISOString() : "—"}.` };
+    } catch {
+      this.failCount++;
+      return { ok: false, kind: "redis" as const, detail: "Redis PING başarısız; hız sınırı FAIL-OPEN." };
+    }
+  }
+}
+
+/**
+ * Ortamdan depo seçer: `REDIS_URL` varsa Redis, yoksa bellek.
+ *
+ * Redis istemcisi **enjekte edilir** (çağıran `createClient`'ı `REDIS_URL` ile kurar);
+ * bu fonksiyon yalnız kararı ve uyarı metnini üretir → sürücü bağımlılığı yok.
+ */
+export function rateStorePlan(env: Record<string, string | undefined> = process.env): {
+  kind: "redis" | "memory"; shared: boolean; warning: string | null;
+} {
+  const url = (env.REDIS_URL ?? "").trim();
+  const instances = Number(env.INSTANCE_COUNT ?? "1");
+  if (!url) {
+    const multi = Number.isFinite(instances) && instances > 1;
+    return {
+      kind: "memory",
+      shared: false,
+      warning: multi
+        ? `INSTANCE_COUNT=${instances} ama REDIS_URL tanımlı değil: hız sınırı sayaçları her örnekte ayrı tutulur (gerçek sınır ≈ limit × ${instances}).`
+        : null,
+    };
+  }
+  if (!/^rediss?:\/\//i.test(url)) {
+    return { kind: "memory", shared: false, warning: "REDIS_URL biçimi geçersiz (redis:// veya rediss:// bekleniyor); bellek deposuna düşüldü." };
+  }
+  return { kind: "redis", shared: true, warning: null };
+}
+
+/**
+ * Proxy ve testler için **tek karar noktası**: paylaşılan depo varsa ondan,
+ * yoksa bellek deposundan say. Böylece "hangi sayaç kullanıldı" kararı koda
+ * dağılmaz ve test edilebilir kalır.
+ *
+ * `shared` alanı yanıt başlığında (`X-RateLimit-Shared`) görünür: ters vekil
+ * yanlış yapılandırıldıysa (REDIS_URL yok ama 3 örnek) operatör bunu **canlı**
+ * trafikte görebilir, yalnız açılış günlüğüne mahkûm olmaz.
+ */
+export async function rateHit(
+  subject: string,
+  rule: RateRule,
+  opts: { memory: RateStore; shared?: RateStore; now?: number },
+): Promise<RateResult & { shared: boolean }> {
+  const store = opts.shared;
+  if (store) {
+    const r = await store.hit(subject, rule, opts.now);
+    return { ...r, shared: true };
+  }
+  const r = await opts.memory.hit(subject, rule, opts.now);
+  return { ...r, shared: opts.memory.shared };
+}
+
+// ───────────────────────── Raporlama (report-to) ─────────────────────────
+
+/** `Reporting-Endpoints` başlığında bildirilen grup adı. */
+export const REPORTING_GROUP = "csp-endpoint";
+
+/**
+ * Modern raporlama başlıkları (CSP `report-to` + `Reporting-Endpoints`).
+ *
+ * Neden: `report-uri` **eski yöntemdir** (deprecated). Chrome 130+ / Firefox
+ * `Report-To` yerine **`Reporting-Endpoints`** kullanıyor; yeni tarayıcılar
+ * `report-uri` desteğini küçültüyor. İkisi birlikte gönderilir: eski tarayıcı
+ * `report-uri` yolunu, yeni tarayıcı `report-to` + `Reporting-Endpoints` yolunu
+ * kullanır; aynı uç her iki gövde biçimini de kabul eder.
+ */
+export function reportingHeaders(path = CSP_REPORT_PATH): Record<string, string> {
+  // Grup tanımı: `grup="url"` (aynı köken; ek kimlik istemez).
+  return {
+    "Reporting-Endpoints": `${REPORTING_GROUP}="${path}"`,
+    // Eski tarayıcı için `Report-To` (JSON) — yeni tarayıcılar bunu yok sayar.
+    "Report-To": JSON.stringify({ group: REPORTING_GROUP, max_age: 10886400, endpoints: [{ url: path }] }),
+  };
+}
+
+/**
+ * Rapor gövdesini **tek biçime** indirger.
+ *
+ * Üç biçim gelir:
+ *  1. `application/csp-report` → `{ "csp-report": { ... } }` (klasik)
+ *  2. `application/reports+json` → `[{ type: "csp-violation", body: { ... } }, ...]` (Reporting API)
+ *  3. `application/report` → `{ type, body }` (eski Reporting API)
+ *
+ * Dönen: kısa, güvenli özet satırı (yönerge | engellenen | köken). Boşsa `""`.
+ * Kontrol karakterleri temizlenir (günlük enjeksiyonu), tam URL yazılmaz (PHI).
+ */
+export function normalizeReport(body: unknown, contentType = ""): { type: string; line: string } {
+  const pick = (o: unknown): { type: string; line: string } => {
+    const rec = (o ?? {}) as Record<string, unknown>;
+    const type = typeof rec.type === "string" ? rec.type : "";
+    // Reporting API gövdesi `body`, klasik CSP gövdesi kökün kendisi.
+    const b = (rec.body ?? rec["csp-report"] ?? rec) as Record<string, unknown>;
+    const line = summarizeCspReport({ "csp-report": b });
+    if (line) return { type: type || "csp-violation", line };
+    // Klasik biçimde kök nesnenin kendisi csp-report olur.
+    const direct = summarizeCspReport(rec);
+    return { type: type || "csp-violation", line: direct };
+  };
+  if (Array.isArray(body)) {
+    // Çoklu rapor: her öğe ayrı satır; burada ilk dolu olanı döndür (çağıran hepsini işler).
+    for (const item of body) {
+      const r = pick(item);
+      if (r.line) return r;
+    }
+    return { type: "csp-violation", line: "" };
+  }
+  const r = pick(body);
+  if (r.line) return r;
+  return { type: r.type || (contentType.includes("reports+json") ? "report" : "csp-violation"), line: "" };
+}
+
+/** Raporda işlenecek tüm satırlar (çoklu `reports+json` dizisi için). */
+export function reportLines(body: unknown, max = 5): { type: string; line: string }[] {
+  const items = Array.isArray(body) ? body.slice(0, Math.max(1, max)) : [body];
+  const out: { type: string; line: string }[] = [];
+  for (const it of items) {
+    const { type, line } = normalizeReport(it);
+    // Deprecation/intervention da kayda değer: yalnız CSP ile sınırlı değiliz.
+    if (line) out.push({ type: type || "csp-violation", line });
+  }
+  return out;
 }
 
 // ───────────────────────── TLS / HSTS politikası ─────────────────────────

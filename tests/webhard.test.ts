@@ -209,7 +209,8 @@ async function main() {
 
   // ── 7) CSP rapor ucu ───────────────────────────────────────────────────
   const reportRoute = read("src/app/api/csp-report/route.ts");
-  assert.ok(reportRoute.includes("summarizeCspReport"), "rapor ucu özeti kullanır");
+  assert.ok(reportRoute.includes("reportLines"), "rapor ucu normalize edilmiş satırları kullanır");
+  assert.ok(reportRoute.includes("type"), "rapor türü (csp-violation/deprecation) denetime taşınır");
   assert.ok(reportRoute.includes("16_384"), "gövde sınırı var");
   assert.ok(reportRoute.includes("status: 204"), "her durumda 204 (rapor döngüsü kırılmaz)");
   assert.ok(!reportRoute.includes("authorize("), "kimlik doğrulaması yok (tarayıcı raporları çerezsiz gelir)");

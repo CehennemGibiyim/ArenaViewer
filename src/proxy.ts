@@ -10,19 +10,42 @@ import {
   httpsUrlFor,
   isStateChanging,
   newCsrfToken,
+  rateStorePlan,
   RateLimiter,
+  reportingHeaders,
   ruleFor,
   tlsPolicy,
   tlsViolation,
 } from "@/lib/webSecurity";
 
 /**
- * Hız sınırı sayaçları (g-webhard). Proxy süreç belleğinde tutulur: tek örnekli
- * kurulumda yeterlidir, çok örnekli dağıtımda Redis tabanlı bir depo gerekir.
+ * Hız sınırı sayaçları (g-webhard).
+ *
+ * Depo seçimi `rateStorePlan()` ile yapılır: `REDIS_URL` varsa sayaçlar örnekler
+ * arasında **paylaşılır** (`RedisRateStore`), yoksa süreç belleğinde tutulur.
+ *
+ * Neden ayrım: proxy **Edge çalışma zamanında** koşar ve Redis sürücüsüne
+ * bağımlılık eklemek istemedik. Bu yüzden burada yalnız **karar + uyarı** var;
+ * Redis istemcisi gerçek dağıtımda `src/instrumentation.ts` içinde kurulur ve
+ * `globalThis.__avRateStore` üzerinden buraya verilir (`RateStore` arayüzü).
+ * İstemci yoksa bellek deposuna düşülür ve `INSTANCE_COUNT>1` ise açılışta
+ * uyarı verilir — sessiz seyreltme yok.
+ *
  * `globalThis` üzerinde: geliştirme modunda modül yeniden yüklenince sıfırlanmasın.
  */
-const g = globalThis as unknown as { __avRate?: RateLimiter };
+type AsyncStore = {
+  hit(key: string, rule: { limit: number; windowMs: number }, now?: number): Promise<{ ok: boolean; remaining: number; retryAfterSec: number; limit: number }>;
+  shared: boolean;
+};
+const g = globalThis as unknown as { __avRate?: RateLimiter; __avRateStore?: AsyncStore; __avRateWarned?: boolean };
 const limiter = (g.__avRate ??= new RateLimiter());
+const plan = rateStorePlan();
+if (plan.warning && !g.__avRateWarned) {
+  g.__avRateWarned = true;
+  console.warn(`[g-webhard] ${plan.warning}`);
+}
+/** Redis destekli depo (varsa) — instrumentation tarafından atanır. */
+const sharedStore = (): AsyncStore | undefined => (plan.kind === "redis" ? g.__avRateStore : undefined);
 
 /**
  * Önizleme panelleri uygulamayı bazen kökeni "null" olan kısıtlı bir iframe içinde açar.
@@ -103,6 +126,10 @@ export function proxy(req: NextRequest) {
   // `AV_RATE_LIMIT=off` testler/ölçüm için kapatır (varsayılan: açık).
   const rule = process.env.AV_RATE_LIMIT === "off" ? null : ruleFor(path, req.method);
   if (rule) {
+    // Proxy SENKRON kalır (Edge uyumu): paylaşılan depo varsa da burada bellek
+    // yolu kullanılır ve `shared` bayrağı yanlış yapılandırmayı görünür kılar.
+    // Paylaşılan sayaçlar API uçlarında `rateHit` üzerinden okunur; proxy'nin
+    // amacı kaba kuvveti erken kesmek — ikinci katman API'de daha doğru sayar.
     const r = limiter.hit(clientKey(req.headers), rule.rule);
     if (!r.ok) {
       return NextResponse.json(
@@ -113,6 +140,7 @@ export function proxy(req: NextRequest) {
             "Retry-After": String(r.retryAfterSec),
             "X-RateLimit-Limit": String(r.limit),
             "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Shared": sharedStore() ? "1" : "0",
             "Cache-Control": "no-store",
           },
         },
@@ -178,6 +206,8 @@ export function proxy(req: NextRequest) {
     res.headers.set("Content-Security-Policy", csp);
     res.headers.set("X-Frame-Options", "SAMEORIGIN");
     res.headers.set("x-csp-nonce", nonce);
+    // Modern raporlama: `report-to` yönergesinin çözülebilmesi için grup tanımı.
+    for (const [k, v] of Object.entries(reportingHeaders())) res.headers.set(k, v);
   }
 
   // CSRF çerezini (çift gönderim jetonu) yoksa oluştur; HttpOnly DEĞİL çünkü

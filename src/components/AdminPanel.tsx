@@ -27,6 +27,13 @@ interface HealthOut {
   summary: { ok: number; uyari: number; kritik: number; bilgi: number; total: number };
   health: { ready: boolean | null; live: boolean | null; error?: string };
   metrics: { ok: boolean; parsed: ParsedMetric[]; error?: string };
+  /** Hız sınırı deposu (g-webhard): paylaşımlı mı, sağlığı ne? */
+  rateStore?: {
+    kind: "redis" | "memory";
+    shared: boolean;
+    warning: string | null;
+    health: { ok: boolean; kind: "redis" | "memory"; detail: string } | null;
+  };
   note: string;
 }
 /** Paylaşım bağlantısı satırı (sunucu `ShareRow`). */
@@ -1531,6 +1538,37 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
                     </div>
                   ))}
                 </div>
+                {health.rateStore && (
+                  <div className={`${card} space-y-1`}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <b className="text-xs text-[var(--sl200)]">Hız sınırı deposu</b>
+                      <span className="text-[10.5px] text-[var(--sl500)]">
+                        {health.rateStore.shared ? "paylaşımlı (örnekler arası)" : "süreç belleği"}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 font-mono text-[11px]">
+                      <span className={health.rateStore.shared ? "text-[var(--ac-emerald300)]" : "text-[var(--ac-amber300)]"}>
+                        {health.rateStore.kind}
+                      </span>
+                      {health.rateStore.health && (
+                        <span className={health.rateStore.health.ok ? "text-[var(--ac-emerald300)]" : "text-[var(--ac-red300)]"}>
+                          {health.rateStore.health.ok ? "sağlıklı" : "FAIL-OPEN"}
+                        </span>
+                      )}
+                    </div>
+                    {health.rateStore.health && (
+                      <p className="text-[10.5px] leading-relaxed text-[var(--sl400)]">{health.rateStore.health.detail}</p>
+                    )}
+                    {health.rateStore.warning && (
+                      <p className="text-[10.5px] leading-relaxed text-[var(--ac-amber300)]">{health.rateStore.warning}</p>
+                    )}
+                    {!health.rateStore.shared && (
+                      <p className="text-[10px] leading-relaxed text-[var(--sl500)]">
+                        Tek örnekte sorun değil; birden çok örnekte gerçek sınır örnek sayısıyla çarpılır — REDIS_URL tanımlayın.
+                      </p>
+                    )}
+                  </div>
+                )}
                 <p className="text-[10.5px] leading-relaxed text-[var(--sl500)]">{health.note}</p>
               </>
             )}

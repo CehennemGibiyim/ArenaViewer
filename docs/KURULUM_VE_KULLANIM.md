@@ -199,6 +199,29 @@ Hepsi **research** etiketlidir; tanı/karar desteği iddiası yoktur.
 Sağlık denetimi: `curl http://127.0.0.1:8787/health` → `{"ok": true, ...}`.
 Windows'ta tek tuş: `windows\Kurulum.bat -Knee` (diz modelini ayrıca indirir).
 
+## 5b. Çok örnekli dağıtım (paylaşılan hız sınırı)
+
+Birden fazla kopya (Docker Swarm/Kubernetes/PM2 cluster) çalıştırıyorsanız hız sınırı
+sayaçları örnekler arasında paylaşılmalıdır; aksi hâlde gerçek sınır `limit × örnek sayısı`
+olur ve kaba kuvvet koruması seyrelir.
+
+```bash
+# tek Redis (veya yönetilen Redis) yeterli
+REDIS_URL=redis://kullanici:parola@redis:6379/0
+INSTANCE_COUNT=3   # yalnızca Redis YOKKEN uyarı üretmek için kullanılır
+```
+
+- `REDIS_URL` tanımlıysa: sayaçlar Redis'te **kayan pencere Lua** ile atomik tutulur; anahtar
+  yalnız `av:rate:<IP|kullanıcı>` biçimindedir (hasta verisi yazılmaz). Parola yanıt/günlükte
+  görünmez. `rediss://` (TLS) desteklenir.
+- `REDIS_URL` yok + `INSTANCE_COUNT>1`: açılışta uyarı; `429` yanıtında `X-RateLimit-Shared: 0`;
+  Yönetim → Sağlık sekmesinde **kritik** bulgu.
+- Redis düşerse hız sınırı **fail-open** çalışır (istekler geçer, hizmet durmaz); durum
+  `health()` ile Sağlık sekmesinde "FAIL-OPEN" olarak görünür.
+- Kurulum `src/instrumentation.ts` içinde; istemci bağımlılıksız RESPB (`src/lib/rateStoreRuntime.ts`).
+  Kendi istemcinizi bağlamak için `installRateStore` yerine `globalThis.__avRateStore = new RedisRateStore(ioredisClient)`
+  yeterlidir (`RedisLike`: `eval` + `ping`).
+
 ## 6. Sorun giderme
 
 ![Sorun giderme akışı](img/diyagram-sorun-giderme.jpg)

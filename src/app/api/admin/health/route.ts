@@ -4,6 +4,7 @@ import { keySource, getKeyring } from "@/lib/server/crypto";
 import { fileStorage } from "@/lib/server/storage";
 import { APP_VERSION } from "@/lib/version";
 import { evaluateEnv, parsePrometheus, summarizeChecks, type EnvSnapshot } from "@/lib/adminHealth";
+import { rateStorePlan } from "@/lib/webSecurity";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +54,29 @@ export async function GET(req: NextRequest) {
     requireTotpRoles: process.env.REQUIRE_TOTP_FOR_ROLES ?? "yonetici",
   };
 
+  // Hız sınırı deposu: çok örnekli kurulumda bellek deposu sessiz seyreltme
+  // demektir; panel bunu "kritik" olarak görür (g-webhard).
+  const plan = rateStorePlan();
+  const live = globalThis.__avRateStore;
+  const rateStore = {
+    kind: plan.kind,
+    shared: plan.shared,
+    warning: plan.warning,
+    // Depo kurulduysa sağlığı; kurulmadıysa "yok" (uydurma yok).
+    health: live ? await live.health() : null,
+  };
+
   const checks = evaluateEnv(env);
+  if (plan.warning) {
+    checks.push({
+      id: "rate-store",
+      label: "Hız sınırı deposu (paylaşımlı)",
+      level: plan.kind === "memory" ? "kritik" : "uyari",
+      value: plan.kind === "redis" ? "redis" : "bellek",
+      hint: plan.warning,
+      doc: "docs/KURULUM_VE_KULLANIM.md §5b",
+    });
+  }
   const summary = summarizeChecks(checks);
 
   // Metrikler: kendi ucumuzu HTTP üzerinden çağırmak yerine aynı süreçte
@@ -91,6 +114,7 @@ export async function GET(req: NextRequest) {
     summary,
     health,
     metrics,
+    rateStore,
     /** Panelin gösterdiği uyarı: veri yoksa \"sağlıklı\" denmez. */
     note: metrics.ok && health.ready !== null
       ? "Tüm değerler bu sunucudan okundu."

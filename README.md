@@ -810,8 +810,19 @@ docs/             Yayınlama ve işletim kılavuzları (görsel + videolu: docs/
   yalnız yönerge/engellenen adres/köken yazılır (hasta bağlamı taşınmaz).
 - **Hız sınırı:** API uçları sınıf bazlı kayan pencere ile sınırlanır (giriş 10/dk,
   analiz 30/dk, PACS/HBYS 60/dk, yazma 120/dk, genel 600/dk). Sınır aşımı `429` +
-  `Retry-After` döner. Sayaçlar süreç belleğindedir (tek örnek); çok örnekli dağıtımda
-  Redis gerekir. Ölçüm/test için `AV_RATE_LIMIT=off`.
+  `Retry-After` döner. **Çok örnekli dağıtım:** `REDIS_URL=redis://…` verilirse sayaçlar
+  Redis'te **kayan pencere Lua** ile atomik ve örnekler arası paylaşılır (anahtar
+  `av:rate:<IP|kullanıcı>` — yalnız sayaç, PHI yok). `REDIS_URL` yokken `INSTANCE_COUNT>1`
+  ise gerçek sınır ≈ `limit × örnek sayısı` olur; uygulama **açılışta uyarır**, 429 yanıtında
+  `X-RateLimit-Shared: 0` görünür ve Yönetim → Sağlık bunu **kritik** bulgu olarak listeler.
+  Redis erişilemezse hız sınırı **fail-open** çalışır (istek geçer, durum `health()` ile görünür).
+  İstemci sürücü bağımlılığı olmadan RESPB ile yazıldı (`src/lib/rateStoreRuntime.ts`); gerçek
+  istemci `installRateStore` ile enjekte edilebilir. Ölçüm/test için `AV_RATE_LIMIT=off`.
+- **CSP raporları:** CSP hem `report-uri` (eski) hem `report-to` taşır; yanıtlarda
+  `Reporting-Endpoints: csp-endpoint="/api/csp-report"` + `Report-To` grubu verilir. Rapor ucu
+  klasik `csp-report` gövdesini, Reporting API'nin `application/reports+json` dizisini ve tekil
+  `{type,body}` biçimini işler; her satır türe göre denetim zincirine (ve SIEM kuyruğuna) yazılır,
+  dizide en çok 5 satır alınır, özette yalnız yönerge + engellenen köken bulunur.
 - **CSRF:** durum değiştiren API istekleri `Origin`/`Referer`/`Sec-Fetch-Site` kontrolünden
   ve `av_csrf` çerezi ↔ `x-csrf-token` başlığı eşleşmesinden geçer (tarayıcı tarafındaki
   yardımcı: `src/lib/csrfClient.ts` → `apiFetch`). İlk sayfa yüklemesindeki çerez yarışı
