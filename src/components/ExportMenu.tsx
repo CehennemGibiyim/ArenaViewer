@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Annotation, KeyImage, SeriesData } from "@/lib/types";
 import { exportPngZip, exportVideoWebm } from "@/lib/exportMedia";
 import { buildKeyObjectSelection, buildPresentationState } from "@/lib/dicomSr";
@@ -18,6 +18,19 @@ import { sendDerivedToPacs } from "@/lib/sendDerived";
 import { type CodeTable, parseCodeTable } from "@/lib/codeMapping";
 import { loadCodeTable, CODE_MAP_KEY } from "@/lib/codeTableClient";
 import { writePreference } from "@/lib/browserPreferences";
+
+interface QueueItem {
+  id: number;
+  kind: string;
+  studyUid: string;
+  fileName: string;
+  attempts: number;
+  lastError: string;
+  lastAttemptAt: string | null;
+  createdAt: string;
+  owner: string;
+  exhausted?: boolean;
+}
 
 interface Props {
   series: SeriesData | null;
@@ -52,6 +65,51 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
   const [prog, setProg] = useState<{ done: number; total: number } | null>(null);
   const [sending, setSending] = useState<"ko" | "pr" | "anon" | "seg" | "rtstruct" | null>(null);
   const [stowDlg, setStowDlg] = useState(false);
+  const [queueCount, setQueueCount] = useState<number | null>(null);
+  const [queueOpen, setQueueOpen] = useState(false);
+  const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
+  const [queueBusy, setQueueBusy] = useState(false);
+
+  const refreshQueue = async () => {
+    try {
+      const r = await apiFetch("/api/pacs/stow/queue", { method: "GET" });
+      if (!r.ok) { setQueueCount(null); return; }
+      const d = (await r.json().catch(() => ({}))) as { items?: QueueItem[] };
+      setQueueItems(d.items ?? []);
+      setQueueCount(d.items?.length ?? 0);
+    } catch {
+      setQueueCount(null);
+    }
+  };
+  const flushQueue = async () => {
+    setQueueBusy(true);
+    try {
+      const r = await apiFetch("/api/pacs/stow/queue", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "flush" }),
+      });
+      const d = (await r.json().catch(() => ({}))) as { tried?: number; sent?: number; failed?: number; error?: string };
+      if (!r.ok) toast(`Kuyruk gönderilemedi: ${d.error ?? "PACS yapılandırılmamış ya da hatalı"}`, 8000);
+      else toast(`Kuyruk: ${d.sent ?? 0} gönderildi, ${d.failed ?? 0} başarısız (${d.tried ?? 0} denendi).`, 8000);
+    } finally {
+      setQueueBusy(false);
+      await refreshQueue();
+    }
+  };
+  const discardQueued = async (id: number) => {
+    setQueueBusy(true);
+    try {
+      const r = await apiFetch("/api/pacs/stow/queue", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "discard", id }),
+      });
+      if (!r.ok) { const d = (await r.json().catch(() => ({}))) as { error?: string }; toast(`Kaldırılamadı: ${d.error ?? "hata"}`, 6000); }
+    } finally {
+      setQueueBusy(false);
+      await refreshQueue();
+    }
+  };
+  // Menü açıldığında kuyruk sayacını tazele — setState'i mikro göreve ertele
+  // (linter: effect gövdesinde senkron setState yasak), sıra dışı render engellenir.
+  useEffect(() => { if (!open) return; const t = setTimeout(() => void refreshQueue(), 0); return () => clearTimeout(t); }, [open]);
   const [stowType, setStowType] = useState<"ko" | "pr" | "anon-all" | "anon-range">("anon-all");
   const [stowFrom, setStowFrom] = useState(1);
   const [stowTo, setStowTo] = useState(1);
@@ -277,7 +335,7 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
       try {
         const out = await sendDerivedToPacs(kind, bytes, series.studyUid, `${ext}-${series.modality}-${mask.slices.size}-kesit.dcm`);
         if (out.ok) toast(`${ext} PACS'e gönderildi — ${out.stored} nesne (${out.pacs ?? "PACS"}). Araştırma amaçlıdır; PACS kabulü kurumunuza bağlıdır.`, 7000);
-        else toast(`PACS'e gönderilemedi: ${out.error}`, 9000);
+        else toast(`PACS'e gönderilemedi: ${out.error}${out.queued ? ` — ${out.queued} nesne yeniden deneme kuyruğuna alındı (Dışa aktar ▾ → ⏳ Kuyruk)` : ""}`, 9000);
       } finally {
         setSending(null);
       }
@@ -335,6 +393,7 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
           <button className={item} disabled={sending !== null} onClick={() => { setStowType("anon-all"); setStowFrom(1); setStowTo(n); setStowDlg(true); setOpen(false); }} title="Nesne türü (KO / PR / anonim seri) ve anonim gönderimde kesit aralığını seçerek gönderir">☁ PACS&apos;e gönder (STOW)…</button>
           <button className={item} disabled={sending !== null} onClick={() => void exportSeg("seg", "pacs")} title="İşaretli alanlardan üretilen DICOM SEG'i PACS'e STOW-RS ile geri yazar">☁ SEG → PACS&apos;e gönder (STOW)</button>
           <button className={item} disabled={sending !== null} onClick={() => void exportSeg("rtstruct", "pacs")} title="İşaretli alanlardan üretilen RTSTRUCT'u PACS'e STOW-RS ile geri yazar">☁ RTSTRUCT → PACS&apos;e gönder (STOW)</button>
+          <button className={item} onClick={() => { setOpen(false); setQueueOpen(true); void refreshQueue(); }} title="PACS'a yazılamayan SEG/RTSTRUCT nesnelerini listeler, yeniden dener veya kaldırır (A0.3)">⏳ Gönderim kuyruğu{queueCount !== null ? ` (${queueCount})` : ""}</button>
           <button className={item} disabled={sending !== null} onClick={() => void exportSeg("seg")} title="İşaretli alanlardan DICOM Segmentasyon (SEG, 1 bit/piksel) üretir">🧩 Segmentasyon → DICOM SEG</button>
           <button className={item} disabled={sending !== null} onClick={() => void exportSeg("rtstruct")} title="İşaretli alanlardan RTSTRUCT (ROI konturları) üretir">🧩 Segmentasyon → RTSTRUCT</button>
           <button className={item} onClick={exportSr1500} title="Ölçümleri TID 1500 yapılandırılmış rapor (Comprehensive SR) olarak indirir">📐 Ölçümler → DICOM SR (TID 1500)</button>
@@ -360,6 +419,37 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
             <div className="mt-4 flex justify-end gap-2">
               <button className="cursor-pointer rounded border border-[var(--t39)] px-3 py-1" onClick={() => { abort.current?.abort(); setDlg(null); }}>{prog ? "İptal" : "Kapat"}</button>
               <button data-testid="export-run" disabled={!!prog} className="cursor-pointer rounded bg-cyan-500 px-3 py-1 font-bold text-black disabled:opacity-50" onClick={() => void run()}>{prog ? `${prog.done}/${prog.total}` : "Dışa aktar"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {queueOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setQueueOpen(false)}>
+          <div role="dialog" aria-modal="true" aria-label="PACS gönderim kuyruğu" className="max-h-[80vh] w-[34rem] overflow-auto rounded-xl border border-[var(--t39)] bg-[var(--t05)] p-4 text-xs text-[var(--sl200)] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-2 flex items-center justify-between">
+              <div className="text-sm font-bold text-[var(--ac-cyan300)]">⏳ PACS gönderim kuyruğu</div>
+              <button onClick={() => setQueueOpen(false)} aria-label="Kapat" className="cursor-pointer rounded border border-[var(--t39)] px-2 py-0.5">✕</button>
+            </div>
+            <p className="mb-2 text-[10px] leading-snug text-[var(--sl500)]">PACS&apos;a yazılamayan SEG/RTSTRUCT nesneleri sunucuda AES-256-GCM ile şifreli olarak bekler. İçerik reddi (0008,1198) alan nesneler kendiliğinden iyileşmez — son hata satırını okuyup kaldırabilirsiniz. Yönetici tümü, diğer roller yalnız kendi nesnelerini görür.</p>
+            {queueItems.length === 0 ? (
+              <div className="rounded border border-[var(--t25)] p-3 text-center text-[var(--sl500)]">Kuyruk boş.</div>
+            ) : (
+              <ul className="space-y-1.5">
+                {queueItems.map((it) => (
+                  <li key={it.id} className="flex items-start justify-between gap-2 rounded border border-[var(--t25)] p-2">
+                    <div className="min-w-0">
+                      <div className="font-semibold">{it.kind === "seg" ? "🧩 SEG" : "🗂️ RTSTRUCT"} · {it.fileName || "(isimsiz)"}{it.exhausted ? " · vazgeçildi (8/8)" : ""}</div>
+                      <div className="truncate text-[10px] text-[var(--sl500)]">study {it.studyUid} · {new Date(it.createdAt).toLocaleString("tr-TR")}{it.owner ? ` · ${it.owner}` : ""} · deneme {it.attempts}</div>
+                      {it.lastError && <div className="mt-0.5 line-clamp-2 text-[10px] text-[var(--ac-amber300)]/90">{it.lastError}</div>}
+                    </div>
+                    <button className="shrink-0 cursor-pointer rounded border border-rose-400/40 px-2 py-1 text-[var(--ac-rose200)] hover:bg-rose-400/10" onClick={() => void discardQueued(it.id)}>Kaldır</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="mt-3 flex justify-end gap-2">
+              <button className="cursor-pointer rounded border border-[var(--t39)] px-3 py-1" onClick={() => setQueueOpen(false)}>Kapat</button>
+              <button disabled={queueBusy || queueItems.length === 0} className="cursor-pointer rounded bg-cyan-500 px-3 py-1 font-bold text-black disabled:opacity-50" onClick={() => void flushQueue()}>{queueBusy ? "Gönderiliyor…" : "Tümünü tekrar dene"}</button>
             </div>
           </div>
         </div>

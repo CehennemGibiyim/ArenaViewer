@@ -123,7 +123,7 @@ export default function KneeSegPanel({ series, onClose, onAddToFindings, toast }
       try {
         const out = await sendDerivedToPacs(kind, bytes, series.studyUid, filename);
         if (out.ok) toast?.(`${ext} PACS'e gönderildi — ${out.stored} nesne (${out.pacs ?? "PACS"}). Araştırma amaçlıdır; PACS kabulü kurumunuza bağlıdır.`, 8000);
-        else toast?.(`PACS'e gönderilemedi: ${out.error}`, 9000);
+        else toast?.(`PACS'e gönderilemedi: ${out.error}${out.queued ? ` — ${out.queued} nesne yeniden deneme kuyruğuna alındı (Dışa aktar ▾ → ⏳ Kuyruk)` : ""}`, 9000);
       } finally {
         setSending(false);
       }
