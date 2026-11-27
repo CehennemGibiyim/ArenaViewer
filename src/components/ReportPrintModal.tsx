@@ -131,10 +131,10 @@ function MicButton({ onText, onClear }: { onText: (t: string) => void; onClear?:
   };
   return (
     <span className="inline-flex items-center">
-      <button type="button" onClick={toggle} title="Sesle dikte (Türkçe). Komutlar: nokta, virgül, iki nokta, yeni satır, yeni paragraf, temizle; sayılar ve tıbbi terimler otomatik düzeltilir." className={`ml-2 rounded px-1.5 text-[10px] font-bold ${on ? "animate-pulse bg-rose-500 text-white" : "bg-slate-200 text-slate-700 hover:bg-slate-300"}`}>
+      <button type="button" onClick={toggle} title="Sesle dikte (Türkçe). Komutlar: nokta, virgül, iki nokta, yeni satır, yeni paragraf, temizle; sayılar ve tıbbi terimler otomatik düzeltilir." className={`ml-2 rounded px-1.5 text-[10px] font-bold ${on ? "animate-pulse bg-rose-500 text-white" : "bg-[var(--sl200)] text-[var(--sl700)] hover:bg-[var(--sl300)]"}`}>
         {on ? "● dinliyor" : "🎤 dikte"}
       </button>
-      {hint && <span className="ml-1 text-[9px] italic text-slate-500">{hint}</span>}
+      {hint && <span className="ml-1 text-[9px] italic text-[var(--sl500)]">{hint}</span>}
     </span>
   );
 }
@@ -161,8 +161,8 @@ function ReportField({ name, rows, value, editing, onChange, onMic, onClear, onG
     });
   return (
     <div>
-      <div className="flex items-center font-bold uppercase text-slate-900">{name}{editing && <MicButton onText={onMic} onClear={onClear} />}</div>
-      {editing ? <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={rows} className="mt-1 w-full rounded border border-slate-300 p-2 text-xs" /> : <p className="mt-0.5 whitespace-pre-wrap">{linkify(value)}</p>}
+      <div className="flex items-center font-bold uppercase text-[var(--sl900)]">{name}{editing && <MicButton onText={onMic} onClear={onClear} />}</div>
+      {editing ? <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={rows} className="mt-1 w-full rounded border border-[var(--sl300)] p-2 text-xs" /> : <p className="mt-0.5 whitespace-pre-wrap">{linkify(value)}</p>}
     </div>
   );
 }
@@ -566,69 +566,69 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-2 backdrop-blur-sm sm:p-4 print:static print:z-auto print:bg-white print:p-0">
-      <div className="flex h-full max-h-[96vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-[#232e40] bg-[#0d121a] shadow-2xl print:max-h-none print:h-auto print:border-none print:bg-white print:shadow-none">
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[#1e2735] bg-[#0b0f16] px-4 py-3 print:hidden">
+      <div className="flex h-full max-h-[96vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-[var(--t34)] bg-[var(--t07)] shadow-2xl print:max-h-none print:h-auto print:border-none print:bg-white print:shadow-none">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[var(--t30)] bg-[var(--t05)] px-4 py-3 print:hidden">
           <div className="flex items-center gap-3">
-            <span className="font-mono text-xs font-bold uppercase tracking-wider text-cyan-400">Radyoloji raporu</span>
-            <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${approved ? "border-emerald-500/40 bg-emerald-500/20 text-emerald-400" : "border-rose-500/40 bg-rose-500/20 text-rose-300"}`}>
+            <span className="font-mono text-xs font-bold uppercase tracking-wider text-[var(--ac-cyan400)]">Radyoloji raporu</span>
+            <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${approved ? "border-emerald-500/40 bg-emerald-500/20 text-[var(--ac-emerald400)]" : "border-rose-500/40 bg-rose-500/20 text-[var(--ac-rose300)]"}`}>
               {approved ? `✓ ONAYLANDI · v${report.version ?? 1} · KİLİTLİ` : "⚠ ONAYLANMAMIŞ TASLAK"}
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {!approved && canWrite && (
               <>
-                <button onClick={() => setEditing(!editing)} className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-bold ${editing ? "bg-amber-500 text-slate-950" : "border border-[#2d3b4e] bg-[#141b24] text-slate-200 hover:bg-[#1a2330]"}`}>{editing ? "Düzenlemeyi bitir" : "✎ Düzenle"}</button>
-                <button disabled={busy} onClick={() => void save("save")} className="cursor-pointer rounded-lg border border-cyan-400/40 px-3 py-1.5 text-xs font-bold text-cyan-300 hover:bg-cyan-400/10 disabled:opacity-50">💾 Taslağı kaydet</button>
-                <button onClick={() => setDialog(true)} className="cursor-pointer rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-1.5 text-xs font-bold text-slate-950 hover:from-emerald-400 hover:to-teal-400">✓ Onayla</button>
+                <button onClick={() => setEditing(!editing)} className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-bold ${editing ? "bg-amber-500 text-[var(--sl950)]" : "border border-[var(--t39)] bg-[var(--t17)] text-[var(--sl200)] hover:bg-[var(--t26)]"}`}>{editing ? "Düzenlemeyi bitir" : "✎ Düzenle"}</button>
+                <button disabled={busy} onClick={() => void save("save")} className="cursor-pointer rounded-lg border border-cyan-400/40 px-3 py-1.5 text-xs font-bold text-[var(--ac-cyan300)] hover:bg-cyan-400/10 disabled:opacity-50">💾 Taslağı kaydet</button>
+                <button onClick={() => setDialog(true)} className="cursor-pointer rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-1.5 text-xs font-bold text-[var(--sl950)] hover:from-emerald-400 hover:to-teal-400">✓ Onayla</button>
               </>
             )}
-            <button type="button" onClick={downloadSr} disabled={!approved} title={approved ? "Radyoloji raporu → DICOM Basic Text SR" : "Sadece radyoloji uzmanı onayı sonrası alınabilir"} className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${approved ? "cursor-pointer border-[#2d3b4e] bg-[#141b24] text-slate-200 hover:bg-[#1a2330]" : "cursor-not-allowed border-[#2d3b4e] bg-[#141b24]/50 text-slate-500 opacity-60"}`}>DICOM SR ⬇</button>
-            {report.id && <button type="button" onClick={() => { setSigOpen((v) => !v); setSigMsg(""); if (!sigOpen) void loadSignatures(report.id!); }} title="Elektronik imza kaydı (NES değildir; içerik SHA-256 ile mühürlenir)" className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${sigOpen ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-200" : "cursor-pointer border-[#2d3b4e] bg-[#141b24] text-slate-200 hover:bg-[#1a2330]"}`}>✍ İmza kaydı</button>}
-            {report.id && <button type="button" onClick={() => void downloadFhir(report.id!)} disabled={!approved} title={approved ? "FHIR DiagnosticReport indir" : "Sadece radyoloji uzmanı onayı sonrası alınabilir"} className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${approved ? "cursor-pointer border-[#2d3b4e] bg-[#141b24] text-slate-200 hover:bg-[#1a2330]" : "cursor-not-allowed border-[#2d3b4e] bg-[#141b24]/50 text-slate-500 opacity-60"}`}>FHIR ⬇</button>}
-            {report.id && <button type="button" onClick={() => void sendToPacs(report.id!)} disabled={!approved || busy} title={approved ? "Raporu DICOM SR olarak yapılandırılmış PACS'e gönder (STOW-RS)" : "Sadece radyoloji uzmanı onayı sonrası gönderilebilir"} className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${approved ? "cursor-pointer border-violet-400/50 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20" : "cursor-not-allowed border-[#2d3b4e] bg-[#141b24]/50 text-slate-500 opacity-60"}`}>PACS’e gönder ⇧</button>}
-            <button onClick={() => setLetterOpen(true)} title="Hasta dostu sonuç mektubu (TR/EN/DE, sade dil)" className="cursor-pointer rounded-lg border border-emerald-400/50 px-3 py-1.5 text-xs font-bold text-emerald-200 hover:bg-emerald-400/10">💬 Hasta mektubu</button>
-            <button onClick={approved ? printReport : undefined} disabled={!approved} title={approved ? "Yazdır / PDF olarak kaydet" : "Sadece radyoloji uzmanı onayı sonrası alınabilir"} className={`rounded-lg px-3.5 py-1.5 text-xs font-bold ${approved ? "cursor-pointer bg-cyan-500 text-slate-950 hover:bg-cyan-400" : "cursor-not-allowed bg-slate-600 text-slate-400 opacity-60"}`}>🖨 Yazdır / PDF</button>
-            <button onClick={onClose} className="cursor-pointer rounded-lg border border-[#2d3b4e] bg-[#141b24] p-1.5 text-xs text-slate-400 hover:text-slate-100">✕</button>
+            <button type="button" onClick={downloadSr} disabled={!approved} title={approved ? "Radyoloji raporu → DICOM Basic Text SR" : "Sadece radyoloji uzmanı onayı sonrası alınabilir"} className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${approved ? "cursor-pointer border-[var(--t39)] bg-[var(--t17)] text-[var(--sl200)] hover:bg-[var(--t26)]" : "cursor-not-allowed border-[var(--t39)] bg-[var(--t17)]/50 text-[var(--sl500)] opacity-60"}`}>DICOM SR ⬇</button>
+            {report.id && <button type="button" onClick={() => { setSigOpen((v) => !v); setSigMsg(""); if (!sigOpen) void loadSignatures(report.id!); }} title="Elektronik imza kaydı (NES değildir; içerik SHA-256 ile mühürlenir)" className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${sigOpen ? "border-emerald-400/60 bg-emerald-500/10 text-[var(--ac-emerald200)]" : "cursor-pointer border-[var(--t39)] bg-[var(--t17)] text-[var(--sl200)] hover:bg-[var(--t26)]"}`}>✍ İmza kaydı</button>}
+            {report.id && <button type="button" onClick={() => void downloadFhir(report.id!)} disabled={!approved} title={approved ? "FHIR DiagnosticReport indir" : "Sadece radyoloji uzmanı onayı sonrası alınabilir"} className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${approved ? "cursor-pointer border-[var(--t39)] bg-[var(--t17)] text-[var(--sl200)] hover:bg-[var(--t26)]" : "cursor-not-allowed border-[var(--t39)] bg-[var(--t17)]/50 text-[var(--sl500)] opacity-60"}`}>FHIR ⬇</button>}
+            {report.id && <button type="button" onClick={() => void sendToPacs(report.id!)} disabled={!approved || busy} title={approved ? "Raporu DICOM SR olarak yapılandırılmış PACS'e gönder (STOW-RS)" : "Sadece radyoloji uzmanı onayı sonrası gönderilebilir"} className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${approved ? "cursor-pointer border-violet-400/50 bg-violet-500/10 text-[var(--ac-violet200)] hover:bg-violet-500/20" : "cursor-not-allowed border-[var(--t39)] bg-[var(--t17)]/50 text-[var(--sl500)] opacity-60"}`}>PACS’e gönder ⇧</button>}
+            <button onClick={() => setLetterOpen(true)} title="Hasta dostu sonuç mektubu (TR/EN/DE, sade dil)" className="cursor-pointer rounded-lg border border-emerald-400/50 px-3 py-1.5 text-xs font-bold text-[var(--ac-emerald200)] hover:bg-emerald-400/10">💬 Hasta mektubu</button>
+            <button onClick={approved ? printReport : undefined} disabled={!approved} title={approved ? "Yazdır / PDF olarak kaydet" : "Sadece radyoloji uzmanı onayı sonrası alınabilir"} className={`rounded-lg px-3.5 py-1.5 text-xs font-bold ${approved ? "cursor-pointer bg-cyan-500 text-[var(--sl950)] hover:bg-cyan-400" : "cursor-not-allowed bg-[var(--sl600)] text-[var(--sl400)] opacity-60"}`}>🖨 Yazdır / PDF</button>
+            <button onClick={onClose} className="cursor-pointer rounded-lg border border-[var(--t39)] bg-[var(--t17)] p-1.5 text-xs text-[var(--sl400)] hover:text-[var(--sl100)]">✕</button>
           </div>
         </div>
 
         {(error || (!approved && canWrite && (pending > 0 || missingReasons.length > 0))) && (
-          <div className="shrink-0 space-y-1 border-b border-[#1e2735] bg-[#0b0f16] px-4 py-2 text-[11px] print:hidden">
-            {error && <div className="font-semibold text-rose-300">⚠ {error}</div>}
-            {!approved && pending > 0 && <div className="text-amber-300">{pending} bulgu henüz gözden geçirilmedi — tablodaki durum düğmesine tıklayarak Onayla/Reddet/Düzenlendi olarak işaretleyin. Onay için hepsi işaretlenmeli.</div>}
-            {!approved && missingReasons.length > 0 && <div className="text-rose-300">{missingReasons.length} reddedilen/düzenlenen bulgu için gerekçe yazılmalı (tablodaki kutu) — gerekçe yoksa rapor onaylanamaz (taslak kaydı yapılabilir).</div>}
+          <div className="shrink-0 space-y-1 border-b border-[var(--t30)] bg-[var(--t05)] px-4 py-2 text-[11px] print:hidden">
+            {error && <div className="font-semibold text-[var(--ac-rose300)]">⚠ {error}</div>}
+            {!approved && pending > 0 && <div className="text-[var(--ac-amber300)]">{pending} bulgu henüz gözden geçirilmedi — tablodaki durum düğmesine tıklayarak Onayla/Reddet/Düzenlendi olarak işaretleyin. Onay için hepsi işaretlenmeli.</div>}
+            {!approved && missingReasons.length > 0 && <div className="text-[var(--ac-rose300)]">{missingReasons.length} reddedilen/düzenlenen bulgu için gerekçe yazılmalı (tablodaki kutu) — gerekçe yoksa rapor onaylanamaz (taslak kaydı yapılabilir).</div>}
           </div>
         )}
 
         {sigOpen && report.id && (
-          <div className="shrink-0 space-y-2 border-b border-[#1e2735] bg-[#0b0f16] px-4 py-3 text-[11px] print:hidden">
+          <div className="shrink-0 space-y-2 border-b border-[var(--t30)] bg-[var(--t05)] px-4 py-3 text-[11px] print:hidden">
             <div className="flex items-center justify-between">
-              <span className="font-bold uppercase tracking-wider text-slate-300">Elektronik imza kaydı</span>
-              <button onClick={() => setSigOpen(false)} className="cursor-pointer text-slate-500 hover:text-slate-200">✕</button>
+              <span className="font-bold uppercase tracking-wider text-[var(--sl300)]">Elektronik imza kaydı</span>
+              <button onClick={() => setSigOpen(false)} className="cursor-pointer text-[var(--sl500)] hover:text-[var(--sl200)]">✕</button>
             </div>
-            <p className="text-slate-500">
+            <p className="text-[var(--sl500)]">
               Kayıt; içeriğin SHA-256 hash değeri, imza sahibi, zaman ve yöntemi denetim zincirine yazar.
               Nitelikli elektronik imza (NES) için akreditasyonlu bir sağlayıcı entegrasyonu gerekir.
             </p>
-            {!approved && <p className="font-semibold text-amber-300">Rapor henüz onaylanmadı: onaylanmamış içeriğe imza kaydı düşürülemez.</p>}
+            {!approved && <p className="font-semibold text-[var(--ac-amber300)]">Rapor henüz onaylanmadı: onaylanmamış içeriğe imza kaydı düşürülemez.</p>}
             <label className="block">
-              <span className="mb-1 block font-bold text-slate-400">Yöntem</span>
-              <select value={sigMethod} onChange={(e) => setSigMethod(e.target.value as SignatureMethod)} className="w-full rounded-lg border border-[#232e40] bg-[#0e141d] px-2 py-1.5 text-xs text-slate-200">
+              <span className="mb-1 block font-bold text-[var(--sl400)]">Yöntem</span>
+              <select value={sigMethod} onChange={(e) => setSigMethod(e.target.value as SignatureMethod)} className="w-full rounded-lg border border-[var(--t34)] bg-[var(--t10)] px-2 py-1.5 text-xs text-[var(--sl200)]">
                 {SIGNATURE_METHODS.map((m) => <option key={m.id} value={m.id} disabled={m.qualified}>{m.label}{m.qualified ? " (entegre edilmedi)" : ""}</option>)}
               </select>
             </label>
-            <label className="flex items-start gap-2 text-slate-400">
+            <label className="flex items-start gap-2 text-[var(--sl400)]">
               <input type="checkbox" checked={sigAck} onChange={(e) => setSigAck(e.target.checked)} className="mt-0.5" />
               <span>Kaydın <b>nesne nitelikli elektronik imza olmadığını</b>, yalnızca içerik değişikliğini saptayan bir kayıt olduğunu anladım.</span>
             </label>
             <div className="flex flex-wrap items-center gap-2">
-              <button onClick={() => void signReport()} disabled={sigBusy || !approved || !sigAck} className="cursor-pointer rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40">{sigBusy ? "Kaydediliyor…" : "✍ Kaydı oluştur"}</button>
-              {sigMsg && <span className="text-slate-300">{sigMsg}</span>}
+              <button onClick={() => void signReport()} disabled={sigBusy || !approved || !sigAck} className="cursor-pointer rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-bold text-[var(--sl950)] hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40">{sigBusy ? "Kaydediliyor…" : "✍ Kaydı oluştur"}</button>
+              {sigMsg && <span className="text-[var(--sl300)]">{sigMsg}</span>}
             </div>
             {sigRecords.length > 0 && (
-              <ul className="space-y-1 border-t border-[#1e2735] pt-2">
+              <ul className="space-y-1 border-t border-[var(--t30)] pt-2">
                 {sigRecords.slice(-5).map((r, i) => (
-                  <li key={`${r.signedAt}-${i}`} className="rounded border border-[#1a2230] bg-[#0e141d] px-2 py-1 font-mono text-[10px] text-slate-400">
+                  <li key={`${r.signedAt}-${i}`} className="rounded border border-[var(--t25)] bg-[var(--t10)] px-2 py-1 font-mono text-[10px] text-[var(--sl400)]">
                     {signatureNote(r)}
                   </li>
                 ))}
@@ -638,15 +638,15 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
         )}
 
         {editing && (
-          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[#1e2735] bg-[#0b0f16] px-4 py-2 text-xs print:hidden">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[var(--t30)] bg-[var(--t05)] px-4 py-2 text-xs print:hidden">
             <input
               value={tplQuery}
               onChange={(e) => setTplQuery(e.target.value)}
               placeholder="Şablon ara (bölge, endikasyon, protokol)…"
               aria-label="Şablon ara"
-              className="w-56 rounded border border-[#1e2735] bg-[#0e141d] px-2 py-1 text-slate-200 outline-none focus:border-cyan-400/50"
+              className="w-56 rounded border border-[var(--t30)] bg-[var(--t10)] px-2 py-1 text-[var(--sl200)] outline-none focus:border-cyan-400/50"
             />
-            <select defaultValue="" onChange={(e) => { applyTemplate(e.target.value); e.target.value = ""; }} className="max-w-72 rounded border border-[#1e2735] bg-[#0e141d] px-2 py-1 text-slate-200">
+            <select defaultValue="" onChange={(e) => { applyTemplate(e.target.value); e.target.value = ""; }} className="max-w-72 rounded border border-[var(--t30)] bg-[var(--t10)] px-2 py-1 text-[var(--sl200)]">
               <option value="" disabled>Şablon uygula…</option>
               {tplFiltered.map((t) => (
                 <option key={t.id} value={t.id}>
@@ -664,7 +664,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                 e.target.value = "";
               }}
               aria-label="Makro ekle"
-              className="max-w-56 rounded border border-[#1e2735] bg-[#0e141d] px-2 py-1 text-slate-200"
+              className="max-w-56 rounded border border-[var(--t30)] bg-[var(--t10)] px-2 py-1 text-[var(--sl200)]"
             >
               <option value="" disabled>Makro ekle…</option>
               {(Object.keys(MACRO_GROUPS) as MacroGroup[]).map((g) => (
@@ -673,15 +673,15 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                 </optgroup>
               ))}
             </select>
-            <button onClick={() => void saveTemplate()} className="rounded border border-[#2d3b4e] px-2 py-1 text-slate-200 hover:bg-[#1a2330]">Şablon olarak kaydet</button>
-            <button disabled={busy} onClick={() => void draftImpression()} className="rounded border border-violet-400/40 px-2 py-1 font-bold text-violet-200 hover:bg-violet-400/10 disabled:opacity-50">✨ Taslak izlenim üret</button>
-            <button onClick={addMissed} className="rounded border border-amber-400/40 px-2 py-1 font-bold text-amber-200 hover:bg-amber-400/10">＋ AI&apos;nın kaçırdığı bulgu</button>
-            <span className="text-slate-500">Taslak izlenim yalnızca doğruladığınız bulgulara dayanır; hasta kimliği dışarı gönderilmez.</span>
+            <button onClick={() => void saveTemplate()} className="rounded border border-[var(--t39)] px-2 py-1 text-[var(--sl200)] hover:bg-[var(--t26)]">Şablon olarak kaydet</button>
+            <button disabled={busy} onClick={() => void draftImpression()} className="rounded border border-violet-400/40 px-2 py-1 font-bold text-[var(--ac-violet200)] hover:bg-violet-400/10 disabled:opacity-50">✨ Taslak izlenim üret</button>
+            <button onClick={addMissed} className="rounded border border-amber-400/40 px-2 py-1 font-bold text-[var(--ac-amber200)] hover:bg-amber-400/10">＋ AI&apos;nın kaçırdığı bulgu</button>
+            <span className="text-[var(--sl500)]">Taslak izlenim yalnızca doğruladığınız bulgulara dayanır; hasta kimliği dışarı gönderilmez.</span>
           </div>
         )}
 
         {editing && (
-          <div className="shrink-0 border-b border-[#1e2735] bg-[#0b0f16] px-4 py-2 print:hidden">
+          <div className="shrink-0 border-b border-[var(--t30)] bg-[var(--t05)] px-4 py-2 print:hidden">
             <StructuredScorePanel
               modality={report.modality}
               bodyPart={report.bodyPart}
@@ -691,8 +691,8 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto bg-[#070a0f] p-3 sm:p-6 print:overflow-visible print:bg-white print:p-0">
-          <div id="report-paper" className="relative mx-auto min-h-[1050px] w-full max-w-[800px] rounded-sm bg-white p-8 text-slate-900 shadow-2xl sm:p-12 print:m-0 print:w-full print:max-w-none print:p-8 print:shadow-none" style={{ fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif" }}>
+        <div className="flex-1 overflow-y-auto bg-[var(--t02)] p-3 sm:p-6 print:overflow-visible print:bg-white print:p-0">
+          <div id="report-paper" className="relative mx-auto min-h-[1050px] w-full max-w-[800px] rounded-sm bg-white p-8 text-[var(--sl900)] shadow-2xl sm:p-12 print:m-0 print:w-full print:max-w-none print:p-8 print:shadow-none" style={{ fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif" }}>
             <div className="pointer-events-none absolute inset-0 z-0 flex select-none items-center justify-center overflow-hidden">
               <div className={`-rotate-[32deg] whitespace-nowrap font-black uppercase tracking-[0.2em] ${approved ? "text-emerald-500/[0.05]" : "text-rose-500/[0.12]"}`} style={{ fontSize: approved ? 60 : 52 }}>{approved ? "ONAYLANDI" : "ONAYLANMAMIŞ TASLAK"}</div>
             </div>
@@ -702,14 +702,14 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                 <div className="flex items-end justify-between border-b-[3px] border-[#0e7490] pb-2">
                   <h1 className="text-2xl font-black tracking-wider text-[#0e7490]">ATIKVIEWER</h1>
                   <div className="text-right">
-                    <div className="text-xs font-black uppercase tracking-wider text-slate-800">Radyoloji raporu</div>
-                    <div className="font-mono text-[11px] text-slate-600">{new Date(report.createdAt || createdFallback).toLocaleString("tr-TR")}</div>
+                    <div className="text-xs font-black uppercase tracking-wider text-[var(--sl800)]">Radyoloji raporu</div>
+                    <div className="font-mono text-[11px] text-[var(--sl600)]">{new Date(report.createdAt || createdFallback).toLocaleString("tr-TR")}</div>
                   </div>
                 </div>
 
-                <div className="mt-4 grid grid-cols-3 gap-x-4 gap-y-2 border-b border-slate-200 pb-3 text-[11px]">
+                <div className="mt-4 grid grid-cols-3 gap-x-4 gap-y-2 border-b border-[var(--sl200)] pb-3 text-[11px]">
                   {([["Hasta adı", report.patientName], ["Hasta ID", report.patientId], ["Yaş", report.patientAge || "-"], ["Cinsiyet", report.patientSex || "-"], ["Çalışma tarihi", report.studyDate || "-"], ["Modalite", report.modality], ["Çalışma açıklaması", report.seriesDescription], ["Vücut bölgesi", report.bodyPart], ["Kurum", report.institution]] as const).map(([k, v]) => (
-                    <div key={k}><span className="font-bold text-slate-900">{k}: </span><span className="text-slate-800">{v}</span></div>
+                    <div key={k}><span className="font-bold text-[var(--sl900)]">{k}: </span><span className="text-[var(--sl800)]">{v}</span></div>
                   ))}
                 </div>
 
@@ -726,10 +726,10 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
 
                 <div className="mt-5">
                   <h2 className="text-sm font-black uppercase tracking-wide text-[#0e7490]">Rapor</h2>
-                  <div className="mt-1 h-0.5 w-full bg-slate-200" />
+                  <div className="mt-1 h-0.5 w-full bg-[var(--sl200)]" />
                   <div className="mt-3 grid grid-cols-1 items-start gap-5 md:grid-cols-12">
-                    <div className="flex flex-col gap-3 text-[11.5px] leading-relaxed text-slate-800 md:col-span-8">
-                      {report.clinicalInfo && <div><div className="font-bold uppercase text-slate-900">Klinik bilgi</div><p className="mt-0.5 whitespace-pre-wrap">{report.clinicalInfo}</p></div>}
+                    <div className="flex flex-col gap-3 text-[11.5px] leading-relaxed text-[var(--sl800)] md:col-span-8">
+                      {report.clinicalInfo && <div><div className="font-bold uppercase text-[var(--sl900)]">Klinik bilgi</div><p className="mt-0.5 whitespace-pre-wrap">{report.clinicalInfo}</p></div>}
                       <ReportField name="Teknik" rows={3} value={report.technique} editing={editing} onChange={(v) => set("technique", v)} onMic={append("technique")} onClear={() => set("technique", "")} onGotoSlice={onGotoSlice} onClose={onClose} />
                       <ReportField name="Kesit bazlı bulgular" rows={8} value={report.findingsText} editing={editing} onChange={(v) => set("findingsText", v)} onMic={append("findingsText")} onClear={() => set("findingsText", "")} onGotoSlice={onGotoSlice} onClose={onClose} />
                       {onGotoFinding && (
@@ -743,9 +743,9 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                       <ReportField name="Öneri" rows={2} value={report.recommendation} editing={editing} onChange={(v) => set("recommendation", v)} onMic={append("recommendation")} onClear={() => set("recommendation", "")} onGotoSlice={onGotoSlice} onClose={onClose} />
 
                       {editing && (
-                        <div className="rounded border border-slate-300 bg-slate-50 p-2">
-                          <div className="text-[10px] font-bold uppercase tracking-wide text-slate-700">ICD-10 önerileri</div>
-                          <p className="mt-0.5 text-[10px] leading-snug text-slate-500">
+                        <div className="rounded border border-[var(--sl300)] bg-[var(--sl50)] p-2">
+                          <div className="text-[10px] font-bold uppercase tracking-wide text-[var(--sl700)]">ICD-10 önerileri</div>
+                          <p className="mt-0.5 text-[10px] leading-snug text-[var(--sl500)]">
                             Rapor metnine göre yaklaşık eşlemedir; kodlama ve doğrulama radyologa aittir.
                             Üzerine basarak izlenim satırına eklenir.
                           </p>
@@ -755,7 +755,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                             </p>
                           )}
                           {icdSuggest.length === 0 ? (
-                            <p className="mt-1 text-[10.5px] italic text-slate-400">Metinde eşleşen öneri yok.</p>
+                            <p className="mt-1 text-[10.5px] italic text-[var(--sl400)]">Metinde eşleşen öneri yok.</p>
                           ) : (
                             <div className="mt-1 flex flex-wrap gap-1">
                               {icdSuggest.map((c) => {
@@ -766,7 +766,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                                       setIcdCodes((p) => [...p, c.code]);
                                       set("impression", `${report.impression}${report.impression && !report.impression.endsWith("\n") ? "\n" : ""}ICD-10: ${c.code} — ${c.label}`);
                                     }}
-                                    className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${added ? "bg-emerald-100 text-emerald-700" : "bg-white text-slate-700 ring-1 ring-slate-300 hover:bg-slate-100"}`}>
+                                    className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${added ? "bg-emerald-100 text-emerald-700" : "bg-white text-[var(--sl700)] ring-1 ring-[var(--sl300)] hover:bg-[var(--sl100)]"}`}>
                                     {added ? "✓ " : ""}{c.code} · {c.label}
                                   </button>
                                 );
@@ -780,11 +780,11 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                         const sum = measureSummary(rows);
                         return (
                           <div>
-                            <div className="font-bold uppercase text-slate-900">Ölçümler</div>
-                            <div className="mt-0.5 text-[9.5px] text-slate-600">{measureSummaryText(sum)}</div>
+                            <div className="font-bold uppercase text-[var(--sl900)]">Ölçümler</div>
+                            <div className="mt-0.5 text-[9.5px] text-[var(--sl600)]">{measureSummaryText(sum)}</div>
                             <table className="mt-1 w-full border-collapse text-[10.5px]">
                               <thead>
-                                <tr className="border-b border-slate-300 text-left text-[9.5px] uppercase text-slate-600">
+                                <tr className="border-b border-[var(--sl300)] text-left text-[9.5px] uppercase text-[var(--sl600)]">
                                   <th className="py-0.5 pr-2 font-bold">Kesit</th>
                                   <th className="py-0.5 pr-2 font-bold">Ölçüm</th>
                                   <th className="py-0.5 pr-2 font-bold">Değer</th>
@@ -793,11 +793,11 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                               </thead>
                               <tbody>
                                 {rows.map((r, i) => (
-                                  <tr key={i} className="border-b border-slate-100 align-top">
+                                  <tr key={i} className="border-b border-[var(--sl100)] align-top">
                                     <td className="py-0.5 pr-2 font-mono">{r.slice ?? "—"}</td>
                                     <td className="py-0.5 pr-2">{r.kind || "—"}</td>
                                     <td className="py-0.5 pr-2 font-mono">{r.value || "—"}</td>
-                                    <td className="py-0.5 text-slate-600">{r.detail || r.raw}</td>
+                                    <td className="py-0.5 text-[var(--sl600)]">{r.detail || r.raw}</td>
                                   </tr>
                                 ))}
                               </tbody>
@@ -805,15 +805,15 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                           </div>
                         );
                       })()}
-                      <p className="mt-1 text-[10px] italic text-slate-500">{report.engine === "image-review" ? "Bu protokol hastalık sınıflandırması yapmaz; kare başına piksel ölçümleri yazdırma raporuna dahil edilmemiştir. Görüntüler radyolog tarafından değerlendirilmelidir." : "Bu çıktı yapay zeka/kural tabanlı veya DEMO desteklidir; hekim doğrulaması gerekir."}</p>
+                      <p className="mt-1 text-[10px] italic text-[var(--sl500)]">{report.engine === "image-review" ? "Bu protokol hastalık sınıflandırması yapmaz; kare başına piksel ölçümleri yazdırma raporuna dahil edilmemiştir. Görüntüler radyolog tarafından değerlendirilmelidir." : "Bu çıktı yapay zeka/kural tabanlı veya DEMO desteklidir; hekim doğrulaması gerekir."}</p>
                     </div>
                     <div className="flex flex-col items-center gap-2 md:col-span-4">
-                      {images.length === 0 && <div className="flex h-40 w-full items-center justify-center rounded border border-dashed border-slate-300 text-[10px] text-slate-400">Anahtar kesit yok</div>}
+                      {images.length === 0 && <div className="flex h-40 w-full items-center justify-center rounded border border-dashed border-[var(--sl300)] text-[10px] text-[var(--sl400)]">Anahtar kesit yok</div>}
                       {images.map((im, i) => (
                         <figure key={i} className="w-full max-w-[230px]">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={im.src} alt={im.cap} className="block aspect-square w-full rounded-md border-2 border-slate-900 bg-black object-contain" />
-                          <figcaption className="mt-0.5 text-center font-mono text-[9.5px] font-bold text-slate-600">{im.cap}</figcaption>
+                          <img src={im.src} alt={im.cap} className="block aspect-square w-full rounded-md border-2 border-[var(--sl900)] bg-black object-contain" />
+                          <figcaption className="mt-0.5 text-center font-mono text-[9.5px] font-bold text-[var(--sl600)]">{im.cap}</figcaption>
                         </figure>
                       ))}
                     </div>
@@ -822,23 +822,23 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
 
                 <div className="mt-6">
                   <h2 className="text-sm font-black uppercase tracking-wide text-[#0e7490]">{report.engine === "image-review" ? "Otomatik tanısal bulgu yok" : "AI aday bulguları / DEMO ve hekim doğrulaması"}</h2>
-                  <div className="mt-1 h-0.5 w-full bg-slate-200" />
+                  <div className="mt-1 h-0.5 w-full bg-[var(--sl200)]" />
                   {report.engine === "image-review" ? (
-                    <p className="mt-2 text-[11px] italic text-slate-600">Bu analiz yalnızca piksel dağılımı ölçtü; hastalık adayı üretmedi. Tanısal bulgular radyolog tarafından belirlenmelidir.</p>
+                    <p className="mt-2 text-[11px] italic text-[var(--sl600)]">Bu analiz yalnızca piksel dağılımı ölçtü; hastalık adayı üretmedi. Tanısal bulgular radyolog tarafından belirlenmelidir.</p>
                   ) : <table className="mt-2 w-full border-collapse text-[11px]">
-                    <thead><tr className="border-b border-slate-300 text-left font-bold text-slate-600"><th className="w-[22%] py-1.5 pr-2">Bulgu / konum</th><th className="w-[18%] py-1.5 pr-2">Kesit</th><th className="w-[40%] py-1.5 pr-2">Açıklama / ölçüm</th><th className="w-[20%] py-1.5 text-right">Radyolog</th></tr></thead>
+                    <thead><tr className="border-b border-[var(--sl300)] text-left font-bold text-[var(--sl600)]"><th className="w-[22%] py-1.5 pr-2">Bulgu / konum</th><th className="w-[18%] py-1.5 pr-2">Kesit</th><th className="w-[40%] py-1.5 pr-2">Açıklama / ölçüm</th><th className="w-[20%] py-1.5 text-right">Radyolog</th></tr></thead>
                     <tbody>
-                      {report.findings.length === 0 && <tr><td colSpan={4} className="py-2 italic text-slate-500">Bulgu kaydı yok.</td></tr>}
+                      {report.findings.length === 0 && <tr><td colSpan={4} className="py-2 italic text-[var(--sl500)]">Bulgu kaydı yok.</td></tr>}
                       {report.findings.filter((f) => report.engine !== "image-review" || (f.category !== "Görüntü ölçümü" && f.category !== "Sistem")).map((f, i) => {
                         const st = report.findingsApproval[f.id] ?? (approved ? "onaylandi" : "bekliyor");
                         return (
-                          <tr key={f.id} className="border-b border-slate-200 align-top">
-                            <td className="py-2.5 pr-2 font-bold"><div>{i + 1}. {f.label}</div><div className="mt-0.5 text-[9.5px] font-normal text-slate-500">{f.anatomicalLocation}</div></td>
-                            <td className="py-2.5 pr-2"><div className="font-bold text-[#0e7490]">{onGotoSlice && f.category !== "Sistem" ? <button type="button" className="underline decoration-dotted print:no-underline" onClick={() => { onGotoSlice(f.keySliceNumber); onClose(); }}>Kesit {f.keySliceNumber}</button> : `Kesit ${f.keySliceNumber}`}</div><div className="font-mono text-[10px] text-slate-600">{f.sliceRangeStr}</div>{f.zLocationMm !== undefined && <div className="font-mono text-[9px] text-slate-400">z {f.zLocationMm > 0 ? "+" : ""}{f.zLocationMm} mm</div>}</td>
-                            <td className="py-2.5 pr-2 leading-snug text-slate-700"><div>{f.detail}</div><div className="mt-1 font-mono text-[9.5px] text-slate-500">{f.densityOrSignal} · {f.sizeMmStr}{fmtConf(f) ? ` · ${fmtConf(f)}` : ""}{f.metrics?.volumeMl !== undefined ? ` · V ${f.metrics.volumeMl} mL` : ""}{f.metrics?.lungRads ? ` · Lung-RADS ${f.metrics.lungRads} eşiği` : ""}</div></td>
+                          <tr key={f.id} className="border-b border-[var(--sl200)] align-top">
+                            <td className="py-2.5 pr-2 font-bold"><div>{i + 1}. {f.label}</div><div className="mt-0.5 text-[9.5px] font-normal text-[var(--sl500)]">{f.anatomicalLocation}</div></td>
+                            <td className="py-2.5 pr-2"><div className="font-bold text-[#0e7490]">{onGotoSlice && f.category !== "Sistem" ? <button type="button" className="underline decoration-dotted print:no-underline" onClick={() => { onGotoSlice(f.keySliceNumber); onClose(); }}>Kesit {f.keySliceNumber}</button> : `Kesit ${f.keySliceNumber}`}</div><div className="font-mono text-[10px] text-[var(--sl600)]">{f.sliceRangeStr}</div>{f.zLocationMm !== undefined && <div className="font-mono text-[9px] text-[var(--sl400)]">z {f.zLocationMm > 0 ? "+" : ""}{f.zLocationMm} mm</div>}</td>
+                            <td className="py-2.5 pr-2 leading-snug text-[var(--sl700)]"><div>{f.detail}</div><div className="mt-1 font-mono text-[9.5px] text-[var(--sl500)]">{f.densityOrSignal} · {f.sizeMmStr}{fmtConf(f) ? ` · ${fmtConf(f)}` : ""}{f.metrics?.volumeMl !== undefined ? ` · V ${f.metrics.volumeMl} mL` : ""}{f.metrics?.lungRads ? ` · Lung-RADS ${f.metrics.lungRads} eşiği` : ""}</div></td>
                             <td className="py-2.5 text-right font-bold">
                               {!approved && canWrite ? (
-                                <button type="button" onClick={() => cycle(f.id)} className={`cursor-pointer rounded border px-2 py-0.5 text-[10px] font-bold print:border-none ${st === "onaylandi" ? "border-emerald-300 bg-emerald-50 text-emerald-800" : st === "reddedildi" ? "border-rose-300 bg-rose-50 text-rose-800" : st === "duzenlendi" ? "border-amber-300 bg-amber-50 text-amber-800" : "border-slate-300 bg-slate-100 text-slate-700"}`}>{STATUS_TR[st]}</button>
+                                <button type="button" onClick={() => cycle(f.id)} className={`cursor-pointer rounded border px-2 py-0.5 text-[10px] font-bold print:border-none ${st === "onaylandi" ? "border-emerald-300 bg-emerald-50 text-emerald-800" : st === "reddedildi" ? "border-rose-300 bg-rose-50 text-rose-800" : st === "duzenlendi" ? "border-amber-300 bg-amber-50 text-amber-800" : "border-[var(--sl300)] bg-[var(--sl100)] text-[var(--sl700)]"}`}>{STATUS_TR[st]}</button>
                               ) : <span>{STATUS_TR[st]}</span>}
                               {!approved && canWrite && needsReviewReason(st) && (
                                 <div className="mt-1 print:hidden">
@@ -849,7 +849,7 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                                     maxLength={REVIEW_REASON_MAX}
                                     placeholder={st === "reddedildi" ? "Ret gerekçesi (zorunlu)" : "Düzenleme gerekçesi (zorunlu)"}
                                     aria-label={`${f.label} için gözden geçirme gerekçesi`}
-                                    className={`w-40 max-w-full resize-y rounded border px-1.5 py-1 text-left text-[10px] font-normal ${normalizeReviewReason(report.findingsReason[f.id]) ? "border-slate-300 text-slate-700" : "border-amber-400 bg-amber-50 text-amber-900"}`}
+                                    className={`w-40 max-w-full resize-y rounded border px-1.5 py-1 text-left text-[10px] font-normal ${normalizeReviewReason(report.findingsReason[f.id]) ? "border-[var(--sl300)] text-[var(--sl700)]" : "border-amber-400 bg-amber-50 text-amber-900"}`}
                                   />
                                 </div>
                               )}
@@ -860,8 +860,8 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                     </tbody>
                   </table>}
                   {reasonLines.length > 0 && (
-                    <div className="mt-2 text-[10px] leading-snug text-slate-600">
-                      <div className="font-bold uppercase text-slate-700">Hekim gözden geçirme gerekçeleri</div>
+                    <div className="mt-2 text-[10px] leading-snug text-[var(--sl600)]">
+                      <div className="font-bold uppercase text-[var(--sl700)]">Hekim gözden geçirme gerekçeleri</div>
                       <ul className="mt-0.5 list-disc pl-4">
                         {reasonLines.map((r) => (
                           <li key={r.id}><b>{r.label}</b> — {r.status === "reddedildi" ? "reddedildi" : "düzenlendi"}: {r.reason}</li>
@@ -872,8 +872,8 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                 </div>
 
                 {card && (
-                  <div className="mt-4 rounded border border-slate-200 bg-slate-50 p-2.5 text-[10px] leading-snug text-slate-600">
-                    <div className="font-bold text-slate-700">Yapay zeka yöntemi: {card.name} v{card.version}</div>
+                  <div className="mt-4 rounded border border-[var(--sl200)] bg-[var(--sl50)] p-2.5 text-[10px] leading-snug text-[var(--sl600)]">
+                    <div className="font-bold text-[var(--sl700)]">Yapay zeka yöntemi: {card.name} v{card.version}</div>
                     <div><b>Amaç:</b> {card.intendedUse}</div>
                     <div><b>Yöntem:</b> {card.method}</div>
                     <div><b>Sınırlılıklar:</b> {card.limitations.join(" · ")}</div>
@@ -884,12 +884,12 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                 {addenda.length > 0 && (
                   <div className="mt-4">
                     <h2 className="text-sm font-black uppercase tracking-wide text-[#0e7490]">Ek raporlar (addendum)</h2>
-                    <div className="mt-1 h-0.5 w-full bg-slate-200" />
+                    <div className="mt-1 h-0.5 w-full bg-[var(--sl200)]" />
                     {addenda.map((a) => {
                       const sigs = sigRecords.filter((r) => r.addendumId === a.id);
                       return (
-                        <div key={a.id} className="mt-2 text-[11px] text-slate-800">
-                          <div className="font-mono text-[9.5px] text-slate-500">{new Date(a.createdAt).toLocaleString("tr-TR")} · {a.createdByName}</div>
+                        <div key={a.id} className="mt-2 text-[11px] text-[var(--sl800)]">
+                          <div className="font-mono text-[9.5px] text-[var(--sl500)]">{new Date(a.createdAt).toLocaleString("tr-TR")} · {a.createdByName}</div>
                           <p className="whitespace-pre-wrap">{a.text}</p>
                           {sigs.length > 0 ? (
                             <div className="mt-0.5 font-mono text-[9px] leading-snug text-emerald-800">{sigs.map((sg, i) => <div key={i}>✍ {signatureNote(sg)}</div>)}</div>
@@ -909,24 +909,24 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
               <div className="mt-12 pt-4">
                 <div className="grid grid-cols-2 gap-8 text-[11.5px]">
                   <div>
-                    <div className="font-bold text-slate-900">Raporlayan hekim:</div>
-                    <div className="mt-1 font-semibold text-slate-800">{approved ? `${report.doctorTitle} ${report.approvedBy}` : "(onay bekleniyor)"}</div>
-                    {approved && <div className="text-[10px] text-slate-600">Sicil/diploma: {report.doctorRegNo}</div>}
-                    <div className="mt-6 w-48 border-b border-slate-400" />
+                    <div className="font-bold text-[var(--sl900)]">Raporlayan hekim:</div>
+                    <div className="mt-1 font-semibold text-[var(--sl800)]">{approved ? `${report.doctorTitle} ${report.approvedBy}` : "(onay bekleniyor)"}</div>
+                    {approved && <div className="text-[10px] text-[var(--sl600)]">Sicil/diploma: {report.doctorRegNo}</div>}
+                    <div className="mt-6 w-48 border-b border-[var(--sl400)]" />
                   </div>
                   <div>
-                    <div className="font-bold text-slate-900">İmza / Kaşe:</div>
+                    <div className="font-bold text-[var(--sl900)]">İmza / Kaşe:</div>
                     {approved ? (
                       <div className="mt-1 inline-block rounded border border-emerald-300 bg-emerald-50 p-1.5 font-mono text-[9.5px] text-emerald-800">
                         <div className="font-bold">✓ Yerel onay (kimlik doğrulaması yapılmadı)</div>
                         <div>SHA-256: {report.contentHash?.slice(0, 24)}…</div>
                         <div className="text-[9px] text-emerald-700">Kimlik doğrulanmamıştır; nitelikli elektronik imza (NES) değildir.</div>
                       </div>
-                    ) : <div className="mt-1 text-[10px] italic text-slate-500">(onay bekleniyor)</div>}
-                    <div className="mt-6 w-48 border-b border-slate-400" />
+                    ) : <div className="mt-1 text-[10px] italic text-[var(--sl500)]">(onay bekleniyor)</div>}
+                    <div className="mt-6 w-48 border-b border-[var(--sl400)]" />
                   </div>
                 </div>
-                <div className="mt-6 border-t border-slate-200 pt-2 text-[9.5px] text-slate-500">
+                <div className="mt-6 border-t border-[var(--sl200)] pt-2 text-[9.5px] text-[var(--sl500)]">
                   <div>Bu rapordaki yapay zeka destekli bölümler taslak niteliğindedir ve sorumlu hekim onayı gerektirir.</div>
                   <div className="mt-0.5">{SHORT_DISCLAIMER} · {INTENDED_USE.product} sürüm {versionLine()}</div>
                   <div className="mt-0.5">{INTENDED_USE.regulatory}</div>
@@ -937,62 +937,62 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
 
           <div className="mx-auto mt-4 max-w-[800px] space-y-3 print:hidden">
             {approved && canWrite && report.id && (
-              <div className="rounded-lg border border-[#1e2735] bg-[#0b0f16] p-3">
-                <div className="text-xs font-bold text-slate-200">Addendum ekle (onaylı rapor değiştirilemez; düzeltme ek olarak kaydedilir)</div>
-                <textarea value={addText} onChange={(e) => setAddText(e.target.value)} rows={3} className="mt-2 w-full rounded border border-[#1e2735] bg-[#0e141d] p-2 text-xs text-slate-200" placeholder="Ek bulgu / düzeltme metni…" />
-                <button disabled={busy || addText.trim().length < 3} onClick={() => void addAddendum()} className="mt-2 cursor-pointer rounded bg-cyan-500 px-3 py-1 text-xs font-bold text-slate-950 disabled:opacity-40">Addendum kaydet</button>
+              <div className="rounded-lg border border-[var(--t30)] bg-[var(--t05)] p-3">
+                <div className="text-xs font-bold text-[var(--sl200)]">Addendum ekle (onaylı rapor değiştirilemez; düzeltme ek olarak kaydedilir)</div>
+                <textarea value={addText} onChange={(e) => setAddText(e.target.value)} rows={3} className="mt-2 w-full rounded border border-[var(--t30)] bg-[var(--t10)] p-2 text-xs text-[var(--sl200)]" placeholder="Ek bulgu / düzeltme metni…" />
+                <button disabled={busy || addText.trim().length < 3} onClick={() => void addAddendum()} className="mt-2 cursor-pointer rounded bg-cyan-500 px-3 py-1 text-xs font-bold text-[var(--sl950)] disabled:opacity-40">Addendum kaydet</button>
               </div>
             )}
             {approved && report.id && (
-              <div className="rounded-lg border border-[#1e2735] bg-[#0b0f16] p-3 text-xs text-slate-300">
-                <div className="font-bold text-slate-200">İkinci okuma / peer review</div>
-                <div className="mt-1 text-[11px] text-slate-400">Raporu oluşturan hekim bu kaydı ekleyemez; kayıtlar denetimde görünür.</div>
+              <div className="rounded-lg border border-[var(--t30)] bg-[var(--t05)] p-3 text-xs text-[var(--sl300)]">
+                <div className="font-bold text-[var(--sl200)]">İkinci okuma / peer review</div>
+                <div className="mt-1 text-[11px] text-[var(--sl400)]">Raporu oluşturan hekim bu kaydı ekleyemez; kayıtlar denetimde görünür.</div>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <select aria-label="İkinci okuma sonucu" value={peerResult} onChange={(e) => setPeerResult(e.target.value as PeerResult)} className="rounded border border-[#232e40] bg-[#141b24] px-2 py-1 text-xs text-slate-200">
+                  <select aria-label="İkinci okuma sonucu" value={peerResult} onChange={(e) => setPeerResult(e.target.value as PeerResult)} className="rounded border border-[var(--t34)] bg-[var(--t17)] px-2 py-1 text-xs text-[var(--sl200)]">
                     {PEER_RESULTS.map((r) => <option key={r} value={r}>{RESULT_LABELS[r]}</option>)}
                   </select>
-                  <select aria-label="Uyuşmazlık türü" value={peerType} onChange={(e) => setPeerType(e.target.value)} className="rounded border border-[#232e40] bg-[#141b24] px-2 py-1 text-xs text-slate-200">
+                  <select aria-label="Uyuşmazlık türü" value={peerType} onChange={(e) => setPeerType(e.target.value)} className="rounded border border-[var(--t34)] bg-[var(--t17)] px-2 py-1 text-xs text-[var(--sl200)]">
                     <option value="">(tür seç)</option>
                     {["eksik bulgu", "fazladan bulgu", "ölçüm/yerelizasyon hatası", "yanlış yorum", "teknik/kalite", "diğer"].map((t) => <option key={t} value={t}>{t}</option>)}
                   </select>
-                  <input value={peerNote} onChange={(e) => setPeerNote(e.target.value)} maxLength={4000} placeholder={peerResult === "uyumsuz" ? "Açıklama zorunlu…" : "Not (opsiyonel)"} className="min-w-40 flex-1 rounded border border-[#232e40] bg-[#141b24] px-2 py-1 text-xs text-slate-200" />
-                  <button disabled={busy || (peerResult === "uyumsuz" && peerNote.trim().length < 5)} onClick={() => void sendPeerReview()} className="cursor-pointer rounded bg-violet-500 px-3 py-1 text-xs font-bold text-slate-950 hover:bg-violet-400 disabled:opacity-40">Kaydet</button>
+                  <input value={peerNote} onChange={(e) => setPeerNote(e.target.value)} maxLength={4000} placeholder={peerResult === "uyumsuz" ? "Açıklama zorunlu…" : "Not (opsiyonel)"} className="min-w-40 flex-1 rounded border border-[var(--t34)] bg-[var(--t17)] px-2 py-1 text-xs text-[var(--sl200)]" />
+                  <button disabled={busy || (peerResult === "uyumsuz" && peerNote.trim().length < 5)} onClick={() => void sendPeerReview()} className="cursor-pointer rounded bg-violet-500 px-3 py-1 text-xs font-bold text-[var(--sl950)] hover:bg-violet-400 disabled:opacity-40">Kaydet</button>
                 </div>
-                {peerMsg && <div className="mt-2 text-emerald-300">✓ {peerMsg}</div>}
+                {peerMsg && <div className="mt-2 text-[var(--ac-emerald300)]">✓ {peerMsg}</div>}
                 <ul className="mt-2 space-y-1.5">
-                  {peerList.length === 0 && <li className="text-slate-500">Henüz ikinci okuma kaydı yok.</li>}
+                  {peerList.length === 0 && <li className="text-[var(--sl500)]">Henüz ikinci okuma kaydı yok.</li>}
                   {peerList.map((p) => (
-                    <li key={p.id} className="rounded border border-[#1a2230] bg-[#0e141d] px-2 py-1.5">
-                      <span className="font-mono text-[10.5px] text-cyan-300">{p.result}</span>
-                      {p.discrepancyType && <span className="ml-2 text-[10.5px] text-amber-300">{p.discrepancyType}</span>}
-                      <span className="ml-2 text-[10.5px] text-slate-500">{p.reviewedByName} · {new Date(p.createdAt).toLocaleString("tr-TR")}</span>
-                      {p.note && <div className="mt-0.5 whitespace-pre-wrap text-[11px] text-slate-300">{p.note}</div>}
+                    <li key={p.id} className="rounded border border-[var(--t25)] bg-[var(--t10)] px-2 py-1.5">
+                      <span className="font-mono text-[10.5px] text-[var(--ac-cyan300)]">{p.result}</span>
+                      {p.discrepancyType && <span className="ml-2 text-[10.5px] text-[var(--ac-amber300)]">{p.discrepancyType}</span>}
+                      <span className="ml-2 text-[10.5px] text-[var(--sl500)]">{p.reviewedByName} · {new Date(p.createdAt).toLocaleString("tr-TR")}</span>
+                      {p.note && <div className="mt-0.5 whitespace-pre-wrap text-[11px] text-[var(--sl300)]">{p.note}</div>}
                     </li>
                   ))}
                 </ul>
               </div>
             )}
             {approved && report.id && (
-              <div className="rounded-lg border border-[#1e2735] bg-[#0b0f16] p-3 text-xs text-slate-300">
-                <div className="font-bold text-slate-200">Süreli paylaşım bağlantısı</div>
-                <div className="mt-1 text-[11px] text-slate-400">Salt okunur rapor özeti + anahtar kesitler; her erişim denetimde işlenir, süresi gelince ya da siz kapatana kadar geçerlidir.</div>
+              <div className="rounded-lg border border-[var(--t30)] bg-[var(--t05)] p-3 text-xs text-[var(--sl300)]">
+                <div className="font-bold text-[var(--sl200)]">Süreli paylaşım bağlantısı</div>
+                <div className="mt-1 text-[11px] text-[var(--sl400)]">Salt okunur rapor özeti + anahtar kesitler; her erişim denetimde işlenir, süresi gelince ya da siz kapatana kadar geçerlidir.</div>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <select aria-label="Bağlantı süresi" value={shareTtl} onChange={(e) => setShareTtl(Number(e.target.value))} className="rounded border border-[#232e40] bg-[#141b24] px-2 py-1 text-xs text-slate-200">
+                  <select aria-label="Bağlantı süresi" value={shareTtl} onChange={(e) => setShareTtl(Number(e.target.value))} className="rounded border border-[var(--t34)] bg-[var(--t17)] px-2 py-1 text-xs text-[var(--sl200)]">
                     {SHARE_TTL_HOURS.map((h) => <option key={h} value={h}>{h >= 24 ? `${h / 24} gün` : `${h} saat`}</option>)}
                   </select>
-                  <button disabled={busy} onClick={() => void createShare()} className="cursor-pointer rounded bg-cyan-500 px-3 py-1 text-xs font-bold text-slate-950 hover:bg-cyan-400 disabled:opacity-40">Bağlantı oluştur + kopyala</button>
+                  <button disabled={busy} onClick={() => void createShare()} className="cursor-pointer rounded bg-cyan-500 px-3 py-1 text-xs font-bold text-[var(--sl950)] hover:bg-cyan-400 disabled:opacity-40">Bağlantı oluştur + kopyala</button>
                 </div>
-                {shareMsg && <div className="mt-2 text-emerald-300">✓ {shareMsg}</div>}
+                {shareMsg && <div className="mt-2 text-[var(--ac-emerald300)]">✓ {shareMsg}</div>}
                 <ul className="mt-2 space-y-1.5">
-                  {shares.length === 0 && <li className="text-slate-500">Bu rapor için bağlantı yok.</li>}
+                  {shares.length === 0 && <li className="text-[var(--sl500)]">Bu rapor için bağlantı yok.</li>}
                   {shares.map((sh) => {
                     const st = shareState(sh);
                     return (
-                      <li key={sh.token} className="flex flex-wrap items-center gap-2 rounded border border-[#1a2230] bg-[#0e141d] px-2 py-1.5">
-                        <span className="font-mono text-[10.5px] text-cyan-300">…{sh.token.slice(-8)}</span>
-                        <span className={`text-[10.5px] font-bold ${st === "aktif" ? "text-emerald-300" : st === "kapatildi" ? "text-rose-300" : "text-amber-300"}`}>{st === "aktif" ? "aktif" : st}</span>
-                        <span className="text-[10.5px] text-slate-500">{new Date(sh.expiresAt).toLocaleString("tr-TR")} · {sh.accessCount} erişim</span>
-                        {st === "aktif" && <button onClick={() => void revokeShare(sh.token)} className="ml-auto cursor-pointer rounded border border-rose-400/40 px-2 py-0.5 text-[10.5px] font-bold text-rose-200 hover:bg-rose-400/10">Kapat</button>}
+                      <li key={sh.token} className="flex flex-wrap items-center gap-2 rounded border border-[var(--t25)] bg-[var(--t10)] px-2 py-1.5">
+                        <span className="font-mono text-[10.5px] text-[var(--ac-cyan300)]">…{sh.token.slice(-8)}</span>
+                        <span className={`text-[10.5px] font-bold ${st === "aktif" ? "text-[var(--ac-emerald300)]" : st === "kapatildi" ? "text-[var(--ac-rose300)]" : "text-[var(--ac-amber300)]"}`}>{st === "aktif" ? "aktif" : st}</span>
+                        <span className="text-[10.5px] text-[var(--sl500)]">{new Date(sh.expiresAt).toLocaleString("tr-TR")} · {sh.accessCount} erişim</span>
+                        {st === "aktif" && <button onClick={() => void revokeShare(sh.token)} className="ml-auto cursor-pointer rounded border border-rose-400/40 px-2 py-0.5 text-[10.5px] font-bold text-[var(--ac-rose200)] hover:bg-rose-400/10">Kapat</button>}
                       </li>
                     );
                   })}
@@ -1000,8 +1000,8 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
               </div>
             )}
             {report.id && (
-              <div className="rounded-lg border border-[#1e2735] bg-[#0b0f16] p-3 text-xs text-slate-300">
-                <button onClick={() => setShowVersions((v) => !v)} className="font-bold text-slate-200">{showVersions ? "▾" : "▸"} Sürüm geçmişi ({versions.length})</button>
+              <div className="rounded-lg border border-[var(--t30)] bg-[var(--t05)] p-3 text-xs text-[var(--sl300)]">
+                <button onClick={() => setShowVersions((v) => !v)} className="font-bold text-[var(--sl200)]">{showVersions ? "▾" : "▸"} Sürüm geçmişi ({versions.length})</button>
                 {showVersions && (
                   <>
                     <ul className="mt-2 space-y-1.5 text-[10.5px]">
@@ -1011,21 +1011,21 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                         const isCurrent = v.versionNo === report.version;
                         const canRestore = !isCurrent && !!v.snapshot && report.status !== "onaylandi" && !restoreBusy;
                         return (
-                          <li key={v.id} className="rounded border border-[#1a2230] bg-[#0e141d] p-1.5">
+                          <li key={v.id} className="rounded border border-[var(--t25)] bg-[var(--t10)] p-1.5">
                             <div className="flex flex-wrap items-center justify-between gap-2">
-                              <span className="font-mono text-slate-300">v{v.versionNo} · {v.action} · {v.createdByName} · {new Date(v.createdAt).toLocaleString("tr-TR")}{isCurrent && <span className="ml-1 rounded bg-cyan-500/20 px-1 text-[9px] text-cyan-300">GÜNCEL</span>}</span>
+                              <span className="font-mono text-[var(--sl300)]">v{v.versionNo} · {v.action} · {v.createdByName} · {new Date(v.createdAt).toLocaleString("tr-TR")}{isCurrent && <span className="ml-1 rounded bg-cyan-500/20 px-1 text-[9px] text-[var(--ac-cyan300)]">GÜNCEL</span>}</span>
                               <span className="flex shrink-0 items-center gap-1.5">
                                 {canDiff && (
-                                  <button onClick={() => setDiffPair((cur) => (cur === v.versionNo ? null : v.versionNo))} title={`v${v.versionNo - 1} ile metin farkı`} className="cursor-pointer rounded border border-[#2d3b4e] px-1.5 py-0.5 text-[9.5px] font-bold text-slate-200 hover:bg-[#1a2330]">{diffPair === v.versionNo ? "Farkı kapat" : "↔ Öncekiyle fark"}</button>
+                                  <button onClick={() => setDiffPair((cur) => (cur === v.versionNo ? null : v.versionNo))} title={`v${v.versionNo - 1} ile metin farkı`} className="cursor-pointer rounded border border-[var(--t39)] px-1.5 py-0.5 text-[9.5px] font-bold text-[var(--sl200)] hover:bg-[var(--t26)]">{diffPair === v.versionNo ? "Farkı kapat" : "↔ Öncekiyle fark"}</button>
                                 )}
                                 {!isCurrent && (
-                                  <button onClick={() => void restoreVersion(v.versionNo)} disabled={!canRestore} title={report.status === "onaylandi" ? "Onaylı rapor geri yüklenemez; addendum ekleyin" : !v.snapshot ? "Bu sürümün anlık görüntüsü yok" : `v${v.versionNo} içeriğini yeni sürüm olarak geri yükle`} className="cursor-pointer rounded border border-amber-600/60 px-1.5 py-0.5 text-[9.5px] font-bold text-amber-300 hover:bg-amber-500/10 disabled:cursor-not-allowed disabled:opacity-40">↩ Bu sürüme dön</button>
+                                  <button onClick={() => void restoreVersion(v.versionNo)} disabled={!canRestore} title={report.status === "onaylandi" ? "Onaylı rapor geri yüklenemez; addendum ekleyin" : !v.snapshot ? "Bu sürümün anlık görüntüsü yok" : `v${v.versionNo} içeriğini yeni sürüm olarak geri yükle`} className="cursor-pointer rounded border border-amber-600/60 px-1.5 py-0.5 text-[9.5px] font-bold text-[var(--ac-amber300)] hover:bg-amber-500/10 disabled:cursor-not-allowed disabled:opacity-40">↩ Bu sürüme dön</button>
                                 )}
                               </span>
                             </div>
                             {diffPair === v.versionNo && prev && (
-                              <div className="mt-1.5 border-t border-[#1e2735] pt-1.5">
-                                <div className="mb-1 font-mono text-[9px] text-slate-500">v{(v.versionNo - 1)} → v{v.versionNo}</div>
+                              <div className="mt-1.5 border-t border-[var(--t30)] pt-1.5">
+                                <div className="mb-1 font-mono text-[9px] text-[var(--sl500)]">v{(v.versionNo - 1)} → v{v.versionNo}</div>
                                 <ReportDiffView aRaw={prev.snapshot} bRaw={v.snapshot} />
                               </div>
                             )}
@@ -1033,8 +1033,8 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                         );
                       })}
                     </ul>
-                    {restoreMsg && <p className="mt-2 rounded border border-amber-500/40 bg-amber-500/10 p-1.5 text-[10px] leading-snug text-amber-200">{restoreMsg}</p>}
-                    <p className="mt-1.5 text-[9px] leading-snug text-slate-500">«Bu sürüme dön» geçmişi değiştirmez; seçilen içerik yeni bir sürüm olarak kaydedilir ve rapor taslağa döner. Fark, teknik/bulgular/izlenim/öneri metinlerini karşılaştırır; klinik anlam çıkarımı yapılmaz.</p>
+                    {restoreMsg && <p className="mt-2 rounded border border-amber-500/40 bg-amber-500/10 p-1.5 text-[10px] leading-snug text-[var(--ac-amber200)]">{restoreMsg}</p>}
+                    <p className="mt-1.5 text-[9px] leading-snug text-[var(--sl500)]">«Bu sürüme dön» geçmişi değiştirmez; seçilen içerik yeni bir sürüm olarak kaydedilir ve rapor taslağa döner. Fark, teknik/bulgular/izlenim/öneri metinlerini karşılaştırır; klinik anlam çıkarımı yapılmaz.</p>
                   </>
                 )}
               </div>
@@ -1045,18 +1045,18 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
 
       {dialog && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 p-4">
-          <div className="w-full max-w-md rounded-xl border border-emerald-500/40 bg-[#0d141e] p-5 shadow-2xl">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-100">Raporu onayla</h3>
-            <p className="mt-2 text-xs leading-relaxed text-slate-400">
+          <div className="w-full max-w-md rounded-xl border border-emerald-500/40 bg-[var(--t47)] p-5 shadow-2xl">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-[var(--sl100)]">Raporu onayla</h3>
+            <p className="mt-2 text-xs leading-relaxed text-[var(--sl400)]">
               Onaylandıktan sonra rapor <b>kilitlenir</b>; değişiklik yalnızca addendum ile yapılır.
             </p>
             {leftPlaceholders.length > 0 && (
-              <p className="mt-3 rounded-md border border-amber-400/40 bg-amber-400/10 p-2.5 text-[11px] leading-relaxed text-amber-200">
+              <p className="mt-3 rounded-md border border-amber-400/40 bg-amber-400/10 p-2.5 text-[11px] leading-relaxed text-[var(--ac-amber200)]">
                 ⚠ Raporunda doldurulmamış şablon alanları var: {leftPlaceholders.map((x) => `[${x}]`).join(", ")}. Onaydan önce eksiksiz olması önerilir.
               </p>
             )}
             {(consistency.unmatchedText.length > 0 || consistency.unmatchedMeasurements.length > 0) ? (
-              <div className="mt-3 rounded-md border border-amber-400/40 bg-amber-400/10 p-2.5 text-[11px] leading-relaxed text-amber-100">
+              <div className="mt-3 rounded-md border border-amber-400/40 bg-amber-400/10 p-2.5 text-[11px] leading-relaxed text-[var(--ac-amber100)]">
                 <b>⚖ Metin ↔ ölçüm kontrolü:</b> {consistency.note}
                 {consistency.unmatchedText.length > 0 && (
                   <div className="mt-1">Metinde var, ölçüm bölümünde yok: {consistency.unmatchedText.slice(0, 6).map((x) => x.raw).join(", ")}</div>
@@ -1064,35 +1064,35 @@ export default function ReportPrintModal({ open, onClose, report: initial, user,
                 {consistency.unmatchedMeasurements.length > 0 && (
                   <div className="mt-0.5">Ölçüldü ama metinde geçmiyor: {consistency.unmatchedMeasurements.slice(0, 6).map((x) => x.raw).join(", ")}</div>
                 )}
-                <div className="mt-1 text-[10px] text-amber-200/80">Kural tabanlı ön denetimdir; klinik anlam da taşımayabilir. Onayı engellemez.</div>
+                <div className="mt-1 text-[10px] text-[var(--ac-amber200)]/80">Kural tabanlı ön denetimdir; klinik anlam da taşımayabilir. Onayı engellemez.</div>
               </div>
             ) : consistency.textCount + consistency.measurementCount > 0 ? (
-              <p className="mt-3 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-2.5 text-[11px] text-emerald-200">✓ Metindeki ölçüler kayıtlı ölçümlerle uyumlu ({consistency.matched}/{consistency.textCount}).</p>
+              <p className="mt-3 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-2.5 text-[11px] text-[var(--ac-emerald200)]">✓ Metindeki ölçüler kayıtlı ölçümlerle uyumlu ({consistency.matched}/{consistency.textCount}).</p>
             ) : null}
-            <div className="mt-3 rounded-md border border-[#232e40] bg-[#141b24] p-2.5 text-xs text-slate-200">
+            <div className="mt-3 rounded-md border border-[var(--t34)] bg-[var(--t17)] p-2.5 text-xs text-[var(--sl200)]">
               <div className="font-bold">{user.title} {user.fullName}</div>
-              <div className="text-slate-400">Sicil/diploma: {user.regNo || <span className="text-amber-300">tanımlı değil</span>}</div>
-              <a href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/yonetim`} className="mt-1 inline-block text-[11px] text-cyan-400 hover:underline">Hekim profilini düzenle →</a>
+              <div className="text-[var(--sl400)]">Sicil/diploma: {user.regNo || <span className="text-[var(--ac-amber300)]">tanımlı değil</span>}</div>
+              <a href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/yonetim`} className="mt-1 inline-block text-[11px] text-[var(--ac-cyan400)] hover:underline">Hekim profilini düzenle →</a>
             </div>
-            <p className="mt-3 rounded-md border border-amber-400/40 bg-amber-400/10 p-2.5 text-[11px] leading-relaxed text-amber-200">
+            <p className="mt-3 rounded-md border border-amber-400/40 bg-amber-400/10 p-2.5 text-[11px] leading-relaxed text-[var(--ac-amber200)]">
               {sessionIdentity
                 ? <>Onay sahibi <b>{user.fullName}</b> olarak oturumla doğrulanmıştır; rapora bu ad yazılır ve içerik SHA-256 ile mühürlenir. Bu, nitelikli elektronik imza (NES) değildir.</>
                 : <>⚠ Uygulamada oturumsuz demo modundayız: bu onay kimlik doğrulaması yapmaz. Rapora yukarıdaki ad yazılır ve içerik SHA-256 ile mühürlenir; NES değildir.</>}
             </p>
             {report.measurementsText?.trim() && (
-              <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-md border border-[#232e40] bg-[#141b24] p-2.5 text-[11px] leading-snug text-slate-200 hover:border-cyan-500/50">
+              <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-md border border-[var(--t34)] bg-[var(--t17)] p-2.5 text-[11px] leading-snug text-[var(--sl200)] hover:border-cyan-500/50">
                 <input type="checkbox" className="mt-0.5" checked={srAutoSend} onChange={(e) => setSrAutoSend(e.target.checked)} />
                 <span><b>Ölçümleri TID 1500 SR olarak PACS&apos;e gönder (STOW-RS)</b><br />
-                <span className="text-slate-400">Onay başarıyla kaydedildikten sonra, sayısal ölçümlerden Comprehensive SR üretilip PACS&apos;e gönderilir. Sunucu nesneyi iletir ve denetime yazar; ölçüm içeriği doğrulanmaz. Gönderim başarısız olursa rapor yine onaylı kalır.</span></span>
+                <span className="text-[var(--sl400)]">Onay başarıyla kaydedildikten sonra, sayısal ölçümlerden Comprehensive SR üretilip PACS&apos;e gönderilir. Sunucu nesneyi iletir ve denetime yazar; ölçüm içeriği doğrulanmaz. Gönderim başarısız olursa rapor yine onaylı kalır.</span></span>
               </label>
             )}
-            {error && <div className="mt-2 text-xs font-semibold text-rose-300">{error}</div>}
+            {error && <div className="mt-2 text-xs font-semibold text-[var(--ac-rose300)]">{error}</div>}
             <div className="mt-4 flex justify-end gap-2">
-              <button onClick={() => { setDialog(false); setError(""); }} className="cursor-pointer rounded-lg border border-[#232e40] px-3.5 py-1.5 text-xs text-slate-300 hover:bg-[#1a2330]">İptal</button>
-              <button disabled={busy || pending > 0 || missingReasons.length > 0 || !user.fullName.trim()} onClick={() => void save("approve")} className="cursor-pointer rounded-lg bg-emerald-500 px-4 py-1.5 text-xs font-bold text-slate-950 hover:bg-emerald-400 disabled:opacity-40">{busy ? "Onaylanıyor…" : "✓ Onayla ve kilitle"}</button>
+              <button onClick={() => { setDialog(false); setError(""); }} className="cursor-pointer rounded-lg border border-[var(--t34)] px-3.5 py-1.5 text-xs text-[var(--sl300)] hover:bg-[var(--t26)]">İptal</button>
+              <button disabled={busy || pending > 0 || missingReasons.length > 0 || !user.fullName.trim()} onClick={() => void save("approve")} className="cursor-pointer rounded-lg bg-emerald-500 px-4 py-1.5 text-xs font-bold text-[var(--sl950)] hover:bg-emerald-400 disabled:opacity-40">{busy ? "Onaylanıyor…" : "✓ Onayla ve kilitle"}</button>
             </div>
-            {pending > 0 && <div className="mt-2 text-[11px] text-amber-300">{pending} bulgu gözden geçirilmedi.</div>}
-            {missingReasons.length > 0 && <div className="mt-2 text-[11px] text-rose-300">{missingReasons.length} bulgu için ret/düzenleme gerekçesi eksik; onay için gerekçe zorunlu.</div>}
+            {pending > 0 && <div className="mt-2 text-[11px] text-[var(--ac-amber300)]">{pending} bulgu gözden geçirilmedi.</div>}
+            {missingReasons.length > 0 && <div className="mt-2 text-[11px] text-[var(--ac-rose300)]">{missingReasons.length} bulgu için ret/düzenleme gerekçesi eksik; onay için gerekçe zorunlu.</div>}
           </div>
         </div>
       )}

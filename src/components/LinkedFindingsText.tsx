@@ -23,13 +23,13 @@ export default function LinkedFindingsText({ text, findings, onGoto, printHidden
   if (!text?.trim()) return null;
 
   return (
-    <div className={`rounded border border-[#243044] bg-[#0f141c] p-2 ${printHidden ? "print:hidden" : ""}`} data-testid="linked-sentences">
-      <div className="mb-1 flex items-center justify-between text-[10.5px] text-slate-400">
+    <div className={`rounded border border-[var(--t35)] bg-[var(--t11)] p-2 ${printHidden ? "print:hidden" : ""}`} data-testid="linked-sentences">
+      <div className="mb-1 flex items-center justify-between text-[10.5px] text-[var(--sl400)]">
         <span>
-          <b className="text-slate-300">Cümle → bulgu bağlantısı</b> · {coverage.linked}/{coverage.total} cümle bağlı
+          <b className="text-[var(--sl300)]">Cümle → bulgu bağlantısı</b> · {coverage.linked}/{coverage.total} cümle bağlı
           {coverage.total > 0 ? ` (%${Math.round(coverage.ratio * 100)})` : ""}
         </span>
-        <span className="text-[9.5px] text-slate-500">cümleye tıkla: kesit açılır, bulgu vurgulanır</span>
+        <span className="text-[9.5px] text-[var(--sl500)]">cümleye tıkla: kesit açılır, bulgu vurgulanır</span>
       </div>
       <ul className="space-y-1">
         {links.map((l) => {
@@ -42,16 +42,16 @@ export default function LinkedFindingsText({ text, findings, onGoto, printHidden
                   type="button"
                   onClick={() => onGoto(l.findingId as string, l.sliceNumber as number)}
                   title={`Kesit ${l.sliceNumber} · ${l.matchedBy === "kesit" ? "metindeki kesit numarası" : "etiket eşleşmesi"}`}
-                  className="w-full cursor-pointer rounded border border-cyan-400/30 bg-cyan-400/5 px-1.5 py-1 text-left text-[11px] text-slate-200 hover:bg-cyan-400/10"
+                  className="w-full cursor-pointer rounded border border-cyan-400/30 bg-cyan-400/5 px-1.5 py-1 text-left text-[11px] text-[var(--sl200)] hover:bg-cyan-400/10"
                 >
-                  <span className="mr-1 rounded bg-cyan-400/20 px-1 text-[9.5px] font-bold text-cyan-100">
+                  <span className="mr-1 rounded bg-cyan-400/20 px-1 text-[9.5px] font-bold text-[var(--ac-cyan100)]">
                     Kesit {l.sliceNumber}
                   </span>
-                  {label && <span className="mr-1 text-[9.5px] text-cyan-200/80">{label} ·</span>}
+                  {label && <span className="mr-1 text-[9.5px] text-[var(--ac-cyan200)]/80">{label} ·</span>}
                   {l.text}
                 </button>
               ) : (
-                <span className="block px-1.5 py-1 text-[11px] text-slate-500" title="Bu cümle bir bulguya bağlanamadı">
+                <span className="block px-1.5 py-1 text-[11px] text-[var(--sl500)]" title="Bu cümle bir bulguya bağlanamadı">
                   {l.text}
                 </span>
               )}
@@ -59,7 +59,7 @@ export default function LinkedFindingsText({ text, findings, onGoto, printHidden
           );
         })}
       </ul>
-      <p className="mt-1 text-[9.5px] text-slate-500">
+      <p className="mt-1 text-[9.5px] text-[var(--sl500)]">
         Eşleme kural tabanlıdır: metindeki «Kesit N» veya bulgu etiketiyle ortak sözcük. Bağ kurulamayan cümle vurgulanmaz.
       </p>
     </div>

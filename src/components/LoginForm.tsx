@@ -75,7 +75,7 @@ export default function LoginForm({ mode }: { mode: LoginMode }) {
     <form onSubmit={submit} className="mt-6 space-y-3">
       {accountRequired && (
         <>
-          <label htmlFor="username" className="block text-xs font-bold uppercase tracking-widest text-slate-400">
+          <label htmlFor="username" className="block text-xs font-bold uppercase tracking-widest text-[var(--sl400)]">
             Kullanıcı adı
           </label>
           <input
@@ -84,10 +84,10 @@ export default function LoginForm({ mode }: { mode: LoginMode }) {
             onChange={(e) => setUsername(e.target.value)}
             autoComplete="username"
             autoFocus
-            className="w-full rounded-lg border border-[#2d3b4e] bg-[#080c12] px-3 py-2 text-sm text-slate-100 outline-none focus:border-cyan-400"
+            className="w-full rounded-lg border border-[var(--t39)] bg-[var(--t45)] px-3 py-2 text-sm text-[var(--sl100)] outline-none focus:border-cyan-400"
             placeholder="kullanici adi"
           />
-          <label htmlFor="password" className="block text-xs font-bold uppercase tracking-widest text-slate-400">
+          <label htmlFor="password" className="block text-xs font-bold uppercase tracking-widest text-[var(--sl400)]">
             Parola
           </label>
           <input
@@ -96,12 +96,12 @@ export default function LoginForm({ mode }: { mode: LoginMode }) {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
-            className="w-full rounded-lg border border-[#2d3b4e] bg-[#080c12] px-3 py-2 text-sm text-slate-100 outline-none focus:border-cyan-400"
+            className="w-full rounded-lg border border-[var(--t39)] bg-[var(--t45)] px-3 py-2 text-sm text-[var(--sl100)] outline-none focus:border-cyan-400"
             placeholder="••••••••"
           />
           {needsTotp && !totpMissing && (
             <>
-              <label htmlFor="code" className="block text-xs font-bold uppercase tracking-widest text-emerald-400">
+              <label htmlFor="code" className="block text-xs font-bold uppercase tracking-widest text-[var(--ac-emerald400)]">
                 İki faktörlü kod
               </label>
               <input
@@ -111,7 +111,7 @@ export default function LoginForm({ mode }: { mode: LoginMode }) {
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 autoFocus
-                className="w-full rounded-lg border border-emerald-500/50 bg-[#080c12] px-3 py-2 text-center font-mono text-lg tracking-[0.4em] text-slate-100 outline-none focus:border-emerald-400"
+                className="w-full rounded-lg border border-emerald-500/50 bg-[var(--t45)] px-3 py-2 text-center font-mono text-lg tracking-[0.4em] text-[var(--sl100)] outline-none focus:border-emerald-400"
                 placeholder="000000"
               />
             </>
@@ -121,7 +121,7 @@ export default function LoginForm({ mode }: { mode: LoginMode }) {
 
       {tokenRequired && (
         <>
-          <label htmlFor="token" className="block text-xs font-bold uppercase tracking-widest text-slate-400">
+          <label htmlFor="token" className="block text-xs font-bold uppercase tracking-widest text-[var(--sl400)]">
             Erişim anahtarı
           </label>
           <input
@@ -130,13 +130,13 @@ export default function LoginForm({ mode }: { mode: LoginMode }) {
             value={token}
             onChange={(e) => setToken(e.target.value)}
             autoComplete="off"
-            className="w-full rounded-lg border border-[#2d3b4e] bg-[#080c12] px-3 py-2 text-sm text-slate-100 outline-none focus:border-cyan-400"
+            className="w-full rounded-lg border border-[var(--t39)] bg-[var(--t45)] px-3 py-2 text-sm text-[var(--sl100)] outline-none focus:border-cyan-400"
             placeholder="ACCESS_TOKEN"
           />
         </>
       )}
 
-      {error && <p role="alert" className="text-xs text-rose-300">{error}</p>}
+      {error && <p role="alert" className="text-xs text-[var(--ac-rose300)]">{error}</p>}
       <button
         type="submit"
         disabled={
@@ -144,14 +144,14 @@ export default function LoginForm({ mode }: { mode: LoginMode }) {
           (accountRequired && (!username.trim() || !password)) ||
           (!accountRequired && tokenRequired && !token.trim())
         }
-        className="w-full rounded-lg bg-cyan-500 px-3 py-2 text-sm font-black text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
+        className="w-full rounded-lg bg-cyan-500 px-3 py-2 text-sm font-black text-[var(--sl950)] transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
       >
         {busy ? "Doğrulanıyor…" : "Giriş"}
       </button>
-      <p className="text-center text-[11px] leading-relaxed text-slate-500">
+      <p className="text-center text-[11px] leading-relaxed text-[var(--sl500)]">
         Bu uygulama araştırma/demo amaçlıdır; klinik karar için kullanılamaz.
         <br />
-        Erişim anahtarı ortam değişkeni <code className="text-slate-400">ACCESS_TOKEN</code> içindedir.
+        Erişim anahtarı ortam değişkeni <code className="text-[var(--sl400)]">ACCESS_TOKEN</code> içindedir.
       </p>
     </form>
   );

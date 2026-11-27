@@ -224,25 +224,25 @@ export default function VolumeRender({ series }: Props) {
     } catch (e) { setStlBusy(`STL oluşturulamadı: ${e instanceof Error ? e.message : "hata"}`); }
   };
 
-  const btn = (on: boolean) => `cursor-pointer rounded px-2 py-0.5 font-bold ${on ? "bg-cyan-400/20 text-cyan-200 ring-1 ring-cyan-400/50" : "bg-[#141b24] text-slate-300 hover:bg-[#1f2937]"}`;
+  const btn = (on: boolean) => `cursor-pointer rounded px-2 py-0.5 font-bold ${on ? "bg-cyan-400/20 text-[var(--ac-cyan200)] ring-1 ring-cyan-400/50" : "bg-[var(--t17)] text-[var(--sl300)] hover:bg-[var(--t31)]"}`;
   return (
-    <div className="flex h-full min-h-0 flex-col text-[11px] text-slate-300">
-      <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-[#1a2230] bg-[#0b0f16] px-2 py-1">
+    <div className="flex h-full min-h-0 flex-col text-[11px] text-[var(--sl300)]">
+      <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-[var(--t25)] bg-[var(--t05)] px-2 py-1">
         <button className={btn(mode === 0)} onClick={() => setMode(0)}>VR</button>
         <button className={btn(mode === 1)} onClick={() => setMode(1)}>MIP</button>
-        <span className="mx-1 text-slate-600">|</span>
+        <span className="mx-1 text-[var(--sl600)]">|</span>
         {presets.map((p, i) => <button key={p.name} className={btn(pi === i)} onClick={() => applyPreset(i)}>{p.name}</button>)}
         <label className="ml-1 flex items-center gap-1"><input type="checkbox" checked={shade} onChange={(e) => setShade(e.target.checked)} />Gölge</label>
         <label className="flex items-center gap-1">Eşik<input aria-label="Eşik" type="range" min={0} max={90} value={Math.round(thr * 100)} onChange={(e) => setThr(Number(e.target.value) / 100)} className="w-16" /></label>
         <label className="flex items-center gap-1">Opaklık<input aria-label="Opaklık" type="range" min={5} max={100} value={Math.round(opac * 100)} onChange={(e) => setOpac(Number(e.target.value) / 100)} className="w-16" /></label>
-        <label className="flex items-center gap-1">Alt<input aria-label="Alt değer" type="number" value={Math.round(lo)} onChange={(e) => setLo(Number(e.target.value))} className="w-14 rounded border border-[#1e2735] bg-[#0e141d] px-1" /></label>
-        <label className="flex items-center gap-1">Üst<input aria-label="Üst değer" type="number" value={Math.round(hi)} onChange={(e) => setHi(Math.max(lo + 1, Number(e.target.value)))} className="w-14 rounded border border-[#1e2735] bg-[#0e141d] px-1" /></label>
+        <label className="flex items-center gap-1">Alt<input aria-label="Alt değer" type="number" value={Math.round(lo)} onChange={(e) => setLo(Number(e.target.value))} className="w-14 rounded border border-[var(--t30)] bg-[var(--t10)] px-1" /></label>
+        <label className="flex items-center gap-1">Üst<input aria-label="Üst değer" type="number" value={Math.round(hi)} onChange={(e) => setHi(Math.max(lo + 1, Number(e.target.value)))} className="w-14 rounded border border-[var(--t30)] bg-[var(--t10)] px-1" /></label>
         {series.modality === "CT" && <label className="flex items-center gap-1" title="BT: verilen eşiğin üstündeki vokselleri (kemik) gizleyerek yumuşak dokuyu gösterir"><input type="checkbox" checked={boneCut} onChange={(e) => setBoneCut(e.target.checked)} />Kemik çıkar
           {boneCut && <input aria-label="Kemik eşiği (HU)" type="range" min={100} max={1000} step={25} value={boneHU} onChange={(e) => setBoneHU(Number(e.target.value))} className="w-16" />}{boneCut && <span>{boneHU} HU</span>}</label>}
         <button className={btn(false)} onClick={() => setCam({ yaw: 25, pitch: -15, zoom: 2.1 })}>Sıfırla</button>
-        <span className="mx-1 text-slate-600">|</span>
+        <span className="mx-1 text-[var(--sl600)]">|</span>
         <label className="flex items-center gap-1">Kırp
-          <select aria-label="Kırpma düzlemi ekseni" value={clipAxis} onChange={(e) => setClipAxis(Number(e.target.value))} className="rounded border border-[#1e2735] bg-[#0e141d] px-1">
+          <select aria-label="Kırpma düzlemi ekseni" value={clipAxis} onChange={(e) => setClipAxis(Number(e.target.value))} className="rounded border border-[var(--t30)] bg-[var(--t10)] px-1">
             <option value={-1}>Kapalı</option>
             <option value={0}>Sağ/Sol</option>
             <option value={1}>Üst/Alt</option>
@@ -254,7 +254,7 @@ export default function VolumeRender({ series }: Props) {
           <button className={btn(clipFlip)} onClick={() => setClipFlip((v) => !v)} title="Düzlemin hangi yarısının görüneceğini değiştirir" aria-pressed={clipFlip}>Yön ⇄</button>
         </>}
       </div>
-      <div ref={wrap} className="relative min-h-0 flex-1 bg-[#05070a]">
+      <div ref={wrap} className="relative min-h-0 flex-1 bg-[var(--t00)]">
         <canvas
           ref={cv} data-testid="vr-canvas" style={{ width: "100%", height: "100%", cursor: "grab", touchAction: "none" }}
           onPointerDown={(e) => { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); drag.current = { x: e.clientX, y: e.clientY, yaw: cam.yaw, pitch: cam.pitch }; }}
@@ -262,20 +262,20 @@ export default function VolumeRender({ series }: Props) {
           onPointerUp={() => { drag.current = null; }}
           onWheel={(e) => setCam((c) => ({ ...c, zoom: Math.max(0.4, Math.min(5, c.zoom * (e.deltaY > 0 ? 0.9 : 1.1))) }))}
         />
-        {err && <div className="absolute inset-0 flex items-center justify-center p-4 text-center text-amber-300">{err}</div>}
-        <div className="pointer-events-none absolute bottom-1 left-2 text-[10px] text-slate-500">Sürükle: döndür · Tekerlek: yakınlaştır · {vol.gx}×{vol.gy}×{vol.gz} doku</div>
+        {err && <div className="absolute inset-0 flex items-center justify-center p-4 text-center text-[var(--ac-amber300)]">{err}</div>}
+        <div className="pointer-events-none absolute bottom-1 left-2 text-[10px] text-[var(--sl500)]">Sürükle: döndür · Tekerlek: yakınlaştır · {vol.gx}×{vol.gy}×{vol.gz} doku</div>
       </div>
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-[#1a2230] bg-[#0b0f16] px-2 py-1">
-        <span className="font-bold text-cyan-300">STL</span>
-        <label className="flex items-center gap-1">Eşik<input aria-label="STL eşiği" type="number" value={stlThr} onChange={(e) => setStlThr(Number(e.target.value))} className="w-16 rounded border border-[#1e2735] bg-[#0e141d] px-1" />{series.unit}</label>
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-[var(--t25)] bg-[var(--t05)] px-2 py-1">
+        <span className="font-bold text-[var(--ac-cyan300)]">STL</span>
+        <label className="flex items-center gap-1">Eşik<input aria-label="STL eşiği" type="number" value={stlThr} onChange={(e) => setStlThr(Number(e.target.value))} className="w-16 rounded border border-[var(--t30)] bg-[var(--t10)] px-1" />{series.unit}</label>
         <label className="flex items-center gap-1" title="Taubin λ|μ düzleştirme: yüzeyi yumuşatır, hacmi neredeyse korur"><input type="checkbox" checked={smoothOn} onChange={(e) => setSmoothOn(e.target.checked)} />Düzgünleştir</label>
         <label className="flex items-center gap-1">Kalite
-          <select aria-label="STL kalitesi" value={stlQ} onChange={(e) => setStlQ(Number(e.target.value))} className="rounded border border-[#1e2735] bg-[#0e141d] px-1">
+          <select aria-label="STL kalitesi" value={stlQ} onChange={(e) => setStlQ(Number(e.target.value))} className="rounded border border-[var(--t30)] bg-[var(--t10)] px-1">
             <option value={96}>Hızlı</option><option value={128}>Orta</option><option value={192}>İnce (yavaş)</option>
           </select>
         </label>
         <button data-testid="stl-btn" className={btn(false)} onClick={() => void exportStl()}>⬇ STL indir</button>
-        <span className="text-slate-400">{stlBusy}</span>
+        <span className="text-[var(--sl400)]">{stlBusy}</span>
       </div>
     </div>
   );

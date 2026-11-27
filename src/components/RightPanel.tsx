@@ -119,10 +119,10 @@ export default function RightPanel(p: Props) {
   const priors = p.patientReports.filter((r) => !series || r.studyUid !== series.studyUid).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
   return (
-    <div className="flex h-full w-full flex-col border-l border-[#1a2230] bg-[#0b0f16]">
-      <div className="flex shrink-0 border-b border-[#1a2230]">
+    <div className="flex h-full w-full flex-col border-l border-[var(--t25)] bg-[var(--t05)]">
+      <div className="flex shrink-0 border-b border-[var(--t25)]">
         {([["ai", "Vision AI"], ["rapor", "Rapor"], ["olcum", `Ölçüm${p.annotations.length ? ` (${p.annotations.length})` : ""}`], ["dicom", "DICOM"], ["gecmis", "Geçmiş"]] as const).map(([id, label]) => (
-          <button key={id} onClick={() => setTab(id)} className={`flex-1 cursor-pointer px-1 py-2.5 text-[11px] font-semibold tracking-wide ${tab === id ? "border-b-2 border-cyan-400 text-cyan-300" : "text-slate-400 hover:text-slate-200"}`}>{label}</button>
+          <button key={id} onClick={() => setTab(id)} className={`flex-1 cursor-pointer px-1 py-2.5 text-[11px] font-semibold tracking-wide ${tab === id ? "border-b-2 border-cyan-400 text-[var(--ac-cyan300)]" : "text-[var(--sl400)] hover:text-[var(--sl200)]"}`}>{label}</button>
         ))}
       </div>
 
@@ -131,59 +131,59 @@ export default function RightPanel(p: Props) {
           <div className="flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-2">
               {MODES.map((m) => (
-                <button key={m.id} onClick={() => p.setMode(m.id)} className={`cursor-pointer rounded-lg border p-2.5 text-left ${p.mode === m.id ? "border-cyan-400/60 bg-cyan-400/10" : "border-[#1e2735] bg-[#0e141d] hover:border-[#2c394d]"}`}>
-                  <div className="text-base text-cyan-300">{m.icon}</div>
-                  <div className="mt-1 text-xs font-bold text-slate-100">{m.title}</div>
-                  <div className="mt-0.5 text-[10px] leading-tight text-slate-500">{m.sub}</div>
+                <button key={m.id} onClick={() => p.setMode(m.id)} className={`cursor-pointer rounded-lg border p-2.5 text-left ${p.mode === m.id ? "border-cyan-400/60 bg-cyan-400/10" : "border-[var(--t30)] bg-[var(--t10)] hover:border-[var(--t38)]"}`}>
+                  <div className="text-base text-[var(--ac-cyan300)]">{m.icon}</div>
+                  <div className="mt-1 text-xs font-bold text-[var(--sl100)]">{m.title}</div>
+                  <div className="mt-0.5 text-[10px] leading-tight text-[var(--sl500)]">{m.sub}</div>
                 </button>
               ))}
             </div>
 
-            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--sl500)]">
               Analiz protokolü
-              <select value={p.protocol} onChange={(e) => p.setProtocol(e.target.value as AiProtocol)} className="mt-1 w-full rounded-lg border border-[#1e2735] bg-[#0e141d] px-2 py-1.5 text-xs normal-case tracking-normal text-slate-200 focus:outline-none">
+              <select value={p.protocol} onChange={(e) => p.setProtocol(e.target.value as AiProtocol)} className="mt-1 w-full rounded-lg border border-[var(--t30)] bg-[var(--t10)] px-2 py-1.5 text-xs normal-case tracking-normal text-[var(--sl200)] focus:outline-none">
                 <option value="auto">Otomatik (BT adayı / diğerlerinde kesit incelemesi)</option>
                 <option value="review">Tüm karelerde görüntü ölçümü (tanısal değil)</option>
                 <option value="ct-head">BT Beyin — kanama adayı</option>
                 <option value="ct-chest">BT Toraks — nodül adayı</option>
                 <option value="none">İncelemeyi kapat</option>
               </select>
-              <span className={`mt-1 block text-[10.5px] normal-case tracking-normal ${p.resolved === "none" || p.resolved === "image-review" ? "text-amber-300" : "text-emerald-300"}`}>→ {PROTO_LABEL[p.resolved]}{p.resolved === "image-review" && " · MR/US/grafi için hastalık modeli değil"}</span>
+              <span className={`mt-1 block text-[10.5px] normal-case tracking-normal ${p.resolved === "none" || p.resolved === "image-review" ? "text-[var(--ac-amber300)]" : "text-[var(--ac-emerald300)]"}`}>→ {PROTO_LABEL[p.resolved]}{p.resolved === "image-review" && " · MR/US/grafi için hastalık modeli değil"}</span>
             </label>
             {p.mode === "triyaj" && p.resolved === "image-review" && (
-              <p className="rounded-lg border border-amber-400/40 bg-amber-400/5 p-2 text-[10.5px] leading-relaxed text-amber-200">
+              <p className="rounded-lg border border-amber-400/40 bg-amber-400/5 p-2 text-[10.5px] leading-relaxed text-[var(--ac-amber200)]">
                 US/MR/grafi için acil klinik sınıflandırıcı bağlı değil. Başlatıldığında yalnızca kare bazlı görüntü ölçümleri gösterilir; acil/normal kararı verilmez.
               </p>
             )}
 
-            <textarea value={p.clinicalNote} onChange={(e) => p.setClinicalNote(e.target.value)} placeholder="Klinik bilgi / hekim notu…" rows={2} className="w-full resize-none rounded-lg border border-[#1e2735] bg-[#0e141d] p-2.5 text-xs text-slate-200 placeholder:text-slate-600 focus:border-cyan-400/50 focus:outline-none" />
+            <textarea value={p.clinicalNote} onChange={(e) => p.setClinicalNote(e.target.value)} placeholder="Klinik bilgi / hekim notu…" rows={2} className="w-full resize-none rounded-lg border border-[var(--t30)] bg-[var(--t10)] p-2.5 text-xs text-[var(--sl200)] placeholder:text-[var(--sl600)] focus:border-cyan-400/50 focus:outline-none" />
 
             <button onClick={p.onStart} disabled={!series || busy || !!(series.specialType && series.specialType !== "image")} className="cursor-pointer rounded-lg bg-gradient-to-r from-cyan-500 to-emerald-500 px-4 py-2.5 text-sm font-bold text-[#06131a] shadow-lg disabled:opacity-40">
               {busy ? "Kareler tek tek işleniyor…" : p.resolved === "image-review" ? `▶ ${status === "done" ? "Yeniden incele" : "Görüntü incelemesini başlat"} (${series?.slices.length ?? 0} kare)` : status === "done" ? "⟳ Yeniden analiz et" : `▶ Analizi başlat (${series?.slices.length ?? 0} kesit)`}
             </button>
             {p.onStartAll && (p.loadedCount ?? 0) > 1 && (
-              <button onClick={p.onStartAll} disabled={busy} className="cursor-pointer rounded-lg border border-violet-400/50 bg-violet-500/10 px-4 py-2 text-xs font-bold text-violet-200 hover:bg-violet-500/20 disabled:opacity-40">
+              <button onClick={p.onStartAll} disabled={busy} className="cursor-pointer rounded-lg border border-violet-400/50 bg-violet-500/10 px-4 py-2 text-xs font-bold text-[var(--ac-violet200)] hover:bg-violet-500/20 disabled:opacity-40">
                 ✨ Tüm yüklenen serileri birlikte AI ile analiz et ({p.loadedCount} seri)
               </button>
             )}
 
             {busy && scan && (
               <div className="rounded-lg border border-emerald-400/30 bg-emerald-400/5 p-3">
-                <div className="flex items-center justify-between text-[11px] font-semibold text-emerald-300">
+                <div className="flex items-center justify-between text-[11px] font-semibold text-[var(--ac-emerald300)]">
                   <span>{scan.phaseLabel}</span>
                   <span className="rounded border border-emerald-500/40 bg-emerald-950 px-2 py-0.5 font-mono text-xs font-bold">Kesit {Math.min(scan.scannedSlices + 1, scan.totalSlices)} / {scan.totalSlices}</span>
                 </div>
-                <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#13202b]"><div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400" style={{ width: `${((scan.scannedSlices + scan.sliceProgress) / Math.max(1, scan.totalSlices)) * 100}%` }} /></div>
-                <div className="mt-1.5 font-mono text-[10px] text-slate-500">{p.resolved === "image-review" ? "Her karede gerçek pikseller: parlaklık · kontrast · varsa kırmızı/mavi renk oranı" : "BT pikselleri: doku maskesi → aday odak incelemesi"}</div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--t50)]"><div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400" style={{ width: `${((scan.scannedSlices + scan.sliceProgress) / Math.max(1, scan.totalSlices)) * 100}%` }} /></div>
+                <div className="mt-1.5 font-mono text-[10px] text-[var(--sl500)]">{p.resolved === "image-review" ? "Her karede gerçek pikseller: parlaklık · kontrast · varsa kırmızı/mavi renk oranı" : "BT pikselleri: doku maskesi → aday odak incelemesi"}</div>
               </div>
             )}
 
             {feed.length > 0 && (
-              <div className="rounded-lg border border-[#1e2735] bg-[#080c12]">
-                <div className="border-b border-[#1e2735] px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Analiz günlüğü</div>
+              <div className="rounded-lg border border-[var(--t30)] bg-[var(--t45)]">
+                <div className="border-b border-[var(--t30)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-[var(--sl400)]">Analiz günlüğü</div>
                 <div ref={feedRef} className="max-h-40 overflow-y-auto p-2 font-mono text-[10.5px] leading-relaxed">
                   {feed.map((it, i) => (
-                    <div key={i} className="flex gap-2"><span className="shrink-0 text-slate-600">{it.t}</span><span className={it.kind === "finding" ? "font-semibold text-amber-300" : it.kind === "done" ? "font-bold text-emerald-300" : it.kind === "warn" ? "font-bold text-rose-300" : "text-slate-400"}>{it.text}</span></div>
+                    <div key={i} className="flex gap-2"><span className="shrink-0 text-[var(--sl600)]">{it.t}</span><span className={it.kind === "finding" ? "font-semibold text-[var(--ac-amber300)]" : it.kind === "done" ? "font-bold text-[var(--ac-emerald300)]" : it.kind === "warn" ? "font-bold text-[var(--ac-rose300)]" : "text-[var(--sl400)]"}>{it.text}</span></div>
                   ))}
                 </div>
               </div>
@@ -191,7 +191,7 @@ export default function RightPanel(p: Props) {
 
             {status === "done" && analysis && (
               <>
-                <div className={`rounded-lg border p-2.5 text-[11px] leading-snug ${analysis.engine === "cv-heuristic" || analysis.engine === "cxr-model" || analysis.engine === "image-review" ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-100" : analysis.engine === "no-model" ? "border-slate-500/40 bg-slate-500/10 text-slate-300" : "border-amber-400/40 bg-amber-400/10 text-amber-200"}`}>
+                <div className={`rounded-lg border p-2.5 text-[11px] leading-snug ${analysis.engine === "cv-heuristic" || analysis.engine === "cxr-model" || analysis.engine === "image-review" ? "border-cyan-400/40 bg-cyan-400/10 text-[var(--ac-cyan100)]" : analysis.engine === "no-model" ? "border-[var(--sl500)]/40 bg-[var(--sl500)]/10 text-[var(--sl300)]" : "border-amber-400/40 bg-amber-400/10 text-[var(--ac-amber200)]"}`}>
                   <div className="font-bold">{analysis.engine === "cxr-model" ? "🧠 Yerel derin CXR sınıflandırması tamamlandı (14 bulgu)" : analysis.engine === "image-review" ? `📊 ${analysis.review?.frameCount ?? 0} karede gerçek piksel incelemesi tamamlandı` : analysis.engine === "cv-heuristic" ? "ℹ Kural tabanlı BT aday odakları (derin öğrenme değil)" : analysis.engine === "no-model" ? "ℹ Otomatik inceleme kapalı" : "⚠ DEMO — önceden tanımlı örnek bulgular"}</div>
                   <p className="mt-0.5">
                     {analysis.engine === "cxr-model" ? "Grafik yerel ONNX modeline gönderildi; 14 torasik bulgu için olasılıklar ve isı haritası üretildi. Skorlar kalibre değildir; lokalizasyon kutusu YOKTUR ve klinik doğrulama yapılmamıştır."
@@ -201,7 +201,7 @@ export default function RightPanel(p: Props) {
                   </p>
                   <button onClick={() => setCardOpen((v) => !v)} className="mt-1 cursor-pointer text-[10.5px] font-bold underline">{analysis.engine === "image-review" ? (cardOpen ? "Ölçüm yöntemini gizle" : "Ölçüm yöntemini göster") : analysis.engine === "cxr-model" ? (cardOpen ? "CXR model kartını gizle" : "CXR model kartını göster") : (cardOpen ? "Model kartını gizle" : "Model kartını göster")}</button>
                   {cardOpen && (
-                    <div className="mt-1.5 space-y-1 rounded bg-black/30 p-2 text-[10.5px] text-slate-200">
+                    <div className="mt-1.5 space-y-1 rounded bg-black/30 p-2 text-[10.5px] text-[var(--sl200)]">
                       <div><b>{analysis.modelCard.name}</b> v{analysis.modelCard.version}</div>
                       <div><b>Amaç:</b> {analysis.modelCard.intendedUse}</div>
                       <div><b>Yöntem:</b> {analysis.modelCard.method}</div>
@@ -210,56 +210,56 @@ export default function RightPanel(p: Props) {
                     </div>
                   )}
                 </div>
-                {p.engineNotes.map((n) => <div key={n} className="rounded border border-amber-400/30 bg-amber-400/5 p-2 text-[10.5px] text-amber-200">⚠ {n}</div>)}
+                {p.engineNotes.map((n) => <div key={n} className="rounded border border-amber-400/30 bg-amber-400/5 p-2 text-[10.5px] text-[var(--ac-amber200)]">⚠ {n}</div>)}
                 {analysis.engine === "image-review" && (
-                  <div role="note" className="rounded-lg border border-amber-400/35 bg-amber-400/5 p-2.5 text-[10.5px] leading-relaxed text-amber-100">
+                  <div role="note" className="rounded-lg border border-amber-400/35 bg-amber-400/5 p-2.5 text-[10.5px] leading-relaxed text-[var(--ac-amber100)]">
                     {p.mode === "triyaj" ? "⚠ Bu modalitede tanısal acil triyaj modeli bağlı değil. Ölçümler görüntüyü incelemek içindir; acil/normal kararı vermez." : "Klinik triyaj yapılmadı. Tanı ve acil değerlendirme radyoloğa aittir."}
                   </div>
                 )}
                 {analysis.review && <ReviewMetrics review={analysis.review} currentSlice={p.currentSlice} unit={unit} onGotoSlice={p.onGotoSlice} />}
                 {(analysis.engine === "cv-heuristic" || analysis.engine === "cxr-model" || analysis.engine === "simulated-sample") && (
                   <div className="rounded-lg border p-3" style={{ borderColor: analysis.triage.score > 0.8 ? "#ff3b5c66" : analysis.triage.score > 0.6 ? "#ff9f1c55" : "#2ee6a844", background: analysis.triage.score > 0.8 ? "rgba(255,59,92,0.08)" : "rgba(46,230,168,0.05)" }}>
-                    <div className="flex items-center justify-between"><span className="text-xs font-black tracking-wide text-slate-100">TRİYAJ: {analysis.triage.level}</span><span className="font-mono text-[10px] text-slate-400">öncelik {analysis.triage.score.toFixed(2)}</span></div>
-                    <p className="mt-1 text-[11px] leading-snug text-slate-300">{analysis.triage.note}</p>
+                    <div className="flex items-center justify-between"><span className="text-xs font-black tracking-wide text-[var(--sl100)]">TRİYAJ: {analysis.triage.level}</span><span className="font-mono text-[10px] text-[var(--sl400)]">öncelik {analysis.triage.score.toFixed(2)}</span></div>
+                    <p className="mt-1 text-[11px] leading-snug text-[var(--sl300)]">{analysis.triage.note}</p>
                   </div>
                 )}
                 {p.cxr && (
                   <div className="rounded-lg border border-rose-400/25 bg-rose-400/5 p-2.5">
                     <div className="mb-1.5 flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-rose-200">CXR model olasılıkları (tüm sınıflar)</span>
-                      <span className="font-mono text-[9.5px] text-slate-500">{p.cxr.elapsedMs} ms · {p.cxr.model}</span>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--ac-rose200)]">CXR model olasılıkları (tüm sınıflar)</span>
+                      <span className="font-mono text-[9.5px] text-[var(--sl500)]">{p.cxr.elapsedMs} ms · {p.cxr.model}</span>
                     </div>
                     <div className="grid grid-cols-2 gap-x-3 gap-y-1">
                       {[...p.cxr.scores].sort((a, b) => b.prob - a.prob).map((c) => (
                         <div key={c.index} className="flex items-center gap-1.5 text-[10px]" title={`eşik %${Math.round(c.threshold * 100)}`}>
-                          <span className={`w-11 shrink-0 truncate font-mono ${c.positive ? "font-bold text-rose-200" : "text-slate-500"}`}>{c.labelTr}</span>
+                          <span className={`w-11 shrink-0 truncate font-mono ${c.positive ? "font-bold text-[var(--ac-rose200)]" : "text-[var(--sl500)]"}`}>{c.labelTr}</span>
                           <div className="h-1.5 flex-1 overflow-hidden rounded bg-black/40">
-                            <div className={`h-full ${c.positive ? "bg-rose-400" : "bg-slate-600"}`} style={{ width: `${Math.min(100, c.prob * 100)}%` }} />
+                            <div className={`h-full ${c.positive ? "bg-rose-400" : "bg-[var(--sl600)]"}`} style={{ width: `${Math.min(100, c.prob * 100)}%` }} />
                           </div>
-                          <span className={`w-8 shrink-0 text-right font-mono ${c.positive ? "text-rose-200" : "text-slate-500"}`}>%{Math.round(c.prob * 100)}</span>
-                          <span className="w-14 shrink-0 rounded border px-1 py-px text-center font-mono text-[8.5px] font-bold" style={{ color: "#e2b7ff", background: "#2a1a3d", borderColor: "#6b3fa055" }} title={uncertaintyNote(uncertaintyBand(c.prob, c.threshold), c.prob, c.threshold)}>{BAND_LABEL[uncertaintyBand(c.prob, c.threshold)]}</span>
+                          <span className={`w-8 shrink-0 text-right font-mono ${c.positive ? "text-[var(--ac-rose200)]" : "text-[var(--sl500)]"}`}>%{Math.round(c.prob * 100)}</span>
+                          <span className="w-14 shrink-0 rounded border px-1 py-px text-center font-mono text-[8.5px] font-bold" style={{ color: "var(--t60)", background: "var(--t59)", borderColor: "#6b3fa055" }} title={uncertaintyNote(uncertaintyBand(c.prob, c.threshold), c.prob, c.threshold)}>{BAND_LABEL[uncertaintyBand(c.prob, c.threshold)]}</span>
                         </div>
                       ))}
                     </div>
-                    <p className="mt-1.5 text-[9.5px] leading-relaxed text-slate-500">Kalibre olasılık değildir; sınıf eşikleri kaynak doğrulama split&apos;inden alınmadır. Model lokalizasyon kutusu üretmez.</p>
+                    <p className="mt-1.5 text-[9.5px] leading-relaxed text-[var(--sl500)]">Kalibre olasılık değildir; sınıf eşikleri kaynak doğrulama split&apos;inden alınmadır. Model lokalizasyon kutusu üretmez.</p>
                   </div>
                 )}
                 {p.hasMasks && (
-                  <label className="flex items-center gap-2 text-[11px] text-slate-300">AI maske örtüsü
+                  <label className="flex items-center gap-2 text-[11px] text-[var(--sl300)]">AI maske örtüsü
                     <input type="range" min={0} max={0.8} step={0.05} value={p.overlayOpacity} onChange={(e) => p.setOverlayOpacity(Number(e.target.value))} className="flex-1" />
-                    <span className="w-8 font-mono text-cyan-300">{Math.round(p.overlayOpacity * 100)}%</span>
+                    <span className="w-8 font-mono text-[var(--ac-cyan300)]">{Math.round(p.overlayOpacity * 100)}%</span>
                   </label>
                 )}
                 {p.shadowMode && (
-                  <div role="note" className="rounded-lg border border-violet-400/35 bg-violet-400/5 p-2.5 text-[10.5px] leading-relaxed text-violet-100">
+                  <div role="note" className="rounded-lg border border-violet-400/35 bg-violet-400/5 p-2.5 text-[10.5px] leading-relaxed text-[var(--violet-hi)]">
                     <b>Gölge mod aktif:</b> bu oturumda {p.shadowCount ?? 0} yapay zeka adayı rapora girilmedi; yalnızca değerlendirme için kaydedildi.
                     Model henüz klinik doğrulamasını tamamlamadığı için ekran ve rapor AI bulgusu göstermez.
                   </div>
                 )}
                 {p.hasHeats && (
-                  <label className="flex items-center gap-2 text-[11px] text-slate-300">CXR ısı haritası
+                  <label className="flex items-center gap-2 text-[11px] text-[var(--sl300)]">CXR ısı haritası
                     <input type="range" min={0} max={0.9} step={0.05} value={p.heatOpacity ?? 0} onChange={(e) => p.setHeatOpacity?.(Number(e.target.value))} className="flex-1" />
-                    <span className="w-8 font-mono text-rose-300">{Math.round((p.heatOpacity ?? 0) * 100)}%</span>
+                    <span className="w-8 font-mono text-[var(--ac-rose300)]">{Math.round((p.heatOpacity ?? 0) * 100)}%</span>
                   </label>
                 )}
               </>
@@ -267,41 +267,41 @@ export default function RightPanel(p: Props) {
 
             {revealed.length > 0 && (
               <div className="flex flex-col gap-2">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{analysis?.engine === "image-review" ? "Temsilî kareler / inceleme noktaları" : "Bulgular"} ({revealed.length})</div>
+                <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--sl400)]">{analysis?.engine === "image-review" ? "Temsilî kareler / inceleme noktaları" : "Bulgular"} ({revealed.length})</div>
                 {revealed.map((f) => {
                   const sv = SEV[f.severity];
                   const here = p.currentSlice >= f.sliceStart && p.currentSlice <= f.sliceEnd;
                   const peak = p.currentSlice === f.sliceIndex;
                   const delta = priorDelta(f, priors);
                   return (
-                    <div key={f.id} className={`rounded-xl border p-3 ${peak ? "bg-[#111927] ring-2 ring-cyan-400" : here ? "bg-[#0e1622] ring-1 ring-cyan-500/60" : "bg-[#0b1018]"}`} style={{ borderColor: peak ? "#22d3ee" : `${sv.color}55` }}>
-                      <div className="flex items-center justify-between gap-2 border-b border-[#1f2937] pb-2">
+                    <div key={f.id} className={`rounded-xl border p-3 ${peak ? "bg-[var(--t52)] ring-2 ring-cyan-400" : here ? "bg-[var(--t53)] ring-1 ring-cyan-500/60" : "bg-[var(--t06)]"}`} style={{ borderColor: peak ? "#22d3ee" : `${sv.color}55` }}>
+                      <div className="flex items-center justify-between gap-2 border-b border-[var(--t31)] pb-2">
                         <div className="flex items-center gap-1.5">
-                          <span className="rounded border border-cyan-500/50 bg-cyan-950 px-2 py-0.5 font-mono text-xs font-black text-cyan-300">KESİT {f.keySliceNumber}</span>
-                          <span className="font-mono text-[10px] text-slate-400">({f.sliceRangeStr})</span>
+                          <span className="rounded border border-cyan-500/50 bg-cyan-950 px-2 py-0.5 font-mono text-xs font-black text-[var(--ac-cyan300)]">KESİT {f.keySliceNumber}</span>
+                          <span className="font-mono text-[10px] text-[var(--sl400)]">({f.sliceRangeStr})</span>
                         </div>
                         <span className="rounded px-2 py-0.5 font-mono text-[9px] font-black" style={{ color: sv.color, background: sv.bg, border: `1px solid ${sv.color}66` }}>{f.category === "Sistem" ? "BİLGİ" : sv.label}</span>
                       </div>
-                      <div className="mt-2 text-xs font-bold text-slate-100">{f.label}</div>
-                      {f.category !== "Sistem" && <div className="mt-0.5 text-[10px] font-medium text-cyan-300/90">📍 {f.anatomicalLocation}</div>}
-                      <p className="mt-1.5 rounded border border-[#1a2332] bg-[#080c12]/80 p-2 text-[11px] leading-relaxed text-slate-300">{f.detail}</p>
+                      <div className="mt-2 text-xs font-bold text-[var(--sl100)]">{f.label}</div>
+                      {f.category !== "Sistem" && <div className="mt-0.5 text-[10px] font-medium text-[var(--ac-cyan300)]/90">📍 {f.anatomicalLocation}</div>}
+                      <p className="mt-1.5 rounded border border-[var(--t27)] bg-[var(--t45)]/80 p-2 text-[11px] leading-relaxed text-[var(--sl300)]">{f.detail}</p>
                       {f.category !== "Sistem" && (
-                        <div className="mt-2 grid grid-cols-2 gap-1 border-t border-[#1a2332] pt-1.5 font-mono text-[9.5px] text-slate-400">
-                          <div><span className="text-slate-500">Dansite/sinyal: </span><span className="font-semibold text-slate-200">{f.densityOrSignal}</span></div>
-                          <div><span className="text-slate-500">Boyut: </span><span className="font-semibold text-slate-200">{f.sizeMmStr}</span></div>
-                          {f.metrics?.volumeMl !== undefined && <div><span className="text-slate-500">Hacim: </span><span className="font-semibold text-slate-200">{f.metrics.volumeMl} mL</span></div>}
-                          {f.metrics?.lungRads && <div><span className="text-slate-500">Lung-RADS eşiği: </span><span className="font-semibold text-slate-200">{f.metrics.lungRads}</span></div>}
-                          {fmtConf(f) && <div className="col-span-2"><span className="text-slate-500">Güven: </span><span className="font-semibold text-slate-200">{fmtConf(f)}</span></div>}
+                        <div className="mt-2 grid grid-cols-2 gap-1 border-t border-[var(--t27)] pt-1.5 font-mono text-[9.5px] text-[var(--sl400)]">
+                          <div><span className="text-[var(--sl500)]">Dansite/sinyal: </span><span className="font-semibold text-[var(--sl200)]">{f.densityOrSignal}</span></div>
+                          <div><span className="text-[var(--sl500)]">Boyut: </span><span className="font-semibold text-[var(--sl200)]">{f.sizeMmStr}</span></div>
+                          {f.metrics?.volumeMl !== undefined && <div><span className="text-[var(--sl500)]">Hacim: </span><span className="font-semibold text-[var(--sl200)]">{f.metrics.volumeMl} mL</span></div>}
+                          {f.metrics?.lungRads && <div><span className="text-[var(--sl500)]">Lung-RADS eşiği: </span><span className="font-semibold text-[var(--sl200)]">{f.metrics.lungRads}</span></div>}
+                          {fmtConf(f) && <div className="col-span-2"><span className="text-[var(--sl500)]">Güven: </span><span className="font-semibold text-[var(--sl200)]">{fmtConf(f)}</span></div>}
                           {f.source === "ai-model" && f.threshold !== undefined && Number.isFinite(f.threshold) && (
-                            <div className="col-span-2 rounded border border-violet-400/25 bg-violet-400/5 p-1 text-[9.5px] leading-snug text-violet-200" title="Skor−eşik mesafesine göre belirsizlik bandı; kalibrasyon değildir.">{uncertaintyNote(uncertaintyBand(f.confidence, f.threshold), f.confidence, f.threshold)}</div>
+                            <div className="col-span-2 rounded border border-violet-400/25 bg-violet-400/5 p-1 text-[9.5px] leading-snug text-[var(--ac-violet200)]" title="Skor−eşik mesafesine göre belirsizlik bandı; kalibrasyon değildir.">{uncertaintyNote(uncertaintyBand(f.confidence, f.threshold), f.confidence, f.threshold)}</div>
                           )}
                         </div>
                       )}
-                      {delta && <div className="mt-1.5 rounded border border-violet-400/30 bg-violet-400/5 p-1.5 text-[10px] text-violet-200">↺ {delta}</div>}
+                      {delta && <div className="mt-1.5 rounded border border-violet-400/30 bg-violet-400/5 p-1.5 text-[10px] text-[var(--ac-violet200)]">↺ {delta}</div>}
                       {f.category !== "Sistem" && (
                         <div className="mt-2.5 flex items-center justify-between">
-                          {peak ? <span className="flex items-center gap-1 rounded border border-cyan-500/40 bg-cyan-950/60 px-2 py-0.5 text-[10px] font-bold text-cyan-300"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-400" />Şu anki kesitte</span> : <span className="text-[9.5px] text-slate-500">z {f.zLocationMm !== undefined ? `${f.zLocationMm > 0 ? "+" : ""}${f.zLocationMm} mm` : "—"}</span>}
-                          <button onClick={() => p.onGotoFinding(f)} className="cursor-pointer rounded bg-cyan-500 px-3 py-1 text-[11px] font-bold text-slate-950 hover:bg-cyan-400">Kesit {f.keySliceNumber}&apos;e git ⤴</button>
+                          {peak ? <span className="flex items-center gap-1 rounded border border-cyan-500/40 bg-cyan-950/60 px-2 py-0.5 text-[10px] font-bold text-[var(--ac-cyan300)]"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-400" />Şu anki kesitte</span> : <span className="text-[9.5px] text-[var(--sl500)]">z {f.zLocationMm !== undefined ? `${f.zLocationMm > 0 ? "+" : ""}${f.zLocationMm} mm` : "—"}</span>}
+                          <button onClick={() => p.onGotoFinding(f)} className="cursor-pointer rounded bg-cyan-500 px-3 py-1 text-[11px] font-bold text-[var(--sl950)] hover:bg-cyan-400">Kesit {f.keySliceNumber}&apos;e git ⤴</button>
                         </div>
                       )}
                     </div>
@@ -311,39 +311,39 @@ export default function RightPanel(p: Props) {
             )}
 
             {status === "done" && analysis && (
-              <button onClick={p.onOpenReportModal} className="cursor-pointer rounded-lg border border-cyan-400/40 bg-gradient-to-r from-cyan-500/20 to-emerald-500/20 p-2.5 text-xs font-bold text-cyan-200 hover:border-cyan-400">📄 Raporu aç (doğrula / onayla / yazdır)</button>
+              <button onClick={p.onOpenReportModal} className="cursor-pointer rounded-lg border border-cyan-400/40 bg-gradient-to-r from-cyan-500/20 to-emerald-500/20 p-2.5 text-xs font-bold text-[var(--ac-cyan200)] hover:border-cyan-400">📄 Raporu aç (doğrula / onayla / yazdır)</button>
             )}
             {status === "done" && analysis && p.mode === "ayirici" && (
-              <div className="rounded-lg border border-[#1e2735] bg-[#0e141d] p-3">
-                <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Ayırıcı tanı (bilgi amaçlı)</div>
-                {analysis.differentials.length === 0 && <p className="text-[11px] text-slate-400">Bu seri için üretilemedi.</p>}
+              <div className="rounded-lg border border-[var(--t30)] bg-[var(--t10)] p-3">
+                <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-[var(--sl400)]">Ayırıcı tanı (bilgi amaçlı)</div>
+                {analysis.differentials.length === 0 && <p className="text-[11px] text-[var(--sl400)]">Bu seri için üretilemedi.</p>}
                 {analysis.differentials.map((d) => (
                   <div key={d.dx} className="mb-2">
-                    <div className="flex items-center justify-between text-[11px]"><span className="font-semibold text-slate-200">{d.dx}</span><span className="font-mono text-cyan-300">~%{Math.round(d.probability * 100)}</span></div>
-                    <div className="mt-0.5 h-1 overflow-hidden rounded bg-[#13202b]"><div className="h-full bg-cyan-400/70" style={{ width: `${d.probability * 100}%` }} /></div>
-                    <p className="mt-0.5 text-[10px] text-slate-400">{d.rationale}</p>
+                    <div className="flex items-center justify-between text-[11px]"><span className="font-semibold text-[var(--sl200)]">{d.dx}</span><span className="font-mono text-[var(--ac-cyan300)]">~%{Math.round(d.probability * 100)}</span></div>
+                    <div className="mt-0.5 h-1 overflow-hidden rounded bg-[var(--t50)]"><div className="h-full bg-cyan-400/70" style={{ width: `${d.probability * 100}%` }} /></div>
+                    <p className="mt-0.5 text-[10px] text-[var(--sl400)]">{d.rationale}</p>
                   </div>
                 ))}
-                <p className="text-[10px] text-slate-500">Olasılıklar bilgi amaçlı kabaca değerlerdir; kalibre edilmiş model çıktısı değildir.</p>
+                <p className="text-[10px] text-[var(--sl500)]">Olasılıklar bilgi amaçlı kabaca değerlerdir; kalibre edilmiş model çıktısı değildir.</p>
               </div>
             )}
             {status === "done" && analysis && p.mode === "hasta" && (
-              <div className="rounded-lg border border-emerald-400/25 bg-emerald-400/5 p-3"><div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-emerald-300">Hasta dostu özet</div><p className="text-[11.5px] leading-relaxed text-slate-200">{analysis.patientSummary}</p></div>
+              <div className="rounded-lg border border-emerald-400/25 bg-emerald-400/5 p-3"><div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-[var(--ac-emerald300)]">Hasta dostu özet</div><p className="text-[11.5px] leading-relaxed text-[var(--sl200)]">{analysis.patientSummary}</p></div>
             )}
-            {!series && <p className="mt-4 text-center text-xs text-slate-500">Önce bir seri açın.</p>}
+            {!series && <p className="mt-4 text-center text-xs text-[var(--sl500)]">Önce bir seri açın.</p>}
           </div>
         )}
 
         {tab === "rapor" && (
           <div className="flex flex-col gap-2.5">
-            <div className={`flex items-center justify-between rounded-lg border p-2.5 ${p.currentReportStatus === "onaylandi" ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-rose-500/40 bg-rose-500/10 text-rose-300"}`}>
+            <div className={`flex items-center justify-between rounded-lg border p-2.5 ${p.currentReportStatus === "onaylandi" ? "border-emerald-500/40 bg-emerald-500/10 text-[var(--ac-emerald300)]" : "border-rose-500/40 bg-rose-500/10 text-[var(--ac-rose300)]"}`}>
               <div className="text-xs font-bold">{p.currentReportStatus === "onaylandi" ? "✓ ONAYLI · KİLİTLİ" : "⚠ ONAYLANMAMIŞ TASLAK"}</div>
-              <button onClick={p.onOpenReportModal} className="cursor-pointer rounded bg-cyan-500 px-2.5 py-1 text-[11px] font-bold text-slate-950 hover:bg-cyan-400">{p.currentReportStatus === "onaylandi" ? "İncele / addendum" : "Aç / onayla"}</button>
+              <button onClick={p.onOpenReportModal} className="cursor-pointer rounded bg-cyan-500 px-2.5 py-1 text-[11px] font-bold text-[var(--sl950)] hover:bg-cyan-400">{p.currentReportStatus === "onaylandi" ? "İncele / addendum" : "Aç / onayla"}</button>
             </div>
             {analysis ? (
-              <pre className="whitespace-pre-wrap rounded-lg border border-[#1e2735] bg-[#080c12] p-3 font-mono text-[10.5px] leading-relaxed text-slate-200">{`TEKNİK\n${analysis.technique}\n\nBULGULAR\n${analysis.findingsText}\n\nSONUÇ/İZLENİM\n${analysis.impression}\n\nÖNERİ\n${analysis.recommendation}`}</pre>
-            ) : <p className="mt-4 text-center text-xs text-slate-500">Rapor için önce analiz çalıştırın veya raporu boş şablonla açın.</p>}
-            {!analysis && <button onClick={p.onOpenReportModal} className="cursor-pointer rounded border border-cyan-400/40 px-3 py-2 text-xs font-bold text-cyan-300">📄 Raporu aç</button>}
+              <pre className="whitespace-pre-wrap rounded-lg border border-[var(--t30)] bg-[var(--t45)] p-3 font-mono text-[10.5px] leading-relaxed text-[var(--sl200)]">{`TEKNİK\n${analysis.technique}\n\nBULGULAR\n${analysis.findingsText}\n\nSONUÇ/İZLENİM\n${analysis.impression}\n\nÖNERİ\n${analysis.recommendation}`}</pre>
+            ) : <p className="mt-4 text-center text-xs text-[var(--sl500)]">Rapor için önce analiz çalıştırın veya raporu boş şablonla açın.</p>}
+            {!analysis && <button onClick={p.onOpenReportModal} className="cursor-pointer rounded border border-cyan-400/40 px-3 py-2 text-xs font-bold text-[var(--ac-cyan300)]">📄 Raporu aç</button>}
           </div>
         )}
 
@@ -352,29 +352,29 @@ export default function RightPanel(p: Props) {
             {/* MSK ölçüm yardımcısı: adlandırılmış anatomik noktalar + aralık yorumu. Tanısal model değildir. */}
             <div className="rounded-lg border border-violet-400/30 bg-violet-400/5 p-2.5">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-violet-200">MSK ölçüm protokolü</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--ac-violet200)]">MSK ölçüm protokolü</span>
                 {p.mskProtocolId && (
-                  <button onClick={() => p.onMskSelect(null)} className="cursor-pointer text-[10px] text-slate-400 hover:text-rose-300">bırak</button>
+                  <button onClick={() => p.onMskSelect(null)} className="cursor-pointer text-[10px] text-[var(--sl400)] hover:text-[var(--ac-rose300)]">bırak</button>
                 )}
               </div>
               {!p.mskProtocolId ? (
                 <>
-                  {p.mskDisabledReason && <p className="mt-1 text-[10.5px] text-amber-300">{p.mskDisabledReason}</p>}
+                  {p.mskDisabledReason && <p className="mt-1 text-[10.5px] text-[var(--ac-amber300)]">{p.mskDisabledReason}</p>}
                   <div className="mt-1.5 grid gap-1">
                     {MSK_PROTOCOLS.map((m) => (
-                      <button key={m.id} onClick={() => p.onMskSelect(m.id)} className="cursor-pointer rounded border border-[#2a2140] bg-[#150f22] px-2 py-1.5 text-left text-[10.5px] text-violet-100 hover:border-violet-400/60 hover:bg-[#1d1430]">
+                      <button key={m.id} onClick={() => p.onMskSelect(m.id)} className="cursor-pointer rounded border border-[var(--t33)] bg-[var(--t56)] px-2 py-1.5 text-left text-[10.5px] text-[var(--violet-hi)] hover:border-violet-400/60 hover:bg-[var(--t57)]">
                         <div className="font-bold">{m.title}</div>
-                        <div className="text-[9.5px] text-slate-500">{m.points.length} adlandırılmış nokta · {m.modality}</div>
+                        <div className="text-[9.5px] text-[var(--sl500)]">{m.points.length} adlandırılmış nokta · {m.modality}</div>
                       </button>
                     ))}
                   </div>
                 </>
               ) : (
                 <>
-                  <p className="mt-1 text-[10.5px] font-bold text-violet-100">{findMskProtocol(p.mskProtocolId)?.title}</p>
+                  <p className="mt-1 text-[10.5px] font-bold text-[var(--violet-hi)]">{findMskProtocol(p.mskProtocolId)?.title}</p>
                   <ol className="mt-1 space-y-1">
                     {(findMskProtocol(p.mskProtocolId)?.points ?? []).map((pt, i) => (
-                      <li key={pt.id} className="rounded px-1.5 py-1 text-[10px] text-slate-300">
+                      <li key={pt.id} className="rounded px-1.5 py-1 text-[10px] text-[var(--sl300)]">
                         {i + 1}. {pt.label} <span className="opacity-60">· {pt.hint}</span>
                       </li>
                     ))}
@@ -384,38 +384,38 @@ export default function RightPanel(p: Props) {
                       {p.mskResults.map((r) => (
                         <div key={r.name} className="text-[10.5px]">
                           <div className="flex items-baseline justify-between gap-2">
-                            <span className="font-semibold text-slate-200">{r.name}</span>
-                            <span className="font-mono font-bold text-violet-200">{r.value.toFixed(1)} {r.unit}</span>
+                            <span className="font-semibold text-[var(--sl200)]">{r.name}</span>
+                            <span className="font-mono font-bold text-[var(--ac-violet200)]">{r.value.toFixed(1)} {r.unit}</span>
                           </div>
-                          <div className="text-[9.5px] text-slate-500">{ASSESSMENT_LABEL[r.assessment]} · {r.note}</div>
+                          <div className="text-[9.5px] text-[var(--sl500)]">{ASSESSMENT_LABEL[r.assessment]} · {r.note}</div>
                         </div>
                       ))}
-                      <p className="text-[9.5px] italic text-slate-500">Ölçüm yardımcısıdır; tanı ve klinik karar hekime aittir.</p>
-                      {p.onMskAddToFindings && <button onClick={p.onMskAddToFindings} className="mt-1 w-full cursor-pointer rounded bg-violet-500/20 px-2 py-1 text-[10px] font-bold text-violet-100 hover:bg-violet-500/30">Özetle ve kopyala</button>}
+                      <p className="text-[9.5px] italic text-[var(--sl500)]">Ölçüm yardımcısıdır; tanı ve klinik karar hekime aittir.</p>
+                      {p.onMskAddToFindings && <button onClick={p.onMskAddToFindings} className="mt-1 w-full cursor-pointer rounded bg-violet-500/20 px-2 py-1 text-[10px] font-bold text-[var(--violet-hi)] hover:bg-violet-500/30">Özetle ve kopyala</button>}
                     </div>
                   )}
-                  {!p.mskResults && <p className="mt-1 text-[10px] text-slate-500">Noktaları görüntüye tıklayarak işaretleyin; belirgin kenarlara otomatik yapışır.</p>}
+                  {!p.mskResults && <p className="mt-1 text-[10px] text-[var(--sl500)]">Noktaları görüntüye tıklayarak işaretleyin; belirgin kenarlara otomatik yapışır.</p>}
                 </>
               )}
             </div>
 
-            <div className="flex items-center justify-between"><span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Ölçümler ({p.annotations.length})</span>{p.annotations.length > 0 && <button onClick={p.onClearAnnotations} className="cursor-pointer text-[10px] text-rose-400 hover:underline">Tümünü sil</button>}</div>
-            {p.annotations.length === 0 && <p className="text-[11px] text-slate-500">Araç çubuğundan uzunluk, açı, ROI, ok vb. seçip görüntü üzerinde çizin. Ölçümler çalışmayla birlikte sunucuya kaydedilir ve rapora eklenir.</p>}
+            <div className="flex items-center justify-between"><span className="text-[10px] font-bold uppercase tracking-widest text-[var(--sl400)]">Ölçümler ({p.annotations.length})</span>{p.annotations.length > 0 && <button onClick={p.onClearAnnotations} className="cursor-pointer text-[10px] text-[var(--ac-rose400)] hover:underline">Tümünü sil</button>}</div>
+            {p.annotations.length === 0 && <p className="text-[11px] text-[var(--sl500)]">Araç çubuğundan uzunluk, açı, ROI, ok vb. seçip görüntü üzerinde çizin. Ölçümler çalışmayla birlikte sunucuya kaydedilir ve rapora eklenir.</p>}
             {[...p.annotations].sort((a, b) => a.slice - b.slice).map((a) => (
-              <div key={a.id} className="flex items-start gap-2 rounded-lg border border-[#1e2735] bg-[#0e141d] p-2 text-[11px]">
-                <button onClick={() => p.onGotoSlice(a.slice)} className="cursor-pointer rounded border border-cyan-500/40 bg-cyan-950 px-1.5 py-0.5 font-mono text-[10px] font-bold text-cyan-300">K{a.slice + 1}</button>
-                <div className="min-w-0 flex-1"><div className="font-semibold text-slate-200">{KIND_LABEL[a.kind]}</div><div className="font-mono text-[10.5px] text-slate-400">{annotationSummary(a, p.pxMm, unit, series?.suv?.factor)}</div></div>
-                <button onClick={() => p.onDeleteAnnotation(a.id)} className="cursor-pointer text-slate-500 hover:text-rose-400" title="Sil">✕</button>
+              <div key={a.id} className="flex items-start gap-2 rounded-lg border border-[var(--t30)] bg-[var(--t10)] p-2 text-[11px]">
+                <button onClick={() => p.onGotoSlice(a.slice)} className="cursor-pointer rounded border border-cyan-500/40 bg-cyan-950 px-1.5 py-0.5 font-mono text-[10px] font-bold text-[var(--ac-cyan300)]">K{a.slice + 1}</button>
+                <div className="min-w-0 flex-1"><div className="font-semibold text-[var(--sl200)]">{KIND_LABEL[a.kind]}</div><div className="font-mono text-[10.5px] text-[var(--sl400)]">{annotationSummary(a, p.pxMm, unit, series?.suv?.factor)}</div></div>
+                <button onClick={() => p.onDeleteAnnotation(a.id)} className="cursor-pointer text-[var(--sl500)] hover:text-[var(--ac-rose400)]" title="Sil">✕</button>
               </div>
             ))}
-            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Anahtar kesitler ({p.keyImages.length})</div>
-            {p.keyImages.length === 0 && <p className="text-[11px] text-slate-500">Araç çubuğundaki ★ ile geçerli kesiti anahtar kesit olarak ekleyin (rapora en fazla 4 tanesi girer).</p>}
+            <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--sl400)]">Anahtar kesitler ({p.keyImages.length})</div>
+            {p.keyImages.length === 0 && <p className="text-[11px] text-[var(--sl500)]">Araç çubuğundaki ★ ile geçerli kesiti anahtar kesit olarak ekleyin (rapora en fazla 4 tanesi girer).</p>}
             <div className="grid grid-cols-2 gap-2">
               {p.keyImages.map((k) => (
-                <div key={k.id} className="relative overflow-hidden rounded-lg border border-[#1e2735] bg-black">
+                <div key={k.id} className="relative overflow-hidden rounded-lg border border-[var(--t30)] bg-black">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={k.dataUrl} alt={`Kesit ${k.slice + 1}`} className="aspect-square w-full cursor-pointer object-contain" onClick={() => p.onGotoSlice(k.slice)} />
-                  <div className="flex items-center justify-between bg-[#0b0f16] px-1.5 py-1 text-[10px] text-slate-300"><span>Kesit {k.slice + 1}{k.note ? ` · ${k.note}` : ""}</span><button onClick={() => p.onRemoveKeyImage(k.id)} className="cursor-pointer text-slate-500 hover:text-rose-400">✕</button></div>
+                  <div className="flex items-center justify-between bg-[var(--t05)] px-1.5 py-1 text-[10px] text-[var(--sl300)]"><span>Kesit {k.slice + 1}{k.note ? ` · ${k.note}` : ""}</span><button onClick={() => p.onRemoveKeyImage(k.id)} className="cursor-pointer text-[var(--sl500)] hover:text-[var(--ac-rose400)]">✕</button></div>
                 </div>
               ))}
             </div>
@@ -423,12 +423,12 @@ export default function RightPanel(p: Props) {
         )}
 
         {tab === "dicom" && (
-          !series ? <p className="mt-6 text-center text-xs text-slate-500">Önce bir görüntü açın.</p> : (
+          !series ? <p className="mt-6 text-center text-xs text-[var(--sl500)]">Önce bir görüntü açın.</p> : (
             <table className="w-full border-collapse font-mono text-[10.5px]">
-              <thead><tr className="text-left text-slate-400"><th className="border-b border-[#1e2735] py-1.5 pr-2">Tag</th><th className="border-b border-[#1e2735] py-1.5 pr-2">Ad</th><th className="border-b border-[#1e2735] py-1.5">Değer</th></tr></thead>
+              <thead><tr className="text-left text-[var(--sl400)]"><th className="border-b border-[var(--t30)] py-1.5 pr-2">Tag</th><th className="border-b border-[var(--t30)] py-1.5 pr-2">Ad</th><th className="border-b border-[var(--t30)] py-1.5">Değer</th></tr></thead>
               <tbody>
                 {series.tags.map((t, i) => (
-                  <tr key={i} className="hover:bg-[#101722]"><td className="border-b border-[#141b26] py-1 pr-2 text-cyan-400/80">{t.tag}</td><td className="border-b border-[#141b26] py-1 pr-2 text-slate-400">{t.name}</td><td className="max-w-[140px] truncate border-b border-[#141b26] py-1 text-slate-200" title={t.value}>{t.value}</td></tr>
+                  <tr key={i} className="hover:bg-[var(--t14)]"><td className="border-b border-[var(--t18)] py-1 pr-2 text-[var(--ac-cyan400)]/80">{t.tag}</td><td className="border-b border-[var(--t18)] py-1 pr-2 text-[var(--sl400)]">{t.name}</td><td className="max-w-[140px] truncate border-b border-[var(--t18)] py-1 text-[var(--sl200)]" title={t.value}>{t.value}</td></tr>
                 ))}
               </tbody>
             </table>
@@ -437,21 +437,21 @@ export default function RightPanel(p: Props) {
 
         {tab === "gecmis" && (
           <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between"><span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Bu hastanın çalışmaları ({p.priorStudies.length})</span><button onClick={p.onRefreshReports} className="cursor-pointer text-[10px] text-cyan-400">⟳ yenile</button></div>
-            {p.priorStudies.length === 0 && <p className="text-[11px] text-slate-500">Sunucuya kayıtlı başka çalışma yok. (Çalışma Listesi → ☁ Sunucuya kaydet ile geçmiş oluşur.)</p>}
+            <div className="flex items-center justify-between"><span className="text-[10px] font-bold uppercase tracking-widest text-[var(--sl400)]">Bu hastanın çalışmaları ({p.priorStudies.length})</span><button onClick={p.onRefreshReports} className="cursor-pointer text-[10px] text-[var(--ac-cyan400)]">⟳ yenile</button></div>
+            {p.priorStudies.length === 0 && <p className="text-[11px] text-[var(--sl500)]">Sunucuya kayıtlı başka çalışma yok. (Çalışma Listesi → ☁ Sunucuya kaydet ile geçmiş oluşur.)</p>}
             {p.priorStudies.map((s) => (
-              <div key={s.id} className="rounded-lg border border-[#1e2735] bg-[#0e141d] p-2 text-[11px]">
-                <div className="font-bold text-slate-100">{s.modality} · {s.seriesDescription}</div>
-                <div className="text-slate-400">{s.studyDate} · {s.sliceCount} kesit · {s.workStatus}</div>
-                {s.hasFiles ? <button onClick={() => p.onOpenPrior(s)} className="mt-1.5 cursor-pointer rounded bg-violet-500/20 px-2 py-0.5 text-[10.5px] font-bold text-violet-200 hover:bg-violet-500/30">Karşılaştırma panelinde aç</button> : <span className="mt-1 block text-[10px] text-slate-500">Görüntüler sunucuda yok</span>}
+              <div key={s.id} className="rounded-lg border border-[var(--t30)] bg-[var(--t10)] p-2 text-[11px]">
+                <div className="font-bold text-[var(--sl100)]">{s.modality} · {s.seriesDescription}</div>
+                <div className="text-[var(--sl400)]">{s.studyDate} · {s.sliceCount} kesit · {s.workStatus}</div>
+                {s.hasFiles ? <button onClick={() => p.onOpenPrior(s)} className="mt-1.5 cursor-pointer rounded bg-violet-500/20 px-2 py-0.5 text-[10.5px] font-bold text-[var(--ac-violet200)] hover:bg-violet-500/30">Karşılaştırma panelinde aç</button> : <span className="mt-1 block text-[10px] text-[var(--sl500)]">Görüntüler sunucuda yok</span>}
               </div>
             ))}
-            <div className="mt-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Raporlar ({p.patientReports.length})</div>
+            <div className="mt-2 text-[10px] font-bold uppercase tracking-widest text-[var(--sl400)]">Raporlar ({p.patientReports.length})</div>
             {p.patientReports.map((r) => (
-              <div key={r.id} className="rounded-lg border border-[#1e2735] bg-[#0e141d] p-2.5">
-                <div className="flex items-center justify-between"><span className="text-xs font-bold text-slate-100">#{r.id} · {r.modality} — {r.seriesDescription}</span><span className={`rounded px-1.5 py-0.5 text-[9px] font-black ${r.status === "onaylandi" ? "border border-emerald-500/30 bg-emerald-500/20 text-emerald-300" : "border border-rose-500/30 bg-rose-500/20 text-rose-300"}`}>{r.status === "onaylandi" ? "ONAYLI" : "TASLAK"} v{r.version}</span></div>
-                <div className="mt-1 text-[10px] text-slate-400">{new Date(r.createdAt).toLocaleString("tr-TR")}{r.approvedBy ? ` · ${r.approvedBy}` : ""}</div>
-                <button onClick={() => p.onOpenSaved(r.id)} className="mt-2 cursor-pointer rounded border border-cyan-500/40 bg-cyan-500/20 px-2.5 py-1 text-[10.5px] font-bold text-cyan-300 hover:bg-cyan-500/30">🖨 Aç / yazdır</button>
+              <div key={r.id} className="rounded-lg border border-[var(--t30)] bg-[var(--t10)] p-2.5">
+                <div className="flex items-center justify-between"><span className="text-xs font-bold text-[var(--sl100)]">#{r.id} · {r.modality} — {r.seriesDescription}</span><span className={`rounded px-1.5 py-0.5 text-[9px] font-black ${r.status === "onaylandi" ? "border border-emerald-500/30 bg-emerald-500/20 text-[var(--ac-emerald300)]" : "border border-rose-500/30 bg-rose-500/20 text-[var(--ac-rose300)]"}`}>{r.status === "onaylandi" ? "ONAYLI" : "TASLAK"} v{r.version}</span></div>
+                <div className="mt-1 text-[10px] text-[var(--sl400)]">{new Date(r.createdAt).toLocaleString("tr-TR")}{r.approvedBy ? ` · ${r.approvedBy}` : ""}</div>
+                <button onClick={() => p.onOpenSaved(r.id)} className="mt-2 cursor-pointer rounded border border-cyan-500/40 bg-cyan-500/20 px-2.5 py-1 text-[10.5px] font-bold text-[var(--ac-cyan300)] hover:bg-cyan-500/30">🖨 Aç / yazdır</button>
               </div>
             ))}
           </div>

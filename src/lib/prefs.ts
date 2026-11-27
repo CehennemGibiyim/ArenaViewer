@@ -6,6 +6,9 @@
  * tutulabilir.
  */
 
+export const THEMES = ["koyu", "clinic-blue", "slate-light", "high-contrast"] as const;
+export type ThemeName = (typeof THEMES)[number];
+
 export const LAYOUTS = ["1x1", "1x2", "2x1", "2x2", "1x3", "3x1", "2x3", "3x2"] as const;
 export type LayoutPref = (typeof LAYOUTS)[number];
 
@@ -22,8 +25,8 @@ export interface UserPrefs {
   defaultWindow: string;
   /** Seri yüklendiğinde otomatik hanging protocol uygulanmasın */
   autoHangingProtocol: boolean;
-  /** Karanlık/açık görünüm (şimdilik arayüzde karanlık sabit; aydınlık hazır değil) */
-  theme: "koyu";
+  /** Görünüm teması (globals.css [data-theme] ile uygulanır) */
+  theme: ThemeName;
   /** Çalışma listesinde son raporlanan çalışmayı otomatik seç */
   autoSelectLatest: boolean;
 }
@@ -47,7 +50,7 @@ export function sanitizePrefs(input: unknown): Partial<UserPrefs> {
   if (isStr(o.defaultWindow) && (WINDOW_PRESETS as readonly string[]).includes(o.defaultWindow)) out.defaultWindow = o.defaultWindow;
   if (typeof o.autoHangingProtocol === "boolean") out.autoHangingProtocol = o.autoHangingProtocol;
   if (typeof o.autoSelectLatest === "boolean") out.autoSelectLatest = o.autoSelectLatest;
-  if (o.theme === "koyu") out.theme = "koyu";
+  if (isStr(o.theme) && (THEMES as readonly string[]).includes(o.theme)) out.theme = o.theme as ThemeName;
   return out;
 }
 

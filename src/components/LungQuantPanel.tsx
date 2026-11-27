@@ -24,10 +24,10 @@ interface Props {
 }
 
 const catTone = (category: string) => {
-  if (category.startsWith("ağır")) return "text-rose-300 border-rose-400/50 bg-rose-400/10";
-  if (category === "orta") return "text-amber-300 border-amber-400/50 bg-amber-400/10";
-  if (category === "hafif") return "text-yellow-200 border-yellow-400/40 bg-yellow-400/10";
-  return "text-emerald-300 border-emerald-400/40 bg-emerald-400/10";
+  if (category.startsWith("ağır")) return "text-[var(--ac-rose300)] border-rose-400/50 bg-rose-400/10";
+  if (category === "orta") return "text-[var(--ac-amber300)] border-amber-400/50 bg-amber-400/10";
+  if (category === "hafif") return "text-[var(--ac-yellow200)] border-yellow-400/40 bg-yellow-400/10";
+  return "text-[var(--ac-emerald300)] border-emerald-400/40 bg-emerald-400/10";
 };
 
 export default function LungQuantPanel({ series, onClose, onAddToFindings }: Props) {
@@ -83,42 +83,42 @@ export default function LungQuantPanel({ series, onClose, onAddToFindings }: Pro
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" data-testid="lung-quant-panel" role="dialog" aria-modal="true" aria-label="Akciğer kantitasyonu">
-      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-[#2d3b4e] bg-[#0b0f16] text-xs text-slate-200 shadow-2xl">
-        <div className="flex items-center justify-between border-b border-[#1a2230] px-4 py-2">
+      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-[var(--t39)] bg-[var(--t05)] text-xs text-[var(--sl200)] shadow-2xl">
+        <div className="flex items-center justify-between border-b border-[var(--t25)] px-4 py-2">
           <div>
-            <div className="text-sm font-bold text-slate-100">Akciğer kantitasyonu · LAA-950</div>
-            <div className="text-[10px] text-slate-500">{series.description || series.modality} · {series.slices.length} kesit · {spacing.px.toFixed(2)}×{spacing.py.toFixed(2)}×{spacing.dz.toFixed(2)} mm</div>
+            <div className="text-sm font-bold text-[var(--sl100)]">Akciğer kantitasyonu · LAA-950</div>
+            <div className="text-[10px] text-[var(--sl500)]">{series.description || series.modality} · {series.slices.length} kesit · {spacing.px.toFixed(2)}×{spacing.py.toFixed(2)}×{spacing.dz.toFixed(2)} mm</div>
           </div>
           <div className="flex items-center gap-2">
             {result && onAddToFindings && (
-              <button onClick={addLine} className="cursor-pointer rounded border border-cyan-400/50 px-2 py-0.5 text-cyan-200 hover:bg-cyan-400/10">Rapora ekle</button>
+              <button onClick={addLine} className="cursor-pointer rounded border border-cyan-400/50 px-2 py-0.5 text-[var(--ac-cyan200)] hover:bg-cyan-400/10">Rapora ekle</button>
             )}
-            <button onClick={onClose} aria-label="Kapat" className="cursor-pointer rounded border border-[#2d3b4e] px-2 py-0.5 hover:bg-[#1a2330]">✕</button>
+            <button onClick={onClose} aria-label="Kapat" className="cursor-pointer rounded border border-[var(--t39)] px-2 py-0.5 hover:bg-[var(--t26)]">✕</button>
           </div>
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto px-4 py-3">
-          {busy && <div className="text-slate-400">Hesaplanıyor… (kesitler örnekleniyor)</div>}
-          {!busy && err && <div className="rounded border border-amber-400/40 bg-amber-400/10 px-2 py-1 text-amber-200">{err}</div>}
+          {busy && <div className="text-[var(--sl400)]">Hesaplanıyor… (kesitler örnekleniyor)</div>}
+          {!busy && err && <div className="rounded border border-amber-400/40 bg-amber-400/10 px-2 py-1 text-[var(--ac-amber200)]">{err}</div>}
 
           {!busy && result && (
             <>
               <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-                <div className="rounded border border-[#1a2230] p-2">
-                  <div className="text-slate-500">LAA-950</div>
-                  <div className="text-lg font-bold text-cyan-200">%{result.laa950Pct.toFixed(1)}</div>
+                <div className="rounded border border-[var(--t25)] p-2">
+                  <div className="text-[var(--sl500)]">LAA-950</div>
+                  <div className="text-lg font-bold text-[var(--ac-cyan200)]">%{result.laa950Pct.toFixed(1)}</div>
                 </div>
-                <div className="rounded border border-[#1a2230] p-2">
-                  <div className="text-slate-500">Ortalama HU</div>
-                  <div className="text-lg font-bold text-slate-100">{result.meanHu.toFixed(0)}</div>
+                <div className="rounded border border-[var(--t25)] p-2">
+                  <div className="text-[var(--sl500)]">Ortalama HU</div>
+                  <div className="text-lg font-bold text-[var(--sl100)]">{result.meanHu.toFixed(0)}</div>
                 </div>
-                <div className="rounded border border-[#1a2230] p-2">
-                  <div className="text-slate-500">PD15</div>
-                  <div className="text-lg font-bold text-slate-100">{result.pd15Hu === null ? "—" : `${result.pd15Hu.toFixed(0)} HU`}</div>
+                <div className="rounded border border-[var(--t25)] p-2">
+                  <div className="text-[var(--sl500)]">PD15</div>
+                  <div className="text-lg font-bold text-[var(--sl100)]">{result.pd15Hu === null ? "—" : `${result.pd15Hu.toFixed(0)} HU`}</div>
                 </div>
-                <div className="rounded border border-[#1a2230] p-2">
-                  <div className="text-slate-500">Hacim (tahmini)</div>
-                  <div className="text-lg font-bold text-slate-100">{result.volumeMl === null ? "—" : `${Math.round(result.volumeMl).toLocaleString("tr-TR")} mL`}</div>
+                <div className="rounded border border-[var(--t25)] p-2">
+                  <div className="text-[var(--sl500)]">Hacim (tahmini)</div>
+                  <div className="text-lg font-bold text-[var(--sl100)]">{result.volumeMl === null ? "—" : `${Math.round(result.volumeMl).toLocaleString("tr-TR")} mL`}</div>
                 </div>
               </div>
 
@@ -127,10 +127,10 @@ export default function LungQuantPanel({ series, onClose, onAddToFindings }: Pro
                 <div className="text-[11px] leading-relaxed">{result.advice}</div>
               </div>
 
-              <div className="mt-3 rounded border border-[#1a2230] p-2">
+              <div className="mt-3 rounded border border-[var(--t25)] p-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Kesit dağılımı (LAA-950 %)</span>
-                  <span className="text-[10px] text-slate-500">
+                  <span className="text-[var(--sl400)]">Kesit dağılımı (LAA-950 %)</span>
+                  <span className="text-[10px] text-[var(--sl500)]">
                     {profile ? `${profile.sliceStep} kesitte bir, ${profile.pixelStride} pikselde bir örneklendi · ${profile.sampledVoxels.toLocaleString("tr-TR")} voksel` : ""}
                   </span>
                 </div>
@@ -153,18 +153,18 @@ export default function LungQuantPanel({ series, onClose, onAddToFindings }: Pro
                       </rect>
                     );
                   })}
-                  <line x1="0" y1="80" x2="600" y2="80" stroke="#243044" strokeWidth="1" />
+                  <line x1="0" y1="80" x2="600" y2="80" stroke="var(--t35)" strokeWidth="1" />
                 </svg>
-                <div className="flex items-center justify-between text-[10px] text-slate-500">
+                <div className="flex items-center justify-between text-[10px] text-[var(--sl500)]">
                   <span>üst (apikal)</span>
                   <span>{summary ? `en yüksek: kesit ${summary.worstSlice + 1} (%${summary.worstLaa950Pct})` : ""}</span>
                   <span>alt (bazal)</span>
                 </div>
-                {summary && <div className="mt-1 text-[10.5px] text-slate-400">{summary.note}{summary.basalMinusApical !== null ? ` (bazal − apikal = ${summary.basalMinusApical >= 0 ? "+" : ""}${summary.basalMinusApical} yüzde puan)` : ""}</div>}
+                {summary && <div className="mt-1 text-[10.5px] text-[var(--sl400)]">{summary.note}{summary.basalMinusApical !== null ? ` (bazal − apikal = ${summary.basalMinusApical >= 0 ? "+" : ""}${summary.basalMinusApical} yüzde puan)` : ""}</div>}
               </div>
 
-              <div className="mt-3 rounded border border-[#1a2230] p-2">
-                <div className="text-slate-400">Yoğunluk histogramı (akciğer içi)</div>
+              <div className="mt-3 rounded border border-[var(--t25)] p-2">
+                <div className="text-[var(--sl400)]">Yoğunluk histogramı (akciğer içi)</div>
                 <svg viewBox="0 0 600 70" className="mt-1 w-full" role="img" aria-label="HU histogramı">
                   {(profile?.bins ?? []).map((b, i, arr) => {
                     const max = Math.max(1, ...arr.map((x) => x.count));
@@ -172,14 +172,14 @@ export default function LungQuantPanel({ series, onClose, onAddToFindings }: Pro
                     const h = (b.count / max) * 60;
                     return <rect key={`${b.lo}`} x={i * w + 0.5} y={65 - h} width={Math.max(0.8, w - 1)} height={Math.max(0.4, h)} fill={b.hi <= -950 ? "#fb7185" : b.lo < -800 ? "#fbbf24" : "#38bdf8"} opacity="0.75"><title>{`${b.lo}…${b.hi} HU: ${b.count}`}</title></rect>;
                   })}
-                  <line x1="0" y1="65" x2="600" y2="65" stroke="#243044" strokeWidth="1" />
+                  <line x1="0" y1="65" x2="600" y2="65" stroke="var(--t35)" strokeWidth="1" />
                 </svg>
-                <div className="flex justify-between text-[10px] text-slate-500"><span>{profile?.bins[0]?.lo ?? -1250} HU</span><span>−950 (kırmızı)</span><span>{profile?.bins[profile.bins.length - 1]?.hi ?? 50} HU</span></div>
+                <div className="flex justify-between text-[10px] text-[var(--sl500)]"><span>{profile?.bins[0]?.lo ?? -1250} HU</span><span>−950 (kırmızı)</span><span>{profile?.bins[profile.bins.length - 1]?.hi ?? 50} HU</span></div>
               </div>
             </>
           )}
 
-          <div className="mt-3 rounded border border-amber-400/30 bg-amber-400/5 p-2 text-[10px] leading-relaxed text-amber-200">
+          <div className="mt-3 rounded border border-amber-400/30 bg-amber-400/5 p-2 text-[10px] leading-relaxed text-[var(--ac-amber200)]">
             Kural tabanlı tahmin: gövde dışı hava dışlanır, ancak <b>lob/fissür ayrımı yapılmaz</b> ve örnekleme nedeniyle hacim yaklaşıktır.
             Yağ/doku sınırları, solunum fazı ve rekonstrüksiyon farkı sonucu değiştirir. KOAH tanısı DSBG ve klinik bütünlükle konur; klinik karar aracı değildir.
           </div>

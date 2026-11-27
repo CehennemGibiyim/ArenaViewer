@@ -34,7 +34,7 @@ export default function VideoViewer({ video }: { video: DicomVideoSequence }) {
   const fileName = `${(video.title || "dicom-video").replace(/[^\p{L}\p{N}._ -]+/gu, "_").slice(0, 80)}${videoFileExtension(video.mimeType)}`;
 
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-[#07090c] p-4">
+    <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-[var(--t01)] p-4">
       <div className="flex max-w-full flex-col items-center gap-3">
         {url && !failed ? (
           <video
@@ -44,22 +44,22 @@ export default function VideoViewer({ video }: { video: DicomVideoSequence }) {
             playsInline
             preload="metadata"
             onError={() => setFailedFor(url)}
-            className="max-h-[calc(100vh-220px)] max-w-full rounded border border-[#232e40] bg-black"
+            className="max-h-[calc(100vh-220px)] max-w-full rounded border border-[var(--t34)] bg-black"
           />
         ) : failed ? (
           <div role="alert" className="max-w-md rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-center">
-            <p className="text-sm font-bold text-amber-300">Bu tarayıcı bu videoyu çözemiyor</p>
-            <p className="mt-1.5 text-xs leading-relaxed text-slate-300">
-              {video.codecLabel} payload&apos;u geçerli bir DICOM nesnesidir, ancak tarayıcınız <code className="text-amber-200">{video.mimeType}</code> codec&apos;ini oynatamadı (MPEG-2 ve HEVC masaüstü tarayıcılarda genellikle desteklenmez).
+            <p className="text-sm font-bold text-[var(--ac-amber300)]">Bu tarayıcı bu videoyu çözemiyor</p>
+            <p className="mt-1.5 text-xs leading-relaxed text-[var(--sl300)]">
+              {video.codecLabel} payload&apos;u geçerli bir DICOM nesnesidir, ancak tarayıcınız <code className="text-[var(--ac-amber200)]">{video.mimeType}</code> codec&apos;ini oynatamadı (MPEG-2 ve HEVC masaüstü tarayıcılarda genellikle desteklenmez).
               Payload&apos;u indirip cihazınızdaki bir medya oynatıcısında (VLC vb.) açabilirsiniz.
             </p>
           </div>
         ) : (
-          <div className="text-sm text-slate-400">Video hazırlanıyor…</div>
+          <div className="text-sm text-[var(--sl400)]">Video hazırlanıyor…</div>
         )}
 
-        <div className="flex flex-wrap items-center justify-center gap-3 font-mono text-[10.5px] text-slate-400">
-          <span className="rounded bg-[#111826] px-2 py-1 text-cyan-300">{video.codecLabel}</span>
+        <div className="flex flex-wrap items-center justify-center gap-3 font-mono text-[10.5px] text-[var(--sl400)]">
+          <span className="rounded bg-[var(--t54)] px-2 py-1 text-[var(--ac-cyan300)]">{video.codecLabel}</span>
           {video.totalFrames > 0 && <span>{video.totalFrames} kare</span>}
           {video.frameRate > 0 && <span>{video.frameRate} fps</span>}
           <span>{formatBytes(video.payload.length)}</span>
@@ -67,13 +67,13 @@ export default function VideoViewer({ video }: { video: DicomVideoSequence }) {
             <a
               href={url}
               download={fileName}
-              className="cursor-pointer rounded bg-cyan-500/15 px-2 py-1 font-bold text-cyan-300 ring-1 ring-cyan-400/40 hover:bg-cyan-500/25"
+              className="cursor-pointer rounded bg-cyan-500/15 px-2 py-1 font-bold text-[var(--ac-cyan300)] ring-1 ring-cyan-400/40 hover:bg-cyan-500/25"
             >
               ↓ Payload&apos;u indir ({videoFileExtension(video.mimeType).slice(1)})
             </a>
           )}
         </div>
-        <p className="max-w-md text-center text-[9.5px] text-slate-600">
+        <p className="max-w-md text-center text-[9.5px] text-[var(--sl600)]">
           Video tarayıcı codec&apos;iyle oynatılır; tanısal amaçla azami dikkatle değerlendirin. Oynatma garanti edilmez — desteklenmeyen codec&apos;lerde indirme düğmesini kullanın.
         </p>
       </div>

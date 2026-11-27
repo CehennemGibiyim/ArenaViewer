@@ -29,9 +29,9 @@ interface Props {
   onCreateTask?: (t: { message: string; intervalDays: number | null; severity: string }) => Promise<void> | void;
 }
 
-const lbl = "block text-[10px] font-bold uppercase tracking-wide text-slate-400";
-const sel = "mt-0.5 w-full rounded border border-[#232e40] bg-[#141b24] px-2 py-1 text-xs text-slate-200";
-const num = "mt-0.5 w-full rounded border border-[#232e40] bg-[#141b24] px-2 py-1 text-xs text-slate-200";
+const lbl = "block text-[10px] font-bold uppercase tracking-wide text-[var(--sl400)]";
+const sel = "mt-0.5 w-full rounded border border-[var(--t34)] bg-[var(--t17)] px-2 py-1 text-xs text-[var(--sl200)]";
+const num = "mt-0.5 w-full rounded border border-[var(--t34)] bg-[var(--t17)] px-2 py-1 text-xs text-[var(--sl200)]";
 
 export default function StructuredScorePanel({ modality, bodyPart, onApply, onCreateTask }: Props) {
   const candidates = useMemo(() => {
@@ -155,13 +155,13 @@ export default function StructuredScorePanel({ modality, bodyPart, onApply, onCr
     setTiFoci((cur) => (cur.includes(f) ? cur.filter((x) => x !== f) : [...cur, f]));
 
   return (
-    <div className="rounded-lg border border-[#232e40] bg-[#0b0f16] p-3 text-xs text-slate-300">
+    <div className="rounded-lg border border-[var(--t34)] bg-[var(--t05)] p-3 text-xs text-[var(--sl300)]">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-bold text-slate-200">📊 Yapılandırılmış skor</span>
+        <span className="font-bold text-[var(--sl200)]">📊 Yapılandırılmış skor</span>
         <select value={system} onChange={(e) => setSystem(e.target.value as ScoreSystemId)} aria-label="Skor sistemi" className={sel}>
           {candidates.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
         </select>
-        <span className="text-[10px] text-slate-500">{meta.source}</span>
+        <span className="text-[10px] text-[var(--sl500)]">{meta.source}</span>
       </div>
 
       <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-3 md:grid-cols-4">
@@ -229,7 +229,7 @@ export default function StructuredScorePanel({ modality, bodyPart, onApply, onCr
                   const names: Record<string, string> = { none: "yok", cometTail: "kuyruk", macrocalc: "makrokals.", rim: "rim", punctate: "punctate" };
                   const on = tiFoci.includes(f);
                   return (
-                    <button key={f} type="button" onClick={() => toggleFoci(f)} className={`cursor-pointer rounded border px-2 py-1 text-[11px] ${on ? "border-cyan-400/60 bg-cyan-400/15 text-cyan-200" : "border-[#232e40] text-slate-400 hover:bg-[#141b24]"}`}>{names[f]}</button>
+                    <button key={f} type="button" onClick={() => toggleFoci(f)} className={`cursor-pointer rounded border px-2 py-1 text-[11px] ${on ? "border-cyan-400/60 bg-cyan-400/15 text-[var(--ac-cyan200)]" : "border-[var(--t34)] text-[var(--sl400)] hover:bg-[var(--t17)]"}`}>{names[f]}</button>
                   );
                 })}
               </div>
@@ -273,11 +273,11 @@ export default function StructuredScorePanel({ modality, bodyPart, onApply, onCr
               {ASPECTS_REGIONS.map((r) => {
                 const on = aspectsSet.includes(r);
                 return (
-                  <button key={r} type="button" onClick={() => setAspectsSet((cur) => (on ? cur.filter((x) => x !== r) : [...cur, r]))} className={`cursor-pointer rounded border px-2 py-1 text-[11px] ${on ? "border-rose-400/60 bg-rose-400/15 text-rose-200" : "border-[#232e40] text-slate-400 hover:bg-[#141b24]"}`}>{ASPECTS_LABELS[r]}</button>
+                  <button key={r} type="button" onClick={() => setAspectsSet((cur) => (on ? cur.filter((x) => x !== r) : [...cur, r]))} className={`cursor-pointer rounded border px-2 py-1 text-[11px] ${on ? "border-rose-400/60 bg-rose-400/15 text-[var(--ac-rose200)]" : "border-[var(--t34)] text-[var(--sl400)] hover:bg-[var(--t17)]"}`}>{ASPECTS_LABELS[r]}</button>
                 );
               })}
             </div>
-            <p className="mt-1 text-[10px] text-slate-500">İşaretsiz bölgeler normal sayılır; skor 10 eksi anormal bölge sayısıdır.</p>
+            <p className="mt-1 text-[10px] text-[var(--sl500)]">İşaretsiz bölgeler normal sayılır; skor 10 eksi anormal bölge sayısıdır.</p>
           </div>
         )}
 
@@ -290,12 +290,12 @@ export default function StructuredScorePanel({ modality, bodyPart, onApply, onCr
               onChange={(e) => setCtpText(e.target.value)}
               rows={3}
               placeholder={"satır başına bir bölge:  ad | t1,t2,… | HU1,HU2,…\nAIF | 0,1,2,3 | 40,120,300,180"}
-              className="mt-1 w-full rounded border border-[#232e40] bg-[#141b24] px-2 py-1 font-mono text-[11px] text-slate-200"
+              className="mt-1 w-full rounded border border-[var(--t34)] bg-[var(--t17)] px-2 py-1 font-mono text-[11px] text-[var(--sl200)]"
             />
             <div className="mt-1 flex items-center gap-2">
               <button
                 type="button"
-                className="cursor-pointer rounded border border-cyan-400/40 px-2 py-0.5 text-[11px] font-bold text-cyan-200 hover:bg-cyan-400/10"
+                className="cursor-pointer rounded border border-cyan-400/40 px-2 py-0.5 text-[11px] font-bold text-[var(--ac-cyan200)] hover:bg-cyan-400/10"
                 onClick={() => {
                   const curves = parseCtpCurves(ctpText);
                   const s = ctpSvdSummary(curves);
@@ -308,9 +308,9 @@ export default function StructuredScorePanel({ modality, bodyPart, onApply, onCr
                   }
                 }}
               >🧠 CTP çöz (core/penumbra)</button>
-              <span className="text-[10px] text-slate-500">Rölatif CBF/CBV/MTT/Tmax; dekonvolüsyon. Klinik karar aracı değildir.</span>
+              <span className="text-[10px] text-[var(--sl500)]">Rölatif CBF/CBV/MTT/Tmax; dekonvolüsyon. Klinik karar aracı değildir.</span>
             </div>
-            {ctpMsg && <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap rounded bg-[#0e141d] p-2 text-[10px] text-slate-300">{ctpMsg}</pre>}
+            {ctpMsg && <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap rounded bg-[var(--t10)] p-2 text-[10px] text-[var(--sl300)]">{ctpMsg}</pre>}
           </div>
         )}
 
@@ -329,15 +329,15 @@ export default function StructuredScorePanel({ modality, bodyPart, onApply, onCr
           <>
             <div className="col-span-2 flex items-center justify-between sm:col-span-3 md:col-span-4">
               <span className={lbl}>Damarlardaki kalsifikasyonlar (en yüksek HU / alan mm²)</span>
-              <span className="text-[10px] text-slate-500">Skor eşiği: ≥130 HU ve alan ≥1 mm²</span>
+              <span className="text-[10px] text-[var(--sl500)]">Skor eşiği: ≥130 HU ve alan ≥1 mm²</span>
             </div>
             {CALCIUM_VESSELS.map((v) => (
               <div key={v} className="col-span-2 flex items-end gap-2 sm:col-span-1">
-                <span className="pb-1 font-mono text-[11px] font-bold text-cyan-300">{v}</span>
-                <label className="flex-1 text-[10px] text-slate-500">peck HU
+                <span className="pb-1 font-mono text-[11px] font-bold text-[var(--ac-cyan300)]">{v}</span>
+                <label className="flex-1 text-[10px] text-[var(--sl500)]">peck HU
                   <input className={num} inputMode="decimal" placeholder="HU" value={ca[v].hu} onChange={(e) => setCa({ ...ca, [v]: { ...ca[v], hu: e.target.value } })} />
                 </label>
-                <label className="flex-1 text-[10px] text-slate-500">alan mm²
+                <label className="flex-1 text-[10px] text-[var(--sl500)]">alan mm²
                   <input className={num} inputMode="decimal" placeholder="mm²" value={ca[v].area} onChange={(e) => setCa({ ...ca, [v]: { ...ca[v], area: e.target.value } })} />
                 </label>
               </div>
@@ -372,37 +372,37 @@ export default function StructuredScorePanel({ modality, bodyPart, onApply, onCr
               </select>
             </label>
             <div className="col-span-2 flex flex-wrap items-center gap-2 sm:col-span-3 md:col-span-4">
-              <span className="text-[10px] text-slate-500">{qc.note.slice(0, 150)}{qc.note.length > 150 ? "…" : ""}</span>
-              <button onClick={() => onApply(cxrQualityLine(qc))} className="cursor-pointer rounded border border-cyan-400/40 bg-cyan-400/10 px-2 py-1 text-[11px] font-bold text-cyan-200 hover:bg-cyan-400/20">Teknik kalite satırını rapora ekle</button>
+              <span className="text-[10px] text-[var(--sl500)]">{qc.note.slice(0, 150)}{qc.note.length > 150 ? "…" : ""}</span>
+              <button onClick={() => onApply(cxrQualityLine(qc))} className="cursor-pointer rounded border border-cyan-400/40 bg-cyan-400/10 px-2 py-1 text-[11px] font-bold text-[var(--ac-cyan200)] hover:bg-cyan-400/20">Teknik kalite satırını rapora ekle</button>
             </div>
-            <span className="col-span-2 text-[10px] text-slate-500 sm:col-span-3 md:col-span-4">CTR ölçümleri için: en geniş kardiyal çap ve ria kostal ark çapı girin.</span>
+            <span className="col-span-2 text-[10px] text-[var(--sl500)] sm:col-span-3 md:col-span-4">CTR ölçümleri için: en geniş kardiyal çap ve ria kostal ark çapı girin.</span>
           </>
         )}
       </div>
 
-      <div className="mt-3 rounded border border-[#232e40] bg-[#0e141d] p-2">
+      <div className="mt-3 rounded border border-[var(--t34)] bg-[var(--t10)] p-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded bg-cyan-400/15 px-2 py-0.5 font-mono text-[11px] font-bold text-cyan-200">{result.label}</span>
-          <span className="text-[10px] text-slate-500">{result.basis}</span>
+          <span className="rounded bg-cyan-400/15 px-2 py-0.5 font-mono text-[11px] font-bold text-[var(--ac-cyan200)]">{result.label}</span>
+          <span className="text-[10px] text-[var(--sl500)]">{result.basis}</span>
         </div>
         {system === "agatston" && "total" in result && (
-          <p className="mt-1 font-mono text-[10px] text-slate-400">
+          <p className="mt-1 font-mono text-[10px] text-[var(--sl400)]">
             Toplam {(result as AgatstonResult).total} · {Object.entries((result as AgatstonResult).perVessel).map(([v, n]) => `${v} ${n}`).join(" / ") || "damarsal skor yok"} · atlanan lezyon {(result as AgatstonResult).ignored}
           </p>
         )}
-        <p className="mt-1 text-[11px] leading-relaxed text-slate-300">{result.advice}</p>
-        <p className="mt-1 text-[9.5px] italic text-slate-500">{meta.disclaimer}</p>
+        <p className="mt-1 text-[11px] leading-relaxed text-[var(--sl300)]">{result.advice}</p>
+        <p className="mt-1 text-[9.5px] italic text-[var(--sl500)]">{meta.disclaimer}</p>
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <button type="button" onClick={() => onApply(scoreToText(result))} className="cursor-pointer rounded border border-cyan-400/40 px-2 py-1 font-bold text-cyan-200 hover:bg-cyan-400/10">
+        <button type="button" onClick={() => onApply(scoreToText(result))} className="cursor-pointer rounded border border-cyan-400/40 px-2 py-1 font-bold text-[var(--ac-cyan200)] hover:bg-cyan-400/10">
           Rapor metnine ekle
         </button>
         {canTask && onCreateTask && (
           <button
             type="button"
             onClick={() => void onCreateTask({ message: `${meta.title}: ${result.label} — ${result.advice}`, intervalDays: result.followUpDays, severity: result.tissueSampling ? "yuksek" : "orta" })}
-            className="cursor-pointer rounded border border-emerald-400/40 px-2 py-1 font-bold text-emerald-200 hover:bg-emerald-400/10"
+            className="cursor-pointer rounded border border-emerald-400/40 px-2 py-1 font-bold text-[var(--ac-emerald200)] hover:bg-emerald-400/10"
           >
             {result.tissueSampling ? "🔬 Biyopsi/takip görevi oluştur" : "🗓 Takip görevi oluştur"}
           </button>

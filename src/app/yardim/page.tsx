@@ -26,29 +26,35 @@ const QA: [string, string][] = [
     "Arıza değildir. Keep-alive bağlantısını istemci aniden kapatınca worker yığın izi basardı; 2026-11-26 güncellemesiyle tek satır loga indi (“istemci bağlantıyı kapattı (istek yok, yoksayıldı)”). git pull ile alın."],
   ["Kurulum ve menüler nereden öğrenilir?",
     "docs/KURULUM_VE_KULLANIM.md (tüm işletim sistemleri, görsel+videolu) ve docs/MENU_KILAVUZU.md (numaralı ekran haritasıyla her düğme). Windows ayrıntı: docs/WINDOWS_KURULUM.md."],
+  ["Tema aldığımda neden hiçbir renk değişmiyordu?",
+    "Düzeldi (2026-11-26). Yapısal renkler artık globals.css değişkenlerine bağlı; Koyu (eski görünüm), Klinik Mavi, Açık Tema ve Yüksek Kontrast artık gerçekten çalışır. Seçim atik-theme anahtarında saklanır. Ayrıntı: docs/GORSEL_ANLATIM.md §7.1"],
+  ["Dili nasıl değiştiririm? Kaç dil var?",
+    "Üst çubuktaki 🌐 Dil seç düğmesinden 24 kayıtlı dili arayıp seçin (tr en es fr de it pt nl pl ru uk cs sv ro hu bg ar he hi zh ja ko id th). Paket yalnız seçildiğinde indirilir; yedek İngilizce. Kapsam: arayüz kromu — belgeler ve AI rapor gövdesi Türkçe kalır. Yeni dil PR + npm run test:i18n ile eklenir."],
+  ["Görsel anlatım nerede?",
+    "docs/GORSEL_ANLATIM.md — uçtan uca, ekran ekran; sıkıştırılmış JPEG + SVG şemalarla (≈650 KB). Web demosu vs Windows/macOS/Linux/Docker farkları, AI analiz karar ağacı, tema ve dil mekanizması."],
   ["Yeni AI modülü gelir mi? (kolon polip, kalça kırığı)",
     "Adaylar /kiyaslama sayfasındaki “Önerilen aday modüller — henüz kod yok” listesinde (BT kolongrafi polip, DX kalça kırığı, CXR RSNA pnömoni 2. skor). Açık kaynak model + yerelde çalışma + research etiketi + kurum doğrulaması çerçevesinden geçmeden eklenmez."],
 ];
 
 export default function YardimPage() {
   return (
-    <div className="h-screen w-screen overflow-y-auto bg-[#070a0f] text-slate-200">
+    <div className="h-screen w-screen overflow-y-auto bg-[var(--t02)] text-[var(--sl200)]">
       <main className="mx-auto max-w-3xl px-5 py-10">
-        <Link href="/" className="text-xs text-cyan-400 hover:underline">← Görüntüleyiciye dön</Link>
-        <h1 className="mt-3 text-2xl font-black text-slate-100">Yardım / S.S.S.</h1>
-        <p className="mt-2 rounded-lg border border-amber-400/40 bg-amber-400/5 p-3 text-xs leading-relaxed text-amber-200">
+        <Link href="/" className="text-xs text-[var(--ac-cyan400)] hover:underline">← Görüntüleyiciye dön</Link>
+        <h1 className="mt-3 text-2xl font-black text-[var(--sl100)]">Yardım / S.S.S.</h1>
+        <p className="mt-2 rounded-lg border border-amber-400/40 bg-amber-400/5 p-3 text-xs leading-relaxed text-[var(--ac-amber200)]">
           ATIKVIEWER araştırma amaçlıdır; klinik karar için kullanılamaz. Yapay zekâ çıktılarının tamamı taslaktır, son söz radyoloji uzmanınındır.
           Bu sayfa <code className="rounded bg-black/40 px-1">docs/SSS.md</code> ile bire bir eşlenik tutulur; biri güncellenmeden diğeri güncellenemez.
         </p>
         <div className="mt-6 space-y-4">
           {QA.map(([q, a]) => (
-            <section key={q} className="rounded-xl border border-[#1e2735] bg-[#0b0f16] p-4">
-              <h2 className="text-sm font-bold text-cyan-300">{q}</h2>
-              <p className="mt-1.5 text-[13px] leading-relaxed text-slate-300">{a}</p>
+            <section key={q} className="rounded-xl border border-[var(--t30)] bg-[var(--t05)] p-4">
+              <h2 className="text-sm font-bold text-[var(--ac-cyan300)]">{q}</h2>
+              <p className="mt-1.5 text-[13px] leading-relaxed text-[var(--sl300)]">{a}</p>
             </section>
           ))}
         </div>
-        <p className="mt-6 text-[11px] text-slate-500">
+        <p className="mt-6 text-[11px] text-[var(--sl500)]">
           Ayrıntılar için depodaki belgeler: <code className="rounded bg-black/40 px-1">docs/KURULUM_VE_KULLANIM.md</code> · <code className="rounded bg-black/40 px-1">docs/MENU_KILAVUZU.md</code> · <code className="rounded bg-black/40 px-1">docs/SSS.md</code>
         </p>
       </main>

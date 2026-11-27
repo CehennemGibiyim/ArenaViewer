@@ -74,7 +74,7 @@ export default function FileSelectControl({ directory = false, onFiles }: { dire
         title={directory ? "Klasörü ve tüm alt klasörlerini tara" : "DICOM veya görüntü dosyalarını seç; uzantı kısıtı yok"}
         disabled={scanCount !== null}
         onClick={() => void open()}
-        className={`inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-xs font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200 disabled:opacity-60 ${directory ? "border border-cyan-400/40 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20" : "bg-cyan-500 text-[#06131a] hover:bg-cyan-400"}`}
+        className={`inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-xs font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200 disabled:opacity-60 ${directory ? "border border-cyan-400/40 bg-cyan-500/10 text-[var(--ac-cyan300)] hover:bg-cyan-500/20" : "bg-cyan-500 text-[#06131a] hover:bg-cyan-400"}`}
       >
         <span aria-hidden="true">{directory ? "📁" : "📄"}</span>
         <span>{scanCount === null ? label : `Klasör taranıyor… ${scanCount}`}</span>

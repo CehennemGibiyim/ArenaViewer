@@ -153,27 +153,27 @@ export default function NoduleTracker({ patientId, patientName, studyDate, measu
     a.download = `nodul-takibi-${patientId}.csv`; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 3000);
   };
-  const inp = "rounded border border-[#1e2735] bg-[#0e141d] px-1.5 py-0.5 text-slate-100";
+  const inp = "rounded border border-[var(--t30)] bg-[var(--t10)] px-1.5 py-0.5 text-[var(--sl100)]";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-label="Nodül takibi ve RECIST">
-      <div className="flex max-h-full w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-[#2d3b4e] bg-[#0b0f16] text-xs text-slate-200 shadow-2xl">
-        <div className="flex items-center justify-between border-b border-[#1a2230] px-4 py-2">
-          <div><span className="text-sm font-bold text-cyan-300">Nodül takibi</span> <span className="text-slate-400">· {patientName} · {patientId}</span></div>
-          <button onClick={onClose} className="cursor-pointer rounded border border-[#2d3b4e] px-2 py-0.5 hover:bg-[#1a2330]">✕ Kapat</button>
+      <div className="flex max-h-full w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-[var(--t39)] bg-[var(--t05)] text-xs text-[var(--sl200)] shadow-2xl">
+        <div className="flex items-center justify-between border-b border-[var(--t25)] px-4 py-2">
+          <div><span className="text-sm font-bold text-[var(--ac-cyan300)]">Nodül takibi</span> <span className="text-[var(--sl400)]">· {patientName} · {patientId}</span></div>
+          <button onClick={onClose} className="cursor-pointer rounded border border-[var(--t39)] px-2 py-0.5 hover:bg-[var(--t26)]">✕ Kapat</button>
         </div>
         <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto p-4 md:grid-cols-2">
           <div className="space-y-3">
-            <div className="rounded-lg border border-[#1a2230] p-2">
-              <div className="mb-1 font-bold text-slate-100">Nodüller</div>
-              {tracks.length === 0 && <div className="text-slate-500">Henüz nodül yok. Aşağıdan ekleyin.</div>}
+            <div className="rounded-lg border border-[var(--t25)] p-2">
+              <div className="mb-1 font-bold text-[var(--sl100)]">Nodüller</div>
+              {tracks.length === 0 && <div className="text-[var(--sl500)]">Henüz nodül yok. Aşağıdan ekleyin.</div>}
               {tracks.map((t, i) => (
                 <div key={t.id} className={`flex items-center justify-between rounded px-2 py-1 ${sel === t.id ? "bg-cyan-400/10 ring-1 ring-cyan-400/40" : ""}`}>
-                  <button className="flex-1 cursor-pointer text-left" onClick={() => setSel(t.id)}><span className="mr-2 inline-block h-2 w-2 rounded-full" style={{ background: COLORS[i % COLORS.length] }} />{t.label}{t.location ? ` · ${t.location}` : ""} <span className="text-slate-500">({KIND_LABEL[t.kind]}, {t.points.length} ölçüm)</span></button>
-                  <button aria-label={`${t.label} sil`} className="cursor-pointer px-1 text-slate-500 hover:text-red-400" onClick={() => { if (window.confirm(`${t.label} ve tüm ölçümleri silinsin mi?`)) delTrack(t.id); }}>🗑</button>
+                  <button className="flex-1 cursor-pointer text-left" onClick={() => setSel(t.id)}><span className="mr-2 inline-block h-2 w-2 rounded-full" style={{ background: COLORS[i % COLORS.length] }} />{t.label}{t.location ? ` · ${t.location}` : ""} <span className="text-[var(--sl500)]">({KIND_LABEL[t.kind]}, {t.points.length} ölçüm)</span></button>
+                  <button aria-label={`${t.label} sil`} className="cursor-pointer px-1 text-[var(--sl500)] hover:text-[var(--ac-red400)]" onClick={() => { if (window.confirm(`${t.label} ve tüm ölçümleri silinsin mi?`)) delTrack(t.id); }}>🗑</button>
                 </div>
               ))}
-              <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-[#1a2230] pt-2">
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-[var(--t25)] pt-2">
                 <input aria-label="Nodül adı" placeholder="Ad (ör. N1)" value={newLabel} onChange={(e) => setNewLabel(e.target.value)} className={`${inp} w-20`} />
                 <input aria-label="Konum" placeholder="Konum (SÜL…)" value={newLoc} onChange={(e) => setNewLoc(e.target.value)} className={`${inp} w-24`} />
                 <select aria-label="Tür" value={newKind} onChange={(e) => setNewKind(e.target.value as NoduleKind)} className={inp}>{(Object.keys(KIND_LABEL) as NoduleKind[]).map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}</select>
@@ -181,8 +181,8 @@ export default function NoduleTracker({ patientId, patientName, studyDate, measu
               </div>
             </div>
             {cur && (
-              <div className="rounded-lg border border-[#1a2230] p-2">
-                <div className="mb-1 font-bold text-slate-100">Ölçüm ekle · {cur.label}</div>
+              <div className="rounded-lg border border-[var(--t25)] p-2">
+                <div className="mb-1 font-bold text-[var(--sl100)]">Ölçüm ekle · {cur.label}</div>
                 <div className="flex flex-wrap items-center gap-1.5">
                   <input aria-label="Tarih" type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inp} />
                   <input aria-label="Çap (mm)" placeholder="Çap mm" value={diam} onChange={(e) => setDiam(e.target.value)} className={`${inp} w-20`} />
@@ -191,31 +191,31 @@ export default function NoduleTracker({ patientId, patientName, studyDate, measu
                   <button data-testid="add-point" onClick={addPoint} className="cursor-pointer rounded bg-cyan-500 px-2 py-0.5 font-bold text-black">Ekle</button>
                 </div>
                 {measurements.length > 0 && (
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400">Açık görüntüdeki ölçümden al:
-                    {measurements.map((m, i) => <button key={i} onClick={() => setDiam(m.mm.toFixed(1))} className="cursor-pointer rounded border border-[#2d3b4e] px-1.5 py-0.5 hover:bg-[#1a2330]">{m.label} · K{m.slice + 1} · {m.mm.toFixed(1)} mm</button>)}
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-[var(--sl400)]">Açık görüntüdeki ölçümden al:
+                    {measurements.map((m, i) => <button key={i} onClick={() => setDiam(m.mm.toFixed(1))} className="cursor-pointer rounded border border-[var(--t39)] px-1.5 py-0.5 hover:bg-[var(--t26)]">{m.label} · K{m.slice + 1} · {m.mm.toFixed(1)} mm</button>)}
                   </div>
                 )}
-                {msg && <div className="mt-1 text-amber-300">{msg}</div>}
+                {msg && <div className="mt-1 text-[var(--ac-amber300)]">{msg}</div>}
                 <table className="mt-2 w-full text-left"><tbody>
                   {sortedPts(cur).map((p) => (
-                    <tr key={p.date} className="border-t border-[#1a2230]"><td className="py-0.5 font-mono">{p.date}</td><td className="font-mono text-cyan-300">{p.diameterMm.toFixed(1)} mm{p.solidMm ? ` (solid ${p.solidMm})` : ""}</td><td className="text-slate-500">{p.note}</td><td className="text-right"><button aria-label={`${p.date} sil`} className="cursor-pointer text-slate-500 hover:text-red-400" onClick={() => delPoint(p.date)}>✕</button></td></tr>
+                    <tr key={p.date} className="border-t border-[var(--t25)]"><td className="py-0.5 font-mono">{p.date}</td><td className="font-mono text-[var(--ac-cyan300)]">{p.diameterMm.toFixed(1)} mm{p.solidMm ? ` (solid ${p.solidMm})` : ""}</td><td className="text-[var(--sl500)]">{p.note}</td><td className="text-right"><button aria-label={`${p.date} sil`} className="cursor-pointer text-[var(--sl500)] hover:text-[var(--ac-red400)]" onClick={() => delPoint(p.date)}>✕</button></td></tr>
                   ))}
                 </tbody></table>
               </div>
             )}
           </div>
           <div className="space-y-3">
-            <div className="rounded-lg border border-[#1a2230] p-2">
-              <div className="mb-1 font-bold text-slate-100">Çap – zaman</div>
+            <div className="rounded-lg border border-[var(--t25)] p-2">
+              <div className="mb-1 font-bold text-[var(--sl100)]">Çap – zaman</div>
               <svg data-testid="nodule-chart" viewBox="0 0 500 215" className="w-full">
-                <rect x="0" y="0" width="500" height="215" fill="#070a0f" />
+                <rect x="0" y="0" width="500" height="215" fill="var(--t02)" />
                 {[6, 8, 15].filter((v) => v < dMax).map((v) => (
-                  <g key={v}><line x1="44" x2="480" y1={Y(v)} y2={Y(v)} stroke="#334155" strokeDasharray="4 4" /><text x="8" y={Y(v) + 3} fontSize="9" fill="#64748b">{v} mm</text></g>
+                  <g key={v}><line x1="44" x2="480" y1={Y(v)} y2={Y(v)} stroke="var(--t40)" strokeDasharray="4 4" /><text x="8" y={Y(v) + 3} fontSize="9" fill="var(--t42)">{v} mm</text></g>
                 ))}
-                <line x1="44" x2="480" y1="190" y2="190" stroke="#475569" /><line x1="44" x2="44" y1="20" y2="190" stroke="#475569" />
-                <text x="44" y="206" fontSize="9" fill="#94a3b8">{new Date(tMin).toISOString().slice(0, 10)}</text>
-                <text x="480" y="206" fontSize="9" fill="#94a3b8" textAnchor="end">{new Date(tMax).toISOString().slice(0, 10)}</text>
-                <text x="8" y="14" fontSize="9" fill="#94a3b8">çap (mm)</text>
+                <line x1="44" x2="480" y1="190" y2="190" stroke="var(--t41)" /><line x1="44" x2="44" y1="20" y2="190" stroke="var(--t41)" />
+                <text x="44" y="206" fontSize="9" fill="var(--t44)">{new Date(tMin).toISOString().slice(0, 10)}</text>
+                <text x="480" y="206" fontSize="9" fill="var(--t44)" textAnchor="end">{new Date(tMax).toISOString().slice(0, 10)}</text>
+                <text x="8" y="14" fontSize="9" fill="var(--t44)">çap (mm)</text>
                 {tracks.map((t, i) => {
                   const pts = sortedPts(t); const c = COLORS[i % COLORS.length];
                   return (
@@ -226,56 +226,56 @@ export default function NoduleTracker({ patientId, patientName, studyDate, measu
                   );
                 })}
               </svg>
-              <div className="text-[10px] text-slate-500">Kesikli çizgiler: 6 / 8 / 15 mm (Lung-RADS solid nodül boyut eşikleri).</div>
+              <div className="text-[10px] text-[var(--sl500)]">Kesikli çizgiler: 6 / 8 / 15 mm (Lung-RADS solid nodül boyut eşikleri).</div>
             </div>
             {cur && sum && (
-              <div className="rounded-lg border border-[#1a2230] p-2 leading-relaxed" data-testid="nodule-summary">
-                <div className="mb-1 font-bold text-slate-100">Özet · {cur.label}</div>
-                <div>Son ölçüm: <b className="text-cyan-300">{sum.latest.diameterMm.toFixed(1)} mm</b> ({sum.latest.date})</div>
+              <div className="rounded-lg border border-[var(--t25)] p-2 leading-relaxed" data-testid="nodule-summary">
+                <div className="mb-1 font-bold text-[var(--sl100)]">Özet · {cur.label}</div>
+                <div>Son ölçüm: <b className="text-[var(--ac-cyan300)]">{sum.latest.diameterMm.toFixed(1)} mm</b> ({sum.latest.date})</div>
                 <div>İlk ölçümden değişim: <b>{sum.growthMm >= 0 ? "+" : ""}{sum.growthMm.toFixed(1)} mm</b>{sum.growth12mMm !== null && <> · son 12 ay: <b>{sum.growth12mMm >= 0 ? "+" : ""}{sum.growth12mMm.toFixed(1)} mm</b></>}</div>
                 <div>Durum: <b>{{ baseline: "İlk (bazal)", new: "Yeni", growing: "Büyüyor", stable: "Stabil" }[sum.status]}</b>{sum.vdtDays !== null && <> · hacim ikilenme süresi ≈ <b>{Math.round(sum.vdtDays)} gün</b>{sum.vdtDays < 400 ? " (hızlı büyüme)" : ""}</>}</div>
-                <div className="mt-1 rounded bg-cyan-400/10 px-2 py-1">Lung-RADS (özet eşik): <b className="text-cyan-200">{sum.category}</b> — {ADVICE[sum.category]}</div>
-                {cur.points.length > 1 && <div className="text-slate-500">Toplam izlem süresi {Math.round(daysBetween(sum.first.date, sum.latest.date))} gün.</div>}
+                <div className="mt-1 rounded bg-cyan-400/10 px-2 py-1">Lung-RADS (özet eşik): <b className="text-[var(--ac-cyan200)]">{sum.category}</b> — {ADVICE[sum.category]}</div>
+                {cur.points.length > 1 && <div className="text-[var(--sl500)]">Toplam izlem süresi {Math.round(daysBetween(sum.first.date, sum.latest.date))} gün.</div>}
               </div>
             )}
             {recist && (
-              <div className="rounded-lg border border-[#1a2230] p-2 leading-relaxed" data-testid="recist-panel">
-                <div className="mb-1 flex flex-wrap items-center justify-between gap-1 font-bold text-slate-100">
+              <div className="rounded-lg border border-[var(--t25)] p-2 leading-relaxed" data-testid="recist-panel">
+                <div className="mb-1 flex flex-wrap items-center justify-between gap-1 font-bold text-[var(--sl100)]">
                   <span>RECIST 1.1 · Hedef lezyon yanıtı</span>
                   <span
                     className={`rounded px-1.5 py-0.5 text-[10px] font-black ${
                       recist.response === "PD"
-                        ? "bg-rose-500/20 text-rose-200"
+                        ? "bg-rose-500/20 text-[var(--ac-rose200)]"
                         : recist.response === "PR"
-                          ? "bg-emerald-500/20 text-emerald-200"
+                          ? "bg-emerald-500/20 text-[var(--ac-emerald200)]"
                           : recist.response === "CR"
-                            ? "bg-cyan-500/20 text-cyan-200"
-                            : "bg-slate-500/20 text-slate-200"
+                            ? "bg-cyan-500/20 text-[var(--ac-cyan200)]"
+                            : "bg-[var(--sl500)]/20 text-[var(--sl200)]"
                     }`}
                   >
                     {recist.responseLabel}
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 font-mono text-[11px]">
-                  <div className="text-slate-500">Bazal · {recist.baselineDate}</div>
-                  <div className="text-right text-cyan-300">{recist.baselineSumMm.toFixed(1)} mm</div>
-                  <div className="text-slate-500">İzlem · {recist.followUpDate}</div>
-                  <div className="text-right text-cyan-300">{recist.followUpSumMm.toFixed(1)} mm</div>
-                  <div className="text-slate-500">Değişim</div>
+                  <div className="text-[var(--sl500)]">Bazal · {recist.baselineDate}</div>
+                  <div className="text-right text-[var(--ac-cyan300)]">{recist.baselineSumMm.toFixed(1)} mm</div>
+                  <div className="text-[var(--sl500)]">İzlem · {recist.followUpDate}</div>
+                  <div className="text-right text-[var(--ac-cyan300)]">{recist.followUpSumMm.toFixed(1)} mm</div>
+                  <div className="text-[var(--sl500)]">Değişim</div>
                   <div className="text-right">
                     {recist.deltaMm >= 0 ? "+" : ""}
                     {recist.deltaMm.toFixed(1)} mm ({recist.deltaPct === null ? "—" : `${recist.deltaPct >= 0 ? "+" : ""}${recist.deltaPct.toFixed(1)} %`})
                   </div>
-                  <div className="text-slate-500">Hedef lezyon</div>
+                  <div className="text-[var(--sl500)]">Hedef lezyon</div>
                   <div className="text-right">
                     {recist.targetCount}
                     {recist.overLimit ? " (≤10 sınırı aşıldı)" : ""}
                   </div>
                 </div>
-                <div className="mt-1 rounded bg-[#0e141d] px-2 py-1 text-[11px] text-slate-300">{recist.criteria}</div>
+                <div className="mt-1 rounded bg-[var(--t10)] px-2 py-1 text-[11px] text-[var(--sl300)]">{recist.criteria}</div>
 
-                <div className="mt-1.5 rounded border border-[#1a2230] p-1.5">
-                  <div className="mb-1 flex items-center justify-between text-[10px] uppercase tracking-wider text-slate-500">
+                <div className="mt-1.5 rounded border border-[var(--t25)] p-1.5">
+                  <div className="mb-1 flex items-center justify-between text-[10px] uppercase tracking-wider text-[var(--sl500)]">
                     <span>Hedef lezyon seçimi</span>
                     <span>{full.selection.targetCount}/{RECIST_LIMITS.total}{full.selection.targetCount > 0 ? ` · organ başına ≤${RECIST_LIMITS.perOrgan}` : ""}</span>
                   </div>
@@ -284,7 +284,7 @@ export default function NoduleTracker({ patientId, patientName, studyDate, measu
                       const on = targets.includes(t.id);
                       return (
                         <button key={t.id} type="button" onClick={() => setTargets((cur) => (on ? cur.filter((x) => x !== t.id) : [...cur, t.id]))}
-                          className={`cursor-pointer rounded border px-1.5 py-0.5 text-[10px] ${on ? "border-cyan-400/60 bg-cyan-400/15 text-cyan-200" : "border-[#2d3b4e] text-slate-400 hover:bg-[#1a2330]"}`}>
+                          className={`cursor-pointer rounded border px-1.5 py-0.5 text-[10px] ${on ? "border-cyan-400/60 bg-cyan-400/15 text-[var(--ac-cyan200)]" : "border-[var(--t39)] text-[var(--sl400)] hover:bg-[var(--t26)]"}`}>
                           {on ? "★ " : "☆ "}{t.label}
                         </button>
                       );
@@ -293,23 +293,23 @@ export default function NoduleTracker({ patientId, patientName, studyDate, measu
                   {full.selection.issues.length > 0 && (
                     <ul className="mt-1 space-y-0.5 text-[10px]">
                       {full.selection.issues.map((i, k) => (
-                        <li key={k} className={i.severity === "hata" ? "text-rose-300" : "text-amber-300"}>• {i.message}</li>
+                        <li key={k} className={i.severity === "hata" ? "text-[var(--ac-rose300)]" : "text-[var(--ac-amber300)]"}>• {i.message}</li>
                       ))}
                     </ul>
                   )}
                 </div>
                 <div className="mt-1.5 grid gap-1 text-[11px] sm:grid-cols-2">
                   <div>
-                    <span className="text-slate-500">Non-hedef lezyonlar:</span>
-                    {tracks.length === 0 && <span className="text-slate-600"> —</span>}
+                    <span className="text-[var(--sl500)]">Non-hedef lezyonlar:</span>
+                    {tracks.length === 0 && <span className="text-[var(--sl600)]"> —</span>}
                     {tracks.map((t) => (
                       <label key={t.id} className="mt-0.5 flex items-center justify-between gap-1">
-                        <span className="truncate text-slate-400">{t.label}</span>
+                        <span className="truncate text-[var(--sl400)]">{t.label}</span>
                         <select
                           aria-label={`${t.label} non-hedef durumu`}
                           value={nonTarget[t.id] ?? ""}
                           onChange={(e) => setNonTarget((cur) => ({ ...cur, [t.id]: (e.target.value || "belirsiz") as NonTargetStatus }))}
-                          className="rounded border border-[#1e2735] bg-[#0e141d] px-1 py-0 text-[10px] text-slate-200"
+                          className="rounded border border-[var(--t30)] bg-[var(--t10)] px-1 py-0 text-[10px] text-[var(--sl200)]"
                         >
                           <option value="">—</option>
                           <option value="kayboldu">kayboldu</option>
@@ -320,16 +320,16 @@ export default function NoduleTracker({ patientId, patientName, studyDate, measu
                       </label>
                     ))}
                   </div>
-                  <div className="rounded bg-[#0e141d] px-2 py-1">
-                    <div className="text-slate-500">GENEL YANIT</div>
-                    <div className="font-bold text-slate-100">{full.overall.label}</div>
-                    <div className="text-[10px] leading-snug text-slate-400">{full.overall.reason}</div>
-                    <div className="mt-0.5 text-[10px] text-slate-500">Non-hedef: {full.nonTarget}</div>
+                  <div className="rounded bg-[var(--t10)] px-2 py-1">
+                    <div className="text-[var(--sl500)]">GENEL YANIT</div>
+                    <div className="font-bold text-[var(--sl100)]">{full.overall.label}</div>
+                    <div className="text-[10px] leading-snug text-[var(--sl400)]">{full.overall.reason}</div>
+                    <div className="mt-0.5 text-[10px] text-[var(--sl500)]">Non-hedef: {full.nonTarget}</div>
                   </div>
                 </div>
 
                 <div className="mt-1.5 flex flex-wrap items-center gap-3 text-[11px]">
-                  <label className="flex cursor-pointer items-center gap-1.5 text-slate-300">
+                  <label className="flex cursor-pointer items-center gap-1.5 text-[var(--sl300)]">
                     <input
                       type="checkbox"
                       checked={newLesion}
@@ -338,7 +338,7 @@ export default function NoduleTracker({ patientId, patientName, studyDate, measu
                     />
                     İzlemde <b>yeni lezyon</b> var (hekim işareti → PD)
                   </label>
-                  <label className="flex cursor-pointer items-center gap-1.5 text-slate-300">
+                  <label className="flex cursor-pointer items-center gap-1.5 text-[var(--sl300)]">
                     <input
                       type="checkbox"
                       checked={allGone}
@@ -351,7 +351,7 @@ export default function NoduleTracker({ patientId, patientName, studyDate, measu
 
                 <table className="mt-2 w-full text-left text-[11px]">
                   <thead>
-                    <tr className="text-[10px] uppercase tracking-wider text-slate-500">
+                    <tr className="text-[10px] uppercase tracking-wider text-[var(--sl500)]">
                       <th className="py-0.5 font-semibold">Lezyon</th>
                       <th className="py-0.5 text-right font-semibold">Bazal</th>
                       <th className="py-0.5 text-right font-semibold">İzlem</th>
@@ -360,13 +360,13 @@ export default function NoduleTracker({ patientId, patientName, studyDate, measu
                   </thead>
                   <tbody>
                     {recist.lesions.map((l) => (
-                      <tr key={l.label} className="border-t border-[#1a2230]">
+                      <tr key={l.label} className="border-t border-[var(--t25)]">
                         <td className="py-0.5">{l.label}</td>
-                        <td className="py-0.5 text-right font-mono text-cyan-300">{l.baselineMm === null ? "—" : `${l.baselineMm.toFixed(1)} mm`}</td>
-                        <td className="py-0.5 text-right font-mono text-cyan-300">{l.followUpMm === null ? "—" : `${l.followUpMm.toFixed(1)} mm`}</td>
+                        <td className="py-0.5 text-right font-mono text-[var(--ac-cyan300)]">{l.baselineMm === null ? "—" : `${l.baselineMm.toFixed(1)} mm`}</td>
+                        <td className="py-0.5 text-right font-mono text-[var(--ac-cyan300)]">{l.followUpMm === null ? "—" : `${l.followUpMm.toFixed(1)} mm`}</td>
                         <td className="py-0.5 text-right font-mono">
                           {l.deltaPct === null ? (
-                            <span className="text-amber-300">bazal yok</span>
+                            <span className="text-[var(--ac-amber300)]">bazal yok</span>
                           ) : (
                             `${l.deltaPct >= 0 ? "+" : ""}${l.deltaPct.toFixed(1)}`
                           )}
@@ -375,17 +375,17 @@ export default function NoduleTracker({ patientId, patientName, studyDate, measu
                     ))}
                   </tbody>
                 </table>
-                <div className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
+                <div className="mt-1.5 text-[10px] leading-relaxed text-[var(--sl500)]">
                   Hesap yalnız girilen en uzun çaplara dayanır. Hedef lezyon seçimi, organ başına ≤5 / toplam ≤10 sınırı,
                   lenf nodu (kısa eksen) ölçümleri ve non-hedef lezyonların değerlendirilmesi hekim sorumluluğundadır.
-                  <span className="text-amber-300"> Klinik karar aracı değildir; sonuç radyoloji uzmanı tarafından doğrulanmalıdır.</span>
+                  <span className="text-[var(--ac-amber300)]"> Klinik karar aracı değildir; sonuç radyoloji uzmanı tarafından doğrulanmalıdır.</span>
                 </div>
               </div>
             )}
-            <div className="rounded-lg border border-[#1a2230] p-2 leading-relaxed" data-testid="cross-study-panel">
+            <div className="rounded-lg border border-[var(--t25)] p-2 leading-relaxed" data-testid="cross-study-panel">
               <div className="flex flex-wrap items-center justify-between gap-1">
-                <b className="text-slate-100">Çalışmalar arası eşleştirme</b>
-                <span className="text-[10px] text-slate-500">
+                <b className="text-[var(--sl100)]">Çalışmalar arası eşleştirme</b>
+                <span className="text-[10px] text-[var(--sl500)]">
                   {crossStudy.baselineDate && crossStudy.followUpDate
                     ? `${crossStudy.baselineDate} → ${crossStudy.followUpDate}`
                     : "en az iki farklı tarihte ölçüm gerekir"}
@@ -394,7 +394,7 @@ export default function NoduleTracker({ patientId, patientName, studyDate, measu
               {crossStudy.pairs.length > 0 && (
                 <table className="mt-1 w-full text-left text-[11px]">
                   <thead>
-                    <tr className="text-[10px] uppercase tracking-wider text-slate-500">
+                    <tr className="text-[10px] uppercase tracking-wider text-[var(--sl500)]">
                       <th className="py-0.5 font-semibold">Lezyon</th>
                       <th className="py-0.5 font-semibold">Bölge</th>
                       <th className="py-0.5 text-right font-semibold">Bazal</th>
@@ -404,14 +404,14 @@ export default function NoduleTracker({ patientId, patientName, studyDate, measu
                   </thead>
                   <tbody>
                     {crossStudy.pairs.map((p, i) => (
-                      <tr key={`${p.label}-${i}`} className="border-t border-[#151d28]">
-                        <td className="py-0.5 text-slate-200">{p.label}</td>
-                        <td className="py-0.5 text-slate-400">{p.anatomy}</td>
-                        <td className="py-0.5 text-right font-mono text-slate-300">{p.fromMm === null ? "—" : `${p.fromMm.toFixed(1)}`}</td>
-                        <td className="py-0.5 text-right font-mono text-slate-300">{p.toMm === null ? "—" : `${p.toMm.toFixed(1)}`}</td>
-                        <td className={`py-0.5 text-right font-mono ${p.deltaMm && p.deltaMm > 0 ? "text-amber-300" : p.deltaMm && p.deltaMm < 0 ? "text-emerald-300" : "text-slate-400"}`}>
+                      <tr key={`${p.label}-${i}`} className="border-t border-[var(--t20)]">
+                        <td className="py-0.5 text-[var(--sl200)]">{p.label}</td>
+                        <td className="py-0.5 text-[var(--sl400)]">{p.anatomy}</td>
+                        <td className="py-0.5 text-right font-mono text-[var(--sl300)]">{p.fromMm === null ? "—" : `${p.fromMm.toFixed(1)}`}</td>
+                        <td className="py-0.5 text-right font-mono text-[var(--sl300)]">{p.toMm === null ? "—" : `${p.toMm.toFixed(1)}`}</td>
+                        <td className={`py-0.5 text-right font-mono ${p.deltaMm && p.deltaMm > 0 ? "text-[var(--ac-amber300)]" : p.deltaMm && p.deltaMm < 0 ? "text-[var(--ac-emerald300)]" : "text-[var(--sl400)]"}`}>
                           {p.deltaMm === null ? "—" : `${p.deltaMm >= 0 ? "+" : ""}${p.deltaMm.toFixed(1)}`}
-                          {p.pctChange !== null && <span className="ml-1 text-[9.5px] text-slate-500">({p.pctChange >= 0 ? "+" : ""}{p.pctChange}%)</span>}
+                          {p.pctChange !== null && <span className="ml-1 text-[9.5px] text-[var(--sl500)]">({p.pctChange >= 0 ? "+" : ""}{p.pctChange}%)</span>}
                         </td>
                       </tr>
                     ))}
@@ -420,34 +420,34 @@ export default function NoduleTracker({ patientId, patientName, studyDate, measu
               )}
               {(crossStudy.result.newOnes.length > 0 || crossStudy.result.disappeared.length > 0) && (
                 <div className="mt-1 text-[10.5px]">
-                  {crossStudy.result.newOnes.length > 0 && <div className="text-rose-300">Yeni: {crossStudy.result.newOnes.map((r) => `${r.location} (${r.anatomy})`).join(", ")}</div>}
-                  {crossStudy.result.disappeared.length > 0 && <div className="text-slate-400">Saptanmayan: {crossStudy.result.disappeared.map((r) => `${r.location} (${r.anatomy})`).join(", ")}</div>}
+                  {crossStudy.result.newOnes.length > 0 && <div className="text-[var(--ac-rose300)]">Yeni: {crossStudy.result.newOnes.map((r) => `${r.location} (${r.anatomy})`).join(", ")}</div>}
+                  {crossStudy.result.disappeared.length > 0 && <div className="text-[var(--sl400)]">Saptanmayan: {crossStudy.result.disappeared.map((r) => `${r.location} (${r.anatomy})`).join(", ")}</div>}
                 </div>
               )}
               {crossStudy.nodes.length > 0 && (
                 <div className="mt-1.5">
-                  <div className="text-[10px] uppercase tracking-wider text-slate-500">Lenf nodları (kısa eksen)</div>
+                  <div className="text-[10px] uppercase tracking-wider text-[var(--sl500)]">Lenf nodları (kısa eksen)</div>
                   <div className="mt-0.5 flex flex-wrap gap-1">
                     {crossStudy.nodes.map((n) => (
-                      <span key={n.id} className={`rounded border px-1.5 py-0.5 text-[10px] ${n.category === "patolojik" ? "border-rose-400/50 text-rose-200" : n.category === "takip" ? "border-amber-400/50 text-amber-200" : "border-[#243044] text-slate-300"}`}>
+                      <span key={n.id} className={`rounded border px-1.5 py-0.5 text-[10px] ${n.category === "patolojik" ? "border-rose-400/50 text-[var(--ac-rose200)]" : n.category === "takip" ? "border-amber-400/50 text-[var(--ac-amber200)]" : "border-[var(--t35)] text-[var(--sl300)]"}`}>
                         {n.label} · {n.shortAxisMm === null ? "—" : `${n.shortAxisMm} mm`}
                       </span>
                     ))}
                   </div>
                 </div>
               )}
-              <div className="mt-1 text-[10px] leading-relaxed text-slate-500">{crossStudy.note} Eşleştirme anatomi + lezyon adına dayalı kuraldır; aynı lezyon olduğu hekim tarafından doğrulanmalıdır.</div>
+              <div className="mt-1 text-[10px] leading-relaxed text-[var(--sl500)]">{crossStudy.note} Eşleştirme anatomi + lezyon adına dayalı kuraldır; aynı lezyon olduğu hekim tarafından doğrulanmalıdır.</div>
             </div>
-            <div className="rounded border border-amber-400/30 bg-amber-400/5 p-2 text-[10px] leading-relaxed text-amber-200">
+            <div className="rounded border border-amber-400/30 bg-amber-400/5 p-2 text-[10px] leading-relaxed text-[var(--ac-amber200)]">
               Kategori, ACR Lung-RADS v2022 eşiklerinin ÖZETİ ve girilen çaplara dayanır; nodül tipi, konum, morfoloji, risk faktörleri ve güncel kılavuz dikkate alınmaz. Klinik karar aracı değildir. Veriler yalnızca bu tarayıcıda saklanır.
             </div>
           </div>
         </div>
-        <div className="flex items-center justify-between border-t border-[#1a2230] px-4 py-2">
-          <span className="text-slate-500">{tracks.length} nodül · {tracks.reduce((a, t) => a + t.points.length, 0)} ölçüm{cloudMsg ? ` · ${cloudMsg}` : ""}</span>
+        <div className="flex items-center justify-between border-t border-[var(--t25)] px-4 py-2">
+          <span className="text-[var(--sl500)]">{tracks.length} nodül · {tracks.reduce((a, t) => a + t.points.length, 0)} ölçüm{cloudMsg ? ` · ${cloudMsg}` : ""}</span>
           <div className="flex items-center gap-2">
-            <button onClick={() => setShowHistory(true)} className="cursor-pointer rounded border border-[#2d3b4e] px-3 py-1 hover:bg-[#1a2330]">☁ Sunucu geçmişi</button>
-            <button disabled={tracks.length === 0} onClick={downloadCsv} className="cursor-pointer rounded border border-[#2d3b4e] px-3 py-1 font-bold hover:bg-[#1a2330] disabled:opacity-40">CSV indir</button>
+            <button onClick={() => setShowHistory(true)} className="cursor-pointer rounded border border-[var(--t39)] px-3 py-1 hover:bg-[var(--t26)]">☁ Sunucu geçmişi</button>
+            <button disabled={tracks.length === 0} onClick={downloadCsv} className="cursor-pointer rounded border border-[var(--t39)] px-3 py-1 font-bold hover:bg-[var(--t26)] disabled:opacity-40">CSV indir</button>
           </div>
         </div>
       </div>

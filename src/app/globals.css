@@ -62,17 +62,18 @@ input[type="range"]::-webkit-slider-thumb {
   transform: translateY(0);
 }
 
-/* Yüksek kontrast teması: ikincil/etiket metinleri AA normal metin eşiğine çıkar. */
-.hc .text-slate-500 { color: #cbd5e1 !important; }
-.hc .text-slate-600 { color: #cbd5e1 !important; }
-.hc .text-slate-400 { color: #e2e8f0 !important; }
-.hc .text-slate-300 { color: #f1f5f9 !important; }
-.hc .text-slate-100,
-.hc .text-slate-200 { color: #ffffff !important; }
-.hc .text-amber-300\/80,
-.hc .text-amber-300 { color: #fde68a !important; }
-.hc .text-cyan-200,
-.hc .text-cyan-300 { color: #a5f3fc !important; }
+/* Yüksek kontrast düğmesi (◐ Kontrast): işaretlediğinde ikincil/etiket metinleri AA normal
+   metin eşiğine çıkar. Tüm arayüz artık --sl* değişkenlerinden beslendiği için burada yalnız
+   değişkenlerin üzerine yazmak yeterli (eski !important sınıfları kaldırıldı). */
+.hc {
+  --sl500: #cbd5e1;
+  --sl400: #e2e8f0;
+  --sl300: #f1f5f9;
+  --sl200: #ffffff;
+  --sl100: #ffffff;
+  --sl50: #ffffff;
+  --accent-cyan: #a5f3fc;
+}
 .hc [class*="opacity-4"],
 .hc [class*="opacity-5"] { opacity: 1 !important; }
 
@@ -120,44 +121,425 @@ details > summary::-webkit-details-marker { display: none; }
   .audit-print thead { position: static !important; }
 }
 
-/* Temalar: üst çubuktaki tema seçicisi data-theme ile kök elemana uygulanır. */
+/* Temalar — üretilen blok. AMAÇ: koyu tema güncel pikselle birebir aynı kalır;
+   açık tema (slate-light), klinik mavi (clinic-blue) ve yüksek kontrast (high-contrast)
+   aynı yapısal değişkenleri farklı değerlerle doldurur. Yapısal = düşük doygunluklu
+   (zemin/kenarlık/soluk metin). Vurgu renkleri (cyan/amber/…) her temada sabittir.
+   Kaynak: /tmp/theme_migrate.py — değişken eklemek/çıkartmak yerine bunu yeniden
+   çalıştırın; ardından npm run build ile doğrulayın. */
 :root {
   --bg: #070a0f;
-  --panel: #0b0f16;
-  --border: #1a2230;
-  --text: #e2e8f0;
+  --t00: #05070a;
+  --t01: #07090c;
+  --t02: #070a0f;
+  --t03: #120a0d;
+  --t04: #0a0e15;
+  --t05: #0b0f16;
+  --t06: #0b1018;
+  --t07: #0d121a;
+  --t08: #0d121c;
+  --t09: #0d131c;
+  --t10: #0e141d;
+  --t11: #0f141c;
+  --t12: #0f1620;
+  --t13: #10161f;
+  --t14: #101722;
+  --t15: #111823;
+  --t16: #131a25;
+  --t17: #141b24;
+  --t18: #141b26;
+  --t19: #141c28;
+  --t20: #151d28;
+  --t21: #161d28;
+  --t22: #151d29;
+  --t23: #161e2b;
+  --t24: #16202c;
+  --t25: #1a2230;
+  --t26: #1a2330;
+  --t27: #1a2332;
+  --t28: #1b2532;
+  --t29: #1c2835;
+  --t30: #1e2735;
+  --t31: #1f2937;
+  --t32: #22303f;
+  --t33: #2a2140;
+  --t34: #232e40;
+  --t35: #243044;
+  --t36: #273448;
+  --t37: #2a3547;
+  --t38: #2c394d;
+  --t39: #2d3b4e;
+  --t40: #334155;
+  --t41: #475569;
+  --t42: #64748b;
+  --t43: #7f8ea3;
+  --t44: #94a3b8;
+  --sl50: #f8fafc;
+  --sl100: #f1f5f9;
+  --sl200: #e2e8f0;
+  --sl300: #cbd5e1;
+  --sl400: #94a3b8;
+  --sl500: #7d8fa6;
+  --sl600: #475569;
+  --sl700: #334155;
+  --sl800: #1e293b;
+  --sl900: #0f172a;
+  --sl950: #020617;
   --accent-cyan: #22d3ee;
   --accent-emerald: #22c55e;
+  --t45: #070c19;
+  --t46: #0a1124;
+  --t47: #0b1326;
+  --t48: #0b1225;
+  --t49: #080d1b;
+  --t50: #0f1934;
+  --t51: #121e3d;
+  --t52: #0e1730;
+  --t53: #0c142a;
+  --t54: #0e172f;
+  --t55: #0b1224;
+  --t56: #0c152a;
+  --t57: #101c39;
+  --t58: #17264e;
+  --t59: #152347;
+  --t60: #dac0ed;
+  --violet-hi: #ede9fe;
+
+  --ac-cyan100: #cffafe;
+  --ac-cyan200: #a5f3fc;
+  --ac-cyan300: #67e8f9;
+  --ac-cyan400: #22d3ee;
+  --ac-emerald200: #a7f3d0;
+  --ac-emerald300: #6ee7b7;
+  --ac-emerald400: #34d399;
+  --ac-amber100: #fef3c7;
+  --ac-amber200: #fde68a;
+  --ac-amber300: #fcd34d;
+  --ac-rose100: #ffe4e6;
+  --ac-rose200: #fecdd3;
+  --ac-rose300: #fda4af;
+  --ac-rose400: #fb7185;
+  --ac-red400: #f87171;
+  --ac-violet200: #ddd6fe;
+  --ac-violet300: #c4b5fd;
+  --ac-orange200: #fed7aa;
+  --ac-orange300: #fdba74;
+  --ac-yellow200: #fef08a;
+  --ac-teal200: #99f6e4;
+  --ac-blue300: #93c5fd;
+  --ac-sky200: #bae6fd;
 }
 
 [data-theme="clinic-blue"] {
-  --bg: #060b14;
-  --panel: #0a1020;
-  --border: #1e2a44;
-  --text: #e6edf7;
+  --bg: #050811;
+  --t00: #050811;
+  --t01: #060a14;
+  --t02: #060b16;
+  --t03: #080d1b;
+  --t04: #080e1d;
+  --t05: #090f1e;
+  --t06: #091020;
+  --t07: #0a1123;
+  --t08: #0b1224;
+  --t09: #0b1224;
+  --t10: #0b1326;
+  --t11: #0b1326;
+  --t12: #0c1429;
+  --t13: #0c1429;
+  --t14: #0d152b;
+  --t15: #0d162d;
+  --t16: #0e1730;
+  --t17: #0e1730;
+  --t18: #0e1831;
+  --t19: #0f1933;
+  --t20: #0f1933;
+  --t21: #0f1934;
+  --t22: #0f1934;
+  --t23: #101b36;
+  --t24: #101b37;
+  --t25: #121e3d;
+  --t26: #121e3d;
+  --t27: #121f3e;
+  --t28: #121f3f;
+  --t29: #132042;
+  --t30: #142144;
+  --t31: #142246;
+  --t32: #17264e;
+  --t33: #17264e;
+  --t34: #172750;
+  --t35: #182953;
+  --t36: #1a2b59;
+  --t37: #1b2c59;
+  --t38: #1c2f60;
+  --t39: #1c3061;
+  --t40: #20356a;
+  --t41: #2f4682;
+  --t42: #425fab;
+  --t43: #5d87c1;
+  --t44: #779ccf;
+  --sl50: #f8fafc;
+  --sl100: #f1f5f9;
+  --sl200: #e2e8f0;
+  --sl300: #cbd5e1;
+  --sl400: #94a3b8;
+  --sl500: #7d8fa6;
+  --sl600: #475569;
+  --sl700: #334155;
+  --sl800: #1e293b;
+  --sl900: #0f172a;
+  --sl950: #020617;
   --accent-cyan: #38bdf8;
   --accent-emerald: #34d399;
+  --t45: #070c19;
+  --t46: #0a1124;
+  --t47: #0b1326;
+  --t48: #0b1225;
+  --t49: #080d1b;
+  --t50: #0f1934;
+  --t51: #121e3d;
+  --t52: #0e1730;
+  --t53: #0c142a;
+  --t54: #0e172f;
+  --t55: #0b1224;
+  --t56: #0c152a;
+  --t57: #101c39;
+  --t58: #17264e;
+  --t59: #152347;
+  --t60: #dac0ed;
+  --violet-hi: #e6e3ff;
+
+  --ac-cyan100: #cffafe;
+  --ac-cyan200: #a5f3fc;
+  --ac-cyan300: #67e8f9;
+  --ac-cyan400: #22d3ee;
+  --ac-emerald200: #a7f3d0;
+  --ac-emerald300: #6ee7b7;
+  --ac-emerald400: #34d399;
+  --ac-amber100: #fef3c7;
+  --ac-amber200: #fde68a;
+  --ac-amber300: #fcd34d;
+  --ac-rose100: #ffe4e6;
+  --ac-rose200: #fecdd3;
+  --ac-rose300: #fda4af;
+  --ac-rose400: #fb7185;
+  --ac-red400: #f87171;
+  --ac-violet200: #ddd6fe;
+  --ac-violet300: #c4b5fd;
+  --ac-orange200: #fed7aa;
+  --ac-orange300: #fdba74;
+  --ac-yellow200: #fef08a;
+  --ac-teal200: #99f6e4;
+  --ac-blue300: #93c5fd;
+  --ac-sky200: #bae6fd;
 }
 
 [data-theme="slate-light"] {
-  --bg: #f8fafc;
-  --panel: #ffffff;
-  --border: #cbd5e1;
-  --text: #0f172a;
+  --bg: #f1f5f9;
+  --t00: #eceff2;
+  --t01: #ebedf0;
+  --t02: #e8ebf0;
+  --t03: #ede6e8;
+  --t04: #e3e7ec;
+  --t05: #e2e6eb;
+  --t06: #e1e5eb;
+  --t07: #dfe3e9;
+  --t08: #dee1e9;
+  --t09: #dee2e9;
+  --t10: #dde1e8;
+  --t11: #dee1e7;
+  --t12: #dadfe7;
+  --t13: #dbdfe6;
+  --t14: #d9dee5;
+  --t15: #d8dde4;
+  --t16: #d6dbe2;
+  --t17: #d7dce2;
+  --t18: #d5dae1;
+  --t19: #d4d9e1;
+  --t20: #d4d9e0;
+  --t21: #d4d8e0;
+  --t22: #d3d8e0;
+  --t23: #d1d7df;
+  --t24: #d1d7df;
+  --t25: #cdd2db;
+  --t26: #cdd3db;
+  --t27: #cbd1db;
+  --t28: #cbd2da;
+  --t29: #c9d1d9;
+  --t30: #c9ced7;
+  --t31: #c7cdd6;
+  --t32: #c1c9d2;
+  --t33: #c6c0d3;
+  --t34: #c0c6d1;
+  --t35: #bdc4d0;
+  --t36: #b9c1cd;
+  --t37: #b9c0cb;
+  --t38: #b5bcc8;
+  --t39: #b4bcc7;
+  --t40: #aeb6c1;
+  --t41: #9ca3af;
+  --t42: #7d8693;
+  --t43: #676f7b;
+  --t44: #535c68;
+  --sl50: #0f172a;
+  --sl100: #1e293b;
+  --sl200: #1f2d44;
+  --sl300: #334155;
+  --sl400: #475569;
+  --sl500: #566780;
+  --sl600: #64748b;
+  --sl700: #7d8fa6;
+  --sl800: #1e293b;
+  --sl900: #0f172a;
+  --sl950: #020617;
   --accent-cyan: #0891b2;
   --accent-emerald: #059669;
+  --t45: #e6e9ef;
+  --t46: #dee2ea;
+  --t47: #dce1e9;
+  --t48: #dde2e9;
+  --t49: #e4e8ee;
+  --t50: #d2dae2;
+  --t51: #cad2de;
+  --t52: #d5dae4;
+  --t53: #d9dfe7;
+  --t54: #d6dae4;
+  --t55: #dee1e9;
+  --t56: #ddd9e6;
+  --t57: #d4cee0;
+  --t58: #c6c0d3;
+  --t59: #cdc3d9;
+  --t60: #301d3c;
+  --violet-hi: #3f3355;
+
+  --ac-cyan100: #164e63;
+  --ac-cyan200: #155e75;
+  --ac-cyan300: #0e7490;
+  --ac-cyan400: #0e7490;
+  --ac-emerald200: #065f46;
+  --ac-emerald300: #047857;
+  --ac-emerald400: #047857;
+  --ac-amber100: #78350f;
+  --ac-amber200: #7c2d12;
+  --ac-amber300: #92400e;
+  --ac-rose100: #881337;
+  --ac-rose200: #9f1239;
+  --ac-rose300: #be123d;
+  --ac-rose400: #e11d48;
+  --ac-red400: #dc2626;
+  --ac-violet200: #4c1d95;
+  --ac-violet300: #5b21b6;
+  --ac-orange200: #7c2d12;
+  --ac-orange300: #9a3412;
+  --ac-yellow200: #713f12;
+  --ac-teal200: #134e4a;
+  --ac-blue300: #1e40af;
+  --ac-sky200: #075985;
 }
 
 [data-theme="high-contrast"] {
   --bg: #000000;
-  --panel: #050505;
-  --border: #ffffff;
-  --text: #ffffff;
+  --t00: #000000;
+  --t01: #000000;
+  --t02: #000000;
+  --t03: #ffffff;
+  --t04: #000000;
+  --t05: #000000;
+  --t06: #000000;
+  --t07: #000000;
+  --t08: #000000;
+  --t09: #000000;
+  --t10: #000000;
+  --t11: #000000;
+  --t12: #000000;
+  --t13: #ffffff;
+  --t14: #000000;
+  --t15: #000000;
+  --t16: #ffffff;
+  --t17: #000000;
+  --t18: #ffffff;
+  --t19: #ffffff;
+  --t20: #ffffff;
+  --t21: #ffffff;
+  --t22: #ffffff;
+  --t23: #000000;
+  --t24: #000000;
+  --t25: #ffffff;
+  --t26: #000000;
+  --t27: #ffffff;
+  --t28: #000000;
+  --t29: #ffffff;
+  --t30: #ffffff;
+  --t31: #000000;
+  --t32: #ffffff;
+  --t33: #ffffff;
+  --t34: #ffffff;
+  --t35: #ffffff;
+  --t36: #ffffff;
+  --t37: #ffffff;
+  --t38: #ffffff;
+  --t39: #ffffff;
+  --t40: #ffffff;
+  --t41: #ffffff;
+  --t42: #ffffff;
+  --t43: #ffffff;
+  --t44: #ffffff;
+  --sl50: #ffffff;
+  --sl100: #ffffff;
+  --sl200: #ffffff;
+  --sl300: #ffffff;
+  --sl400: #f5f5f5;
+  --sl500: #eeeeee;
+  --sl600: #e5e5e5;
+  --sl700: #d4d4d4;
+  --sl800: #c0c0c0;
+  --sl900: #a8a8a8;
+  --sl950: #000000;
   --accent-cyan: #00ffff;
   --accent-emerald: #00ff00;
+  --t45: #000000;
+  --t46: #000000;
+  --t47: #000000;
+  --t48: #000000;
+  --t49: #000000;
+  --t50: #000000;
+  --t51: #000000;
+  --t52: #000000;
+  --t53: #000000;
+  --t54: #000000;
+  --t55: #ffffff;
+  --t56: #000000;
+  --t57: #000000;
+  --t58: #ffffff;
+  --t59: #ffffff;
+  --t60: #ffffff;
+  --violet-hi: #ffffff;
+
+  --ac-cyan100: #ffffff;
+  --ac-cyan200: #ffffff;
+  --ac-cyan300: #ffffff;
+  --ac-cyan400: #ffffff;
+  --ac-emerald200: #ffffff;
+  --ac-emerald300: #ffffff;
+  --ac-emerald400: #ffffff;
+  --ac-amber100: #ffffff;
+  --ac-amber200: #ffffff;
+  --ac-amber300: #ffffff;
+  --ac-rose100: #ffffff;
+  --ac-rose200: #ffffff;
+  --ac-rose300: #ffffff;
+  --ac-rose400: #ffffff;
+  --ac-red400: #ffffff;
+  --ac-violet200: #ffffff;
+  --ac-violet300: #ffffff;
+  --ac-orange200: #ffffff;
+  --ac-orange300: #ffffff;
+  --ac-yellow200: #ffffff;
+  --ac-teal200: #ffffff;
+  --ac-blue300: #ffffff;
+  --ac-sky200: #ffffff;
 }
 
 body {
   background: var(--bg);
-  color: var(--text);
+  color: var(--sl200, #e2e8f0);
 }

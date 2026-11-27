@@ -87,51 +87,51 @@ export default function NotificationsBell() {
 
   return (
     <div className="relative">
-      <button onClick={() => setOpen((v) => !v)} title="Kritik bulgu bildirimleri ve takip görevleri" className={`relative cursor-pointer rounded-md px-2 py-1.5 text-sm ${(unacked || openFollowups) ? "text-rose-300" : "text-slate-400 hover:text-slate-200"}`}>
+      <button onClick={() => setOpen((v) => !v)} title="Kritik bulgu bildirimleri ve takip görevleri" className={`relative cursor-pointer rounded-md px-2 py-1.5 text-sm ${(unacked || openFollowups) ? "text-[var(--ac-rose300)]" : "text-[var(--sl400)] hover:text-[var(--sl200)]"}`}>
         🔔
         {unacked > 0 && <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[9px] font-black text-white">{unacked}</span>}
       </button>
       {open && (
-        <div className="absolute right-0 top-9 z-40 w-[26rem] overflow-hidden rounded-xl border border-[#232e40] bg-[#0b0f16] shadow-2xl">
-          <div className="flex items-center gap-1 border-b border-[#1a2230] px-3 py-2">
-            <button onClick={() => setTab("bildirim")} className={`rounded px-2 py-1 text-[10px] font-bold ${tab === "bildirim" ? "bg-cyan-400/15 text-cyan-300" : "text-slate-400"}`}>Bildirimler {unacked > 0 ? `(${unacked})` : ""}</button>
-            <button onClick={() => setTab("takip")} className={`rounded px-2 py-1 text-[10px] font-bold ${tab === "takip" ? "bg-emerald-400/15 text-emerald-300" : "text-slate-400"}`}>Takip önerileri {openFollowups > 0 ? `(${openFollowups})` : ""}</button>
-            <button onClick={() => void sweep()} title="Süresi dolan bildirimleri tara, ikinci hekime eskale et" className="cursor-pointer rounded border border-amber-500/40 px-2 py-1 text-[10px] font-bold text-amber-300 hover:bg-amber-500/10">⏱ Süre taraması</button>
-            <button onClick={() => void recordOutcome()} title="HBYS/RIS iadesindeki sonucu açık takip görevine bağla" className="cursor-pointer rounded border border-cyan-500/40 px-2 py-1 text-[10px] font-bold text-cyan-300 hover:bg-cyan-500/10">📥 İade bağla</button>
+        <div className="absolute right-0 top-9 z-40 w-[26rem] overflow-hidden rounded-xl border border-[var(--t34)] bg-[var(--t05)] shadow-2xl">
+          <div className="flex items-center gap-1 border-b border-[var(--t25)] px-3 py-2">
+            <button onClick={() => setTab("bildirim")} className={`rounded px-2 py-1 text-[10px] font-bold ${tab === "bildirim" ? "bg-cyan-400/15 text-[var(--ac-cyan300)]" : "text-[var(--sl400)]"}`}>Bildirimler {unacked > 0 ? `(${unacked})` : ""}</button>
+            <button onClick={() => setTab("takip")} className={`rounded px-2 py-1 text-[10px] font-bold ${tab === "takip" ? "bg-emerald-400/15 text-[var(--ac-emerald300)]" : "text-[var(--sl400)]"}`}>Takip önerileri {openFollowups > 0 ? `(${openFollowups})` : ""}</button>
+            <button onClick={() => void sweep()} title="Süresi dolan bildirimleri tara, ikinci hekime eskale et" className="cursor-pointer rounded border border-amber-500/40 px-2 py-1 text-[10px] font-bold text-[var(--ac-amber300)] hover:bg-amber-500/10">⏱ Süre taraması</button>
+            <button onClick={() => void recordOutcome()} title="HBYS/RIS iadesindeki sonucu açık takip görevine bağla" className="cursor-pointer rounded border border-cyan-500/40 px-2 py-1 text-[10px] font-bold text-[var(--ac-cyan300)] hover:bg-cyan-500/10">📥 İade bağla</button>
           </div>
-          {sweepMsg && <p className="border-b border-[#1a2230] bg-[#0e141d] px-3 py-1 text-[10px] text-cyan-300">{sweepMsg}</p>}
+          {sweepMsg && <p className="border-b border-[var(--t25)] bg-[var(--t10)] px-3 py-1 text-[10px] text-[var(--ac-cyan300)]">{sweepMsg}</p>}
 
           {tab === "bildirim" && (
             <div className="max-h-80 overflow-y-auto">
-              {findings.length === 0 && <p className="p-4 text-center text-xs text-slate-500">Bildirim yok.</p>}
+              {findings.length === 0 && <p className="p-4 text-center text-xs text-[var(--sl500)]">Bildirim yok.</p>}
               {findings.map((n) => (
-                <div key={n.id} className="border-b border-[#141b26] p-3 text-[11px]">
+                <div key={n.id} className="border-b border-[var(--t18)] p-3 text-[11px]">
                   <div className="flex items-center justify-between">
-                    <span className={`rounded px-1.5 py-0.5 font-mono text-[9px] font-black ${n.severity === "kritik" ? "bg-rose-500/20 text-rose-300" : "bg-orange-500/20 text-orange-300"}`}>{n.severity.toUpperCase()}</span>
-                    <span className="font-mono text-[9.5px] text-slate-500">{new Date(n.createdAt).toLocaleString("tr-TR")}</span>
+                    <span className={`rounded px-1.5 py-0.5 font-mono text-[9px] font-black ${n.severity === "kritik" ? "bg-rose-500/20 text-[var(--ac-rose300)]" : "bg-orange-500/20 text-[var(--ac-orange300)]"}`}>{n.severity.toUpperCase()}</span>
+                    <span className="font-mono text-[9.5px] text-[var(--sl500)]">{new Date(n.createdAt).toLocaleString("tr-TR")}</span>
                   </div>
-                  <p className="mt-1 text-slate-200">{n.message}</p>
-                  <p className={`mt-1 text-[10px] ${n.ackAt ? "text-emerald-300" : "text-slate-500"}`}>
+                  <p className="mt-1 text-[var(--sl200)]">{n.message}</p>
+                  <p className={`mt-1 text-[10px] ${n.ackAt ? "text-[var(--ac-emerald300)]" : "text-[var(--sl500)]"}`}>
                     {n.ackAt ? `✓ ${n.ackByName} tarafından alındı · ${new Date(n.ackAt).toLocaleTimeString("tr-TR")}` : "Alınmadı"}
                   </p>
                   {n.loopLabel && (
                     <p className={`mt-0.5 inline-block rounded px-1 py-0.5 text-[9.5px] font-semibold ${
-                      n.loopState === "eskalasyon-gerekli" ? "bg-rose-500/20 text-rose-200"
-                        : n.loopState === "gecikmis" ? "bg-amber-500/20 text-amber-200"
-                          : n.loopState === "eskale-edildi" ? "bg-orange-500/20 text-orange-200"
-                            : "bg-slate-500/15 text-slate-300"
+                      n.loopState === "eskalasyon-gerekli" ? "bg-rose-500/20 text-[var(--ac-rose200)]"
+                        : n.loopState === "gecikmis" ? "bg-amber-500/20 text-[var(--ac-amber200)]"
+                          : n.loopState === "eskale-edildi" ? "bg-orange-500/20 text-[var(--ac-orange200)]"
+                            : "bg-[var(--sl500)]/15 text-[var(--sl300)]"
                     }`} title={n.dueInMinutes !== undefined ? `Alınma süresi: ${n.dueInMinutes} dk` : undefined}>
                       ⏱ {n.loopLabel}{n.loopState === "gecikmis" || n.loopState === "eskalasyon-gerekli" ? " — hatırlatma" : ""}
                     </p>
                   )}
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                    {!n.ackAt && <button onClick={() => void ack(n.id)} className="cursor-pointer rounded bg-cyan-500 px-2.5 py-1 text-[10.5px] font-bold text-slate-950 hover:bg-cyan-400">Alındı</button>}
-                    <button onClick={() => relay(n.id)} title="Bildirimin iletildiğini kaydet" className="cursor-pointer rounded border border-slate-500/40 px-2 py-1 text-[10px] font-semibold text-slate-300 hover:bg-slate-500/10">İletildi…</button>
-                    <button onClick={() => escalate(n.id)} title="Eskalasyonu kaydet" className="cursor-pointer rounded border border-amber-500/40 px-2 py-1 text-[10px] font-semibold text-amber-300 hover:bg-amber-500/10">⚑ Eskalasyon</button>
-                    <span className={`ml-auto text-[9.5px] ${n.escalated ? "text-amber-300" : "text-slate-500"}`}>
+                    {!n.ackAt && <button onClick={() => void ack(n.id)} className="cursor-pointer rounded bg-cyan-500 px-2.5 py-1 text-[10.5px] font-bold text-[var(--sl950)] hover:bg-cyan-400">Alındı</button>}
+                    <button onClick={() => relay(n.id)} title="Bildirimin iletildiğini kaydet" className="cursor-pointer rounded border border-[var(--sl500)]/40 px-2 py-1 text-[10px] font-semibold text-[var(--sl300)] hover:bg-[var(--sl500)]/10">İletildi…</button>
+                    <button onClick={() => escalate(n.id)} title="Eskalasyonu kaydet" className="cursor-pointer rounded border border-amber-500/40 px-2 py-1 text-[10px] font-semibold text-[var(--ac-amber300)] hover:bg-amber-500/10">⚑ Eskalasyon</button>
+                    <span className={`ml-auto text-[9.5px] ${n.escalated ? "text-[var(--ac-amber300)]" : "text-[var(--sl500)]"}`}>
                       {n.escalated ? "⚑ Eskalasyonlu" : "kapanış:"}
                     </span>
-                    <span className="w-20 truncate text-right text-[9.5px] text-slate-400" title={kapanisMetni(n)}>{n.escalated ? "" : kapanisMetni(n)}</span>
+                    <span className="w-20 truncate text-right text-[9.5px] text-[var(--sl400)]" title={kapanisMetni(n)}>{n.escalated ? "" : kapanisMetni(n)}</span>
                   </div>
                 </div>
               ))}
@@ -140,43 +140,43 @@ export default function NotificationsBell() {
 
           {tab === "takip" && (
             <div className="max-h-80 overflow-y-auto">
-              {followups.length === 0 && <p className="p-4 text-center text-xs text-slate-500">Takip önerisi yok. Onaylı raporlardaki “Öneri” metni otomatik buraya düşer.</p>}
+              {followups.length === 0 && <p className="p-4 text-center text-xs text-[var(--sl500)]">Takip önerisi yok. Onaylı raporlardaki “Öneri” metni otomatik buraya düşer.</p>}
               {followups.map((n) => (
-                <div key={n.id} className={`border-b border-[#141b26] p-3 text-[11px] ${n.status !== "acik" ? "opacity-60" : ""}`}>
+                <div key={n.id} className={`border-b border-[var(--t18)] p-3 text-[11px] ${n.status !== "acik" ? "opacity-60" : ""}`}>
                   <div className="flex items-center justify-between gap-2">
                     <span className="flex items-center gap-1.5">
                       {n.severity !== "bilgi" && (
-                        <span className={`rounded px-1.5 py-0.5 text-[9px] font-black ${n.severity === "kritik" ? "bg-rose-500/25 text-rose-200" : "bg-orange-500/25 text-orange-200"}`}>
+                        <span className={`rounded px-1.5 py-0.5 text-[9px] font-black ${n.severity === "kritik" ? "bg-rose-500/25 text-[var(--ac-rose200)]" : "bg-orange-500/25 text-[var(--ac-orange200)]"}`}>
                           {n.severity.toUpperCase()}
                         </span>
                       )}
-                      <span className={`rounded px-1.5 py-0.5 text-[9px] font-black ${n.status === "acik" ? "bg-emerald-500/20 text-emerald-300" : n.status === "tamamlandi" ? "bg-slate-500/20 text-slate-400" : "bg-rose-500/20 text-rose-300"}`}>
+                      <span className={`rounded px-1.5 py-0.5 text-[9px] font-black ${n.status === "acik" ? "bg-emerald-500/20 text-[var(--ac-emerald300)]" : n.status === "tamamlandi" ? "bg-[var(--sl500)]/20 text-[var(--sl400)]" : "bg-rose-500/20 text-[var(--ac-rose300)]"}`}>
                         {n.status === "acik" ? "AÇIK" : n.status === "tamamlandi" ? "TAMAMLANDI" : "İPTAL"}
                       </span>
                     </span>
-                    <span className="font-mono text-[9.5px] text-slate-500">
+                    <span className="font-mono text-[9.5px] text-[var(--sl500)]">
                       {[n.modality, n.bodyRegion].filter(Boolean).join(" · ") || "—"} {n.dueDate ? `· son ${n.dueDate}` : ""}
                     </span>
                   </div>
-                  <p className="mt-1 text-slate-200">{n.message}</p>
-                  {n.recommendedIntervalDays != null && <p className="mt-0.5 text-[10px] text-slate-400">Önerilen aralık: {n.recommendedIntervalDays} gün</p>}
+                  <p className="mt-1 text-[var(--sl200)]">{n.message}</p>
+                  {n.recommendedIntervalDays != null && <p className="mt-0.5 text-[10px] text-[var(--sl400)]">Önerilen aralık: {n.recommendedIntervalDays} gün</p>}
                   {n.status === "acik" && n.dueDate && (() => {
                     const due = new Date(`${n.dueDate}T00:00:00`).getTime();
                     const d = Number.isFinite(due) ? Math.round((due - new Date().setHours(0, 0, 0, 0)) / 86400000) : null;
                     if (d === null) return null;
                     const label = d < 0 ? `${-d} gün gecikti` : d === 0 ? "bugün" : `${d} gün kaldı`;
-                    const tone = d < 0 ? "bg-rose-500/20 text-rose-200" : d <= 14 ? "bg-amber-500/20 text-amber-200" : "bg-slate-500/15 text-slate-300";
+                    const tone = d < 0 ? "bg-rose-500/20 text-[var(--ac-rose200)]" : d <= 14 ? "bg-amber-500/20 text-[var(--ac-amber200)]" : "bg-[var(--sl500)]/15 text-[var(--sl300)]";
                     return <span className={`ml-1 inline-block rounded px-1 py-0.5 text-[9.5px] font-bold ${tone}`}>⏳ {label}</span>;
                   })()}
-                  {n.studyUid && <p className="mt-0.5 font-mono text-[9.5px] text-slate-500">{n.studyUid}</p>}
+                  {n.studyUid && <p className="mt-0.5 font-mono text-[9.5px] text-[var(--sl500)]">{n.studyUid}</p>}
                   {n.status === "acik" && (
                     <div className="mt-1.5 flex gap-1.5">
-                      <button onClick={() => setFollowup(n.id, "tamamlandi")} className="cursor-pointer rounded bg-emerald-500 px-2.5 py-1 text-[10.5px] font-bold text-slate-950 hover:bg-emerald-400">Tamamlandı</button>
-                      <button onClick={() => setFollowup(n.id, "iptal")} className="cursor-pointer rounded border border-rose-500/40 px-2 py-1 text-[10px] font-semibold text-rose-300 hover:bg-rose-500/10">İptal</button>
-                      <button onClick={() => void recordOutcome(n.id)} title="Sonuç kaydıyla kapat (HBYS iadesi)" className="cursor-pointer rounded border border-cyan-500/40 px-2 py-1 text-[10px] font-semibold text-cyan-300 hover:bg-cyan-500/10">📥 Sonuç</button>
+                      <button onClick={() => setFollowup(n.id, "tamamlandi")} className="cursor-pointer rounded bg-emerald-500 px-2.5 py-1 text-[10.5px] font-bold text-[var(--sl950)] hover:bg-emerald-400">Tamamlandı</button>
+                      <button onClick={() => setFollowup(n.id, "iptal")} className="cursor-pointer rounded border border-rose-500/40 px-2 py-1 text-[10px] font-semibold text-[var(--ac-rose300)] hover:bg-rose-500/10">İptal</button>
+                      <button onClick={() => void recordOutcome(n.id)} title="Sonuç kaydıyla kapat (HBYS iadesi)" className="cursor-pointer rounded border border-cyan-500/40 px-2 py-1 text-[10px] font-semibold text-[var(--ac-cyan300)] hover:bg-cyan-500/10">📥 Sonuç</button>
                     </div>
                   )}
-                  {n.completedAt && <p className="mt-1 text-[10px] text-slate-500">Kapatıldı: {new Date(n.completedAt).toLocaleString("tr-TR")}</p>}
+                  {n.completedAt && <p className="mt-1 text-[10px] text-[var(--sl500)]">Kapatıldı: {new Date(n.completedAt).toLocaleString("tr-TR")}</p>}
                 </div>
               ))}
             </div>

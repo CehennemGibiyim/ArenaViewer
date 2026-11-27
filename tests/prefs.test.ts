@@ -14,7 +14,8 @@ const winName = WINDOW_PRESETS[1];
 ok(winName !== undefined && (sanitizePrefs({ defaultWindow: winName }) as { defaultWindow?: string }).defaultWindow === winName, "Pencere ön ayarı beyaz listede");
 ok(WINDOW_PRESETS.length >= 6, "Pencere ön ayarı seçenekleri mevcut");
 ok(LAYOUTS.length >= 8, "Düzen seçenekleri mevcut");
-ok(sanitizePrefs({ autoHangingProtocol: true, theme: "aydinlik" }).theme === undefined, "Aydınlık tema henüz yok (geçersiz)");
+ok(sanitizePrefs({ autoHangingProtocol: true, theme: "aydinlik" }).theme === undefined, "Bilinmeyen tema geçersiz sayılmalı");
+ok(sanitizePrefs({ theme: "slate-light" }).theme === "slate-light", "Açık tema kabul edilmeli");
 ok(mergePrefs(DEFAULT_PREFS, { layout: "3x2" }).layout === "3x2" && mergePrefs(DEFAULT_PREFS, { layout: "3x2" }).defaultWindow === "", "mergePrefs korur + uygular");
 
 if (failed) { console.error(`${failed} tercih testi başarısız`); process.exit(1); }
