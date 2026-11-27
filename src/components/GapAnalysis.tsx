@@ -147,7 +147,7 @@ export default function GapAnalysis() {
   };
 
   return (
-    <div className="h-screen w-screen overflow-y-auto bg-[var(--t02)] text-[var(--sl200)]">
+    <div className="doc-page min-h-dvh w-full bg-[var(--t02)] text-[var(--sl200)]">
       <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-[var(--t25)] bg-[var(--t05)]/95 px-5 py-3 backdrop-blur">
         <Link
           href="/"

@@ -1,11 +1,33 @@
 @import "tailwindcss";
 
-html,
+/**
+ * Belge kaydırması SERBEST olmalı.
+ *
+ * Önceden `html,body{height:100%;overflow:hidden}` idi; görüntüleyici (Workstation)
+ * `h-dvh` ile kendi içinde kalsın diye konmuştu ama bu, **tüm doküman sayfalarını**
+ * (resimli anlatım, yardım, yönetim, tercihler, kıyaslama…) kilitliyordu: içerik
+ * ekrandan uzun olduğunda altı okunamıyordu (sayfa "sabit" görünüyordu).
+ *
+ * Kural: kök kaydırma açık; iç içe kaydırma alanı isteyen bileşen kendi
+ * `overflow-*` sınıfını taşır. Görüntüleyici zaten `h-dvh` kullandığı için
+ * tek ekran davranışı değişmez.
+ */
+html {
+  height: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #070a0f;
+  scroll-behavior: smooth;
+}
 body {
-  height: 100%;
-  overflow: hidden;
+  min-height: 100dvh;
+  overflow: visible;
   background: #070a0f;
 }
+
+/* `.doc-page` işareti bir kural değil, sözleşmedir: doküman niteliğindeki
+   sayfalar bu sınıfı taşır (kendi `h-screen` kaydırma alanını kurmaz) ve
+   `tests/scroll-pages.test.ts` bunu denetler. */
 
 *::-webkit-scrollbar { width: 8px; height: 8px; }
 *::-webkit-scrollbar-track { background: #0b0f16; }

@@ -48,7 +48,7 @@ export const metadata = { title: "İkinci ekran (demo) · ArenaViewer" };
 
 export default function MirrorPage() {
   return (
-    <div className="min-h-screen bg-[#070a0f] text-slate-200">
+    <div className="doc-page min-h-dvh w-full bg-[#070a0f] text-slate-200">
       <div className="flex items-center gap-3 border-b border-[#1a2230] bg-[#0b0f16] px-4 py-2">
         <Link href="/" className="rounded border border-cyan-400/40 bg-cyan-500/10 px-2 py-1 text-[11px] font-bold text-cyan-300">
           ← Görüntüleyiciye dön
@@ -75,7 +75,7 @@ export const metadata = { title: "Kullanıcı Tercihleri (demo) · ArenaViewer" 
 
 export default function TercihlerDemo() {
   return (
-    <div className="min-h-screen bg-[var(--t02)]">
+    <div className="doc-page min-h-dvh w-full bg-[var(--t02)]">
       <div className="flex flex-wrap items-center gap-2 border-b border-amber-400/30 bg-amber-400/5 px-3 py-1.5">
         <Link href="/" className="rounded border border-cyan-400/40 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-bold text-cyan-300">
           ← Görüntüleyiciye dön
@@ -104,7 +104,7 @@ export const metadata = { title: "Yönetim (demo) · ArenaViewer" };
 
 export default function YonetimDemo() {
   return (
-    <div className="min-h-screen bg-[#070a0f]">
+    <div className="doc-page min-h-dvh w-full bg-[#070a0f]">
       <div className="flex flex-wrap items-center gap-2 border-b border-amber-400/30 bg-amber-400/5 px-3 py-1.5">
         <Link href="/" className="rounded border border-cyan-400/40 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-bold text-cyan-300">
           ← Görüntüleyiciye dön

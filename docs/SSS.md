@@ -188,7 +188,19 @@ Statik demoda da **açılır** (`…github.io/ArenaViewer/resimlianlatim/`): say
 hiçbir API çağırmaz; görseller `public/kilavuz/` altındadır ve service worker çevrimdışı önbelleğe alır.
 Kısayollar listesi: [MENU_KILAVUZU.md](MENU_KILAVUZU.md) §14.
 
-## 22. Bağlamsal yardım (?) düğmesi ne yapar?
+## 22. Resimli anlatım / Yardım sayfasında aşağı kaydırma çalışmıyordu — düzeldi mi?
+
+Düzeldi. Kök neden `globals.css` içindeki `html, body { height: 100%; overflow: hidden }` kuralıydı:
+görüntüleyicinin tek ekran davranışı için konmuştu ama **tüm doküman sayfalarını** kilitliyordu;
+içerik ekrandan uzun olduğunda alt kısım okunamıyordu (sayfa "sabit" görünüyordu).
+
+Yeni kural: kök kaydırma açık (`html { height:auto; overflow-y:auto }`, `body{min-height:100dvh}`),
+doküman sayfaları `.doc-page` sınıfı taşır ve kendi `h-screen` kaydırma alanını **kurmaz** (çift
+kaydırma çubuğu olmaz). Görüntüleyici `h-dvh` kabuğunda kaldığı için tek ekran davranışı değişmedi.
+Kılavuz sayfasına ayrıca **↑ Başa dön** düğmesi eklendi ve bölüm başlıkları yapışkan çubuğun altında
+kalmıyor (`scroll-mt`). Bu davranış `tests/scroll-pages.test.ts` ile kilitlendi (kök kural + tüm sayfalar).
+
+## 23. Bağlamsal yardım (?) düğmesi ne yapar?
 
 Ana araç çubuğundaki **?** düğmesi, resimli anlatımın ilgili bölümüne derin bağlantı verir
 (`/resimlianlatim#bolum-…`). Konular tek kaynaktan gelir: `src/lib/guideStory.ts` → `HELP_TOPICS`;

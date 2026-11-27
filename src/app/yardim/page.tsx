@@ -44,6 +44,8 @@ const QA: [string, string][] = [
     "Yok — içerik aynıdır: aynı sorular ve aynı cevaplar. Uygulama sürümü yalnız düzeni sadeleştirir; bir yüzey güncellenmeden diğeri güncellenemez (`tests/help-faq.test.ts` her soruyu iki yönde eşleştirir)."],
   ["Resimli anlatımı nerede bulurum? Statik demoda da var mı?",
     "Dört yerden açılır: 1) ana ekranın üst araç çubuğunda 🖼 Resimli anlatım (Yönetim ile Tercihler arasında), 2) bu Yardım sayfasının en üstündeki kart, 3) Tercihler sayfasının altındaki «Yardım ve resimli anlatım» kutusu, 4) giriş ekranındaki bağlantı. Ayrıca araç çubuğundaki ? düğmesi doğrudan ilgili bölüme atlar. Doğrudan adres: /resimlianlatim — statik GitHub Pages demosunda da açılır (sayfa hiçbir API çağırmaz, görseller /kilavuz/ altındadır)."],
+  ["Resimli anlatım / Yardım sayfasında aşağı kaydırma çalışmıyordu — düzeldi mi?",
+    "Düzeldi. Kök neden globals.css içindeki html, body { height: 100%; overflow: hidden } kuralıydı: görüntüleyicinin tek ekran davranışı için konmuştu ama tüm doküman sayfalarını kilitliyordu; içerik ekrandan uzun olduğunda alt kısım okunamıyordu. Artık kök kaydırma açık (html { height:auto; overflow-y:auto }, body { min-height:100dvh }), doküman sayfaları .doc-page sınıfı taşıyor ve kendi h-screen kaydırma alanını kurmuyor. Görüntüleyici h-dvh kabuğunda kaldığı için tek ekran davranışı değişmedi. Kılavuza ↑ Başa dön düğmesi eklendi; davranış tests/scroll-pages.test.ts ile kilitli."],
   ["Bağlamsal yardım (?) düğmesi ne yapar?",
     "Ana araç çubuğundaki ? düğmesi, resimli anlatımın ilgili bölümüne derin bağlantı verir (/resimlianlatim#bolum-…). Konular tek kaynaktan gelir: src/lib/guideStory.ts → HELP_TOPICS; her kaydın gerçekten var olan bir bölüme bağlandığı ve çapaların sayfada basıldığı testlerle denetlenir. Statik demoda da çalışır (API gerekmez)."],
   ["Yeni bir AI modülü eklenecek mi? \"BT kolon polip\", \"kalça kırığı\"?",
@@ -52,7 +54,7 @@ const QA: [string, string][] = [
 
 export default function YardimPage() {
   return (
-    <div className="h-screen w-screen overflow-y-auto bg-[var(--t02)] text-[var(--sl200)]">
+    <div className="doc-page min-h-dvh w-full bg-[var(--t02)] text-[var(--sl200)]">
       <main className="mx-auto max-w-3xl px-5 py-10">
         <Link href="/" className="text-xs text-[var(--ac-cyan400)] hover:underline">← Görüntüleyiciye dön</Link>
         <h1 className="mt-3 text-2xl font-black text-[var(--sl100)]">Yardım / S.S.S.</h1>

@@ -176,7 +176,7 @@ function FileTable({ rows }: { rows: Row[] }) {
 
 export default function PaketlerPage() {
   return (
-    <div className="min-h-dvh bg-[var(--t02)] text-[var(--sl200)]">
+    <div className="doc-page min-h-dvh w-full bg-[var(--t02)] text-[var(--sl200)]">
       <header className="sticky top-0 z-20 flex flex-wrap items-center gap-3 border-b border-[var(--t25)] bg-[var(--t05)]/95 px-4 py-3 backdrop-blur">
         <div className="flex h-7 w-7 items-center justify-center rounded bg-gradient-to-br from-cyan-400 to-emerald-500 font-black text-[#06131a]">
           A
