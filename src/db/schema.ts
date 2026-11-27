@@ -401,5 +401,32 @@ export const auditDelivery = pgTable(
   (t) => [index("audit_delivery_status_idx").on(t.status)],
 );
 
+/**
+ * SEG/RTSTRUCT STOW yeniden deneme kuyruğu (A0.3, seg-stow-return).
+ * PACS gönderilemediğinde (ağ/5xx/zaman aşımı) nesne silinmesin diye burada
+ * birikir; başarıyla PACS'a yazılana ya da kullanıcı vazgeçene kadar durur.
+ * `payloadCipher` DICOM baytlarının AES-256-GCM şifreli base64'üdür (hasta
+ * kimliği içerir — DB düz metnine asla yazılmaz). PACS content-reddi
+ * (0008,1198) kuyruğa alınmaz (retry çözüm değildir).
+ */
+export const stowQueue = pgTable(
+  "stow_queue",
+  {
+    id: serial("id").primaryKey(),
+    kind: text("kind").notNull(), // seg | rtstruct
+    studyUid: text("study_uid").notNull(),
+    fileName: text("file_name").notNull().default(""),
+    /** AES-256-GCM şifreli DICOM baytları (base64) — crypto.encryptText çıktısı. */
+    payloadCipher: text("payload_cipher").notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    lastError: text("last_error").notNull().default(""),
+    lastAttemptAt: timestamp("last_attempt_at"),
+    /** Kuyruğu oluşturan kullanıcı (yetkilendirme kapsamı + denetim). */
+    owner: text("owner").notNull().default(""),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("stow_queue_owner_idx").on(t.owner, t.createdAt)],
+);
+
 export type Study = typeof studies.$inferSelect;
 export type Report = typeof reports.$inferSelect;

@@ -284,7 +284,7 @@ export default function SegEditor({ series, slice: activeSlice, wl, ww, invert, 
         if (!series.studyUid) { toast("Çalışma UID'si yok; PACS'e gönderilemez.", 6000); return; }
         const out = await sendDerivedToPacs(kind, bytes, series.studyUid, `${kind === "seg" ? "SEG" : "RTSTRUCT"}-${series.modality}-${current.slices.size}-kesit.dcm`);
         if (out.ok) toast(`${kind === "seg" ? "SEG" : "RTSTRUCT"} PACS'e gönderildi — ${out.stored} nesne (${out.pacs ?? "PACS"}). Araştırma amaçlıdır; PACS kabulü kurumunuza bağlıdır.`, 8000);
-        else toast(`PACS'e gönderilemedi: ${out.error}`, 9000);
+        else toast(`PACS'e gönderilemedi: ${out.error}${out.queued ? ` — ${out.queued} nesne yeniden deneme kuyruğuna alındı (Dışa aktar ▾ → ⏳ Kuyruk)` : ""}`, 9000);
         persist(current);
         return;
       }

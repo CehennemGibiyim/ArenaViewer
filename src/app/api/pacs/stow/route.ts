@@ -6,6 +6,8 @@ import { audit } from "@/lib/server/audit";
 import { authorize } from "@/lib/server/auth";
 import { loadPacsConfig } from "@/lib/server/pacsConfig";
 import { isUid, qidoInstances, stowInstance } from "@/lib/server/pacs";
+import { enqueueStow } from "@/lib/server/stowQueueRepo";
+import { isRetryableStowError } from "@/lib/server/stowQueue";
 import { mapReport } from "@/lib/server/studyRepo";
 import { validateMeasurementSrBytes } from "@/lib/measureSr";
 import { validateDerivedDicomBytes, type DerivedKind } from "@/lib/derivedStow";
@@ -151,7 +153,9 @@ async function stowDerived(b: StowBody, user: Parameters<typeof audit>[0]) {
 
   let stored = 0, failed = 0;
   const errors: string[] = [];
-  for (const p of parts) {
+  const failedParts: { name: string; bytes: Uint8Array; error: string }[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i];
     try {
       const out = await stowInstance(cfg, p);
       stored += out.stored;
@@ -159,12 +163,27 @@ async function stowDerived(b: StowBody, user: Parameters<typeof audit>[0]) {
       for (const f of out.failed) errors.push(typeof f === "string" ? f : String(f));
     } catch (e) {
       failed += 1;
-      errors.push(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      errors.push(msg);
+      failedParts.push({ name: (instances[i] && typeof instances[i].name === "string" && instances[i].name) || `${kind}-${i + 1}.dcm`, bytes: p, error: msg });
     }
   }
-  await audit(user, kind === "seg" ? "pacs.send_seg" : "pacs.send_rtstruct", "study", studyUid, { pacs: cfg.name || cfg.kind, stored, failed });
-  if (failed && stored === 0) return NextResponse.json({ error: `Gönderim başarısız: ${errors[0] ?? "PACS reddetti"}`, stored, failed, kind, pacs: cfg.name || cfg.kind }, { status: 502 });
-  return NextResponse.json({ stored, failed, kind, pacs: cfg.name || cfg.kind });
+  // A0.3: yeniden denenebilir hatalar (ağ/5xx/zaman aşımı/yapılandırma) kuyruğa alınır;
+  // PACS içerik reddi (0008,1198) ve 4xx yeniden denenmez. Kuyruk AES-256-GCM'lidir.
+  let queued = 0;
+  for (const fp of failedParts) {
+    if (!isRetryableStowError(fp.error)) continue;
+    try {
+      await enqueueStow({ kind, studyUid, fileName: fp.name, bytes: fp.bytes, owner: user?.username ?? "" });
+      queued++;
+    } catch {
+      /* kuyruk yazılamadı — asıl hata zaten kullanıcıya dönüyor; denetim kaydı aşağıda */
+    }
+  }
+  if (queued) await audit(user, kind === "seg" ? "pacs.queue_seg" : "pacs.queue_rtstruct", "study", studyUid, { queued, pacs: cfg.name || cfg.kind });
+  await audit(user, kind === "seg" ? "pacs.send_seg" : "pacs.send_rtstruct", "study", studyUid, { pacs: cfg.name || cfg.kind, stored, failed, queued });
+  if (failed && stored === 0) return NextResponse.json({ error: `Gönderim başarısız: ${errors[0] ?? "PACS reddetti"}`, stored, failed, kind, pacs: cfg.name || cfg.kind, queued }, { status: 502 });
+  return NextResponse.json({ stored, failed, kind, pacs: cfg.name || cfg.kind, queued });
 }
 
 /** Seri durumundaki anahtar kesitler + pencere → KO/PR nesnesi → STOW. */

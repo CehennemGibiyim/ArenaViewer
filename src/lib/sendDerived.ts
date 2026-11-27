@@ -16,8 +16,8 @@ export function u8ToB64(u8: Uint8Array): string {
 }
 
 export type DerivedSendResult =
-  | { ok: true; stored: number; failed: number; pacs?: string }
-  | { ok: false; error: string };
+  | { ok: true; stored: number; failed: number; pacs?: string; queued: number }
+  | { ok: false; error: string; queued: number };
 
 export async function sendDerivedToPacs(kind: DerivedKind, bytes: Uint8Array, studyUid: string, name: string): Promise<DerivedSendResult> {
   try {
@@ -26,10 +26,10 @@ export async function sendDerivedToPacs(kind: DerivedKind, bytes: Uint8Array, st
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ kind, studyUid, instances: [{ name, data: u8ToB64(bytes) }] }),
     });
-    const d = (await r.json().catch(() => ({}))) as { stored?: number; failed?: number; pacs?: string; error?: string };
-    if (!r.ok) return { ok: false, error: d.error ?? "PACS'e gönderilemedi" };
-    return { ok: true, stored: d.stored ?? 1, failed: d.failed ?? 0, pacs: d.pacs };
+    const d = (await r.json().catch(() => ({}))) as { stored?: number; failed?: number; pacs?: string; error?: string; queued?: number };
+    if (!r.ok) return { ok: false, error: d.error ?? "PACS'e gönderilemedi", queued: d.queued ?? 0 };
+    return { ok: true, stored: d.stored ?? 1, failed: d.failed ?? 0, pacs: d.pacs, queued: d.queued ?? 0 };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "PACS'e gönderilemedi" };
+    return { ok: false, error: e instanceof Error ? e.message : "PACS'e gönderilemedi", queued: 0 };
   }
 }
