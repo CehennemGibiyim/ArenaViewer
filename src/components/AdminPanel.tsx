@@ -59,7 +59,7 @@ type Settings = {
   env: { llm: boolean; his: boolean; pacsAuth: boolean; keySource: string };
 };
 /** Sunucu sır alanlarını boş döndürür; varlıkları bu bayraklarla bildirir. */
-type PacsForm = PacsConfig & { hasPassword: boolean; hasToken: boolean; hasHeader: boolean };
+type PacsForm = PacsConfig & { hasPassword: boolean; hasToken: boolean; hasHeader: boolean; hasClientKey: boolean };
 type PacsTestOut = { ok: boolean; steps: { name: string; ok: boolean; http: number | null; ms: number; message: string }[] };
 
 const COMPLIANCE = [
@@ -267,6 +267,7 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
     includefield: c.includefield,
     notes: c.notes,
     auth: { type: c.auth.type, username: c.auth.username, password: c.auth.password, token: c.auth.token, headerName: c.auth.headerName, headerValue: c.auth.headerValue },
+    tls: { caPem: c.tls.caPem, clientCertPem: c.tls.clientCertPem, clientKeyPem: c.tls.clientKeyPem },
   });
 
   const savePacs = async (): Promise<boolean> => {
@@ -1110,6 +1111,15 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
                       </>
                     )}
                   </div>
+                  <details className="rounded border border-[var(--t25)] p-2">
+                    <summary className="cursor-pointer text-[11px] text-[var(--sl400)]">TLS / mTLS — kurumsal PACS (opsiyonel){pacs.tls.clientCertPem || pacs.hasClientKey ? " · kayıtlı" : ""}</summary>
+                    <div className="mt-2 grid gap-1.5">
+                      <textarea className={`${input} h-14 w-full font-mono text-[10px]`} placeholder="CA (PEM) — kurumsal CA'nın kök/ara sertifikası; boşsa sistem CA'ları kullanılır" value={pacs.tls.caPem} onChange={(e) => setPacs({ ...pacs, tls: { ...pacs.tls, caPem: e.target.value } })} />
+                      <textarea className={`${input} h-14 w-full font-mono text-[10px]`} placeholder="İstemci sertifikası (PEM) — mTLS isteyen PACS'lar için; anahtarla birlikte verilmeli" value={pacs.tls.clientCertPem} onChange={(e) => setPacs({ ...pacs, tls: { ...pacs.tls, clientCertPem: e.target.value } })} />
+                      <textarea className={`${input} h-14 w-full font-mono text-[10px]`} placeholder={pacs.hasClientKey ? "•••• (kayıtlı — değiştirmek için yapıştırın)" : "İstemci özel anahtarı (PEM) — sunucuda AES-256-GCM ile şifreli saklanır"} value={pacs.tls.clientKeyPem} onChange={(e) => setPacs({ ...pacs, tls: { ...pacs.tls, clientKeyPem: e.target.value } })} />
+                      <p className="text-[10px] leading-snug text-[var(--sl500)]">AET/IP beyaz listesi, VPN ve AE başlığı PACS altyapısının işidir — notlar alanına yazın. CA/istemci sertifikası gizli değildir; özel anahtar şifrelenir ve yönetim ekranına geri gösterilmez. mTLS için sertifika ve anahtar birlikte girilmelidir.</p>
+                    </div>
+                  </details>
                   <label className="flex flex-wrap items-center gap-3 text-[11px] text-[var(--sl400)]">
                     <span className="flex items-center gap-1"><input type="checkbox" checked={pacs.allowSelfSigned} onChange={(e) => setPacs({ ...pacs, allowSelfSigned: e.target.checked })} /> self-signed sertifikaya izin ver</span>
                     <span className="flex items-center gap-1"><input type="checkbox" checked={pacs.includefield} onChange={(e) => setPacs({ ...pacs, includefield: e.target.checked })} /> includefield kullan</span>

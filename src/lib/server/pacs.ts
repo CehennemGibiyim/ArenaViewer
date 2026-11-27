@@ -3,7 +3,7 @@ import * as dicomParser from "dicom-parser";
 import https from "node:https";
 import { decryptText, isEncrypted } from "./crypto";
 import { parseStowResponse } from "@/lib/stowResponse";
-import { DEFAULT_PACS, isHttpUrl, trimRoot, type PacsConfig } from "@/lib/pacsPresets";
+import { DEFAULT_PACS, EMPTY_TLS, isHttpUrl, isMtlsConfigured, trimRoot, type PacsConfig, type PacsTls } from "@/lib/pacsPresets";
 
 /**
  * DICOMweb (QIDO-RS / WADO-RS) istemcisi — sunucu tarafı.
@@ -103,10 +103,11 @@ const unseal = (s: string) => (s && isEncrypted(s) ? decryptText(s) : s);
 
 /** Kayıtlı yapılandırmadaki şifreli alanları çözer (pacsConfig yükleyicisi çağırır). */
 export function unsealPacsConfig(c: PacsConfig): PacsConfig {
-  const out = { ...c, auth: { ...c.auth } };
+  const out = { ...c, auth: { ...c.auth }, tls: { ...EMPTY_TLS, ...(c.tls ?? {}) } };
   out.auth.password = unseal(out.auth.password);
   out.auth.token = unseal(out.auth.token);
   out.auth.headerValue = unseal(out.auth.headerValue);
+  out.tls.clientKeyPem = unseal(out.tls.clientKeyPem);
   out.qidoRoot = trimRoot(out.qidoRoot || "");
   out.wadoRoot = trimRoot(out.wadoRoot || "");
   return out;
@@ -120,6 +121,7 @@ export function coercePacsConfig(raw: unknown): PacsConfig | null {
   if (!raw || typeof raw !== "object") return null;
   const c = { ...DEFAULT_PACS, ...(raw as Partial<PacsConfig>) };
   c.auth = { ...DEFAULT_PACS.auth, ...((raw as PacsConfig).auth ?? {}) };
+  c.tls = { ...EMPTY_TLS, ...(((raw as PacsConfig).tls ?? {}) as Partial<PacsTls>) };
   const out = unsealPacsConfig(c as PacsConfig);
   if (!out.qidoRoot || !isHttpUrl(out.qidoRoot)) return null;
   if (out.wadoRoot && !isHttpUrl(out.wadoRoot)) out.wadoRoot = "";
@@ -127,14 +129,26 @@ export function coercePacsConfig(raw: unknown): PacsConfig | null {
 }
 
 /** Yöneticiye gösterilecek sürüm: sır değerleri boşaltılır, varlıkları bayrakla bildirilir. */
-export function publicPacsConfig(c: PacsConfig): PacsConfig & { hasPassword: boolean; hasToken: boolean; hasHeader: boolean } {
+export function publicPacsConfig(c: PacsConfig): PacsConfig & { hasPassword: boolean; hasToken: boolean; hasHeader: boolean; hasClientKey: boolean } {
   return {
     ...c,
+    tls: { ...EMPTY_TLS, ...(c.tls ?? {}), clientKeyPem: "" },
     auth: { ...c.auth, password: "", token: "", headerValue: "" },
     hasPassword: !!c.auth.password,
     hasToken: !!c.auth.token,
     hasHeader: !!c.auth.headerValue,
+    hasClientKey: !!c.tls?.clientKeyPem,
   };
+}
+
+/** mTLS/CA seçenekleri: yalnız https isteklerine eklenir (http.request bilinmeyen alanları yok sayar, yine de eklemiyoruz). */
+function tlsOptions(cfg: PacsConfig): { ca?: string; cert?: string; key?: string } {
+  const t = cfg.tls;
+  if (!t) return {};
+  const out: { ca?: string; cert?: string; key?: string } = {};
+  if (t.caPem) out.ca = t.caPem;
+  if (isMtlsConfigured(t)) { out.cert = t.clientCertPem; out.key = t.clientKeyPem; }
+  return out;
 }
 
 function buildHeaders(cfg: PacsConfig, accept: string): Record<string, string> {
@@ -168,8 +182,14 @@ function netError(e: unknown): Error {
   if (code === "ECONNREFUSED") return new Error("PACS'e ulaşılamadı — bağlantı reddedildi (adres veya port yanlış olabilir).");
   if (code === "ENOTFOUND" || code === "EAI_AGAIN") return new Error("PACS adresi çözümlenemedi — alan adını kontrol edin.");
   if (code === "ETIMEDOUT" || err.message === "timeout") return new Error("PACS zaman aşımına uğradı — sunucu yanıt vermiyor.");
-  if (["SELF_SIGNED_CERT_IN_CHAIN", "DEPTH_ZERO_SELF_SIGNED_CERT", "UNABLE_TO_VERIFY_LEAF_SIGNATURE", "ERR_TLS_CERT_ALTNAME_INVALID", "CERT_HAS_EXPIRED"].includes(code)) {
+  if (["UNABLE_TO_GET_ISSUER_CERT_LOCALLY", "UNABLE_TO_GET_CRL_ISSUER_CERT", "UNABLE_TO_VERIFY_LEAF_SIGNATURE", "CERT_CHAIN_TOO_LONG", "UNKNOWN_CA"].includes(code)) {
+    return new Error(`CA doğrulanamadı (${code}) — kurumsal CA PEM'ini PACS ayarlarındaki "CA (PEM)" alanına yapıştırın.`);
+  }
+  if (["SELF_SIGNED_CERT_IN_CHAIN", "DEPTH_ZERO_SELF_SIGNED_CERT", "ERR_TLS_CERT_ALTNAME_INVALID", "CERT_HAS_EXPIRED"].includes(code)) {
     return new Error(`Sertifika hatası (${code}) — kurum içi sunucu self-signed sertifika kullanıyorsa ayarlardan "self-signed sertifikaya izin ver" seçeneğini açın.`);
+  }
+  if (code.startsWith("ERR_SSL") || code.startsWith("ERR_TLS") || code === "EPROTO") {
+    return new Error(`TLS el sıkışması başarısız (${code}) — sunucu mTLS istiyorsa "CA (PEM)" + istemci sertifikası/anahtarını, self-signed ise ilgili seçeneği girin.`);
   }
   return new Error(`PACS bağlantı hatası: ${err.message}${code ? ` (${code})` : ""}`);
 }
@@ -191,6 +211,7 @@ function requestBuffer(urlStr: string, cfg: PacsConfig, accept: string, timeoutM
         headers: buildHeaders(cfg, accept),
         // Kurum içi PACS'lerde yaygın self-signed sertifika (yalnızca sunucu tarafında).
         rejectUnauthorized: !cfg.allowSelfSigned,
+        ...(u.protocol === "https:" ? tlsOptions(cfg) : {}),
         timeout: timeoutMs,
       },
       (res) => {
@@ -311,6 +332,7 @@ export async function stowInstance(cfg: PacsConfig, bytes: Uint8Array, timeoutMs
       method: "POST",
       headers,
       rejectUnauthorized: !cfg.allowSelfSigned,
+      ...(u.protocol === "https:" ? tlsOptions(cfg) : {}),
       timeout: timeoutMs,
     }, (r) => {
       const chunks: Buffer[] = [];
