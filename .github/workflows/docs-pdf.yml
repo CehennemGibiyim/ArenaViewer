@@ -1,0 +1,44 @@
+# Doküman PDF'leri — tag (v*) push'unda üretilir ve GitHub Release'e eklenir.
+# Kaynak: docs/*.md (+ docs/img/*). PDF'ler depoya alınmaz; yalnız Release asset'i.
+name: docs-pdf
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build-docs-pdf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pandoc + XeLaTeX + Noto fontları (PDF motoru)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pandoc texlive-xetex texlive-fonts-recommended texlive-lang-european \
+            fonts-noto-core fonts-noto-cjk librsvg2-bin
+
+      - name: PDF üret (TR)
+        run: |
+          set -e
+          mkdir -p dist-docs
+          for doc in GORSEL_ANLATIM MENU_KILAVUZU SSS KURULUM_VE_KULLANIM; do
+            pandoc "docs/${doc}.md" \
+              --pdf-engine=xelatex \
+              --resource-path=docs \
+              -V geometry:margin=20mm \
+              -V mainfont="Noto Sans" \
+              --metadata title="ATIKVIEWER — ${doc}" \
+              -o "dist-docs/${doc}-tr.pdf"
+          done
+          ls -lh dist-docs
+
+      - name: Release asset olarak yayımla
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist-docs/*.pdf
+          fail_on_unmatched_files: true

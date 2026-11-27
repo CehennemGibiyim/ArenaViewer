@@ -29,7 +29,7 @@ const QA: [string, string][] = [
   ["Tema aldığımda neden hiçbir renk değişmiyordu?",
     "Düzeldi (2026-11-26). Yapısal renkler artık globals.css değişkenlerine bağlı; Koyu (eski görünüm), Klinik Mavi, Açık Tema ve Yüksek Kontrast artık gerçekten çalışır. Seçim atik-theme anahtarında saklanır. Ayrıntı: docs/GORSEL_ANLATIM.md §7.1"],
   ["Dili nasıl değiştiririm? Kaç dil var?",
-    "Üst çubuktaki 🌐 Dil seç düğmesinden 24 kayıtlı dili arayıp seçin (tr en es fr de it pt nl pl ru uk cs sv ro hu bg ar he hi zh ja ko id th). Paket yalnız seçildiğinde indirilir; yedek İngilizce. Kapsam: arayüz kromu — belgeler ve AI rapor gövdesi Türkçe kalır. Yeni dil PR + npm run test:i18n ile eklenir."],
+    "Üst çubuktaki 🌐 Dil seç düğmesinden 78 kayıtlı dili arayıp seçin (tr en es fr de it pt nl pl ru uk cs sv ro hu bg ar he hi zh ja ko id th bn ur fa ta te mr gu kn ml pa or vi ms fil ceb da fi el sk sl et lv lt sr hr bs mk sq hy ka az kk ky uz mn sw ha yo ig zu af am ne si my km lo rw so mg ht ca eu gl). Paket yalnız seçildiğinde indirilir; yedek İngilizce. Kapsam: arayüz kromu — belgeler ve AI rapor gövdesi Türkçe kalır. Yeni dil PR + npm run test:i18n ile eklenir."],
   ["Görsel anlatım nerede?",
     "docs/GORSEL_ANLATIM.md — uçtan uca, ekran ekran; sıkıştırılmış JPEG + SVG şemalarla (≈650 KB). Web demosu vs Windows/macOS/Linux/Docker farkları, AI analiz karar ağacı, tema ve dil mekanizması."],
   ["Yeni AI modülü gelir mi? (kolon polip, kalça kırığı)",

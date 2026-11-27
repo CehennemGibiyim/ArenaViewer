@@ -54,7 +54,7 @@ Ayrıntı: [docs/KILAVUZ_BAKIMI.md](KILAVUZ_BAKIMI.md).
 | **A** logo + `ATIKVIEWER` | Marka bloğu; sağındaki numara derleme (build) anlamına gelir. |
 | ↻ **Yenile** | `Arayüz paketini temiz biçimde yeniden yükle` — service worker/önbelleği atlayıp temiz yükleme yapar (`/?fresh=`). |
 | **Tema seç** | `Koyu (Varsayılan)` · `Klinik Mavi` · `Açık Tema` · `Yüksek Kontrast`. Seçim `atik-theme` anahtarıyla saklanır ve **tüm arayüz renklerine uygulanır** (koyu = eski görünümle birebir; açık tema kontrast ≈18:1). DICOM pikseli temadan etkilenmez. Ayrıntı: [GORSEL_ANLATIM §7.1](GORSEL_ANLATIM.md). |
-| **🌐 Dil seç** | `Dil seç` — 24'ten `tr` (varsayılan) `en es fr de it pt nl pl ru uk cs sv ro hu bg ar he hi zh ja ko id th` arasından arama ile seçim; paket `atik-lang` ile saklanır ve **lazy-import** edilir (yalnız seçilen dil indirilir, yedek `en`). Çevrilen katman = arayüz kromu; belgeler ve AI rapor gövdesi Türkçe kalır. Ayrıntı: [GORSEL_ANLATIM §7.3](GORSEL_ANLATIM.md). |
+| **🌐 Dil seç** | `Dil seç` — 78'ten `tr` (varsayılan) `en es fr de it pt nl pl ru uk cs sv ro hu bg ar he hi zh ja ko id th` arasından arama ile seçim; paket `atik-lang` ile saklanır ve **lazy-import** edilir (yalnız seçilen dil indirilir, yedek `en`). Çevrilen katman = arayüz kromu; belgeler ve AI rapor gövdesi Türkçe kalır. Ayrıntı: [GORSEL_ANLATIM §7.3](GORSEL_ANLATIM.md). |
 | **Dosya aç** | Çoklu DICOM/görsel dosyası seç (`.dcm`, `.jpg/.png`, video, PDF, SR). |
 | **Klasör aç** | Tüm klasör hiyerarşisini yükler (`showDirectoryPicker`; FSAPI yoksa `webkitdirectory`). |
 | 📋 **Liste** | `Çalışma listesi / PACS` — kayıtlı incelemeleri açar, PACS (QIDO/WADO) sorgusu başlatır. |

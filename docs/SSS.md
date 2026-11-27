@@ -125,8 +125,8 @@ Ayrıntı: [GORSEL_ANLATIM.md §7.1](GORSEL_ANLATIM.md).
 
 ## 15. Dili nasıl değiştiririm? Kaç dil destekliyorsunuz?
 
-Üst çubuktaki **🌐 Dil seç** düğmesinden 24 kayıtlı dilden birini seçin (arama kutusuna yazmak yeterli):
-`tr en es fr de it pt nl pl ru uk cs sv ro hu bg ar he hi zh ja ko id th`. Seçtiğiniz dil paketi **anında ve
+Üst çubuktaki **🌐 Dil seç** düğmesinden 78 kayıtlı dilden birini seçin (arama kutusuna yazmak yeterli):
+`tr en es fr de it pt nl pl ru uk cs sv ro hu bg ar he hi zh ja ko id th bn ur fa ta te mr gu kn ml pa or vi ms fil ceb da fi el sk sl et lv lt sr hr bs mk sq hy ka az kk ky uz mn sw ha yo ig zu af am ne si my km lo rw so mg ht ca eu gl`. Seçtiğiniz dil paketi **anında ve
 yalnız o dil** indirilir; yedek İngilizce. Çevrilen katman arayüzün kromudur (üst çubuk, durum şeridi,
 ortak düğmeler, Tema/Dil seçicileri). **Belgeler, AI rapor gövdesi ve bazı uzun metinler henüz yalnız Türkçe'dir.**
 `ar`/`he` seçiminde ekran okuyucu dili doğru ayarlanır; yerleşim LTR kalır. "Dünyadaki tüm diller" tek
@@ -135,7 +135,7 @@ attımda vaat edilmez: yeni dil ancak `src/i18n/<kod>.json` + kayıt + `npm run 
 
 ## 16. Görsel anlatım nerede? Nasıl bu kadar az yer kaplıyor?
 
-**[GORSEL_ANLATIM.md](GORSEL_ANLATIM.md)** — uçtan uca, ekran ekran. Görseller sıkıştırılmış JPEG (q82,
+**[GORSEL_ANLATIM.md](GORSEL_ANLATIM.md)** — uçtan uca, ekran ekran. PDF sürümü tag (`v*`) yayımında Release asset'i olarak üretilir (`.github/workflows/docs-pdf.yml`). Görseller sıkıştırılmış JPEG (q82,
 ~52–84 KB) ve elle çizilmiş SVG şemalardır; toplam ≈ 650 KB. Lisanslı/dış kaynaklı PDF'ler depoya
 alınmaz, yalnızca özgün şemalar kullanılır; PDF dağıtımı isterseniz `pandoc` ile üretip Release'e koyarız.
 

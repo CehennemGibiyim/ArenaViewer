@@ -20,7 +20,7 @@
 | Hasta verisi gösteren yeni ekran görüntüsü | `docs/img/` — **anonimleştirerek** (sekme çubuğu ve görev çubuğu kırpılmalı; hasta adı/ID yok) |
 | Yeni modal/işlem akışı | İlgili bölgeye akış özeti; **[GORSEL_ANLATIM.md](GORSEL_ANLATIM.md)** §4–§7 akışı güncellenir; gerekirse yeni diyagram (PIL/mermaid, < 100 KB JPEG/SVG) |
 | Görsel akış adımı / ekran değişti | GORSEL_ANLATIM.md ilgili bölümü; görüntü güncellendiyse sıkıştırılmış JPEG (q82) veya elle SVG; **hasta verisi asla** |
-| Yeni görünen metin / düğme etiketi | [`src/i18n/*.json`](../src/i18n) — **24 dil paketi** aynı anahtarlarla güncellenir; `npm run test:i18n` yeşil |
+| Yeni görünen metin / düğme etiketi | [`src/i18n/*.json`](../src/i18n) — **78 dil paketi** aynı anahtarlarla güncellenir; `npm run test:i18n` yeşil |
 | Yeni dil paketi | `src/i18n/<kod>.json` + `LANGUAGES` + `registry` satırı; `en.json` anahtarları birebir; `npm run test:i18n` |
 | Belge değişikliği (docs/*.md) | Varsa GORSEL_ANLATIM / SSS / MENU_KILAVUZU çapraz bağlantıları gözden geçir |
 | Yalnız arka uç / DB değişikliği | Kılavuz gerekmez; PR açıklamasında "kılavuz gerekmedi" yazın |
@@ -29,7 +29,7 @@
 
 ```bash
 npm run test:guide-coverage   # tests/guide-coverage.test.ts — statik title/aria-label ↔ kılavuz birebir
-npm run test:i18n             # tests/i18n-coverage.test.ts — 24 paket anahtar paritesi + kayıt/registry
+npm run test:i18n             # tests/i18n-coverage.test.ts — 78 paket anahtar paritesi + kayıt/registry
 ```
 
 - `src/components/Workstation.tsx`, `RightPanel.tsx`, `KneeSegPanel.tsx` dosyalarındaki **statik**
@@ -48,14 +48,20 @@ npm run test:i18n             # tests/i18n-coverage.test.ts — 24 paket anahtar
 - [ ] Görüntü değiştiyse yenileri anonim (sekme çubuğu/görev çubuğu yok, hasta verisi yok)
 - [ ] Kılavuz gerekmediyse neden yazıldı
 - [ ] Görsel akış değiştiyse **GORSEL_ANLATIM.md** adımı/görseli güncellendi
-- [ ] Yeni görünen tüm metinler **24 dil paketine** eklendi (`npm run test:i18n` yeşil)
+- [ ] Yeni görünen tüm metinler **78 dil paketine** eklendi (`npm run test:i18n` yeşil)
 
 ## Belge kümesi ve değişmezler
 
 - Gösterge: arayüz = **MENU_KILAVUZU.md**, uçtan uca akış = **[GORSEL_ANLATIM.md](GORSEL_ANLATIM.md)**, şikâyet/cevap = **[SSS.md](SSS.md)** (uygulama içi: `/yardim`).
 - Üçü birbirine bağlanır; biri değişince diğerleri gözden geçirilir.
 - `ar`/`he` RTL dillerinde yerleşim LTR kalır — RTL görsel denetimi yapılana kadar yeni çeviri eklerken bu bilinçli sınıra uyun.
-- "Dünyadaki tüm diller" taahhüdü değildir: **24 pilot paket** bakım eşiğini karşılar; yeni dil ancak kayıt + `test:i18n` + anlamlı çeviri ile girer. Kalite < kapsam.
+- "Dünyadaki tüm diller" taahhüdü değildir: **78 pilot paket** bakım eşiğini karşılar; yeni dil ancak kayıt + `test:i18n` + anlamlı çeviri ile girer. Kalite < kapsam.
+
+## PDF dağıtımı
+
+Tag (`v*`) push'unda `.github/workflows/docs-pdf.yml` (pandoc + XeLaTeX + Noto Sans) ana belgeleri
+PDF'e çevirir ve GitHub Release asset'i olarak ekler. Kaynak `docs/*.md` kalır; PDF'ler depoya alınmaz —
+tür/boyut drift'ini önler. Belgeleri güncellerken görüntülerin göreli yollarını bozmayın.
 
 ## Sürüm notu
 
