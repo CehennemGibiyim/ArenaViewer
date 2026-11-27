@@ -97,12 +97,12 @@ export default function UpdateNotice() {
   return (
     <div
       role="status"
-      className="fixed bottom-4 right-4 z-[60] w-[23rem] max-w-[calc(100vw-2rem)] rounded-xl border border-emerald-500/40 bg-[#0b1220]/95 p-4 text-sm text-slate-200 shadow-2xl backdrop-blur"
+      className="fixed bottom-4 right-4 z-[60] w-[23rem] max-w-[calc(100vw-2rem)] rounded-xl border border-emerald-500/40 bg-[#0b1220]/95 p-4 text-sm text-[var(--sl200)] shadow-2xl backdrop-blur"
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-semibold text-emerald-300">Yeni sürüm v{release.version} hazır</p>
-          <p className="mt-1 leading-relaxed text-slate-400">
+          <p className="font-semibold text-[var(--ac-emerald300)]">Yeni sürüm v{release.version} hazır</p>
+          <p className="mt-1 leading-relaxed text-[var(--sl400)]">
             Kurulu sürüm v{APP_VERSION}. Güncellemeyi kendi sürüm kütüphanemizden indirebilirsiniz.
           </p>
         </div>
@@ -110,7 +110,7 @@ export default function UpdateNotice() {
           type="button"
           onClick={dismiss}
           aria-label="Güncelleme bildirimini kapat"
-          className="rounded px-1 text-lg leading-none text-slate-500 hover:text-slate-200"
+          className="rounded px-1 text-lg leading-none text-[var(--sl500)] hover:text-[var(--sl200)]"
         >
           ×
         </button>
@@ -128,7 +128,7 @@ export default function UpdateNotice() {
           href={release.page}
           target="_blank"
           rel="noreferrer"
-          className="rounded-lg border border-slate-700 px-3 py-1.5 text-slate-300 hover:border-slate-500"
+          className="rounded-lg border border-[var(--sl700)] px-3 py-1.5 text-[var(--sl300)] hover:border-[var(--sl500)]"
         >
           Sürüm notları
         </a>

@@ -28,13 +28,13 @@ export default class ViewerErrorBoundary extends Component<Props, { error: strin
   render() {
     if (!this.state.error) return this.props.children;
     return (
-      <div role="alert" className="flex h-full min-h-40 flex-col items-center justify-center gap-3 bg-[#0b1018] p-5 text-center">
-        <span className="text-sm font-bold text-amber-200">{this.props.label ?? "Görüntüleyici"} açılamadı</span>
-        <p className="max-w-md text-xs leading-relaxed text-slate-400">{this.state.error}</p>
-        <p className="text-xs text-slate-500">Menüler çalışmaya devam ediyor. Başka bir seri açabilir veya tekrar deneyebilirsiniz.</p>
+      <div role="alert" className="flex h-full min-h-40 flex-col items-center justify-center gap-3 bg-[var(--t06)] p-5 text-center">
+        <span className="text-sm font-bold text-[var(--ac-amber200)]">{this.props.label ?? "Görüntüleyici"} açılamadı</span>
+        <p className="max-w-md text-xs leading-relaxed text-[var(--sl400)]">{this.state.error}</p>
+        <p className="text-xs text-[var(--sl500)]">Menüler çalışmaya devam ediyor. Başka bir seri açabilir veya tekrar deneyebilirsiniz.</p>
         <div className="flex gap-2">
-          <button type="button" onClick={() => this.setState({ error: null })} className="rounded border border-cyan-400/40 px-3 py-2 text-xs font-semibold text-cyan-300">Tekrar dene</button>
-          {this.props.onClose && <button type="button" onClick={this.props.onClose} className="rounded border border-slate-600 px-3 py-2 text-xs text-slate-300">Kapat</button>}
+          <button type="button" onClick={() => this.setState({ error: null })} className="rounded border border-cyan-400/40 px-3 py-2 text-xs font-semibold text-[var(--ac-cyan300)]">Tekrar dene</button>
+          {this.props.onClose && <button type="button" onClick={this.props.onClose} className="rounded border border-[var(--sl600)] px-3 py-2 text-xs text-[var(--sl300)]">Kapat</button>}
         </div>
       </div>
     );

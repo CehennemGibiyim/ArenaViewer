@@ -68,7 +68,7 @@ export default function ECGViewer({ ecg }: Props) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     // 1. ECG Pink Paper Background
-    ctx.fillStyle = "#120a0d"; // Dark pink/medical theme for dark workstation
+    ctx.fillStyle = "var(--t03)"; // Dark pink/medical theme for dark workstation
     ctx.fillRect(0, 0, size.w, size.h);
 
     const pxPerMm = 3.78; // standard screen pixel scale for mm
@@ -238,37 +238,37 @@ export default function ECGViewer({ ecg }: Props) {
   };
 
   return (
-    <div className="flex h-full w-full flex-col bg-[#070a0f] p-2 text-slate-200 overflow-hidden">
+    <div className="flex h-full w-full flex-col bg-[var(--t02)] p-2 text-[var(--sl200)] overflow-hidden">
       {/* ECG Toolbar */}
-      <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 border-b border-[#1a2230] pb-2 mb-2 px-1">
+      <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 border-b border-[var(--t25)] pb-2 mb-2 px-1">
         <div className="flex items-center gap-2">
           <span className="rounded bg-pink-500/20 px-2 py-0.5 font-mono text-[10px] font-bold text-pink-300 border border-pink-500/40">
             DICOM 12-LEAD ECG
           </span>
-          <h2 className="text-sm font-bold text-slate-100">{ecg.title}</h2>
-          <span className="font-mono text-[10px] text-slate-400">
+          <h2 className="text-sm font-bold text-[var(--sl100)]">{ecg.title}</h2>
+          <span className="font-mono text-[10px] text-[var(--sl400)]">
             ({ecg.samplingFrequency} Hz · {ecg.durationSec.toFixed(1)} saniye)
           </span>
         </div>
 
         {/* Layout & Gain controls */}
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          <div className="flex items-center gap-1 bg-[#0c121c] p-1 rounded border border-[#1e2735]">
+          <div className="flex items-center gap-1 bg-[var(--t46)] p-1 rounded border border-[var(--t30)]">
             <button
               onClick={() => setLayout("3x4")}
-              className={`cursor-pointer px-2 py-0.5 rounded font-bold ${layout === "3x4" ? "bg-cyan-500 text-black" : "text-slate-300 hover:text-white"}`}
+              className={`cursor-pointer px-2 py-0.5 rounded font-bold ${layout === "3x4" ? "bg-cyan-500 text-black" : "text-[var(--sl300)] hover:text-white"}`}
             >
               3×4 + Ritim
             </button>
             <button
               onClick={() => setLayout("12x1")}
-              className={`cursor-pointer px-2 py-0.5 rounded font-bold ${layout === "12x1" ? "bg-cyan-500 text-black" : "text-slate-300 hover:text-white"}`}
+              className={`cursor-pointer px-2 py-0.5 rounded font-bold ${layout === "12x1" ? "bg-cyan-500 text-black" : "text-[var(--sl300)] hover:text-white"}`}
             >
               12×1
             </button>
             <button
               onClick={() => setLayout("single")}
-              className={`cursor-pointer px-2 py-0.5 rounded font-bold ${layout === "single" ? "bg-cyan-500 text-black" : "text-slate-300 hover:text-white"}`}
+              className={`cursor-pointer px-2 py-0.5 rounded font-bold ${layout === "single" ? "bg-cyan-500 text-black" : "text-[var(--sl300)] hover:text-white"}`}
             >
               Tek Derivasyon
             </button>
@@ -278,7 +278,7 @@ export default function ECGViewer({ ecg }: Props) {
             <select
               value={selectedLead}
               onChange={(e) => setSelectedLead(Number(e.target.value))}
-              className="rounded border border-[#1e2735] bg-[#0c121c] px-2 py-1 text-slate-200"
+              className="rounded border border-[var(--t30)] bg-[var(--t46)] px-2 py-1 text-[var(--sl200)]"
             >
               {ecg.channels.map((ch, idx) => (
                 <option key={idx} value={idx}>
@@ -291,7 +291,7 @@ export default function ECGViewer({ ecg }: Props) {
           <select
             value={gainMmPerMv}
             onChange={(e) => setGainMmPerMv(Number(e.target.value))}
-            className="rounded border border-[#1e2735] bg-[#0c121c] px-2 py-1 text-slate-200"
+            className="rounded border border-[var(--t30)] bg-[var(--t46)] px-2 py-1 text-[var(--sl200)]"
           >
             <option value={5}>5 mm/mV</option>
             <option value={10}>10 mm/mV (Std)</option>
@@ -301,7 +301,7 @@ export default function ECGViewer({ ecg }: Props) {
           <select
             value={speedMmPerSec}
             onChange={(e) => setSpeedMmPerSec(Number(e.target.value))}
-            className="rounded border border-[#1e2735] bg-[#0c121c] px-2 py-1 text-slate-200"
+            className="rounded border border-[var(--t30)] bg-[var(--t46)] px-2 py-1 text-[var(--sl200)]"
           >
             <option value={25}>25 mm/s (Std)</option>
             <option value={50}>50 mm/s</option>
@@ -312,7 +312,7 @@ export default function ECGViewer({ ecg }: Props) {
               setCaliperMode(!caliperMode);
               if (caliperMode) setCaliperPts(null);
             }}
-            className={`cursor-pointer rounded px-2.5 py-1 font-bold border ${caliperMode ? "bg-amber-400 text-black border-amber-300" : "bg-[#141b24] text-amber-300 border-amber-400/40"}`}
+            className={`cursor-pointer rounded px-2.5 py-1 font-bold border ${caliperMode ? "bg-amber-400 text-black border-amber-300" : "bg-[var(--t17)] text-[var(--ac-amber300)] border-amber-400/40"}`}
           >
             {caliperMode ? "📐 Kaliper Açık" : "📐 Kaliper (Ölç)"}
           </button>
@@ -320,7 +320,7 @@ export default function ECGViewer({ ecg }: Props) {
       </div>
 
       {/* Waveform Canvas */}
-      <div ref={wrapRef} className="flex-1 rounded-lg border border-[#1e2735] bg-black overflow-hidden relative">
+      <div ref={wrapRef} className="flex-1 rounded-lg border border-[var(--t30)] bg-black overflow-hidden relative">
         <canvas
           ref={canvasRef}
           style={{ width: size.w, height: size.h, cursor: caliperMode ? "crosshair" : "default" }}
@@ -330,7 +330,7 @@ export default function ECGViewer({ ecg }: Props) {
         />
 
         {/* Legend */}
-        <div className="absolute bottom-2 right-2 bg-slate-950/80 px-2.5 py-1 rounded border border-[#232e40] text-[10px] font-mono text-slate-400">
+        <div className="absolute bottom-2 right-2 bg-[var(--sl950)]/80 px-2.5 py-1 rounded border border-[var(--t34)] text-[10px] font-mono text-[var(--sl400)]">
           Standart Kalibrasyon: {speedMmPerSec} mm/s, {gainMmPerMv} mm/mV · 1 küçük kare = 0.04s / 0.1mV · 1 büyük kare = 0.2s / 0.5mV
         </div>
       </div>

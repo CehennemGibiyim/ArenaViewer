@@ -181,7 +181,7 @@ export default function SegEditor({ series, slice: activeSlice, wl, ww, invert, 
   if (!series) {
     return (
       <Shell onClose={onClose} title="Segmentasyon">
-        <p className="p-4 text-sm text-slate-300">Segmentasyon için önce bir görüntü serisi açın.</p>
+        <p className="p-4 text-sm text-[var(--sl300)]">Segmentasyon için önce bir görüntü serisi açın.</p>
       </Shell>
     );
   }
@@ -296,16 +296,16 @@ export default function SegEditor({ series, slice: activeSlice, wl, ww, invert, 
           <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
             {([["brush", "🖌 Fırça"], ["erase", "🧽 Silgi"], ["threshold", "📏 Eşik dolgusu"], ["grow", "🌊 Bölge büyüt"]] as [Tool, string][]).map(([t, tLabel]) => (
               <button key={t} onClick={() => setTool(t)}
-                className={`rounded border px-2 py-1 ${tool === t ? "border-cyan-400 bg-cyan-400/15 text-cyan-200" : "border-[#243044] text-slate-300 hover:border-cyan-400/50"}`}>{tLabel}</button>
+                className={`rounded border px-2 py-1 ${tool === t ? "border-cyan-400 bg-cyan-400/15 text-[var(--ac-cyan200)]" : "border-[var(--t35)] text-[var(--sl300)] hover:border-cyan-400/50"}`}>{tLabel}</button>
             ))}
-            <label className="ml-2 flex items-center gap-1 text-slate-400">Yarıçap
+            <label className="ml-2 flex items-center gap-1 text-[var(--sl400)]">Yarıçap
               <input type="range" min={1} max={40} value={radius} onChange={(e) => setRadius(Number(e.target.value))} className="w-24" />
-              <b className="w-6 text-right font-mono text-slate-200">{radius}</b>
+              <b className="w-6 text-right font-mono text-[var(--sl200)]">{radius}</b>
             </label>
             <span className="ml-auto flex items-center gap-1">
-              <button className="rounded border border-[#243044] px-2 py-1 text-slate-300 hover:border-cyan-400/50" onClick={() => setSlice(Math.max(0, slice - 1))} disabled={slice <= 0}>◀</button>
-              <span className="font-mono text-slate-300">{slice + 1}/{sliceCount}</span>
-              <button className="rounded border border-[#243044] px-2 py-1 text-slate-300 hover:border-cyan-400/50" onClick={() => setSlice(Math.min(sliceCount - 1, slice + 1))} disabled={slice >= sliceCount - 1}>▶</button>
+              <button className="rounded border border-[var(--t35)] px-2 py-1 text-[var(--sl300)] hover:border-cyan-400/50" onClick={() => setSlice(Math.max(0, slice - 1))} disabled={slice <= 0}>◀</button>
+              <span className="font-mono text-[var(--sl300)]">{slice + 1}/{sliceCount}</span>
+              <button className="rounded border border-[var(--t35)] px-2 py-1 text-[var(--sl300)] hover:border-cyan-400/50" onClick={() => setSlice(Math.min(sliceCount - 1, slice + 1))} disabled={slice >= sliceCount - 1}>▶</button>
             </span>
           </div>
           <canvas
@@ -315,61 +315,61 @@ export default function SegEditor({ series, slice: activeSlice, wl, ww, invert, 
             onPointerUp={endStroke}
             onPointerCancel={endStroke}
             onPointerLeave={endStroke}
-            className="mt-2 w-full cursor-crosshair rounded border border-[#1a2230] bg-black"
+            className="mt-2 w-full cursor-crosshair rounded border border-[var(--t25)] bg-black"
             style={{ touchAction: "none", imageRendering: "pixelated" }}
           />
-          <p className="mt-1 text-[10px] text-slate-500">
-            WL {Math.round(wl)} / WW {Math.round(ww)} · Bu kesitte <b className="text-cyan-300">{sliceMarked}</b> piksel · Tüm seride <b className="text-cyan-300">{totalPx}</b> piksel
+          <p className="mt-1 text-[10px] text-[var(--sl500)]">
+            WL {Math.round(wl)} / WW {Math.round(ww)} · Bu kesitte <b className="text-[var(--ac-cyan300)]">{sliceMarked}</b> piksel · Tüm seride <b className="text-[var(--ac-cyan300)]">{totalPx}</b> piksel
             {vol?.sliceRange ? ` (kesit ${vol.sliceRange[0] + 1}–${vol.sliceRange[1] + 1})` : ""}.
           </p>
         </div>
 
         <aside className="w-full shrink-0 space-y-2 text-[11px] md:w-72">
-          <div className="rounded border border-[#1a2230] p-2">
-            <div className="text-slate-400">Hacim</div>
-            <div className="text-lg font-bold text-cyan-200">{vol ? vol.ml.toFixed(2) : "0.00"} mL</div>
-            <div className="text-slate-500">{vol ? vol.voxelCount.toLocaleString("tr-TR") : 0} piksel · {vol?.mm3 ? Math.round(vol.mm3).toLocaleString("tr-TR") : 0} mm³</div>
-            <div className="mt-1 border-t border-[#1a2230] pt-1 text-slate-400" data-testid="seg-axes">
+          <div className="rounded border border-[var(--t25)] p-2">
+            <div className="text-[var(--sl400)]">Hacim</div>
+            <div className="text-lg font-bold text-[var(--ac-cyan200)]">{vol ? vol.ml.toFixed(2) : "0.00"} mL</div>
+            <div className="text-[var(--sl500)]">{vol ? vol.voxelCount.toLocaleString("tr-TR") : 0} piksel · {vol?.mm3 ? Math.round(vol.mm3).toLocaleString("tr-TR") : 0} mm³</div>
+            <div className="mt-1 border-t border-[var(--t25)] pt-1 text-[var(--sl400)]" data-testid="seg-axes">
               Eksen: {axes ? (
                 <>
-                  uzun <span className="font-mono text-cyan-200">{axes.longMm.toFixed(1)}</span> mm · kısa{" "}
-                  <span className="font-mono text-cyan-200">{axes.shortMm.toFixed(1)}</span> mm
-                  <span className="text-slate-500"> (kesit {axes.slice + 1}{axes.zExtentMm ? `, z ${axes.zExtentMm} mm` : ""})</span>
+                  uzun <span className="font-mono text-[var(--ac-cyan200)]">{axes.longMm.toFixed(1)}</span> mm · kısa{" "}
+                  <span className="font-mono text-[var(--ac-cyan200)]">{axes.shortMm.toFixed(1)}</span> mm
+                  <span className="text-[var(--sl500)]"> (kesit {axes.slice + 1}{axes.zExtentMm ? `, z ${axes.zExtentMm} mm` : ""})</span>
                 </>
               ) : "—"}
             </div>
-            <div className="mt-1 text-[10px] text-amber-300/80">Hacim ve eksen piksel aralığına göredir; RECIST için uzun eksen adayıdır, hekim onayına tabidir.</div>
+            <div className="mt-1 text-[10px] text-[var(--ac-amber300)]/80">Hacim ve eksen piksel aralığına göredir; RECIST için uzun eksen adayıdır, hekim onayına tabidir.</div>
           </div>
 
-          <div className="rounded border border-[#1a2230] p-2">
-            <div className="text-slate-400">Eşik (HU) — dolgu ve bölge büyütme</div>
+          <div className="rounded border border-[var(--t25)] p-2">
+            <div className="text-[var(--sl400)]">Eşik (HU) — dolgu ve bölge büyütme</div>
             <div className="mt-1 flex items-center gap-1">
-              <input type="number" value={lo} onChange={(e) => setLo(Number(e.target.value))} className="w-20 rounded border border-[#243044] bg-[#0b0f16] px-1 py-0.5 text-slate-200" />
-              <span className="text-slate-500">…</span>
-              <input type="number" value={hi} onChange={(e) => setHi(Number(e.target.value))} className="w-20 rounded border border-[#243044] bg-[#0b0f16] px-1 py-0.5 text-slate-200" />
-              <button className="ml-auto rounded border border-[#243044] px-1.5 py-0.5 text-slate-300 hover:border-cyan-400/50"
+              <input type="number" value={lo} onChange={(e) => setLo(Number(e.target.value))} className="w-20 rounded border border-[var(--t35)] bg-[var(--t05)] px-1 py-0.5 text-[var(--sl200)]" />
+              <span className="text-[var(--sl500)]">…</span>
+              <input type="number" value={hi} onChange={(e) => setHi(Number(e.target.value))} className="w-20 rounded border border-[var(--t35)] bg-[var(--t05)] px-1 py-0.5 text-[var(--sl200)]" />
+              <button className="ml-auto rounded border border-[var(--t35)] px-1.5 py-0.5 text-[var(--sl300)] hover:border-cyan-400/50"
                 onClick={() => { setLo(Math.round(wl - ww / 2)); setHi(Math.round(wl + ww / 2)); }}>WL/WW</button>
             </div>
           </div>
 
-          <div className="rounded border border-[#1a2230] p-2">
-            <div className="text-slate-400">Segment adı</div>
-            <input value={label} onChange={(e) => setLabel(e.target.value)} maxLength={64} className="mt-1 w-full rounded border border-[#243044] bg-[#0b0f16] px-1.5 py-1 text-slate-200" />
+          <div className="rounded border border-[var(--t25)] p-2">
+            <div className="text-[var(--sl400)]">Segment adı</div>
+            <input value={label} onChange={(e) => setLabel(e.target.value)} maxLength={64} className="mt-1 w-full rounded border border-[var(--t35)] bg-[var(--t05)] px-1.5 py-1 text-[var(--sl200)]" />
           </div>
 
           <div className="grid grid-cols-2 gap-1">
-            <button className="rounded border border-[#243044] px-2 py-1 text-slate-300 hover:border-cyan-400/50" onClick={copyToNext}>Sonraki kesite kopyala</button>
-            <button className="rounded border border-[#243044] px-2 py-1 text-slate-300 hover:border-cyan-400/50" onClick={clearSlice}>Bu kesiti sil</button>
-            <button className="rounded border border-rose-400/40 px-2 py-1 text-rose-300 hover:bg-rose-400/10" onClick={clearAll}>Tümünü sil</button>
-            <button className="rounded border border-[#243044] px-2 py-1 text-slate-300 hover:border-cyan-400/50" onClick={() => { persist(mask); toast("Maske bu tarayıcıda kaydedildi.", 4000); }}>Kaydet</button>
+            <button className="rounded border border-[var(--t35)] px-2 py-1 text-[var(--sl300)] hover:border-cyan-400/50" onClick={copyToNext}>Sonraki kesite kopyala</button>
+            <button className="rounded border border-[var(--t35)] px-2 py-1 text-[var(--sl300)] hover:border-cyan-400/50" onClick={clearSlice}>Bu kesiti sil</button>
+            <button className="rounded border border-rose-400/40 px-2 py-1 text-[var(--ac-rose300)] hover:bg-rose-400/10" onClick={clearAll}>Tümünü sil</button>
+            <button className="rounded border border-[var(--t35)] px-2 py-1 text-[var(--sl300)] hover:border-cyan-400/50" onClick={() => { persist(mask); toast("Maske bu tarayıcıda kaydedildi.", 4000); }}>Kaydet</button>
           </div>
 
           <div className="grid grid-cols-1 gap-1">
-            <button disabled={busy} className="rounded border border-emerald-400/40 px-2 py-1 text-emerald-200 hover:bg-emerald-400/10 disabled:opacity-50" onClick={() => void exportSeg("seg")}>🧩 DICOM SEG indir</button>
-            <button disabled={busy} className="rounded border border-emerald-400/40 px-2 py-1 text-emerald-200 hover:bg-emerald-400/10 disabled:opacity-50" onClick={() => void exportSeg("rtstruct")}>🧩 RTSTRUCT indir</button>
+            <button disabled={busy} className="rounded border border-emerald-400/40 px-2 py-1 text-[var(--ac-emerald200)] hover:bg-emerald-400/10 disabled:opacity-50" onClick={() => void exportSeg("seg")}>🧩 DICOM SEG indir</button>
+            <button disabled={busy} className="rounded border border-emerald-400/40 px-2 py-1 text-[var(--ac-emerald200)] hover:bg-emerald-400/10 disabled:opacity-50" onClick={() => void exportSeg("rtstruct")}>🧩 RTSTRUCT indir</button>
           </div>
 
-          <p className="rounded border border-amber-400/30 bg-amber-400/5 p-2 text-[10px] leading-relaxed text-amber-200">
+          <p className="rounded border border-amber-400/30 bg-amber-400/5 p-2 text-[10px] leading-relaxed text-[var(--ac-amber200)]">
             Maske tarayıcıda saklanır ve Dışa aktar → SEG/RTSTRUCT çıktısına katılır. AI aday örtüsü düzenlenebilir maske değildir.
             Bu araç tıbbi cihaz değildir; klinik karar için kullanılamaz.
           </p>
@@ -387,10 +387,10 @@ function Shell({ title, onClose, children }: { title: string; onClose: () => voi
   }, [onClose]);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3">
-      <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-[#243044] bg-[#0b0f16]">
-        <header className="flex items-center gap-2 border-b border-[#1a2230] px-3 py-2">
-          <h2 className="text-sm font-bold text-slate-100">{title}</h2>
-          <button onClick={onClose} className="ml-auto rounded border border-[#243044] px-2 py-0.5 text-xs text-slate-300 hover:border-rose-400/60 hover:text-rose-200">Kapat (Esc)</button>
+      <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-[var(--t35)] bg-[var(--t05)]">
+        <header className="flex items-center gap-2 border-b border-[var(--t25)] px-3 py-2">
+          <h2 className="text-sm font-bold text-[var(--sl100)]">{title}</h2>
+          <button onClick={onClose} className="ml-auto rounded border border-[var(--t35)] px-2 py-0.5 text-xs text-[var(--sl300)] hover:border-rose-400/60 hover:text-[var(--ac-rose200)]">Kapat (Esc)</button>
         </header>
         {children}
       </div>

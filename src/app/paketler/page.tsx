@@ -145,7 +145,7 @@ const AI_ROWS: Row[] = [
 
 function Code({ lines }: { lines: string[] }) {
   return (
-    <pre className="overflow-x-auto rounded-lg border border-[#1a2230] bg-[#0a0e15] p-3 font-mono text-[11px] leading-relaxed text-cyan-100/90">
+    <pre className="overflow-x-auto rounded-lg border border-[var(--t25)] bg-[var(--t04)] p-3 font-mono text-[11px] leading-relaxed text-[var(--ac-cyan100)]/90">
       {lines.join("\n")}
     </pre>
   );
@@ -156,16 +156,16 @@ function FileTable({ rows }: { rows: Row[] }) {
     <div className="overflow-x-auto">
       <table className="w-full border-collapse text-left">
         <thead>
-          <tr className="border-b border-[#1a2230] text-[10px] uppercase tracking-widest text-slate-500">
+          <tr className="border-b border-[var(--t25)] text-[10px] uppercase tracking-widest text-[var(--sl500)]">
             <th className="py-1.5 pr-4 font-semibold">Dosya yolu</th>
             <th className="py-1.5 font-semibold">Açıklama</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.path} className="border-b border-[#131a25] align-top">
-              <td className="whitespace-nowrap py-1.5 pr-4 font-mono text-[11px] text-cyan-300">{r.path}</td>
-              <td className="py-1.5 text-[11px] text-slate-400">{r.desc}</td>
+            <tr key={r.path} className="border-b border-[var(--t16)] align-top">
+              <td className="whitespace-nowrap py-1.5 pr-4 font-mono text-[11px] text-[var(--ac-cyan300)]">{r.path}</td>
+              <td className="py-1.5 text-[11px] text-[var(--sl400)]">{r.desc}</td>
             </tr>
           ))}
         </tbody>
@@ -176,28 +176,28 @@ function FileTable({ rows }: { rows: Row[] }) {
 
 export default function PaketlerPage() {
   return (
-    <div className="min-h-dvh bg-[#070a0f] text-slate-200">
-      <header className="sticky top-0 z-20 flex flex-wrap items-center gap-3 border-b border-[#1a2230] bg-[#0b0f16]/95 px-4 py-3 backdrop-blur">
+    <div className="min-h-dvh bg-[var(--t02)] text-[var(--sl200)]">
+      <header className="sticky top-0 z-20 flex flex-wrap items-center gap-3 border-b border-[var(--t25)] bg-[var(--t05)]/95 px-4 py-3 backdrop-blur">
         <div className="flex h-7 w-7 items-center justify-center rounded bg-gradient-to-br from-cyan-400 to-emerald-500 font-black text-[#06131a]">
           A
         </div>
-        <span className="font-mono text-sm font-black tracking-[0.18em] text-slate-100">
-          ATIK<span className="text-cyan-400">VIEWER</span>
+        <span className="font-mono text-sm font-black tracking-[0.18em] text-[var(--sl100)]">
+          ATIK<span className="text-[var(--ac-cyan400)]">VIEWER</span>
         </span>
-        <span className="rounded border border-slate-700 px-1 py-0.5 font-mono text-[8px] text-slate-500">v{VERSION}</span>
-        <span className="rounded border border-amber-400/40 bg-amber-400/10 px-2 py-1 text-[9px] font-bold tracking-wide text-amber-300">
+        <span className="rounded border border-[var(--sl700)] px-1 py-0.5 font-mono text-[8px] text-[var(--sl500)]">v{VERSION}</span>
+        <span className="rounded border border-amber-400/40 bg-amber-400/10 px-2 py-1 text-[9px] font-bold tracking-wide text-[var(--ac-amber300)]">
           ARAŞTIRMA AMAÇLIDIR · KLİNİK KARAR İÇİN KULLANILAMAZ
         </span>
         <div className="ml-auto flex gap-2">
           <Link
             href="/kiyaslama"
-            className="rounded-lg border border-violet-400/50 bg-violet-500/10 px-3 py-1.5 text-xs font-bold text-violet-200 hover:bg-violet-500/20"
+            className="rounded-lg border border-violet-400/50 bg-violet-500/10 px-3 py-1.5 text-xs font-bold text-[var(--ac-violet200)] hover:bg-violet-500/20"
           >
             📊 Kıyaslama
           </Link>
           <Link
             href="/"
-            className="rounded-lg border border-cyan-400/60 bg-cyan-500/15 px-3 py-1.5 text-xs font-bold text-cyan-200 hover:bg-cyan-500/25"
+            className="rounded-lg border border-cyan-400/60 bg-cyan-500/15 px-3 py-1.5 text-xs font-bold text-[var(--ac-cyan200)] hover:bg-cyan-500/25"
           >
             ← Görüntüleyici
           </Link>
@@ -207,13 +207,13 @@ export default function PaketlerPage() {
       <main className="mx-auto max-w-6xl px-4 py-8">
         {/* İndirme */}
         <section className="mb-10 rounded-2xl border border-cyan-400/30 bg-gradient-to-br from-cyan-500/10 to-emerald-500/5 p-6">
-          <h1 className="text-2xl font-black tracking-tight text-slate-50">
+          <h1 className="text-2xl font-black tracking-tight text-[var(--sl50)]">
             Çapraz platform kurulum paketi
           </h1>
-          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-            Windows, Linux ve macOS için gerekli <strong className="text-slate-200">tüm kurulum dosyaları</strong>,
-            orijinal <strong className="text-slate-200">dosya yollarıyla</strong> tek arşivde. Arşiv yalnızca betik,
-            yapılandırma ve belgeleri içerir; <span className="text-emerald-300">node_modules, .env ve hasta verisi içermez</span>.
+          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[var(--sl400)]">
+            Windows, Linux ve macOS için gerekli <strong className="text-[var(--sl200)]">tüm kurulum dosyaları</strong>,
+            orijinal <strong className="text-[var(--sl200)]">dosya yollarıyla</strong> tek arşivde. Arşiv yalnızca betik,
+            yapılandırma ve belgeleri içerir; <span className="text-[var(--ac-emerald300)]">node_modules, .env ve hasta verisi içermez</span>.
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             {ZIP_EXISTS ? (
@@ -225,11 +225,11 @@ export default function PaketlerPage() {
                 ⬇ İndir — ATIKVIEWER-{VERSION}-kurulum.zip
               </a>
             ) : (
-              <code className="rounded-lg border border-[#2d3b4e] bg-[#080c12] px-3 py-2 font-mono text-[11px] text-cyan-200">
+              <code className="rounded-lg border border-[var(--t39)] bg-[var(--t45)] px-3 py-2 font-mono text-[11px] text-[var(--ac-cyan200)]">
                 bash packaging/universal/build-source-zip.sh   # → dist/{ZIP_FILE}
               </code>
             )}
-            <span className="font-mono text-[11px] text-slate-500">
+            <span className="font-mono text-[11px] text-[var(--sl500)]">
               {ZIP_EXISTS ? "110 KB · SHA yok · dosya yolları korunur" : "arşiv bu derlemede yok; ürettikten sonra public/downloads/ altına koyun"}
             </span>
           </div>
@@ -240,9 +240,9 @@ export default function PaketlerPage() {
               ["macOS", "bash packaging/macos/install.sh"],
               ["Docker", "docker compose up --build -d"],
             ].map(([os, cmd]) => (
-              <div key={os} className="rounded-lg border border-[#1a2230] bg-[#0a0e15] p-3">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-cyan-400">{os}</div>
-                <code className="mt-1 block break-all font-mono text-[11px] text-slate-300">{cmd}</code>
+              <div key={os} className="rounded-lg border border-[var(--t25)] bg-[var(--t04)] p-3">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--ac-cyan400)]">{os}</div>
+                <code className="mt-1 block break-all font-mono text-[11px] text-[var(--sl300)]">{cmd}</code>
               </div>
             ))}
           </div>
@@ -251,14 +251,14 @@ export default function PaketlerPage() {
         {/* İşletim sistemleri */}
         <div className="grid gap-6 lg:grid-cols-2">
           {BLOCKS.map((b) => (
-            <section key={b.id} id={b.id} className="rounded-2xl border border-[#1a2230] bg-[#0b0f16] p-5">
+            <section key={b.id} id={b.id} className="rounded-2xl border border-[var(--t25)] bg-[var(--t05)] p-5">
               <div className="flex items-baseline gap-2">
                 <span className="text-xl" aria-hidden>
                   {b.icon}
                 </span>
-                <h2 className="text-base font-black text-slate-100">{b.os}</h2>
+                <h2 className="text-base font-black text-[var(--sl100)]">{b.os}</h2>
               </div>
-              <p className="mt-1 text-[12px] leading-relaxed text-slate-400">{b.blurb}</p>
+              <p className="mt-1 text-[12px] leading-relaxed text-[var(--sl400)]">{b.blurb}</p>
               <div className="mt-3">
                 <Code lines={b.commands} />
               </div>
@@ -275,19 +275,19 @@ export default function PaketlerPage() {
             <span className="text-xl" aria-hidden>
               🧠
             </span>
-            <h2 className="text-base font-black text-slate-100">Ücretsiz yerel yapay zekâ — gerçek çıkarım</h2>
-            <span className="rounded border border-emerald-400/50 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-200">
+            <h2 className="text-base font-black text-[var(--sl100)]">Ücretsiz yerel yapay zekâ — gerçek çıkarım</h2>
+            <span className="rounded border border-emerald-400/50 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-[var(--ac-emerald200)]">
               ÜCRET YOK · VERİ ÇIKMAZ
             </span>
           </div>
-          <p className="mt-2 max-w-4xl text-[12px] leading-relaxed text-slate-400">
-            Derin öğrenme çıkarımı <strong className="text-slate-200">yalnızca bu makinede</strong> çalışır: BT toraks
-            serileri gerçek HU hacmi olarak MONAI <code className="text-cyan-300">lung_nodule_ct_detection</code>
+          <p className="mt-2 max-w-4xl text-[12px] leading-relaxed text-[var(--sl400)]">
+            Derin öğrenme çıkarımı <strong className="text-[var(--sl200)]">yalnızca bu makinede</strong> çalışır: BT toraks
+            serileri gerçek HU hacmi olarak MONAI <code className="text-[var(--ac-cyan300)]">lung_nodule_ct_detection</code>
             (LUNA16 eğitimli) modeline, BT beyin serileri{" "}
-            <code className="text-cyan-300">ct-head-hemorrhage-detection</code> (MIT/RSNA) modeline gönderilir.
-            Harici bulut servisi, API anahtarı veya ödeme <strong className="text-slate-200">yoktur</strong>.
+            <code className="text-[var(--ac-cyan300)]">ct-head-hemorrhage-detection</code> (MIT/RSNA) modeline gönderilir.
+            Harici bulut servisi, API anahtarı veya ödeme <strong className="text-[var(--sl200)]">yoktur</strong>.
             Worker kapalıysa kural tabanlı motor devreye girer ve bu durum ekranda açıkça yazılır —
-            <strong className="text-slate-200"> sahte bulgu üretilmez</strong>.
+            <strong className="text-[var(--sl200)]"> sahte bulgu üretilmez</strong>.
           </p>
           <div className="mt-4">
             <AiWorkerStatus />
@@ -312,45 +312,45 @@ export default function PaketlerPage() {
 
         {/* Klinik güvenlik */}
         <section className="mt-8 rounded-2xl border border-amber-400/30 bg-amber-500/5 p-5">
-          <h2 className="text-base font-black text-amber-200">Radyoloji uzmanı onayı — zorunlu</h2>
-          <ol className="mt-3 grid gap-2 text-[12px] leading-relaxed text-slate-300 md:grid-cols-2">
+          <h2 className="text-base font-black text-[var(--ac-amber200)]">Radyoloji uzmanı onayı — zorunlu</h2>
+          <ol className="mt-3 grid gap-2 text-[12px] leading-relaxed text-[var(--sl300)] md:grid-cols-2">
             <li>
-              <strong className="text-amber-200">1.</strong> Her AI bulgusu <em>“Onay Bekliyor”</em> gelir; bekleyen bulgu
+              <strong className="text-[var(--ac-amber200)]">1.</strong> Her AI bulgusu <em>“Onay Bekliyor”</em> gelir; bekleyen bulgu
               varken rapor onaylanamaz — bu kural yalnız arayüzde değil, <strong>sunucuda da</strong> zorunludur.
             </li>
             <li>
-              <strong className="text-amber-200">2.</strong> Model yok / worker kapalı ise sonuç açıkça etiketlenir;
+              <strong className="text-[var(--ac-amber200)]">2.</strong> Model yok / worker kapalı ise sonuç açıkça etiketlenir;
               doğrulanmamış veriyle bulgu icat edilmez.
             </li>
             <li>
-              <strong className="text-amber-200">3.</strong> Skorlar <em>“kalibre değil”</em> etiketlidir; olasılık gibi
+              <strong className="text-[var(--ac-amber200)]">3.</strong> Skorlar <em>“kalibre değil”</em> etiketlidir; olasılık gibi
               sunulmaz. Model kartı panelde ve rapor çıktısında yer alır.
             </li>
             <li>
-              <strong className="text-amber-200">4.</strong> Denetim kaydı hash zincirlidir, değiştirilemez; onay sonrası
+              <strong className="text-[var(--ac-amber200)]">4.</strong> Denetim kaydı hash zincirlidir, değiştirilemez; onay sonrası
               rapor sunucuda kilitlenir, düzeltme addendum ile yapılır.
             </li>
             <li>
-              <strong className="text-amber-200">5.</strong> Hasta verisi AES-256-GCM ile şifrelenir ve bu makineden
+              <strong className="text-[var(--ac-amber200)]">5.</strong> Hasta verisi AES-256-GCM ile şifrelenir ve bu makineden
               dışarı çıkmaz.
             </li>
             <li>
-              <strong className="text-amber-200">6.</strong> Erişim kısıtı için uygulamayı yalnız yerel ağ/VPN üzerinden
-              açın (varsayılan <code className="text-cyan-300">127.0.0.1</code>) — KVKK için şarttır.
+              <strong className="text-[var(--ac-amber200)]">6.</strong> Erişim kısıtı için uygulamayı yalnız yerel ağ/VPN üzerinden
+              açın (varsayılan <code className="text-[var(--ac-cyan300)]">127.0.0.1</code>) — KVKK için şarttır.
             </li>
           </ol>
-          <p className="mt-4 text-[11px] text-slate-500">
+          <p className="mt-4 text-[11px] text-[var(--sl500)]">
             Klinik doğrulama belgeleri:{" "}
-            <Link href="/kiyaslama" className="text-cyan-400 underline-offset-2 hover:underline">
+            <Link href="/kiyaslama" className="text-[var(--ac-cyan400)] underline-offset-2 hover:underline">
               Piyasa Kıyaslaması ve Eksik Analizi
             </Link>{" "}
-            · <code className="text-slate-400">docs/Klinik_Dogrulama_LUNA16.md</code> ·{" "}
-            <code className="text-slate-400">docs/Klinik_Dogrulama_ICH.md</code>
+            · <code className="text-[var(--sl400)]">docs/Klinik_Dogrulama_LUNA16.md</code> ·{" "}
+            <code className="text-[var(--sl400)]">docs/Klinik_Dogrulama_ICH.md</code>
           </p>
         </section>
       </main>
 
-      <footer className="border-t border-[#1a2230] px-4 py-6 text-center font-mono text-[10px] text-slate-600">
+      <footer className="border-t border-[var(--t25)] px-4 py-6 text-center font-mono text-[10px] text-[var(--sl600)]">
         ATIKVIEWER v{VERSION} · kurulum paketleri · ücretsiz ve açık kaynak · çıktı yok, abonelik yok
       </footer>
     </div>

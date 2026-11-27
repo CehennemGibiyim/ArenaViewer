@@ -27,6 +27,9 @@ Bu klasör, Windows · Linux · macOS üzerinde çalışan kurulum paketlerinin
 | `docs/WINDOWS_KURULUM.md` | Windows kurulum rehberi + sık karşılaşılan hataların çözümleri |
 | `docs/KURULUM_VE_KULLANIM.md` | **Her işletim sistemi** için görsel + videolu kurulum/kullanım kılavuzu (≈3,2 MB varlık) |
 | `docs/MENU_KILAVUZU.md` | Her düğme/menü tek tek — numaralı ekran haritasıyla (CI ile sürekli güncel tutulur) |
+| `docs/GORSEL_ANLATIM.md` | Görselli uçtan uca anlatım — web demosu vs Windows/macOS/Linux/Docker; AI analiz karar ağacı; tema ve dil |
+| `docs/SSS.md` | Sık sorulan sorular (uygulama içi karşılığı `/yardim`) |
+| `docs/KILAVUZ_BAKIMI.md` | Kılavuzların her değişiklikle güncel tutulması kuralı + kontrol listesi |
 
 ```powershell
 # Üretim (CI'da .github/workflows/release.yml otomatik yapar)

@@ -46,15 +46,15 @@ interface Props {
 const STATUS_LABEL: Record<string, string> = { bekliyor: "Bekliyor", okunuyor: "Okunuyor", taslak: "Taslak", onayli: "Onaylı" };
 
 function triageChip(level: string, score: number) {
-  if (!level) return <span className="text-slate-600">—</span>;
-  const c = score > 0.8 ? "border-rose-500/50 bg-rose-500/20 text-rose-200" : score > 0.6 ? "border-orange-500/50 bg-orange-500/15 text-orange-200" : score > 0.4 ? "border-yellow-500/50 bg-yellow-500/15 text-yellow-200" : "border-emerald-500/40 bg-emerald-500/10 text-emerald-200";
+  if (!level) return <span className="text-[var(--sl600)]">—</span>;
+  const c = score > 0.8 ? "border-rose-500/50 bg-rose-500/20 text-[var(--ac-rose200)]" : score > 0.6 ? "border-orange-500/50 bg-orange-500/15 text-[var(--ac-orange200)]" : score > 0.4 ? "border-yellow-500/50 bg-yellow-500/15 text-[var(--ac-yellow200)]" : "border-emerald-500/40 bg-emerald-500/10 text-[var(--ac-emerald200)]";
   return <span className={`whitespace-nowrap rounded border px-1.5 py-0.5 font-mono text-[9.5px] font-bold ${c}`}>{level}</span>;
 }
 
 /** Aidoc/Lunit tarzı: yüksek skorlu vakalar için ayrı "kritik aday" rozeti. */
 function criticalBadge(score: number) {
   if (score <= 0.8) return null;
-  return <span className="ml-1 inline-flex items-center gap-1 whitespace-nowrap rounded border border-rose-400/60 bg-rose-500/25 px-1.5 py-0.5 font-mono text-[9.5px] font-black tracking-wide text-rose-100"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-400" />KRİTİK ADAY</span>;
+  return <span className="ml-1 inline-flex items-center gap-1 whitespace-nowrap rounded border border-rose-400/60 bg-rose-500/25 px-1.5 py-0.5 font-mono text-[9.5px] font-black tracking-wide text-[var(--ac-rose100)]"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-400" />KRİTİK ADAY</span>;
 }
 
 export default function WorklistModal({ open, onClose, user, onOpenStudy, onOpenPacs }: Props) {
@@ -195,50 +195,50 @@ export default function WorklistModal({ open, onClose, user, onOpenStudy, onOpen
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-      <div className="flex h-full max-h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-[#232e40] bg-[#0b0f16] shadow-2xl">
-        <div className="flex items-center gap-3 border-b border-[#1a2230] px-4 py-3">
-          <h2 className="text-sm font-black tracking-wide text-slate-100">Çalışma listesi</h2>
+      <div className="flex h-full max-h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-[var(--t34)] bg-[var(--t05)] shadow-2xl">
+        <div className="flex items-center gap-3 border-b border-[var(--t25)] px-4 py-3">
+          <h2 className="text-sm font-black tracking-wide text-[var(--sl100)]">Çalışma listesi</h2>
           {(["liste", "triaj", "pacs", "mwl"] as const).map((t) => (
-            <button key={t} onClick={() => setTab(t)} className={`cursor-pointer rounded px-3 py-1 text-xs font-bold ${tab === t ? "bg-cyan-400/15 text-cyan-300 ring-1 ring-cyan-400/40" : "text-slate-400 hover:text-slate-200"}`}>{t === "liste" ? "Yerel / HBYS" : t === "triaj" ? "AI Triaj" : t === "pacs" ? "PACS (DICOMweb)" : "İş listesi (MWL)"}</button>
+            <button key={t} onClick={() => setTab(t)} className={`cursor-pointer rounded px-3 py-1 text-xs font-bold ${tab === t ? "bg-cyan-400/15 text-[var(--ac-cyan300)] ring-1 ring-cyan-400/40" : "text-[var(--sl400)] hover:text-[var(--sl200)]"}`}>{t === "liste" ? "Yerel / HBYS" : t === "triaj" ? "AI Triaj" : t === "pacs" ? "PACS (DICOMweb)" : "İş listesi (MWL)"}</button>
           ))}
-          <button onClick={onClose} className="ml-auto cursor-pointer rounded border border-[#2d3b4e] bg-[#141b24] px-2.5 py-1 text-xs text-slate-300 hover:text-white">✕</button>
+          <button onClick={onClose} className="ml-auto cursor-pointer rounded border border-[var(--t39)] bg-[var(--t17)] px-2.5 py-1 text-xs text-[var(--sl300)] hover:text-white">✕</button>
         </div>
 
         {tab === "liste" && (
           <>
-            <div className="flex flex-wrap items-center gap-2 border-b border-[#1a2230] px-4 py-2 text-xs">
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Hasta, ID, açıklama ara…" className="w-64 rounded border border-[#1e2735] bg-[#0e141d] px-2 py-1.5 text-slate-200 placeholder:text-slate-600 focus:outline-none" />
-              <select value={status} onChange={(e) => setStatus(e.target.value)} className="rounded border border-[#1e2735] bg-[#0e141d] px-2 py-1.5 text-slate-200">
+            <div className="flex flex-wrap items-center gap-2 border-b border-[var(--t25)] px-4 py-2 text-xs">
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Hasta, ID, açıklama ara…" className="w-64 rounded border border-[var(--t30)] bg-[var(--t10)] px-2 py-1.5 text-[var(--sl200)] placeholder:text-[var(--sl600)] focus:outline-none" />
+              <select value={status} onChange={(e) => setStatus(e.target.value)} className="rounded border border-[var(--t30)] bg-[var(--t10)] px-2 py-1.5 text-[var(--sl200)]">
                 <option value="">Tüm durumlar</option>
                 {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
-              <span className="text-slate-500">Triyaj önceliğine göre sıralıdır (en acil üstte).</span>
-              <button onClick={() => void load()} className="ml-auto cursor-pointer text-cyan-400">⟳ yenile</button>
+              <span className="text-[var(--sl500)]">Triyaj önceliğine göre sıralıdır (en acil üstte).</span>
+              <button onClick={() => void load()} className="ml-auto cursor-pointer text-[var(--ac-cyan400)]">⟳ yenile</button>
             </div>
             <div className="min-h-0 flex-1 overflow-auto">
               <table className="w-full border-collapse text-[11px]">
-                <thead className="sticky top-0 bg-[#0b0f16] text-left text-slate-500">
-                  <tr>{["Triyaj ▼", "Hasta", "ID", "Modalite", "Açıklama", "Tarih", "Durum", "Atanan", "Rapor", ""].map((h) => <th key={h} className="border-b border-[#1a2230] px-3 py-2 font-semibold">{h}</th>)}</tr>
+                <thead className="sticky top-0 bg-[var(--t05)] text-left text-[var(--sl500)]">
+                  <tr>{["Triyaj ▼", "Hasta", "ID", "Modalite", "Açıklama", "Tarih", "Durum", "Atanan", "Rapor", ""].map((h) => <th key={h} className="border-b border-[var(--t25)] px-3 py-2 font-semibold">{h}</th>)}</tr>
                 </thead>
                 <tbody>
-                  {rows.length === 0 && <tr><td colSpan={10} className="px-3 py-8 text-center text-slate-500">{loading ? "Yükleniyor…" : "Kayıt yok. Görüntü açıp ☁ ile sunucuya kaydedin veya HBYS/PACS'tan getirin."}</td></tr>}
+                  {rows.length === 0 && <tr><td colSpan={10} className="px-3 py-8 text-center text-[var(--sl500)]">{loading ? "Yükleniyor…" : "Kayıt yok. Görüntü açıp ☁ ile sunucuya kaydedin veya HBYS/PACS'tan getirin."}</td></tr>}
                   {rows.map((s) => (
-                    <tr key={s.id} className="hover:bg-[#101722]">
-                      <td className="border-b border-[#141b26] px-3 py-2">{triageChip(s.triageLevel, s.triageScore)}{criticalBadge(s.triageScore)}</td>
-                      <td className="border-b border-[#141b26] px-3 py-2 font-semibold text-slate-100">{s.patientName}</td>
-                      <td className="border-b border-[#141b26] px-3 py-2 font-mono text-slate-400">{s.patientId}</td>
-                      <td className="border-b border-[#141b26] px-3 py-2 font-bold text-cyan-300">{s.modality}</td>
-                      <td className="border-b border-[#141b26] px-3 py-2 text-slate-300">{s.seriesDescription}<span className="ml-1 text-slate-600">({s.sliceCount})</span></td>
-                      <td className="border-b border-[#141b26] px-3 py-2 text-slate-400">{s.studyDate}</td>
-                      <td className="border-b border-[#141b26] px-3 py-2">
-                        <select value={s.workStatus} disabled={!canAssign && s.workStatus === "onayli"} onChange={(e) => void patch(s.id, { workStatus: e.target.value })} className="rounded border border-[#1e2735] bg-[#0e141d] px-1 py-0.5 text-slate-200">
+                    <tr key={s.id} className="hover:bg-[var(--t14)]">
+                      <td className="border-b border-[var(--t18)] px-3 py-2">{triageChip(s.triageLevel, s.triageScore)}{criticalBadge(s.triageScore)}</td>
+                      <td className="border-b border-[var(--t18)] px-3 py-2 font-semibold text-[var(--sl100)]">{s.patientName}</td>
+                      <td className="border-b border-[var(--t18)] px-3 py-2 font-mono text-[var(--sl400)]">{s.patientId}</td>
+                      <td className="border-b border-[var(--t18)] px-3 py-2 font-bold text-[var(--ac-cyan300)]">{s.modality}</td>
+                      <td className="border-b border-[var(--t18)] px-3 py-2 text-[var(--sl300)]">{s.seriesDescription}<span className="ml-1 text-[var(--sl600)]">({s.sliceCount})</span></td>
+                      <td className="border-b border-[var(--t18)] px-3 py-2 text-[var(--sl400)]">{s.studyDate}</td>
+                      <td className="border-b border-[var(--t18)] px-3 py-2">
+                        <select value={s.workStatus} disabled={!canAssign && s.workStatus === "onayli"} onChange={(e) => void patch(s.id, { workStatus: e.target.value })} className="rounded border border-[var(--t30)] bg-[var(--t10)] px-1 py-0.5 text-[var(--sl200)]">
                           {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k} disabled={k === "onayli" && !canAssign}>{v}</option>)}
                         </select>
                       </td>
-                      <td className="border-b border-[#141b26] px-3 py-2 text-slate-300">{s.assignedToName || (canAssign ? <button onClick={() => void patch(s.id, { assignTo: "me" })} className="cursor-pointer text-cyan-400 hover:underline">bana ata</button> : "—")}</td>
-                      <td className="border-b border-[#141b26] px-3 py-2">{s.reportStatus ? <span className={s.reportStatus === "onaylandi" ? "text-emerald-300" : "text-rose-300"}>{s.reportStatus === "onaylandi" ? "onaylı" : "taslak"}</span> : <span className="text-slate-600">—</span>}</td>
-                      <td className="border-b border-[#141b26] px-3 py-2 text-right">
-                        {s.hasFiles ? <button onClick={() => { onOpenStudy(s); onClose(); }} className="cursor-pointer rounded bg-cyan-500 px-2.5 py-1 font-bold text-slate-950 hover:bg-cyan-400">Aç</button> : <span className="text-[10px] text-slate-600">görüntü yok</span>}
+                      <td className="border-b border-[var(--t18)] px-3 py-2 text-[var(--sl300)]">{s.assignedToName || (canAssign ? <button onClick={() => void patch(s.id, { assignTo: "me" })} className="cursor-pointer text-[var(--ac-cyan400)] hover:underline">bana ata</button> : "—")}</td>
+                      <td className="border-b border-[var(--t18)] px-3 py-2">{s.reportStatus ? <span className={s.reportStatus === "onaylandi" ? "text-[var(--ac-emerald300)]" : "text-[var(--ac-rose300)]"}>{s.reportStatus === "onaylandi" ? "onaylı" : "taslak"}</span> : <span className="text-[var(--sl600)]">—</span>}</td>
+                      <td className="border-b border-[var(--t18)] px-3 py-2 text-right">
+                        {s.hasFiles ? <button onClick={() => { onOpenStudy(s); onClose(); }} className="cursor-pointer rounded bg-cyan-500 px-2.5 py-1 font-bold text-[var(--sl950)] hover:bg-cyan-400">Aç</button> : <span className="text-[10px] text-[var(--sl600)]">görüntü yok</span>}
                       </td>
                     </tr>
                   ))}
@@ -252,35 +252,35 @@ export default function WorklistModal({ open, onClose, user, onOpenStudy, onOpen
 
         {tab === "mwl" && (
           <>
-            <div className="flex flex-wrap items-center gap-2 border-b border-[#1a2230] px-4 py-2 text-xs">
-              <input type="date" value={mwlDate} onChange={(e) => setMwlDate(e.target.value)} aria-label="Planlanan tarih" className="rounded border border-[#1e2735] bg-[#0e141d] px-2 py-1.5 text-slate-200" />
-              <select value={mwlModality} onChange={(e) => setMwlModality(e.target.value)} aria-label="Modalite" className="rounded border border-[#1e2735] bg-[#0e141d] px-2 py-1.5 text-slate-200">
+            <div className="flex flex-wrap items-center gap-2 border-b border-[var(--t25)] px-4 py-2 text-xs">
+              <input type="date" value={mwlDate} onChange={(e) => setMwlDate(e.target.value)} aria-label="Planlanan tarih" className="rounded border border-[var(--t30)] bg-[var(--t10)] px-2 py-1.5 text-[var(--sl200)]" />
+              <select value={mwlModality} onChange={(e) => setMwlModality(e.target.value)} aria-label="Modalite" className="rounded border border-[var(--t30)] bg-[var(--t10)] px-2 py-1.5 text-[var(--sl200)]">
                 <option value="">Tüm modaliteler</option>
                 {["CT", "MR", "CR", "DX", "US", "MG", "NM", "PT", "RF", "XA"].map((m) => <option key={m} value={m}>{m}</option>)}
               </select>
-              <label className="flex items-center gap-1 text-slate-400"><input type="checkbox" checked={mwlOpen} onChange={(e) => setMwlOpen(e.target.checked)} /> yalnız açık işler</label>
-              <button onClick={() => void loadMwl()} className="cursor-pointer rounded bg-cyan-500 px-3 py-1.5 font-bold text-slate-950 hover:bg-cyan-400">{mwlBusy ? "Sorgulanıyor…" : "Sorgula"}</button>
-              <span className="text-slate-500">Tarih boşsa PACS bugünü döndürür. Kaynak: Yönetim → Entegrasyon → MWL kökü / DIMSE köprüsü.</span>
+              <label className="flex items-center gap-1 text-[var(--sl400)]"><input type="checkbox" checked={mwlOpen} onChange={(e) => setMwlOpen(e.target.checked)} /> yalnız açık işler</label>
+              <button onClick={() => void loadMwl()} className="cursor-pointer rounded bg-cyan-500 px-3 py-1.5 font-bold text-[var(--sl950)] hover:bg-cyan-400">{mwlBusy ? "Sorgulanıyor…" : "Sorgula"}</button>
+              <span className="text-[var(--sl500)]">Tarih boşsa PACS bugünü döndürür. Kaynak: Yönetim → Entegrasyon → MWL kökü / DIMSE köprüsü.</span>
             </div>
-            {mwlErr && <div className="border-b border-[#1a2230] px-4 py-2 text-xs font-semibold text-rose-300">{mwlErr}</div>}
-            {mwlNote && <div className="border-b border-[#1a2230] px-4 py-2 text-xs font-semibold text-emerald-300">{mwlNote}</div>}
+            {mwlErr && <div className="border-b border-[var(--t25)] px-4 py-2 text-xs font-semibold text-[var(--ac-rose300)]">{mwlErr}</div>}
+            {mwlNote && <div className="border-b border-[var(--t25)] px-4 py-2 text-xs font-semibold text-[var(--ac-emerald300)]">{mwlNote}</div>}
             <div className="min-h-0 flex-1 overflow-auto">
               <table className="w-full border-collapse text-[11px]">
-                <thead className="sticky top-0 bg-[#0b0f16] text-left text-slate-500"><tr>{["Başlangıç", "Hasta", "ID", "Modalite", "Açıklama", "İstek no", "İstasyon", "Durum", ""].map((h) => <th key={h} className="border-b border-[#1a2230] px-3 py-2 font-semibold">{h}</th>)}</tr></thead>
+                <thead className="sticky top-0 bg-[var(--t05)] text-left text-[var(--sl500)]"><tr>{["Başlangıç", "Hasta", "ID", "Modalite", "Açıklama", "İstek no", "İstasyon", "Durum", ""].map((h) => <th key={h} className="border-b border-[var(--t25)] px-3 py-2 font-semibold">{h}</th>)}</tr></thead>
                 <tbody>
-                  {mwl.length === 0 && <tr><td colSpan={9} className="px-3 py-8 text-center text-slate-500">{mwlBusy ? "Sorgulanıyor…" : "Bu tarihte iş yok. HBYS'de istek oluşturulduğundan emin olun."}</td></tr>}
+                  {mwl.length === 0 && <tr><td colSpan={9} className="px-3 py-8 text-center text-[var(--sl500)]">{mwlBusy ? "Sorgulanıyor…" : "Bu tarihte iş yok. HBYS'de istek oluşturulduğundan emin olun."}</td></tr>}
                   {mwl.map((m) => (
-                    <tr key={`${m.stepId || m.accession}-${m.patientId}`} className="hover:bg-[#101722]">
-                      <td className="border-b border-[#141b26] px-3 py-2 font-mono text-slate-400">{m.scheduledStart.replace("T", " ")}</td>
-                      <td className="border-b border-[#141b26] px-3 py-2 font-semibold text-slate-100">{m.patientName || "—"}{m.priority === "STAT" && <span className="ml-1 rounded border border-rose-400/60 bg-rose-500/20 px-1 font-mono text-[9px] font-black text-rose-100">STAT</span>}</td>
-                      <td className="border-b border-[#141b26] px-3 py-2 font-mono text-slate-400">{m.patientId}</td>
-                      <td className="border-b border-[#141b26] px-3 py-2 font-bold text-cyan-300">{m.modality || "—"}</td>
-                      <td className="border-b border-[#141b26] px-3 py-2 text-slate-300">{m.description || m.bodyPart || "—"}</td>
-                      <td className="border-b border-[#141b26] px-3 py-2 font-mono text-slate-400">{m.accession || m.stepId}</td>
-                      <td className="border-b border-[#141b26] px-3 py-2 text-slate-400">{m.stationAeTitle || "—"}</td>
-                      <td className="border-b border-[#141b26] px-3 py-2 text-slate-300">{MWL_STATUS[m.status] ?? m.status}</td>
-                      <td className="border-b border-[#141b26] px-3 py-2 text-right">
-                        <button disabled={mwlBusy} onClick={() => void takeMwl(m)} className="cursor-pointer rounded bg-cyan-500 px-2.5 py-1 font-bold text-slate-950 hover:bg-cyan-400 disabled:opacity-50">Çalışmaya al</button>
+                    <tr key={`${m.stepId || m.accession}-${m.patientId}`} className="hover:bg-[var(--t14)]">
+                      <td className="border-b border-[var(--t18)] px-3 py-2 font-mono text-[var(--sl400)]">{m.scheduledStart.replace("T", " ")}</td>
+                      <td className="border-b border-[var(--t18)] px-3 py-2 font-semibold text-[var(--sl100)]">{m.patientName || "—"}{m.priority === "STAT" && <span className="ml-1 rounded border border-rose-400/60 bg-rose-500/20 px-1 font-mono text-[9px] font-black text-[var(--ac-rose100)]">STAT</span>}</td>
+                      <td className="border-b border-[var(--t18)] px-3 py-2 font-mono text-[var(--sl400)]">{m.patientId}</td>
+                      <td className="border-b border-[var(--t18)] px-3 py-2 font-bold text-[var(--ac-cyan300)]">{m.modality || "—"}</td>
+                      <td className="border-b border-[var(--t18)] px-3 py-2 text-[var(--sl300)]">{m.description || m.bodyPart || "—"}</td>
+                      <td className="border-b border-[var(--t18)] px-3 py-2 font-mono text-[var(--sl400)]">{m.accession || m.stepId}</td>
+                      <td className="border-b border-[var(--t18)] px-3 py-2 text-[var(--sl400)]">{m.stationAeTitle || "—"}</td>
+                      <td className="border-b border-[var(--t18)] px-3 py-2 text-[var(--sl300)]">{MWL_STATUS[m.status] ?? m.status}</td>
+                      <td className="border-b border-[var(--t18)] px-3 py-2 text-right">
+                        <button disabled={mwlBusy} onClick={() => void takeMwl(m)} className="cursor-pointer rounded bg-cyan-500 px-2.5 py-1 font-bold text-[var(--sl950)] hover:bg-cyan-400 disabled:opacity-50">Çalışmaya al</button>
                       </td>
                     </tr>
                   ))}
@@ -292,25 +292,25 @@ export default function WorklistModal({ open, onClose, user, onOpenStudy, onOpen
 
         {tab === "pacs" && (
           <>
-            <div className="flex items-center gap-2 border-b border-[#1a2230] px-4 py-2 text-xs">
-              <input value={pq} onChange={(e) => setPq(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void searchPacs()} placeholder="Hasta adı veya ID (QIDO-RS)…" className="w-72 rounded border border-[#1e2735] bg-[#0e141d] px-2 py-1.5 text-slate-200 placeholder:text-slate-600 focus:outline-none" />
-              <button onClick={() => void searchPacs()} className="cursor-pointer rounded bg-cyan-500 px-3 py-1.5 font-bold text-slate-950">Ara</button>
-              <span className="text-slate-500">PACS adresi: Yönetim → Entegrasyon.</span>
+            <div className="flex items-center gap-2 border-b border-[var(--t25)] px-4 py-2 text-xs">
+              <input value={pq} onChange={(e) => setPq(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void searchPacs()} placeholder="Hasta adı veya ID (QIDO-RS)…" className="w-72 rounded border border-[var(--t30)] bg-[var(--t10)] px-2 py-1.5 text-[var(--sl200)] placeholder:text-[var(--sl600)] focus:outline-none" />
+              <button onClick={() => void searchPacs()} className="cursor-pointer rounded bg-cyan-500 px-3 py-1.5 font-bold text-[var(--sl950)]">Ara</button>
+              <span className="text-[var(--sl500)]">PACS adresi: Yönetim → Entegrasyon.</span>
             </div>
-            {pacsErr && <div className="border-b border-[#1a2230] px-4 py-2 text-xs font-semibold text-rose-300">{pacsErr}</div>}
+            {pacsErr && <div className="border-b border-[var(--t25)] px-4 py-2 text-xs font-semibold text-[var(--ac-rose300)]">{pacsErr}</div>}
             <div className="min-h-0 flex-1 overflow-auto">
               <table className="w-full border-collapse text-[11px]">
-                <thead className="sticky top-0 bg-[#0b0f16] text-left text-slate-500"><tr>{["Hasta", "ID", "Tarih", "Modalite", "Açıklama", "Görüntü", ""].map((h) => <th key={h} className="border-b border-[#1a2230] px-3 py-2 font-semibold">{h}</th>)}</tr></thead>
+                <thead className="sticky top-0 bg-[var(--t05)] text-left text-[var(--sl500)]"><tr>{["Hasta", "ID", "Tarih", "Modalite", "Açıklama", "Görüntü", ""].map((h) => <th key={h} className="border-b border-[var(--t25)] px-3 py-2 font-semibold">{h}</th>)}</tr></thead>
                 <tbody>
                   {pacs.map((s) => (
-                    <tr key={s.studyUid} className="hover:bg-[#101722]">
-                      <td className="border-b border-[#141b26] px-3 py-2 font-semibold text-slate-100">{s.patientName}</td>
-                      <td className="border-b border-[#141b26] px-3 py-2 font-mono text-slate-400">{s.patientId}</td>
-                      <td className="border-b border-[#141b26] px-3 py-2 text-slate-400">{s.studyDate}</td>
-                      <td className="border-b border-[#141b26] px-3 py-2 font-bold text-cyan-300">{s.modalities}</td>
-                      <td className="border-b border-[#141b26] px-3 py-2 text-slate-300">{s.description}</td>
-                      <td className="border-b border-[#141b26] px-3 py-2 text-slate-400">{s.instances}</td>
-                      <td className="border-b border-[#141b26] px-3 py-2 text-right"><button onClick={() => void openPreview(s)} title="İlk kare önizleme — yalnız 1 kesit indirilir (tanılama için seriyi açın)" className="mr-1 cursor-pointer rounded border border-[#2d3b4e] bg-[#141b24] px-2 py-1 text-slate-200 hover:border-cyan-400 hover:text-cyan-300">👁</button><button onClick={() => { onOpenPacs(s); onClose(); }} className="cursor-pointer rounded bg-cyan-500 px-2.5 py-1 font-bold text-slate-950 hover:bg-cyan-400">Getir ve aç</button></td>
+                    <tr key={s.studyUid} className="hover:bg-[var(--t14)]">
+                      <td className="border-b border-[var(--t18)] px-3 py-2 font-semibold text-[var(--sl100)]">{s.patientName}</td>
+                      <td className="border-b border-[var(--t18)] px-3 py-2 font-mono text-[var(--sl400)]">{s.patientId}</td>
+                      <td className="border-b border-[var(--t18)] px-3 py-2 text-[var(--sl400)]">{s.studyDate}</td>
+                      <td className="border-b border-[var(--t18)] px-3 py-2 font-bold text-[var(--ac-cyan300)]">{s.modalities}</td>
+                      <td className="border-b border-[var(--t18)] px-3 py-2 text-[var(--sl300)]">{s.description}</td>
+                      <td className="border-b border-[var(--t18)] px-3 py-2 text-[var(--sl400)]">{s.instances}</td>
+                      <td className="border-b border-[var(--t18)] px-3 py-2 text-right"><button onClick={() => void openPreview(s)} title="İlk kare önizleme — yalnız 1 kesit indirilir (tanılama için seriyi açın)" className="mr-1 cursor-pointer rounded border border-[var(--t39)] bg-[var(--t17)] px-2 py-1 text-[var(--sl200)] hover:border-cyan-400 hover:text-[var(--ac-cyan300)]">👁</button><button onClick={() => { onOpenPacs(s); onClose(); }} className="cursor-pointer rounded bg-cyan-500 px-2.5 py-1 font-bold text-[var(--sl950)] hover:bg-cyan-400">Getir ve aç</button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -320,21 +320,21 @@ export default function WorklistModal({ open, onClose, user, onOpenStudy, onOpen
         )}
         {preview && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70">
-            <div className="w-[480px] max-w-[92vw] rounded-xl border border-[#232e40] bg-[#0b0f16] p-4 shadow-2xl">
+            <div className="w-[480px] max-w-[92vw] rounded-xl border border-[var(--t34)] bg-[var(--t05)] p-4 shadow-2xl">
               <div className="mb-2 flex items-center gap-2">
-                <div className="text-xs font-black tracking-wide text-cyan-300">PACS önizleme — yalnız 1. kare</div>
-                <button onClick={() => { setPreview(null); setPreviewShot(null); }} className="ml-auto cursor-pointer rounded border border-[#2d3b4e] bg-[#141b24] px-2 py-0.5 text-xs text-slate-300 hover:text-white">✕</button>
+                <div className="text-xs font-black tracking-wide text-[var(--ac-cyan300)]">PACS önizleme — yalnız 1. kare</div>
+                <button onClick={() => { setPreview(null); setPreviewShot(null); }} className="ml-auto cursor-pointer rounded border border-[var(--t39)] bg-[var(--t17)] px-2 py-0.5 text-xs text-[var(--sl300)] hover:text-white">✕</button>
               </div>
-              <div className="mb-2 text-[10px] text-slate-500">{preview.patientName || "—"} · {preview.patientId || "—"} · {preview.modality || "—"} — bu görüntü tanı amaçlı değildir; değerlendirme için seriyi açın.</div>
-              {previewBusy && !previewShot && !previewErr && <div className="py-10 text-center text-xs text-slate-400">İlk kesit PACS&apos;ten getiriliyor…</div>}
-              {previewErr && <div className="rounded border border-rose-500/40 bg-rose-500/10 px-3 py-6 text-center text-xs font-semibold text-rose-300">{previewErr}</div>}
+              <div className="mb-2 text-[10px] text-[var(--sl500)]">{preview.patientName || "—"} · {preview.patientId || "—"} · {preview.modality || "—"} — bu görüntü tanı amaçlı değildir; değerlendirme için seriyi açın.</div>
+              {previewBusy && !previewShot && !previewErr && <div className="py-10 text-center text-xs text-[var(--sl400)]">İlk kesit PACS&apos;ten getiriliyor…</div>}
+              {previewErr && <div className="rounded border border-rose-500/40 bg-rose-500/10 px-3 py-6 text-center text-xs font-semibold text-[var(--ac-rose300)]">{previewErr}</div>}
               {previewShot && (
                 <>
-                  <canvas ref={canvasRef} aria-label="İlk kesit önizleme" className="mx-auto block max-h-[52vh] w-auto max-w-full rounded border border-[#1e2735] bg-black [image-rendering:pixelated]" />
-                  <div className="mt-2 text-center font-mono text-[10px] text-slate-500">{previewShot.width}×{previewShot.height}px{previewShot.frames > 1 ? ` · çok kareli (${previewShot.frames}), yalnız 1. kare gösterilir` : ""} · WL {Math.round(previewShot.wl)} / WW {Math.round(previewShot.ww)} · HU [{Math.round(previewShot.min)}, {Math.round(previewShot.max)}] · pencere PACS metadata&apos;sından (yoksa min/max yedeği)</div>
+                  <canvas ref={canvasRef} aria-label="İlk kesit önizleme" className="mx-auto block max-h-[52vh] w-auto max-w-full rounded border border-[var(--t30)] bg-black [image-rendering:pixelated]" />
+                  <div className="mt-2 text-center font-mono text-[10px] text-[var(--sl500)]">{previewShot.width}×{previewShot.height}px{previewShot.frames > 1 ? ` · çok kareli (${previewShot.frames}), yalnız 1. kare gösterilir` : ""} · WL {Math.round(previewShot.wl)} / WW {Math.round(previewShot.ww)} · HU [{Math.round(previewShot.min)}, {Math.round(previewShot.max)}] · pencere PACS metadata&apos;sından (yoksa min/max yedeği)</div>
                 </>
               )}
-              <div className="mt-3 flex justify-end"><button onClick={() => { setPreview(null); setPreviewShot(null); }} className="cursor-pointer rounded bg-cyan-500 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-cyan-400">Kapat</button></div>
+              <div className="mt-3 flex justify-end"><button onClick={() => { setPreview(null); setPreviewShot(null); }} className="cursor-pointer rounded bg-cyan-500 px-3 py-1.5 text-xs font-bold text-[var(--sl950)] hover:bg-cyan-400">Kapat</button></div>
             </div>
           </div>
         )}

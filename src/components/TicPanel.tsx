@@ -23,10 +23,10 @@ interface Props {
 }
 
 const patternTone: Record<string, string> = {
-  washout: "text-rose-200 border-rose-400/40 bg-rose-400/10",
-  progressif: "text-emerald-200 border-emerald-400/40 bg-emerald-400/10",
-  plateau: "text-amber-200 border-amber-400/40 bg-amber-400/10",
-  yetersiz: "text-slate-300 border-[#243044]",
+  washout: "text-[var(--ac-rose200)] border-rose-400/40 bg-rose-400/10",
+  progressif: "text-[var(--ac-emerald200)] border-emerald-400/40 bg-emerald-400/10",
+  plateau: "text-[var(--ac-amber200)] border-amber-400/40 bg-amber-400/10",
+  yetersiz: "text-[var(--sl300)] border-[var(--t35)]",
 };
 const patternLabel: Record<string, string> = {
   washout: "Tip 3 — wash-out", progressif: "Tip 1 — progresif", plateau: "Tip 2 — plato", yetersiz: "Yetersiz veri",
@@ -67,19 +67,19 @@ export default function TicPanel({ series, all, slice, annotations, onClose, onA
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-label="ROI tabanlı TIC analizi">
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-[#243044] bg-[#0b1018] p-4 text-slate-200 shadow-2xl">
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-[var(--t35)] bg-[var(--t06)] p-4 text-[var(--sl200)] shadow-2xl">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="font-mono text-sm font-black tracking-wide text-cyan-300">TIC · ROI zaman-yoğunluk eğrisi</h2>
-            <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+            <h2 className="font-mono text-sm font-black tracking-wide text-[var(--ac-cyan300)]">TIC · ROI zaman-yoğunluk eğrisi</h2>
+            <p className="mt-1 text-[11px] leading-relaxed text-[var(--sl400)]">
               ROI, aynı çerçevedeki dinamik serilerin karşılık gelen kesitlerine uygulanır. Zaman ekseni Series/Acquisition Time farkıdır.
             </p>
           </div>
-          <button onClick={onClose} className="cursor-pointer rounded border border-[#2d3b4e] px-2 py-1 text-[11px] text-slate-300 hover:bg-[#16202c]">Kapat ✕</button>
+          <button onClick={onClose} className="cursor-pointer rounded border border-[var(--t39)] px-2 py-1 text-[11px] text-[var(--sl300)] hover:bg-[var(--t24)]">Kapat ✕</button>
         </div>
 
         {candidates.length === 0 ? (
-          <p className="mt-4 rounded border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-[11.5px] text-amber-200">
+          <p className="mt-4 rounded border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-[11.5px] text-[var(--ac-amber200)]">
             Bu kesitte ROI bulunamadı. Araç çubuğundan <b>dikdörtgen</b>, <b>elips</b> veya <b>poligon</b> seçip lezyonun üzerine çizin; sonra bu paneli yeniden açın.
           </p>
         ) : (
@@ -87,7 +87,7 @@ export default function TicPanel({ series, all, slice, annotations, onClose, onA
             <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
               <label className="flex items-center gap-1">
                 ROI:
-                <select value={roi?.id ?? ""} onChange={(e) => setRoiId(e.target.value)} className="rounded border border-[#1e2735] bg-[#0e141d] px-2 py-1 text-[11px]">
+                <select value={roi?.id ?? ""} onChange={(e) => setRoiId(e.target.value)} className="rounded border border-[var(--t30)] bg-[var(--t10)] px-2 py-1 text-[11px]">
                   {candidates.map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.kind === "rect" ? "dikdörtgen" : a.kind === "ellipse" ? "elips" : "poligon"} · kesit {a.slice + 1} · {a.points.length} nokta
@@ -101,41 +101,41 @@ export default function TicPanel({ series, all, slice, annotations, onClose, onA
                 </span>
               )}
               {analysis && analysis.excluded > 0 && (
-                <span className="text-[10.5px] text-slate-500">{analysis.excluded} seri geometri/zaman uyuşmadığı için dışlandı</span>
+                <span className="text-[10.5px] text-[var(--sl500)]">{analysis.excluded} seri geometri/zaman uyuşmadığı için dışlandı</span>
               )}
             </div>
 
             {!analysis && (
-              <p className="mt-3 rounded border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-[11.5px] text-amber-200">
+              <p className="mt-3 rounded border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-[11.5px] text-[var(--ac-amber200)]">
                 ROI hiçbir seride uygulanamadı (geometri uyuşmuyor veya seri renkli). En az iki paralel seri gerekir.
               </p>
             )}
 
             {analysis && (
               <>
-                <svg viewBox={`0 0 ${w} ${h}`} className="mt-3 w-full rounded border border-[#1a2332] bg-[#080c12]" role="img" aria-label="TIC eğrisi">
+                <svg viewBox={`0 0 ${w} ${h}`} className="mt-3 w-full rounded border border-[var(--t27)] bg-[var(--t45)]" role="img" aria-label="TIC eğrisi">
                   {plot && (
                     <>
                       <polyline points={plot.pts} fill="none" stroke="#22d3ee" strokeWidth={2} />
                       {analysis.values.map((v, i) => (
                         <circle key={i} cx={plot.x(i)} cy={plot.y(v)} r={2.5} fill="#22d3ee" />
                       ))}
-                      <text x={pad} y={12} fill="#64748b" fontSize={9} fontFamily="ui-monospace">
+                      <text x={pad} y={12} fill="var(--t42)" fontSize={9} fontFamily="ui-monospace">
                         {plot.hi.toFixed(1)}
                       </text>
-                      <text x={pad} y={h - 5} fill="#64748b" fontSize={9} fontFamily="ui-monospace">
+                      <text x={pad} y={h - 5} fill="var(--t42)" fontSize={9} fontFamily="ui-monospace">
                         {plot.lo.toFixed(1)}
                       </text>
                     </>
                   )}
-                  <text x={w - pad} y={h - 5} fill="#64748b" fontSize={9} textAnchor="end" fontFamily="ui-monospace">
+                  <text x={w - pad} y={h - 5} fill="var(--t42)" fontSize={9} textAnchor="end" fontFamily="ui-monospace">
                     {analysis.axis === "sn" ? "zaman (sn)" : "faz sırası"}
                   </text>
                 </svg>
 
                 <div className="mt-2 overflow-x-auto">
                   <table className="w-full text-[10.5px]">
-                    <thead className="text-slate-500">
+                    <thead className="text-[var(--sl500)]">
                       <tr className="text-left">
                         <th className="py-0.5 pr-2">Faz</th>
                         <th className="py-0.5 pr-2">Seri</th>
@@ -144,9 +144,9 @@ export default function TicPanel({ series, all, slice, annotations, onClose, onA
                         <th className="py-0.5 text-right">Ortalama</th>
                       </tr>
                     </thead>
-                    <tbody className="font-mono text-slate-300">
+                    <tbody className="font-mono text-[var(--sl300)]">
                       {analysis.phases.map((p, i) => (
-                        <tr key={p.seriesId} className="border-t border-[#141b24]">
+                        <tr key={p.seriesId} className="border-t border-[var(--t17)]">
                           <td className="py-0.5 pr-2">{i + 1}</td>
                           <td className="max-w-[160px] truncate py-0.5 pr-2" title={p.label}>{p.modality} · {p.label}</td>
                           <td className="py-0.5 pr-2">{p.sliceIndex + 1}</td>
@@ -158,24 +158,24 @@ export default function TicPanel({ series, all, slice, annotations, onClose, onA
                   </table>
                 </div>
 
-                <div className="mt-2 grid gap-1 text-[11px] text-slate-300 sm:grid-cols-2">
+                <div className="mt-2 grid gap-1 text-[11px] text-[var(--sl300)] sm:grid-cols-2">
                   <div>Zirve: <b>{analysis.peak.toFixed(2)}</b></div>
                   <div>Zirveye artış: <b>{analysis.enhancementPct === null ? "—" : `%${analysis.enhancementPct.toFixed(1)}`}</b></div>
                   <div>Wash-out: <b>{analysis.curve.washOutPct === null ? "—" : `%${analysis.curve.washOutPct.toFixed(1)}`}</b></div>
                   <div>Wash-in: <b>{analysis.curve.washIn === null ? "—" : `${analysis.curve.washIn.toFixed(3)}/sn`}</b></div>
                 </div>
-                <p className="mt-2 rounded border border-[#243044] bg-[#0d141d] px-2 py-1.5 text-[10.5px] leading-relaxed text-slate-400">
+                <p className="mt-2 rounded border border-[var(--t35)] bg-[var(--t48)] px-2 py-1.5 text-[10.5px] leading-relaxed text-[var(--sl400)]">
                   {analysis.curve.advice}
                 </p>
-                <p className="mt-1 text-[10px] leading-relaxed text-amber-200/80">{analysis.note}</p>
+                <p className="mt-1 text-[10px] leading-relaxed text-[var(--ac-amber200)]/80">{analysis.note}</p>
 
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <button onClick={copySummary} className="cursor-pointer rounded border border-cyan-400/40 bg-cyan-400/10 px-2.5 py-1 text-[11px] font-semibold text-cyan-200 hover:bg-cyan-400/20">
+                  <button onClick={copySummary} className="cursor-pointer rounded border border-cyan-400/40 bg-cyan-400/10 px-2.5 py-1 text-[11px] font-semibold text-[var(--ac-cyan200)] hover:bg-cyan-400/20">
                     Özeti akışa ekle + kopyala
                   </button>
                   <button
                     onClick={() => void navigator.clipboard?.writeText(analysis.csv).catch(() => {})}
-                    className="cursor-pointer rounded border border-[#2d3b4e] px-2.5 py-1 text-[11px] text-slate-300 hover:bg-[#16202c]"
+                    className="cursor-pointer rounded border border-[var(--t39)] px-2.5 py-1 text-[11px] text-[var(--sl300)] hover:bg-[var(--t24)]"
                   >
                     CSV kopyala
                   </button>

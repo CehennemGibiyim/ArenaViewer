@@ -35,9 +35,9 @@ export default function ServiceWorkerRegister() {
 
   if (!needReload) return null;
   return (
-    <div className="fixed bottom-3 right-3 z-[60] flex items-center gap-2 rounded-lg border border-cyan-500/40 bg-[#0b0f16] px-3 py-2 text-xs text-slate-200 shadow-lg">
+    <div className="fixed bottom-3 right-3 z-[60] flex items-center gap-2 rounded-lg border border-cyan-500/40 bg-[var(--t05)] px-3 py-2 text-xs text-[var(--sl200)] shadow-lg">
       <span>Yeni sürüm hazır.</span>
-      <button onClick={() => window.location.reload()} className="rounded bg-cyan-500/20 px-2 py-1 font-bold text-cyan-200 hover:bg-cyan-500/30">Yenile</button>
+      <button onClick={() => window.location.reload()} className="rounded bg-cyan-500/20 px-2 py-1 font-bold text-[var(--ac-cyan200)] hover:bg-cyan-500/30">Yenile</button>
     </div>
   );
 }

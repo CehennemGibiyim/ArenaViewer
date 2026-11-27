@@ -382,7 +382,7 @@ export default function Viewport(props: ViewportProps) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = "#07090c";
+    ctx.fillStyle = "var(--t01)";
     ctx.fillRect(0, 0, size.w, size.h);
     if (!series) return;
 
@@ -702,7 +702,7 @@ export default function Viewport(props: ViewportProps) {
       const multi = series.isColor && series.slices.length > 1 ? ` · ${series.slices.length} kare` : "";
       ctx.save();
       ctx.font = "600 10px ui-monospace, monospace";
-      ctx.fillStyle = "#7f8ea3";
+      ctx.fillStyle = "var(--t43)";
       ctx.textAlign = "right";
       ctx.fillText(`${pl}${multi}`, size.w - 8, size.h - 8);
       ctx.restore();
@@ -948,7 +948,7 @@ export default function Viewport(props: ViewportProps) {
   const current = findings.filter((f) => revealedIds.has(f.id) && slice >= f.sliceStart && slice <= f.sliceEnd && f.category !== "Sistem");
 
   return (
-    <div ref={wrapRef} className="relative h-full w-full overflow-hidden bg-[#07090c]" style={{ touchAction: "none" }}>
+    <div ref={wrapRef} className="relative h-full w-full overflow-hidden bg-[var(--t01)]" style={{ touchAction: "none" }}>
       <canvas
         ref={canvasRef}
         style={{ width: size.w, height: size.h, cursor: tool === "pan" ? "grab" : "crosshair" }}
@@ -961,13 +961,13 @@ export default function Viewport(props: ViewportProps) {
         onWheel={onWheel}
         onContextMenu={(e) => e.preventDefault()}
       />
-      {label && <div className="pointer-events-none absolute left-2 top-2 rounded bg-black/60 px-2 py-0.5 font-mono text-[10px] text-violet-200">{label}</div>}
+      {label && <div className="pointer-events-none absolute left-2 top-2 rounded bg-black/60 px-2 py-0.5 font-mono text-[10px] text-[var(--ac-violet200)]">{label}</div>}
       <button
         type="button"
         onClick={toggleFullscreen}
         title={isFullscreen ? "Tam ekrandan çık (Esc)" : "Bu paneli tam ekran yap"}
         aria-label={isFullscreen ? "Tam ekrandan çık" : "Paneli tam ekran yap"}
-        className="absolute right-2 top-2 z-10 rounded border border-[#243044] bg-black/60 px-1.5 py-0.5 text-[11px] text-slate-300 hover:border-cyan-400/60 hover:text-cyan-200"
+        className="absolute right-2 top-2 z-10 rounded border border-[var(--t35)] bg-black/60 px-1.5 py-0.5 text-[11px] text-[var(--sl300)] hover:border-cyan-400/60 hover:text-[var(--ac-cyan200)]"
       >{isFullscreen ? "⤡" : "⛶"}</button>
       {current.length > 0 && (
         <div className="pointer-events-none absolute left-1/2 top-12 flex -translate-x-1/2 flex-col items-center gap-1">
@@ -979,7 +979,7 @@ export default function Viewport(props: ViewportProps) {
         </div>
       )}
       {draft?.mode === "multi" && (
-        <div className="pointer-events-none absolute bottom-8 left-1/2 -translate-x-1/2 rounded bg-black/70 px-3 py-1 text-[11px] text-slate-200">
+        <div className="pointer-events-none absolute bottom-8 left-1/2 -translate-x-1/2 rounded bg-black/70 px-3 py-1 text-[11px] text-[var(--sl200)]">
           {draft.tool === "polygon" ? "Çokgen: noktalara tıklayın · çift tık/Enter: bitir · Esc: iptal" : draft.tool === "deviation" ? `Sapma: ${["1. referans noktası", "2. referans noktası", "ölçülecek nokta"][draft.pts.length] ?? ""} · Esc: iptal` : `${draft.pts.length}/${MULTI_NEED[draft.tool]} nokta · Esc: iptal`}
         </div>
       )}

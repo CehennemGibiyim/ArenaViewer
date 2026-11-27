@@ -32,6 +32,8 @@ const uiFiles = [
   "src/components/Workstation.tsx",
   "src/components/RightPanel.tsx",
   "src/components/KneeSegPanel.tsx",
+  "src/components/LanguageMenu.tsx",
+  "src/components/IntendedUseModal.tsx",
 ];
 const pattern = /(?:title|aria-label)="([^"]{8,200})"/g;
 const seen = new Set<string>();

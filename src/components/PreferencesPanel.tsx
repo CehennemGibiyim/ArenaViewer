@@ -61,27 +61,27 @@ export default function PreferencesPanel() {
     if (d.prefs) { setPrefs(d.prefs); setMsg("Varsayılanlara dönüldü."); } else setMsg("Sıfırlanamadı");
   };
 
-  const sel = "rounded border border-[#232e40] bg-[#141b24] px-2 py-1 text-xs text-slate-200";
+  const sel = "rounded border border-[var(--t34)] bg-[var(--t17)] px-2 py-1 text-xs text-[var(--sl200)]";
 
   return (
     <div className="mx-auto max-w-3xl p-6">
-      <button onClick={() => void load()} className="cursor-pointer rounded border border-slate-500/40 px-2 py-1 text-[11px] font-bold text-cyan-200 hover:bg-slate-500/10">Tercihleri getir</button>
-      <h1 className="text-lg font-black text-cyan-300">Kullanıcı tercihleri</h1>
-      <p className="mt-1 text-xs text-slate-400">Tercihleriniz sunucuda, kimlik doğrulamalı hesabınızla saklanır ve cihazlar arası taşınır.</p>
+      <button onClick={() => void load()} className="cursor-pointer rounded border border-[var(--sl500)]/40 px-2 py-1 text-[11px] font-bold text-[var(--ac-cyan200)] hover:bg-[var(--sl500)]/10">Tercihleri getir</button>
+      <h1 className="text-lg font-black text-[var(--ac-cyan300)]">Kullanıcı tercihleri</h1>
+      <p className="mt-1 text-xs text-[var(--sl400)]">Tercihleriniz sunucuda, kimlik doğrulamalı hesabınızla saklanır ve cihazlar arası taşınır.</p>
 
-      {!prefs && <p className="mt-4 text-sm text-slate-400">{msg || "Tercihleri yüklemek için Yenile’yi kullanın."}</p>}
+      {!prefs && <p className="mt-4 text-sm text-[var(--sl400)]">{msg || "Tercihleri yüklemek için Yenile’yi kullanın."}</p>}
       {prefs && (
-        <div className="mt-4 space-y-4 rounded-xl border border-[#232e40] bg-[#0d121a] p-4">
+        <div className="mt-4 space-y-4 rounded-xl border border-[var(--t34)] bg-[var(--t07)] p-4">
           <label className="block text-xs">
-            <span className="font-bold text-slate-200">Açılış düzeni</span>
+            <span className="font-bold text-[var(--sl200)]">Açılış düzeni</span>
             <select className={`mt-1 w-full ${sel}`} value={prefs.layout} onChange={(e) => setPrefs({ ...prefs, layout: e.target.value as LayoutPref })}>
               {LAYOUTS.map((l) => <option key={l} value={l}>{l}</option>)}
             </select>
-            <span className="mt-0.5 block text-[10px] text-slate-500">Seri seçildiğinde pencere ön ayarı bu değerle başlar (sonra elle değiştirilebilir).</span>
+            <span className="mt-0.5 block text-[10px] text-[var(--sl500)]">Seri seçildiğinde pencere ön ayarı bu değerle başlar (sonra elle değiştirilebilir).</span>
           </label>
 
           <label className="block text-xs">
-            <span className="font-bold text-slate-200">Varsayılan pencere ön ayarı</span>
+            <span className="font-bold text-[var(--sl200)]">Varsayılan pencere ön ayarı</span>
             <select className={`mt-1 w-full ${sel}`} value={prefs.defaultWindow} onChange={(e) => setPrefs({ ...prefs, defaultWindow: e.target.value })}>
               {WINDOW_PRESETS.map((w) => <option key={w || "yok"} value={w}>{w || "(varsayılan yok)"}</option>)}
             </select>
@@ -98,45 +98,45 @@ export default function PreferencesPanel() {
           </label>
 
           <div className="flex flex-wrap items-center gap-2 pt-2">
-            <button disabled={busy} onClick={() => void save(prefs)} className="cursor-pointer rounded bg-cyan-500 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-cyan-400 disabled:opacity-50">Kaydet</button>
-            <button disabled={busy} onClick={() => void reset()} className="cursor-pointer rounded border border-rose-400/40 px-3 py-1.5 text-xs font-bold text-rose-200 hover:bg-rose-400/10 disabled:opacity-50">Varsayılana döndür</button>
-            {msg && <span className="text-xs text-slate-400">{msg}</span>}
+            <button disabled={busy} onClick={() => void save(prefs)} className="cursor-pointer rounded bg-cyan-500 px-3 py-1.5 text-xs font-bold text-[var(--sl950)] hover:bg-cyan-400 disabled:opacity-50">Kaydet</button>
+            <button disabled={busy} onClick={() => void reset()} className="cursor-pointer rounded border border-rose-400/40 px-3 py-1.5 text-xs font-bold text-[var(--ac-rose200)] hover:bg-rose-400/10 disabled:opacity-50">Varsayılana döndür</button>
+            {msg && <span className="text-xs text-[var(--sl400)]">{msg}</span>}
           </div>
 
-          {defaults && defaults.layout !== prefs.layout && <p className="text-[10px] text-slate-500">Varsayılan düzen: {defaults.layout}</p>}
+          {defaults && defaults.layout !== prefs.layout && <p className="text-[10px] text-[var(--sl500)]">Varsayılan düzen: {defaults.layout}</p>}
         </div>
       )}
 
-      <div className="mt-4 space-y-2 rounded-xl border border-[#232e40] bg-[#0d121a] p-4">
-        <h2 className="text-sm font-black text-cyan-300">Klavye kısayolları</h2>
-        <p className="text-[11px] text-slate-400">
+      <div className="mt-4 space-y-2 rounded-xl border border-[var(--t34)] bg-[var(--t07)] p-4">
+        <h2 className="text-sm font-black text-[var(--ac-cyan300)]">Klavye kısayolları</h2>
+        <p className="text-[11px] text-[var(--sl400)]">
           Görüntüleyici kısayollarını kendiniz atayabilirsiniz. Birden çok tuş için virgülle ayırın (ör. <code>r, R2</code>).
           Boş bırakılan eylemde kısayol çalışmaz. Bu ayar <b>bu tarayıcıda</b> saklanır; hesaba bağlı değildir.
         </p>
         <div className="grid gap-2 sm:grid-cols-2">
           {SHORTCUT_ACTIONS.map((action) => (
             <label key={action} className="block text-xs">
-              <span className="font-bold text-slate-200">{SHORTCUT_LABELS[action]}</span>
+              <span className="font-bold text-[var(--sl200)]">{SHORTCUT_LABELS[action]}</span>
               <input
                 value={formatKeyList(shortcuts[action])}
                 onChange={(e) => setKeys(action, e.target.value)}
                 placeholder="(atanmadı)"
                 aria-label={`${SHORTCUT_LABELS[action]} kısayolu`}
-                className="mt-1 w-full rounded border border-[#232e40] bg-[#141b24] px-2 py-1 font-mono text-xs text-slate-200"
+                className="mt-1 w-full rounded border border-[var(--t34)] bg-[var(--t17)] px-2 py-1 font-mono text-xs text-[var(--sl200)]"
               />
             </label>
           ))}
         </div>
         {conflicts.length > 0 && (
-          <p className="rounded border border-amber-400/40 bg-amber-400/10 px-2 py-1 text-[11px] text-amber-200">
+          <p className="rounded border border-amber-400/40 bg-amber-400/10 px-2 py-1 text-[11px] text-[var(--ac-amber200)]">
             Çakışma: {conflicts.map((c) => `${c.key} → ${c.actions.map((a) => SHORTCUT_LABELS[a]).join(" / ")}`).join(" · ")}. Çakışmada listedeki ilk eylem çalışır.
           </p>
         )}
         <div className="flex flex-wrap items-center gap-2 pt-1">
-          <button onClick={() => { setShortcuts(loadShortcuts()); setScMsg("Kayıtlı kısayollar yüklendi."); }} className="cursor-pointer rounded border border-slate-500/40 px-3 py-1.5 text-xs font-bold text-cyan-200 hover:bg-slate-500/10">Kısayolları getir</button>
-          <button onClick={saveSc} className="cursor-pointer rounded bg-cyan-500 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-cyan-400">Kısayolları kaydet</button>
-          <button onClick={resetSc} className="cursor-pointer rounded border border-rose-400/40 px-3 py-1.5 text-xs font-bold text-rose-200 hover:bg-rose-400/10">Varsayılana döndür</button>
-          {scMsg && <span className="text-xs text-slate-400">{scMsg}</span>}
+          <button onClick={() => { setShortcuts(loadShortcuts()); setScMsg("Kayıtlı kısayollar yüklendi."); }} className="cursor-pointer rounded border border-[var(--sl500)]/40 px-3 py-1.5 text-xs font-bold text-[var(--ac-cyan200)] hover:bg-[var(--sl500)]/10">Kısayolları getir</button>
+          <button onClick={saveSc} className="cursor-pointer rounded bg-cyan-500 px-3 py-1.5 text-xs font-bold text-[var(--sl950)] hover:bg-cyan-400">Kısayolları kaydet</button>
+          <button onClick={resetSc} className="cursor-pointer rounded border border-rose-400/40 px-3 py-1.5 text-xs font-bold text-[var(--ac-rose200)] hover:bg-rose-400/10">Varsayılana döndür</button>
+          {scMsg && <span className="text-xs text-[var(--sl400)]">{scMsg}</span>}
         </div>
       </div>
     </div>

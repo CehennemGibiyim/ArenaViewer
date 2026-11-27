@@ -117,7 +117,7 @@ function Plane({ title, w, rows, rowScale, data, wl, ww, invert, cross, color, l
     c.height = size.h * dpr;
     const ctx = c.getContext("2d")!;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = "#05070a";
+    ctx.fillStyle = "var(--t00)";
     ctx.fillRect(0, 0, size.w, size.h);
     const off = document.createElement("canvas");
     off.width = w; off.height = rows;
@@ -164,7 +164,7 @@ function Plane({ title, w, rows, rowScale, data, wl, ww, invert, cross, color, l
   };
 
   return (
-    <div className="relative flex min-h-0 flex-col border border-[#1a2230] bg-black">
+    <div className="relative flex min-h-0 flex-col border border-[var(--t25)] bg-black">
       <div className="absolute left-2 top-1 z-10 font-mono text-[10px] font-bold" style={{ color }}>{title}</div>
       <div ref={wrap} className="min-h-0 flex-1">
         <canvas
@@ -245,20 +245,20 @@ export default function VolumeView({ series, wl: wl0, ww: ww0, invert, initialTa
   const zMm = series.slicePositions ? series.slicePositions[cur.z] : cur.z * spacing;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-[#05070a]">
-      <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-[#1a2230] bg-[#0b0f16] px-3 py-2 text-xs">
-        <span className="font-mono font-black tracking-widest text-cyan-300">{tab === "3b" ? "3B HACİM" : "MPR"} · {series.description}</span>
-        <span className="font-mono text-slate-400">x {cur.x} · y {cur.y} · kesit {cur.z + 1}/{N} · z {zMm.toFixed(1)} mm · değer {val !== undefined ? val.toFixed(0) : "—"} {series.unit}</span>
+    <div className="fixed inset-0 z-50 flex flex-col bg-[var(--t00)]">
+      <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-[var(--t25)] bg-[var(--t05)] px-3 py-2 text-xs">
+        <span className="font-mono font-black tracking-widest text-[var(--ac-cyan300)]">{tab === "3b" ? "3B HACİM" : "MPR"} · {series.description}</span>
+        <span className="font-mono text-[var(--sl400)]">x {cur.x} · y {cur.y} · kesit {cur.z + 1}/{N} · z {zMm.toFixed(1)} mm · değer {val !== undefined ? val.toFixed(0) : "—"} {series.unit}</span>
         <div className="ml-auto flex items-center gap-2">
-          <label className="flex items-center gap-1 text-slate-300" title="Oblik düzlemin aksiyel/koronal/sagital panellerde kesişim çizgisini (lime) gösterir">
+          <label className="flex items-center gap-1 text-[var(--sl300)]" title="Oblik düzlemin aksiyel/koronal/sagital panellerde kesişim çizgisini (lime) gösterir">
             <input type="checkbox" checked={showObliqueLine} onChange={(e) => setShowObliqueLine(e.target.checked)} />Oblik çizgisi
           </label>
-          <label className="flex items-center gap-1 text-slate-300">Kalın kesit
+          <label className="flex items-center gap-1 text-[var(--sl300)]">Kalın kesit
             <input type="range" min={0} max={40} step={1} value={slab} onChange={(e) => setSlab(Number(e.target.value))} className="w-28" />
-            <span className="w-12 font-mono text-cyan-300">{slab} mm</span>
+            <span className="w-12 font-mono text-[var(--ac-cyan300)]">{slab} mm</span>
           </label>
           {(["avg", "mip", "minip"] as const).map((k) => (
-            <button key={k} disabled={slab === 0} onClick={() => setMode(k)} className={`rounded px-2 py-1 font-bold disabled:opacity-40 ${m === k && slab > 0 ? "bg-cyan-400/20 text-cyan-200 ring-1 ring-cyan-400/50" : "text-slate-300 hover:bg-[#161e2b]"}`}>
+            <button key={k} disabled={slab === 0} onClick={() => setMode(k)} className={`rounded px-2 py-1 font-bold disabled:opacity-40 ${m === k && slab > 0 ? "bg-cyan-400/20 text-[var(--ac-cyan200)] ring-1 ring-cyan-400/50" : "text-[var(--sl300)] hover:bg-[var(--t23)]"}`}>
               {k === "avg" ? "Ort." : k === "mip" ? "MIP" : "MinIP"}
             </button>
           ))}
@@ -268,17 +268,17 @@ export default function VolumeView({ series, wl: wl0, ww: ww0, invert, initialTa
                 const f = key === "soft" ? { wl: 40, ww: 400 } : { wl: 350, ww: 1800 };
                 setPrefFilter((p) => (p && p.wl === f.wl && p.ww === f.ww ? null : f));
                 setWl(f.wl); setWw(f.ww);
-              }} className={`cursor-pointer rounded px-2 py-0.5 font-bold ${prefFilter?.wl === (key === "soft" ? 40 : 350) ? "bg-cyan-400/20 text-cyan-200 ring-1 ring-cyan-400/50" : "text-slate-300 hover:bg-[#161e2b]"}`}>{label}</button>
+              }} className={`cursor-pointer rounded px-2 py-0.5 font-bold ${prefFilter?.wl === (key === "soft" ? 40 : 350) ? "bg-cyan-400/20 text-[var(--ac-cyan200)] ring-1 ring-cyan-400/50" : "text-[var(--sl300)] hover:bg-[var(--t23)]"}`}>{label}</button>
             ))}
-            <button onClick={() => { setPrefFilter(null); setWl(wl0); setWw(ww0); }} className="cursor-pointer rounded bg-[#141b24] px-2 py-0.5 font-bold text-slate-300 hover:bg-[#1f2937]">Filtreyi sıfırla</button>
+            <button onClick={() => { setPrefFilter(null); setWl(wl0); setWw(ww0); }} className="cursor-pointer rounded bg-[var(--t17)] px-2 py-0.5 font-bold text-[var(--sl300)] hover:bg-[var(--t31)]">Filtreyi sıfırla</button>
           </div>
-          <label className="flex items-center gap-1 text-slate-300">WL
-            <input type="number" value={Math.round(wl)} onChange={(e) => setWl(Number(e.target.value))} className="w-16 rounded border border-[#1e2735] bg-[#0e141d] px-1 py-0.5 text-slate-100" />
+          <label className="flex items-center gap-1 text-[var(--sl300)]">WL
+            <input type="number" value={Math.round(wl)} onChange={(e) => setWl(Number(e.target.value))} className="w-16 rounded border border-[var(--t30)] bg-[var(--t10)] px-1 py-0.5 text-[var(--sl100)]" />
           </label>
-          <label className="flex items-center gap-1 text-slate-300">WW
-            <input type="number" value={Math.round(ww)} onChange={(e) => setWw(Math.max(1, Number(e.target.value)))} className="w-16 rounded border border-[#1e2735] bg-[#0e141d] px-1 py-0.5 text-slate-100" />
+          <label className="flex items-center gap-1 text-[var(--sl300)]">WW
+            <input type="number" value={Math.round(ww)} onChange={(e) => setWw(Math.max(1, Number(e.target.value)))} className="w-16 rounded border border-[var(--t30)] bg-[var(--t10)] px-1 py-0.5 text-[var(--sl100)]" />
           </label>
-          <button onClick={onClose} className="rounded border border-[#2d3b4e] bg-[#141b24] px-3 py-1 font-bold text-slate-200 hover:bg-[#1f2937]">✕ Kapat</button>
+          <button onClick={onClose} className="rounded border border-[var(--t39)] bg-[var(--t17)] px-3 py-1 font-bold text-[var(--sl200)] hover:bg-[var(--t31)]">✕ Kapat</button>
         </div>
       </div>
       <div className="grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-1 p-1">
@@ -299,27 +299,27 @@ export default function VolumeView({ series, wl: wl0, ww: ww0, invert, initialTa
           onPick={(ix, iy) => setCur((c) => ({ ...c, y: clamp(ix, H), z: clamp(N - 1 - iy, N) }))}
           onWheel={(d) => setCur((c) => ({ ...c, x: clamp(c.x + d, W) }))} />
         </>}
-        <div className={`flex min-h-0 flex-col overflow-hidden border border-[#1a2230] bg-[#0b0f16] ${big ? "col-span-2 row-span-2" : ""}`}>
-          <div className="flex shrink-0 items-center gap-1 border-b border-[#1a2230] px-2 py-1 text-[11px]">
+        <div className={`flex min-h-0 flex-col overflow-hidden border border-[var(--t25)] bg-[var(--t05)] ${big ? "col-span-2 row-span-2" : ""}`}>
+          <div className="flex shrink-0 items-center gap-1 border-b border-[var(--t25)] px-2 py-1 text-[11px]">
             {([["not", "Notlar"], ["oblik", "Oblik MPR"], ["kavisli", "Kavisli MPR"], ["3b", "3B hacim"]] as const).map(([k, l]) => (
-              <button key={k} onClick={() => setTab(k)} className={`cursor-pointer rounded px-2 py-0.5 font-bold ${tab === k ? "bg-cyan-400/20 text-cyan-200 ring-1 ring-cyan-400/50" : "bg-[#141b24] text-slate-300 hover:bg-[#1f2937]"}`}>{l}</button>
+              <button key={k} onClick={() => setTab(k)} className={`cursor-pointer rounded px-2 py-0.5 font-bold ${tab === k ? "bg-cyan-400/20 text-[var(--ac-cyan200)] ring-1 ring-cyan-400/50" : "bg-[var(--t17)] text-[var(--sl300)] hover:bg-[var(--t31)]"}`}>{l}</button>
             ))}
-            <button onClick={() => setBig((b) => !b)} className="ml-auto cursor-pointer rounded bg-[#141b24] px-2 py-0.5 font-bold text-slate-300 hover:bg-[#1f2937]">{big ? "▣ Küçült" : "⛶ Büyüt"}</button>
+            <button onClick={() => setBig((b) => !b)} className="ml-auto cursor-pointer rounded bg-[var(--t17)] px-2 py-0.5 font-bold text-[var(--sl300)] hover:bg-[var(--t31)]">{big ? "▣ Küçült" : "⛶ Büyüt"}</button>
           </div>
           <div className="min-h-0 flex-1">
           {tab === "oblik" && <ObliquePanel series={series} center={cur} wl={wl} ww={ww} invert={invert} rot={obRot} onRotChange={setObRot} />}
           {tab === "kavisli" && <CurvedMprPanel series={series} wl={wl} ww={ww} invert={invert} />}
           {tab === "3b" && <VolumeRender series={series} />}
-          {tab === "not" && <div className="h-full overflow-auto p-3 text-[11px] leading-relaxed text-slate-300">
-          <div className="mb-1 text-xs font-bold text-slate-100">MPR notları</div>
+          {tab === "not" && <div className="h-full overflow-auto p-3 text-[11px] leading-relaxed text-[var(--sl300)]">
+          <div className="mb-1 text-xs font-bold text-[var(--sl100)]">MPR notları</div>
           <ul className="list-disc space-y-1 pl-4">
             <li>Bir düzleme tıklayın/sürükleyin: diğer düzlemlerde <b>çapraz referans çizgileri</b> aynı noktayı gösterir.</li>
             <li>Tekerlek: tıklanan düzlemin normali boyunca gezinir.</li>
             <li>Kalın kesit: ortalama / MIP (en parlak) / MinIP (en koyu) projeksiyonu.</li>
             <li>Kesit aralığı <b>{spacing.toFixed(2)} mm</b>, piksel <b>{(series.pixelSpacing || 1).toFixed(2)} mm</b> (dikey ölçek {ratio.toFixed(2)}×).</li>
             <li><b>Oblik MPR</b>, <b>Kavisli MPR</b> (merkez hattını aksiyel kesitte işaretleyip yay boyunca düzleştirir) ve <b>3B hacim</b> (VR/MIP, STL) sekmelerinden eğimli düzlem, kavisli kesit ve hacim görüntüleme kullanılır.</li>
-            <li className="text-amber-300">Koronal/sagittal yönelim, kesitlerin kafa yönüne artan sıralandığı varsayımına dayanır.</li>
-            {N < 12 && <li className="text-amber-300">Kesit sayısı az ({N}); yeniden kesit görüntüleri kaba görünebilir.</li>}
+            <li className="text-[var(--ac-amber300)]">Koronal/sagittal yönelim, kesitlerin kafa yönüne artan sıralandığı varsayımına dayanır.</li>
+            {N < 12 && <li className="text-[var(--ac-amber300)]">Kesit sayısı az ({N}); yeniden kesit görüntüleri kaba görünebilir.</li>}
           </ul>
         </div>}
           </div>

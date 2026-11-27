@@ -55,6 +55,8 @@ import { findMskProtocol, type MskMetric } from "@/lib/msk";
 import { suvPresetsForSeries } from "@/lib/petWindows";
 import { SHORT_DISCLAIMER, versionLine } from "@/lib/intendedUse";
 import IntendedUseModal from "@/components/IntendedUseModal";
+import LanguageMenu from "@/components/LanguageMenu";
+import { useI18n } from "@/lib/i18n";
 import type {
   AiMode, AiProtocol, AnalysisResult, Annotation, EngineKind, Finding, FindingApprovalStatus,
   HangingProtocolRule, ImageReview, KeyImage, Layout, Lesion, SavedReport, SeriesData, StudyRow, ToolName, UserInfo, WindowPreset,
@@ -159,36 +161,37 @@ function Thumb({ series }: { series: SeriesData }) {
     ctx.fillStyle = "#000"; ctx.fillRect(0, 0, 44, 44);
     ctx.drawImage(src, 0, 0, 44, 44);
   }, [series]);
-  return <canvas ref={ref} width={44} height={44} className="shrink-0 rounded border border-[#232e40]" />;
+  return <canvas ref={ref} width={44} height={44} className="shrink-0 rounded border border-[var(--t34)]" />;
 }
 
 function SeriesCard({ s, active, onClick }: { s: SeriesData; active: boolean; onClick: () => void }) {
   return (
-    <button onClick={onClick} className={`mb-1.5 flex w-full cursor-pointer items-center gap-2.5 rounded-lg border p-2 text-left transition-all ${active ? "border-cyan-400/60 bg-cyan-400/10" : "border-[#1e2735] bg-[#0e141d] hover:border-[#2c394d]"}`}>
+    <button onClick={onClick} className={`mb-1.5 flex w-full cursor-pointer items-center gap-2.5 rounded-lg border p-2 text-left transition-all ${active ? "border-cyan-400/60 bg-cyan-400/10" : "border-[var(--t30)] bg-[var(--t10)] hover:border-[var(--t38)]"}`}>
       <Thumb series={s} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between">
-          <span className="font-mono text-[10px] font-black text-cyan-300">
+          <span className="font-mono text-[10px] font-black text-[var(--ac-cyan300)]">
             {s.modality}
-            {s.mammo?.viewPosition ? <span className="ml-1 text-emerald-300">{s.mammo.laterality}{s.mammo.viewPosition}</span> : null}
+            {s.mammo?.viewPosition ? <span className="ml-1 text-[var(--ac-emerald300)]">{s.mammo.laterality}{s.mammo.viewPosition}</span> : null}
           </span>
-          <span className="font-mono text-[9px] font-bold text-slate-400">
+          <span className="font-mono text-[9px] font-bold text-[var(--sl400)]">
             {s.specialType === "sr" ? "Yapısal Rapor" : s.specialType === "pdf" ? "PDF Rapor" : s.specialType === "ecg" ? "12-Kanal EKG" : s.specialType === "video" ? "Video" : `${s.slices.length} kesit${s.mammo?.tomosynthesis ? " · DBT" : ""}`}
           </span>
         </div>
-        <div className="truncate text-[11px] font-semibold text-slate-200" title={s.description}>{s.description}</div>
-        <div className="truncate text-[9.5px] text-slate-400">{s.patientName}</div>
+        <div className="truncate text-[11px] font-semibold text-[var(--sl200)]" title={s.description}>{s.description}</div>
+        <div className="truncate text-[9.5px] text-[var(--sl400)]">{s.patientName}</div>
       </div>
     </button>
   );
 }
 
 const Btn = ({ on, onClick, children, title, disabled = false, tone = "cyan", ...rest }: { on?: boolean; onClick: () => void; children: React.ReactNode; title?: string; disabled?: boolean; tone?: "cyan" | "amber" | "emerald" | "violet" } & React.ButtonHTMLAttributes<HTMLButtonElement>) => {
-  const t = { cyan: "bg-cyan-400/15 text-cyan-300 ring-1 ring-cyan-400/50", amber: "bg-amber-400/15 text-amber-300 ring-1 ring-amber-400/40", emerald: "bg-emerald-400/15 text-emerald-300 ring-1 ring-emerald-400/40", violet: "bg-violet-400/15 text-violet-300 ring-1 ring-violet-400/40" }[tone];
-  return <button {...rest} type="button" title={title} aria-pressed={on} disabled={disabled} onClick={onClick} className={`shrink-0 cursor-pointer rounded-md px-2.5 py-2 text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-40 ${on ? t : "text-slate-300 hover:bg-[#161e2b]"}`}>{children}</button>;
+  const t = { cyan: "bg-cyan-400/15 text-[var(--ac-cyan300)] ring-1 ring-cyan-400/50", amber: "bg-amber-400/15 text-[var(--ac-amber300)] ring-1 ring-amber-400/40", emerald: "bg-emerald-400/15 text-[var(--ac-emerald300)] ring-1 ring-emerald-400/40", violet: "bg-violet-400/15 text-[var(--ac-violet300)] ring-1 ring-violet-400/40" }[tone];
+  return <button {...rest} type="button" title={title} aria-pressed={on} disabled={disabled} onClick={onClick} className={`shrink-0 cursor-pointer rounded-md px-2.5 py-2 text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-40 ${on ? t : "text-[var(--sl300)] hover:bg-[var(--t23)]"}`}>{children}</button>;
 };
 
 export default function Workstation({ user, sessionIdentity = false }: { user: UserInfo; sessionIdentity?: boolean }) {
+  const { t } = useI18n();
   // ───── Seriler ─────
   const [loaded, setLoaded] = useState<SeriesData[]>([]);
   const [samples, setSamples] = useState<SeriesData[]>([]);
@@ -1818,13 +1821,16 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   const cells = CELLS[layout];
   const refLabel = ["Panel 2", "Panel 3", "Panel 4", "Panel 5", "Panel 6"];
 
-  // Kayıtlı temayı ilk açılışta uygula
-  useEffect(() => {
+  // Kayıtlı temayı ilk açılışta uygula (seçicide de göster). localStorage yalnız istemcide
+  // olduğu için lazy initial state kullanılır — effect içinde setState gerekmez.
+  const [themeSel, setThemeSel] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
     try {
-      const t = localStorage.getItem("atik-theme");
+      const t = window.localStorage.getItem("atik-theme");
       if (t) document.documentElement.setAttribute("data-theme", t);
-    } catch { /* depolama kapalıysa varsayılan tema */ }
-  }, []);
+      return t ?? "";
+    } catch { return ""; }
+  });
 
   // Sunucudaki tercihler (F3): yalnız açılışta; istasyonda elle değiştirilebilir.
   useEffect(() => {
@@ -1849,52 +1855,53 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
   }
 
   return (
-    <div data-testid="workstation" className="relative isolate flex h-dvh w-full flex-col overflow-hidden bg-[#070a0f] text-slate-200" onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false); }} onDrop={onDrop}>
+    <div data-testid="workstation" className="relative isolate flex h-dvh w-full flex-col overflow-hidden bg-[var(--t02)] text-[var(--sl200)]" onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false); }} onDrop={onDrop}>
       {dragging && <div className="pointer-events-none absolute inset-0 z-50 flex flex-col items-center justify-center border-4 border-dashed border-cyan-400 bg-cyan-950/80 backdrop-blur-sm"><div className="text-4xl">📂</div><div className="mt-3 text-lg font-bold text-white">DICOM klasörünü / dosyaları / ZIP&apos;i bırakın</div></div>}
       {progress && (
         <div className="pointer-events-none absolute left-1/2 top-28 z-30 w-[min(420px,92vw)] -translate-x-1/2">
-          <div role="status" aria-label="Dosya yükleme ilerlemesi" className="pointer-events-auto rounded-xl border border-cyan-500/40 bg-[#0d141e]/95 p-4 shadow-2xl">
+          <div role="status" aria-label="Dosya yükleme ilerlemesi" className="pointer-events-auto rounded-xl border border-cyan-500/40 bg-[var(--t47)]/95 p-4 shadow-2xl">
             <div className="flex items-center justify-between gap-3">
-              <div className="text-sm font-bold text-cyan-200">Hasta görüntüleri okunuyor…</div>
-              <button type="button" onClick={cancelImport} className="rounded border border-slate-500/40 px-2 py-1 text-xs text-slate-300 hover:bg-white/10">Yüklemeyi iptal et</button>
+              <div className="text-sm font-bold text-[var(--ac-cyan200)]">Hasta görüntüleri okunuyor…</div>
+              <button type="button" onClick={cancelImport} className="rounded border border-[var(--sl500)]/40 px-2 py-1 text-xs text-[var(--sl300)] hover:bg-white/10">Yüklemeyi iptal et</button>
             </div>
-            <div className="mt-2 font-mono text-xs text-slate-300">{progress.count} / {progress.total}</div>
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#1b2532]"><div className="h-full bg-gradient-to-r from-cyan-400 to-emerald-400" style={{ width: `${(progress.count / Math.max(1, progress.total)) * 100}%` }} /></div>
-            <p className="mt-2 text-[10px] text-slate-400">Menüleri kullanabilirsiniz. Takılırsa yüklemeyi iptal edin.</p>
+            <div className="mt-2 font-mono text-xs text-[var(--sl300)]">{progress.count} / {progress.total}</div>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--t28)]"><div className="h-full bg-gradient-to-r from-cyan-400 to-emerald-400" style={{ width: `${(progress.count / Math.max(1, progress.total)) * 100}%` }} /></div>
+            <p className="mt-2 text-[10px] text-[var(--sl400)]">Menüleri kullanabilirsiniz. Takılırsa yüklemeyi iptal edin.</p>
           </div>
         </div>
       )}
-      {toastMsg && <div data-testid="action-feedback" role="status" aria-live="polite" className="pointer-events-none fixed bottom-9 left-1/2 z-[80] w-max max-w-[min(640px,92vw)] -translate-x-1/2 rounded-lg border border-cyan-400/40 bg-[#0b1018]/95 px-4 py-2 text-center text-xs font-semibold leading-relaxed text-cyan-100 shadow-xl">{toastMsg}</div>}
+      {toastMsg && <div data-testid="action-feedback" role="status" aria-live="polite" className="pointer-events-none fixed bottom-9 left-1/2 z-[80] w-max max-w-[min(640px,92vw)] -translate-x-1/2 rounded-lg border border-cyan-400/40 bg-[var(--t06)]/95 px-4 py-2 text-center text-xs font-semibold leading-relaxed text-[var(--ac-cyan100)] shadow-xl">{toastMsg}</div>}
 
       {/* ── Üst Çubuk 1 ── */}
       <a href="#viewer-main" className="skip-link">{SKIP_LINK_LABEL}</a>
-      <header aria-label="Ana işlemler" className="relative z-20 flex shrink-0 flex-wrap items-center gap-1.5 border-b border-[#1a2230] bg-[#0b0f16] px-2 py-1.5 print:hidden">
+      <header aria-label="Ana işlemler" className="relative z-20 flex shrink-0 flex-wrap items-center gap-1.5 border-b border-[var(--t25)] bg-[var(--t05)] px-2 py-1.5 print:hidden">
         <div className="mr-1 flex shrink-0 items-center gap-2">
           {/* Yerel AI tarama animasyonu (GIF); next/image ek ağ katmanı sağlamaz.
               basePath (GitHub Pages) ön eki eklenmezse /icons/404 verir. */}
           {/* eslint-disable-next-line @next/next/no-img-element -- yerel animasyonlu GIF */}
           <img src={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/icons/ai-scan.gif`} alt="Radyoloji AI tarama animasyonu" className="h-7 w-7 rounded" />
           <div className="flex h-7 w-7 items-center justify-center rounded bg-gradient-to-br from-cyan-400 to-emerald-500 font-black text-[#06131a]">A</div>
-          <span className="font-mono text-sm font-black tracking-[0.18em] text-slate-100">ATIK<span className="text-cyan-400">VIEWER</span></span>
-          <span className="rounded border border-slate-700 px-1 py-0.5 font-mono text-[8px] text-slate-500">{APP_BUILD.split("-").slice(-1)[0]}</span>
-          <a href={`/?fresh=${APP_BUILD}`} title="Arayüz paketini temiz biçimde yeniden yükle" className="rounded px-1.5 py-1 text-[10px] text-slate-400 hover:bg-white/10 hover:text-white">↻ Yenile</a>
+          <span className="font-mono text-sm font-black tracking-[0.18em] text-[var(--sl100)]">ATIK<span className="text-[var(--ac-cyan400)]">VIEWER</span></span>
+          <span className="rounded border border-[var(--sl700)] px-1 py-0.5 font-mono text-[8px] text-[var(--sl500)]">{APP_BUILD.split("-").slice(-1)[0]}</span>
+          <a href={`/?fresh=${APP_BUILD}`} title="Arayüz paketini temiz biçimde yeniden yükle" className="rounded px-1.5 py-1 text-[10px] text-[var(--sl400)] hover:bg-white/10 hover:text-white">↻ Yenile</a>
           <select
-            aria-label="Tema seç"
-            defaultValue=""
-            onChange={(e) => { const t = e.target.value; if (t) document.documentElement.setAttribute("data-theme", t); else document.documentElement.removeAttribute("data-theme"); try { localStorage.setItem("atik-theme", t); } catch { /* depolama kapalıysa sessizce geç */ } }}
-            className="rounded-md border border-[#1e2735] bg-[#0e141d] px-1.5 py-1 text-[10px] text-slate-300"
+            aria-label={t("theme.label")}
+            value={themeSel}
+            onChange={(e) => { const t = e.target.value; if (t) document.documentElement.setAttribute("data-theme", t); else document.documentElement.removeAttribute("data-theme"); setThemeSel(t); try { localStorage.setItem("atik-theme", t); } catch { /* depolama kapalıysa sessizce geç */ } }}
+            className="rounded-md border border-[var(--t30)] bg-[var(--t10)] px-1.5 py-1 text-[10px] text-[var(--sl300)]"
           >
-            <option value="">Koyu (Varsayılan)</option>
-            <option value="clinic-blue">Klinik Mavi</option>
-            <option value="slate-light">Açık Tema</option>
-            <option value="high-contrast">Yüksek Kontrast</option>
+            <option value="">{t("theme.dark")}</option>
+            <option value="clinic-blue">{t("theme.clinicBlue")}</option>
+            <option value="slate-light">{t("theme.light")}</option>
+            <option value="high-contrast">{t("theme.highContrast")}</option>
           </select>
+          <LanguageMenu />
         </div>
         <FileSelectControl onFiles={(files) => void processFiles(files, undefined, "dosya")} />
         <FileSelectControl directory onFiles={(files) => void processFiles(files, undefined, "klasör")} />
         <Btn onClick={() => setWorklistOpen(true)} title="Çalışma listesi / PACS">📋 Liste</Btn>
         <Btn disabled={savingFiles} onClick={() => void saveToServer()} title="Görüntüleri şifreli olarak sunucuya kaydet">{savingFiles ? "Kaydediliyor…" : "☁ Sunucuya kaydet"}</Btn>
-        <div className="mx-1 h-6 w-px shrink-0 bg-[#1e2735]" />
+        <div className="mx-1 h-6 w-px shrink-0 bg-[var(--t30)]" />
 
         <Btn on={showSeriesPanel} onClick={() => setShowSeriesPanel((v) => !v)} title="Seri listesini göster/gizle">Seriler</Btn>
         <Btn on={showRightPanel} onClick={() => setShowRightPanel((v) => !v)} title="AI, rapor, ölçüm ve DICOM panelini göster/gizle">AI / Rapor paneli</Btn>
@@ -1905,7 +1912,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
           value={layout}
           onChange={(e) => { const l = e.target.value as Layout; setLayout(l); setAutoLayout(false); }}
           title="Izgara Düzeni"
-          className="shrink-0 rounded-md border border-[#1e2735] bg-[#0e141d] px-1.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+          className="shrink-0 rounded-md border border-[var(--t30)] bg-[var(--t10)] px-1.5 py-1.5 text-xs text-[var(--sl200)] focus:outline-none"
         >
           <option value="1x1">▢ 1×1</option>
           <option value="1x2">▯▯ 1×2</option>
@@ -1936,7 +1943,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         <Btn onClick={() => requestMpr("3b")} title="3B hacim görünümünü doğrudan aç (WebGL2 gerekir)" data-testid="open-3d-volume">
           3B Hacim
         </Btn>
-        <div className="mx-1 h-6 w-px shrink-0 bg-[#1e2735]" />
+        <div className="mx-1 h-6 w-px shrink-0 bg-[var(--t30)]" />
         <Btn onClick={exportPng} title="Geçerli kesiti PNG kaydet">PNG</Btn>
         <Btn onClick={exportAnon} title="Anonimleştirilmiş DICOM (ZIP)">Anonim DICOM</Btn>
         <Btn onClick={() => { if (lazyGate("Nodül takibi yapılamaz")) return; if (!series || !isImageSeries) { toast("Önce bir görüntü serisi açın."); return; } setNoduleOpen(true); }} title="Nodül takibi: zaman serisi, Lung-RADS özeti, hacim ikilenme süresi">Nodül takibi</Btn>
@@ -1946,7 +1953,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         <Btn
           onClick={toggleMirror}
           title={mirrorOn ? "İkinci ekran yayınını durdur" : "Aktif seriyi ikinci pencerede/ekranda canlı yayınla (WL/WW, kesit, zoom)"}
-          className={mirrorOn ? "border-emerald-400/60 text-emerald-200" : undefined}
+          className={mirrorOn ? "border-emerald-400/60 text-[var(--ac-emerald200)]" : undefined}
         >🖥 {mirrorOn ? "Yayın açık" : "İkinci ekran"}</Btn>
         {liveSource && (
           <Btn
@@ -1956,28 +1963,28 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
               toast(next ? `Canlı XA/US akışı açık — ${liveSource.modalities.join("/")} örnekleri ~2 sn'de bir eklenir (STOW-RS alımı).` : "Canlı akış durduruldu.", next ? 5000 : 2500);
             }}
             title="DICOMweb STOW-RS ile depolanmış çalışmaya gelen yeni XA/US örneklerini ~2 sn'de bir yokla ve açık seriye ekle. DIMSE C-STORE değildir; modalite/ağ geçidi STOW-RS POST kullanmalıdır."
-            className={liveOn ? "border-emerald-400/60 text-emerald-200" : undefined}
+            className={liveOn ? "border-emerald-400/60 text-[var(--ac-emerald200)]" : undefined}
             data-testid="live-flow-toggle"
           >{liveOn ? "● Canlı" : "○ Canlı XA/US"}{liveCount > 0 ? ` +${liveCount}` : ""}</Btn>
         )}
         <div className="ml-auto flex min-w-0 flex-wrap items-center gap-2">
-          <span className="rounded border border-amber-400/40 bg-amber-400/10 px-2 py-1 text-[9px] font-bold tracking-wide text-amber-300">KLİNİK KARAR İÇİN KULLANILAMAZ</span>
-          <Link href="/paketler" prefetch={false} title="Windows · Linux · macOS kurulum paketleri ve dosya yolları" className="rounded-lg border border-emerald-400/50 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-bold text-emerald-200 hover:bg-emerald-500/20">📦 Kurulum</Link>
-          <Link href="/kiyaslama" prefetch={false} className="rounded-lg border border-violet-400/50 bg-violet-500/10 px-2.5 py-1.5 text-xs font-bold text-violet-200 hover:bg-violet-500/20">📊 Kıyaslama</Link>
-          <Link href="/yonetim" prefetch={false} className="rounded-lg border border-slate-500/50 px-2.5 py-1.5 text-xs font-bold text-slate-200 hover:bg-slate-500/10">⚙ Yönetim</Link>
-          <Link href="/tercihler" prefetch={false} title="Kullanıcı tercihleri (düzen, pencere ön ayarı, otomatik protokol)" className="rounded-lg border border-slate-500/50 px-2.5 py-1.5 text-xs font-bold text-slate-200 hover:bg-slate-500/10">🧰 Tercihler</Link>
-          <button onClick={() => void apiFetch("/api/auth/logout", { method: "POST" }).finally(() => { window.location.reload(); })} title="Oturumu kapat" className="rounded-lg border border-rose-400/40 px-2.5 py-1.5 text-xs font-bold text-rose-300 hover:bg-rose-400/10">⎋ Çıkış</button>
+          <span className="rounded border border-amber-400/40 bg-amber-400/10 px-2 py-1 text-[9px] font-bold tracking-wide text-[var(--ac-amber300)]">KLİNİK KARAR İÇİN KULLANILAMAZ</span>
+          <Link href="/paketler" prefetch={false} title="Windows · Linux · macOS kurulum paketleri ve dosya yolları" className="rounded-lg border border-emerald-400/50 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-bold text-[var(--ac-emerald200)] hover:bg-emerald-500/20">📦 Kurulum</Link>
+          <Link href="/kiyaslama" prefetch={false} className="rounded-lg border border-violet-400/50 bg-violet-500/10 px-2.5 py-1.5 text-xs font-bold text-[var(--ac-violet200)] hover:bg-violet-500/20">📊 Kıyaslama</Link>
+          <Link href="/yonetim" prefetch={false} className="rounded-lg border border-[var(--sl500)]/50 px-2.5 py-1.5 text-xs font-bold text-[var(--sl200)] hover:bg-[var(--sl500)]/10">⚙ Yönetim</Link>
+          <Link href="/tercihler" prefetch={false} title="Kullanıcı tercihleri (düzen, pencere ön ayarı, otomatik protokol)" className="rounded-lg border border-[var(--sl500)]/50 px-2.5 py-1.5 text-xs font-bold text-[var(--sl200)] hover:bg-[var(--sl500)]/10">🧰 Tercihler</Link>
+          <button onClick={() => void apiFetch("/api/auth/logout", { method: "POST" }).finally(() => { window.location.reload(); })} title="Oturumu kapat" className="rounded-lg border border-rose-400/40 px-2.5 py-1.5 text-xs font-bold text-[var(--ac-rose300)] hover:bg-rose-400/10">⎋ Çıkış</button>
           <NotificationsBell />
-          <button onClick={openReport} className="cursor-pointer rounded-lg border border-cyan-400/60 bg-gradient-to-r from-cyan-500/20 to-emerald-500/20 px-3 py-1.5 text-xs font-bold text-cyan-200 hover:text-white">📄 Rapor <span className={`ml-1 rounded-full px-1.5 text-[9px] font-black ${reportStatus === "onaylandi" ? "bg-emerald-500 text-slate-950" : "bg-rose-500 text-white"}`}>{reportStatus === "onaylandi" ? "ONAYLI" : "TASLAK"}</span></button>
+          <button onClick={openReport} className="cursor-pointer rounded-lg border border-cyan-400/60 bg-gradient-to-r from-cyan-500/20 to-emerald-500/20 px-3 py-1.5 text-xs font-bold text-[var(--ac-cyan200)] hover:text-white">📄 Rapor <span className={`ml-1 rounded-full px-1.5 text-[9px] font-black ${reportStatus === "onaylandi" ? "bg-emerald-500 text-[var(--sl950)]" : "bg-rose-500 text-white"}`}>{reportStatus === "onaylandi" ? "ONAYLI" : "TASLAK"}</span></button>
           <Link href="/yonetim" prefetch={false} title="Rapor imzasında görünecek hekim adı — düzenlemek için tıklayın" className="text-right leading-tight hover:opacity-80">
-            <div className="text-[11px] font-semibold text-slate-200">{user.title} {user.fullName}</div>
-            <div className="text-[9px] uppercase tracking-wider text-slate-500">{user.regNo ? `sicil ${user.regNo}` : "sicil tanımsız"}</div>
+            <div className="text-[11px] font-semibold text-[var(--sl200)]">{user.title} {user.fullName}</div>
+            <div className="text-[9px] uppercase tracking-wider text-[var(--sl500)]">{user.regNo ? `sicil ${user.regNo}` : "sicil tanımsız"}</div>
           </Link>
         </div>
       </header>
 
       {/* ── Üst Çubuk 2: Araçlar & Kontroller ── */}
-      <div aria-label="Görüntü araçları" className="relative z-10 flex shrink-0 flex-wrap items-center gap-1 border-b border-[#1a2230] bg-[#0a0e15] px-2 py-1 print:hidden">
+      <div aria-label="Görüntü araçları" className="relative z-10 flex shrink-0 flex-wrap items-center gap-1 border-b border-[var(--t25)] bg-[var(--t04)] px-2 py-1 print:hidden">
         {TOOLS.map((t) => <Btn key={t.id} on={tool === t.id} title={t.hint} onClick={() => setTool(t.id)}>{t.label}</Btn>)}
         {series && series.modality !== "US" && series.slices.length > 0 && (
           <Btn on={tool === "msk"} tone="violet" title="MSK ölçüm protokolleri: adlandırılmış noktalar, ölçümler ve aralık yorumu (ölçüm yardımcısı)" onClick={() => { if (tool !== "msk" && lazyGate("MSK ölçümü yapılamaz")) return; mskSelect(tool === "msk" ? null : (mskProtocolId ?? "wrist-pa")); }}>🦴 MSK</Btn>
@@ -1995,7 +2002,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         {series && series.modality === "CT" && series.slices.length > 1 && (
           <Btn on={lungQuantOpen} title="Akciğer kantitasyonu: LAA-950, ortalama HU, PD15, hacim ve kesit dağılımı (kural tabanlı)" onClick={() => { if (lazyGate("Akciğer kantitasyonu yapılamaz")) return; setLungQuantOpen((v) => !v); }}>🫁 Akciğer</Btn>
         )}
-        <div className="mx-1 h-5 w-px shrink-0 bg-[#1e2735]" />
+        <div className="mx-1 h-5 w-px shrink-0 bg-[var(--t30)]" />
         <Btn on={highContrast} tone="amber" title="Yüksek kontrast teması (ikincil metinleri AA eşiğine çıkarır)" onClick={toggleHighContrast}>◐ Kontrast</Btn>
         <Btn on={invert} tone="amber" onClick={() => setInvert((v) => !v)}>Ters</Btn>
         <Btn onClick={() => setRotation((r) => ((r + 90) % 360) as Rot)} title="R">⟳ Döndür</Btn>
@@ -2010,48 +2017,48 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         {series && series.slices.length > 1 && (
           <>
             <Btn on={cine} tone="emerald" onClick={() => { if (!cine && lazyGate("Cine oynatılamaz")) return; setCine((c) => !c); }}>{cine ? "■ Durdur" : "▶ Cine"}</Btn>
-            <label className="flex shrink-0 items-center gap-1 text-[10px] text-slate-400">
+            <label className="flex shrink-0 items-center gap-1 text-[10px] text-[var(--sl400)]">
               <input type="range" min={2} max={30} value={fps} onChange={(e) => setFps(Number(e.target.value))} className="w-16" />
               {fps} fps
             </label>
           </>
         )}
-        <div className="mx-1 h-5 w-px shrink-0 bg-[#1e2735]" />
-        <select aria-label="Pencere ön ayarı" value="" onChange={(e) => { const p = allPresets.find((x) => x.name === e.target.value); if (p) { setWl(p.wl); setWw(p.ww); } }} className="shrink-0 rounded-md border border-[#1e2735] bg-[#0e141d] px-2 py-1 text-xs text-slate-200 focus:outline-none">
+        <div className="mx-1 h-5 w-px shrink-0 bg-[var(--t30)]" />
+        <select aria-label="Pencere ön ayarı" value="" onChange={(e) => { const p = allPresets.find((x) => x.name === e.target.value); if (p) { setWl(p.wl); setWw(p.ww); } }} className="shrink-0 rounded-md border border-[var(--t30)] bg-[var(--t10)] px-2 py-1 text-xs text-[var(--sl200)] focus:outline-none">
           <option value="" disabled>Pencere</option>{allPresets.map((p) => <option key={p.name} value={p.name}>{p.name} ({p.wl}/{p.ww})</option>)}
         </select>
         <Btn onClick={savePreset}>＋ Ön ayar</Btn>
-        <div className="mx-1 h-5 w-px shrink-0 bg-[#1e2735]" />
+        <div className="mx-1 h-5 w-px shrink-0 bg-[var(--t30)]" />
         <FusionControl all={all} primary={isImageSeries ? series : null} cfg={fusionCfg} onChange={(c) => { if (c && lazyGate("Füzyon yapılamaz")) return; setFusionCfg(c); }} slice={slice} />
         <Btn on={refLinesOn} tone="violet" onClick={() => { setRefLinesOn((v) => { setRefLines(!v); return !v; }); }} title="Çapraz referans çizgileri: diğer panellerin kesit düzlemlerini bu görüntüde çizgi olarak göster">Ref. çizgi</Btn>
         <Btn tone="amber" onClick={captureKey} title="Anahtar kesit ekle (K)">★ Anahtar kesit{keyImages.length ? ` (${keyImages.length})` : ""}</Btn>
-        {pxOverride[series?.id ?? ""] && <span className="shrink-0 rounded border border-emerald-400/30 px-1.5 py-0.5 text-[10px] text-emerald-300">kalibre</span>}
+        {pxOverride[series?.id ?? ""] && <span className="shrink-0 rounded border border-emerald-400/30 px-1.5 py-0.5 text-[10px] text-[var(--ac-emerald300)]">kalibre</span>}
       </div>
 
       <div className="flex min-h-0 flex-1">
         {/* Sol Panel: Seriler */}
-        {showSeriesPanel && <aside aria-label="Seri listesi" className="flex w-48 shrink-0 flex-col border-r border-[#1a2230] bg-[#0b0f16] print:hidden">
-          <div className="flex items-center justify-between border-b border-[#1a2230] px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+        {showSeriesPanel && <aside aria-label="Seri listesi" className="flex w-48 shrink-0 flex-col border-r border-[var(--t25)] bg-[var(--t05)] print:hidden">
+          <div className="flex items-center justify-between border-b border-[var(--t25)] px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-[var(--sl400)]">
             <span>Seriler ({all.length})</span>
-            {loaded.length > 0 && <button onClick={() => { setLoaded([]); setActiveId(null); setRefIds([null, null, null, null, null]); toast("Açılan dosyalar listeden kaldırıldı; sunucudaki kayıtlar silinmedi."); }} className="cursor-pointer text-[9.5px] normal-case text-rose-400 hover:underline">Temizle</button>}
+            {loaded.length > 0 && <button onClick={() => { setLoaded([]); setActiveId(null); setRefIds([null, null, null, null, null]); toast("Açılan dosyalar listeden kaldırıldı; sunucudaki kayıtlar silinmedi."); }} className="cursor-pointer text-[9.5px] normal-case text-[var(--ac-rose400)] hover:underline">Temizle</button>}
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-2">
-            {lastReport && <button type="button" onClick={() => setImportReport(lastReport)} className="mb-2 w-full rounded-lg border border-cyan-400/30 bg-cyan-400/5 px-2 py-1.5 text-left text-[10.5px] font-semibold text-cyan-200 hover:bg-cyan-400/10">Yükleme raporu: {lastReport.stats.total} dosya → {lastReport.stats.seriesOpened} seri</button>}
-            {importWarnings.length > 0 && <details className="mb-2 rounded-lg border border-amber-400/30 bg-amber-400/5 p-2 text-[10px] text-amber-200"><summary className="cursor-pointer font-semibold">Yükleme uyarıları ({importWarnings.length})</summary><ul className="mt-1 space-y-1">{importWarnings.map((w, i) => <li key={i}>{w}</li>)}</ul></details>}
-            {loaded.length > 0 && <div className="mb-1 px-1 text-[9px] font-bold uppercase tracking-widest text-emerald-400">Açılan ({loaded.length})</div>}
+            {lastReport && <button type="button" onClick={() => setImportReport(lastReport)} className="mb-2 w-full rounded-lg border border-cyan-400/30 bg-cyan-400/5 px-2 py-1.5 text-left text-[10.5px] font-semibold text-[var(--ac-cyan200)] hover:bg-cyan-400/10">Yükleme raporu: {lastReport.stats.total} dosya → {lastReport.stats.seriesOpened} seri</button>}
+            {importWarnings.length > 0 && <details className="mb-2 rounded-lg border border-amber-400/30 bg-amber-400/5 p-2 text-[10px] text-[var(--ac-amber200)]"><summary className="cursor-pointer font-semibold">Yükleme uyarıları ({importWarnings.length})</summary><ul className="mt-1 space-y-1">{importWarnings.map((w, i) => <li key={i}>{w}</li>)}</ul></details>}
+            {loaded.length > 0 && <div className="mb-1 px-1 text-[9px] font-bold uppercase tracking-widest text-[var(--ac-emerald400)]">Açılan ({loaded.length})</div>}
             {loaded.map((s) => <SeriesCard key={s.id} s={s} active={s.id === activeId || refIds.includes(s.id)} onClick={() => selectSeries(s)} />)}
             {E2E_FIXTURES && samples.map((s) => <SeriesCard key={s.id} s={s} active={s.id === activeId || refIds.includes(s.id)} onClick={() => selectSeries(s)} />)}
-            {all.length === 0 && <p className="px-1 py-3 text-center text-[10px] leading-relaxed text-slate-500">Henüz görüntü yüklenmedi. Hasta DICOM dosyası/klasörü açın veya çalışma listesinden bir inceleme seçin.</p>}
+            {all.length === 0 && <p className="px-1 py-3 text-center text-[10px] leading-relaxed text-[var(--sl500)]">Henüz görüntü yüklenmedi. Hasta DICOM dosyası/klasörü açın veya çalışma listesinden bir inceleme seçin.</p>}
           </div>
           {series && series.slices.length > 1 && !series.specialType && (
-            <div className="border-t border-[#1a2230] bg-[#080d14] p-3">
-              <div className="mb-1 flex justify-between font-mono text-[11px] font-bold"><span className="text-cyan-400">KESİT {slice + 1}</span><span className="text-slate-400">/ {series.slices.length}</span></div>
+            <div className="border-t border-[var(--t25)] bg-[var(--t49)] p-3">
+              <div className="mb-1 flex justify-between font-mono text-[11px] font-bold"><span className="text-[var(--ac-cyan400)]">KESİT {slice + 1}</span><span className="text-[var(--sl400)]">/ {series.slices.length}</span></div>
               <div className="relative w-full py-1">
                 <input type="range" min={0} max={series.slices.length - 1} value={slice} onChange={(e) => setSlice(Number(e.target.value))} className="w-full cursor-pointer" />
                 {liveFindings.map((f) => revealed.has(f.id) && f.category !== "Sistem" && f.category !== "ROI" ? (
-                  <button key={f.id} onClick={() => setSlice(f.sliceIndex)} title={`Kesit ${f.keySliceNumber}: ${f.label}`} className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full border-2 border-slate-900 shadow-md hover:scale-125" style={{ left: `${(f.sliceIndex / Math.max(1, series.slices.length - 1)) * 100}%`, backgroundColor: slice === f.sliceIndex ? "#22d3ee" : f.severity === "kritik" ? "#ff3b5c" : f.severity === "yuksek" ? "#ff9f1c" : "#ffd60a" }} />
+                  <button key={f.id} onClick={() => setSlice(f.sliceIndex)} title={`Kesit ${f.keySliceNumber}: ${f.label}`} className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full border-2 border-[var(--sl900)] shadow-md hover:scale-125" style={{ left: `${(f.sliceIndex / Math.max(1, series.slices.length - 1)) * 100}%`, backgroundColor: slice === f.sliceIndex ? "#22d3ee" : f.severity === "kritik" ? "#ff3b5c" : f.severity === "yuksek" ? "#ff9f1c" : "#ffd60a" }} />
                 ) : null)}
-                {keyImages.map((k) => <button key={k.id} onClick={() => setSlice(k.slice)} title={`★ Kesit ${k.slice + 1}`} className="absolute -bottom-1 -translate-x-1/2 cursor-pointer text-[10px] leading-none text-amber-300" style={{ left: `${(k.slice / Math.max(1, series.slices.length - 1)) * 100}%` }}>★</button>)}
+                {keyImages.map((k) => <button key={k.id} onClick={() => setSlice(k.slice)} title={`★ Kesit ${k.slice + 1}`} className="absolute -bottom-1 -translate-x-1/2 cursor-pointer text-[10px] leading-none text-[var(--ac-amber300)]" style={{ left: `${(k.slice / Math.max(1, series.slices.length - 1)) * 100}%` }}>★</button>)}
               </div>
             </div>
           )}
@@ -2069,8 +2076,8 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
           ) : series?.specialType === "ecg" && series.ecgData ? (
             <ECGViewer ecg={series.ecgData} />
           ) : (
-            <div className={`grid h-full w-full gap-px bg-[#1a2230] ${GRID[layout]}`}>
-              <div className="relative min-h-0 min-w-0 bg-[#07090c]">
+            <div className={`grid h-full w-full gap-px bg-[var(--t25)] ${GRID[layout]}`}>
+              <div className="relative min-h-0 min-w-0 bg-[var(--t01)]">
                 <Viewport
                   series={series} slice={slice} wl={wl} ww={ww} invert={invert} zoom={zoom} pan={pan} tool={tool} rotation={rotation} flipH={flipH} flipV={flipV} pxMm={pxMm}
                   scan={scan} findings={liveFindings} revealedIds={revealed} activeFindingId={activeFinding} overlay={overlay} showDicomOverlays={showOverlays} annotations={annotations}
@@ -2080,17 +2087,17 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
                 />
                 {series && (
                   <>
-                    <div className="pointer-events-none absolute left-3 top-2 font-mono text-[10.5px] leading-relaxed text-cyan-200/80"><div className="font-bold text-white">{series.patientName}</div><div>{series.modality} · {series.description}</div><div className="text-slate-400">ID: {series.patientId}</div>{series.mammo && (series.mammo.laterality || series.mammo.viewPosition || series.mammo.tomosynthesis) && <div className="font-bold text-emerald-300">{[series.mammo.laterality === "R" ? "SAĞ MEME" : series.mammo.laterality === "L" ? "SOL MEME" : "", series.mammo.viewPosition, series.mammo.tomosynthesis ? "DBT" : ""].filter(Boolean).join(" · ")}</div>}{series.mammo?.implant && <div className="text-amber-300">Meme implantı bildirilmiş</div>}</div>
-                    <div className="pointer-events-none absolute right-3 top-2 text-right font-mono text-[10.5px] leading-relaxed text-cyan-200/80"><div className="font-bold text-cyan-300">Kesit {slice + 1}/{series.slices.length}{series.sliceThickness ? ` · ${series.sliceThickness} mm` : ""}</div><div>Zoom %{Math.round(zoom * 100)}</div>{hoverVal !== null && <div className="font-bold text-emerald-300">{hoverVal.toFixed(0)} {series.unit}{series.suv?.factor ? ` · SUV ${(hoverVal * series.suv.factor).toFixed(2)}` : ""}</div>}{series.suv && !series.suv.factor && <div className="text-amber-300" title={series.suv.note}>SUV yok: {series.suv.note}</div>}</div>
-                    <div className="pointer-events-none absolute bottom-2 left-3 font-mono text-[10.5px] text-cyan-200/80">{series.isColor ? "True Color (RGB)" : `WL ${Math.round(wl)} · WW ${Math.round(ww)}`}{invert ? " · TERS" : ""} · {pxMm.toFixed(3)} mm/px</div>
-                    {lazyPending > 0 && <div className="pointer-events-none absolute bottom-2 right-3 rounded-lg border border-amber-400/50 bg-amber-400/15 px-2.5 py-1.5 font-mono text-[10.5px] font-bold text-amber-200 shadow-lg shadow-amber-950/40"><span className="inline-block animate-pulse">◉</span> Kesitler indiriliyor — {series.slices.length - lazyPending}/{series.slices.length} · kalan {lazyPending}
-                      <span className="block text-[8.5px] font-normal text-amber-200/70">İnen kesitler yerinde doldurulur; ölçüm/analiz/dışa aktarım kilitlidir</span></div>}
+                    <div className="pointer-events-none absolute left-3 top-2 font-mono text-[10.5px] leading-relaxed text-[var(--ac-cyan200)]/80"><div className="font-bold text-white">{series.patientName}</div><div>{series.modality} · {series.description}</div><div className="text-[var(--sl400)]">ID: {series.patientId}</div>{series.mammo && (series.mammo.laterality || series.mammo.viewPosition || series.mammo.tomosynthesis) && <div className="font-bold text-[var(--ac-emerald300)]">{[series.mammo.laterality === "R" ? "SAĞ MEME" : series.mammo.laterality === "L" ? "SOL MEME" : "", series.mammo.viewPosition, series.mammo.tomosynthesis ? "DBT" : ""].filter(Boolean).join(" · ")}</div>}{series.mammo?.implant && <div className="text-[var(--ac-amber300)]">Meme implantı bildirilmiş</div>}</div>
+                    <div className="pointer-events-none absolute right-3 top-2 text-right font-mono text-[10.5px] leading-relaxed text-[var(--ac-cyan200)]/80"><div className="font-bold text-[var(--ac-cyan300)]">Kesit {slice + 1}/{series.slices.length}{series.sliceThickness ? ` · ${series.sliceThickness} mm` : ""}</div><div>Zoom %{Math.round(zoom * 100)}</div>{hoverVal !== null && <div className="font-bold text-[var(--ac-emerald300)]">{hoverVal.toFixed(0)} {series.unit}{series.suv?.factor ? ` · SUV ${(hoverVal * series.suv.factor).toFixed(2)}` : ""}</div>}{series.suv && !series.suv.factor && <div className="text-[var(--ac-amber300)]" title={series.suv.note}>SUV yok: {series.suv.note}</div>}</div>
+                    <div className="pointer-events-none absolute bottom-2 left-3 font-mono text-[10.5px] text-[var(--ac-cyan200)]/80">{series.isColor ? "True Color (RGB)" : `WL ${Math.round(wl)} · WW ${Math.round(ww)}`}{invert ? " · TERS" : ""} · {pxMm.toFixed(3)} mm/px</div>
+                    {lazyPending > 0 && <div className="pointer-events-none absolute bottom-2 right-3 rounded-lg border border-amber-400/50 bg-amber-400/15 px-2.5 py-1.5 font-mono text-[10.5px] font-bold text-[var(--ac-amber200)] shadow-lg shadow-amber-950/40"><span className="inline-block animate-pulse">◉</span> Kesitler indiriliyor — {series.slices.length - lazyPending}/{series.slices.length} · kalan {lazyPending}
+                      <span className="block text-[8.5px] font-normal text-[var(--ac-amber200)]/70">İnen kesitler yerinde doldurulur; ölçüm/analiz/dışa aktarım kilitlidir</span></div>}
                   </>
                 )}
-                {!series && <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2"><div className="text-xl font-bold text-slate-200">DICOM klasörü / dosya / ZIP sürükleyin veya açın</div><div className="text-xs text-slate-500">Sıkıştırılmış (JPEG, JPEG 2000, JPEG-LS, RLE, True Color) ve DICOM video (MPEG-2/MPEG-4/HEVC), SR, PDF, ECG nesneler desteklenir.</div></div>}
+                {!series && <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2"><div className="text-xl font-bold text-[var(--sl200)]">DICOM klasörü / dosya / ZIP sürükleyin veya açın</div><div className="text-xs text-[var(--sl500)]">Sıkıştırılmış (JPEG, JPEG 2000, JPEG-LS, RLE, True Color) ve DICOM video (MPEG-2/MPEG-4/HEVC), SR, PDF, ECG nesneler desteklenir.</div></div>}
               </div>
               {Array.from({ length: cells - 1 }, (_, i) => (
-                <div key={i} className="min-h-0 min-w-0 bg-[#07090c]">
+                <div key={i} className="min-h-0 min-w-0 bg-[var(--t01)]">
                   <RefPanel
                     allSeries={all} seriesId={refIds[i]} onSeriesChange={(id) => setRefIds((r) => r.map((x, k) => (k === i ? id : x)))}
                     primary={series} primarySlice={slice} syncSlice={syncPanels} panelId={`ref${i + 1}`} windowOverride={refWins[i]} tool={tool} invert={invert}
@@ -2128,14 +2135,14 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         </aside>}
       </div>
 
-      <footer className="flex min-h-7 shrink-0 flex-wrap items-center gap-x-4 gap-y-1 border-t border-[#1a2230] bg-[#0b0f16] px-3 font-mono text-[10px] text-slate-400 print:hidden">
-        <span className={status === "scanning" ? "font-bold text-emerald-400" : ""}>{status === "idle" ? "HAZIR" : status === "infer" ? "HAZIRLANIYOR…" : status === "scanning" ? `ANALİZ: ${scan?.phaseLabel ?? ""}` : `ANALİZ TAMAM — ${analysis?.engine ?? ""}`}</span>
+      <footer className="flex min-h-7 shrink-0 flex-wrap items-center gap-x-4 gap-y-1 border-t border-[var(--t25)] bg-[var(--t05)] px-3 font-mono text-[10px] text-[var(--sl400)] print:hidden">
+        <span className={status === "scanning" ? "font-bold text-[var(--ac-emerald400)]" : ""}>{status === "idle" ? t("status.ready") : status === "infer" ? t("status.preparing") : status === "scanning" ? `${t("status.analyzing")}: ${scan?.phaseLabel ?? ""}` : `${t("status.done")} — ${analysis?.engine ?? ""}`}</span>
         {series && (
           <>
             <span>{series.width}×{series.height} · {series.isColor ? "RGB" : series.slices[0]?.constructor.name.replace("Array", "")}</span>
             <span>Ölçüm: {annotations.length}</span>
             <span>★ {keyImages.length}</span>
-            {series.overlays && series.overlays.length > 0 && <span className="text-emerald-400">Katman: {series.overlays.length}</span>}
+            {series.overlays && series.overlays.length > 0 && <span className="text-[var(--ac-emerald400)]">Katman: {series.overlays.length}</span>}
           </>
         )}
         <button
@@ -2143,7 +2150,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
           onClick={() => setAboutOpen(true)}
           data-testid="status-disclaimer"
           title="Amaçlanan kullanım ve sürüm bilgisi"
-          className="ml-auto hidden cursor-pointer text-amber-300/80 underline decoration-dotted underline-offset-2 hover:text-amber-200 lg:inline"
+          className="ml-auto hidden cursor-pointer text-[var(--ac-amber300)]/80 underline decoration-dotted underline-offset-2 hover:text-[var(--ac-amber200)] lg:inline"
         >
           {SHORT_DISCLAIMER} · v{versionLine()}
         </button>
@@ -2151,7 +2158,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
 
       {activeReport && <ReportPrintModal open={reportOpen} onClose={() => setReportOpen(false)} report={activeReport} user={user} onSave={saveReport} onRestored={(patch) => setActiveReport((cur) => (cur ? { ...cur, ...patch } : cur))} onGotoSlice={(n) => setSlice(Math.max(0, n - 1))} onGotoFinding={(id, n) => { setSlice(Math.max(0, n - 1)); setActiveFinding(id); }} srEvidence={srEvidence} sessionIdentity={sessionIdentity} priorReports={patientReports} />}
       <WorklistModal open={worklistOpen} onClose={() => setWorklistOpen(false)} user={user} onOpenStudy={(s) => void openStored(s)} onOpenPacs={(s) => void openPacs(s)} />
-      {mpr && series && <div className="fixed inset-0 z-50 bg-[#070a0f]"><ViewerErrorBoundary resetKey={series.id} label="MPR" onClose={() => setMpr(false)}><VolumeView series={series} wl={wl} ww={ww} invert={invert} initialTab={mprInitialTab} onClose={() => setMpr(false)} /></ViewerErrorBoundary></div>}
+      {mpr && series && <div className="fixed inset-0 z-50 bg-[var(--t02)]"><ViewerErrorBoundary resetKey={series.id} label="MPR" onClose={() => setMpr(false)}><VolumeView series={series} wl={wl} ww={ww} invert={invert} initialTab={mprInitialTab} onClose={() => setMpr(false)} /></ViewerErrorBoundary></div>}
       {noduleOpen && series && <NoduleTracker patientId={series.patientId} patientName={series.patientName} studyDate={series.studyDate} measurements={noduleMeasurements} onClose={() => setNoduleOpen(false)} />}
       {series && ticOpen && (
         <TicPanel

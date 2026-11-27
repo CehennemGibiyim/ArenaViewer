@@ -93,9 +93,15 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   süzgeçli), ayarlanabilir **hedef TAT** eşiği ve otomatik uyarılar (hedefi aşan
   hafta, %25'ten fazla yavaşlama, bayat taslak).
 - **Erişilebilirlik:** görünür klavye odağı, «İçeriğe geç» bağlantısı, diyaloglarda
-  `role="dialog"`/`aria-modal` + Escape, `aria-live` geri bildirim, **yüksek
-  kontrast** teması (◐ Kontrast; tercih cihazda saklanır) ve `prefers-reduced-motion`
-  desteği. WCAG kontrast matematiği testlidir (`npm run test:a11y`).
+  `role="dialog"`/`aria-modal` + Escape, `aria-live` geri bildirim, **dört gerçek tema**
+  (Koyu · Klinik Mavi · Açık Tema · Yüksek Kontrast — seçim tüm yüzey/kenar renklerine
+  uygulanır, `atik-theme` ile saklanır) ve `prefers-reduced-motion` desteği. WCAG kontrast
+  matematiği testlidir (`npm run test:a11y`).
+- **Uluslararasılaştırma:** üst çubuktaki **🌐 Dil seç** ile 24 dil paketi (`tr en es fr de
+  it pt nl pl ru uk cs sv ro hu bg ar he hi zh ja ko id th`); paketler seçimde lazy-import
+  edilir (yalnız seçilen dil iner), yedek İngilizce. Kapsam: arayüz kromu; belgeler ve AI
+  rapor gövdesi Türkçe kalır. Yeni dil: `src/i18n/<kod>.json` + kayıt + `npm run test:i18n`
+  (CI anahtar paritesini zorlar). Ayrıntı: [docs/GORSEL_ANLATIM.md §7.3](docs/GORSEL_ANLATIM.md).
 - **Erişim anomalisi (KVKK):** Yönetim → Güvenlik sekmesindeki «Erişim
   anomalileri» kartı son 7 günün denetim kaydını ve başarısız giriş
   denemelerini kural tabanlı tarar: 10 dk'da ≥25 farklı çalışma açma, 1
@@ -762,7 +768,7 @@ src/
 public/codecs/    WASM görüntü çözücüleri (repoda tutulur, CDN değildir)
 ai-worker/        Yerel derin AI worker (MONAI model çıkarımı, Python)
 tests/            Playwright menü + klasör yükleme regresyon testleri
-docs/             Yayınlama ve işletim kılavuzları (görsel + videolu: docs/KURULUM_VE_KULLANIM.md; her düğme: docs/MENU_KILAVUZU.md)
+docs/             Yayınlama ve işletim kılavuzları (görsel + videolu: docs/KURULUM_VE_KULLANIM.md; her düğme: docs/MENU_KILAVUZU.md; uçtan uca görselli: docs/GORSEL_ANLATIM.md; SSS: docs/SSS.md)
 ```
 
 ## Güvenlik notları

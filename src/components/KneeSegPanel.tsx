@@ -122,11 +122,11 @@ export default function KneeSegPanel({ series, onClose, onAddToFindings, toast }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" data-testid="knee-seg-panel" role="dialog" aria-modal="true" aria-label="Diz MR segmentasyonu">
-      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-amber-400/40 bg-[#0b0f16] text-xs text-slate-200 shadow-2xl">
-        <div className="flex items-center justify-between border-b border-[#1a2230] px-4 py-2">
+      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-amber-400/40 bg-[var(--t05)] text-xs text-[var(--sl200)] shadow-2xl">
+        <div className="flex items-center justify-between border-b border-[var(--t25)] px-4 py-2">
           <div>
-            <div className="text-sm font-bold text-amber-300">🦴 Diz MR segmentasyonu — araştırma amaçlı</div>
-            <div className="text-[10px] text-slate-500">
+            <div className="text-sm font-bold text-[var(--ac-amber300)]">🦴 Diz MR segmentasyonu — araştırma amaçlı</div>
+            <div className="text-[10px] text-[var(--sl500)]">
               {series.description || series.modality} · {series.slices.length} kesit · {pxMm.toFixed(2)}×{pyMm.toFixed(2)}×{dz.toFixed(2)} mm · nnU-Net v2 cascade (MIT)
             </div>
           </div>
@@ -134,50 +134,50 @@ export default function KneeSegPanel({ series, onClose, onAddToFindings, toast }
             {stats && onAddToFindings && (
               <button
                 onClick={() => onAddToFindings(kneeSegSummaryText(stats, { elapsedMs, model }))}
-                className="cursor-pointer rounded border border-cyan-400/50 px-2 py-0.5 text-cyan-200 hover:bg-cyan-400/10"
+                className="cursor-pointer rounded border border-cyan-400/50 px-2 py-0.5 text-[var(--ac-cyan200)] hover:bg-cyan-400/10"
               >
                 Rapora ekle
               </button>
             )}
-            <button onClick={onClose} aria-label="Kapat" className="cursor-pointer rounded border border-[#2d3b4e] px-2 py-0.5 hover:bg-[#1a2330]">✕</button>
+            <button onClick={onClose} aria-label="Kapat" className="cursor-pointer rounded border border-[var(--t39)] px-2 py-0.5 hover:bg-[var(--t26)]">✕</button>
           </div>
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto px-4 py-3">
-          <div className="rounded border border-amber-400/50 bg-amber-400/10 px-2 py-1.5 text-[11px] leading-snug text-amber-200">
+          <div className="rounded border border-amber-400/50 bg-amber-400/10 px-2 py-1.5 text-[11px] leading-snug text-[var(--ac-amber200)]">
             ⚠ <b>Yırtık tanısı konmaz.</b> Bu araç yalnız anatomik yapıların (menisküs/kıkırdak/kemik) sınırlarını çizer ve hacim verir.
             Radyoloji uzmanı onayı olmadan klinik olarak kullanılamaz; tıbbi cihaz değildir.
           </div>
 
-          {busy && <div className="mt-3 text-slate-400">nnU-Net çıkarımı çalışıyor… (ilk çağrıda model yüklenir; CPU&apos;da dakikalar sürebilir — kapamayın)</div>}
-          {!busy && err && <div className="mt-3 rounded border border-rose-400/40 bg-rose-400/10 px-2 py-1.5 text-rose-200">{err}</div>}
+          {busy && <div className="mt-3 text-[var(--sl400)]">nnU-Net çıkarımı çalışıyor… (ilk çağrıda model yüklenir; CPU&apos;da dakikalar sürebilir — kapamayın)</div>}
+          {!busy && err && <div className="mt-3 rounded border border-rose-400/40 bg-rose-400/10 px-2 py-1.5 text-[var(--ac-rose200)]">{err}</div>}
 
           {!busy && stats && (
             <>
               <table className="mt-3 w-full border-collapse text-[11px]">
                 <thead>
-                  <tr className="text-left text-slate-500">
-                    <th className="border-b border-[#1a2230] py-1 pr-2">Yapı</th>
-                    <th className="border-b border-[#1a2230] py-1 pr-2 text-right">Hacim</th>
-                    <th className="border-b border-[#1a2230] py-1 pr-2 text-right">Voksel</th>
-                    <th className="border-b border-[#1a2230] py-1 text-right">Kesit</th>
+                  <tr className="text-left text-[var(--sl500)]">
+                    <th className="border-b border-[var(--t25)] py-1 pr-2">Yapı</th>
+                    <th className="border-b border-[var(--t25)] py-1 pr-2 text-right">Hacim</th>
+                    <th className="border-b border-[var(--t25)] py-1 pr-2 text-right">Voksel</th>
+                    <th className="border-b border-[var(--t25)] py-1 text-right">Kesit</th>
                   </tr>
                 </thead>
                 <tbody>
                   {stats.map((s) => (
-                    <tr key={s.id} className={s.voxels > 0 ? "text-slate-200" : "text-slate-600"}>
-                      <td className="border-b border-[#10161f] py-1 pr-2">
+                    <tr key={s.id} className={s.voxels > 0 ? "text-[var(--sl200)]" : "text-[var(--sl600)]"}>
+                      <td className="border-b border-[var(--t13)] py-1 pr-2">
                         <span className="mr-1.5 inline-block h-2 w-2 rounded-sm align-middle" style={{ background: s.id >= 5 && s.id <= 6 ? "#ff9f1c" : s.id >= 7 ? "#4cc9f0" : "#2ee6a8" }} />
                         {s.label}
                       </td>
-                      <td className="border-b border-[#10161f] py-1 pr-2 text-right font-mono">{s.ml.toFixed(2)} mL</td>
-                      <td className="border-b border-[#10161f] py-1 pr-2 text-right font-mono">{s.voxels.toLocaleString("tr-TR")}</td>
-                      <td className="border-b border-[#10161f] py-1 text-right font-mono">{s.slices}</td>
+                      <td className="border-b border-[var(--t13)] py-1 pr-2 text-right font-mono">{s.ml.toFixed(2)} mL</td>
+                      <td className="border-b border-[var(--t13)] py-1 pr-2 text-right font-mono">{s.voxels.toLocaleString("tr-TR")}</td>
+                      <td className="border-b border-[var(--t13)] py-1 text-right font-mono">{s.slices}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr className="text-slate-400">
+                  <tr className="text-[var(--sl400)]">
                     <td className="py-1 pr-2 font-semibold">Toplam (maskelenen)</td>
                     <td className="py-1 pr-2 text-right font-mono font-semibold">{totalMl.toFixed(1)} mL</td>
                     <td className="py-1 pr-2"></td>
@@ -186,7 +186,7 @@ export default function KneeSegPanel({ series, onClose, onAddToFindings, toast }
                 </tfoot>
               </table>
 
-              <div className="mt-2 text-[10px] text-slate-500">
+              <div className="mt-2 text-[10px] text-[var(--sl500)]">
                 Süre: {(elapsedMs / 1000).toFixed(1)} sn · Model: {model || "nnU-Net Knee MRI (MIT)"} · Kendini bildirilen Dice ≈ 0,84 (menisküs) / 0,906 (ortalama); prospektif doğrulama YOKTUR.
               </div>
 
@@ -195,7 +195,7 @@ export default function KneeSegPanel({ series, onClose, onAddToFindings, toast }
                   onClick={() => exportSeg("seg")}
                   disabled={!canExport}
                   title={canExport ? "9 segmentli DICOM SEG üretir" : "Gerçek DICOM serisi gerekli (SOP Instance UID yok)"}
-                  className="cursor-pointer rounded border border-emerald-400/50 bg-emerald-400/10 px-2 py-1 text-emerald-200 enabled:hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="cursor-pointer rounded border border-emerald-400/50 bg-emerald-400/10 px-2 py-1 text-[var(--ac-emerald200)] enabled:hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   🧩 SEG indir
                 </button>
@@ -203,27 +203,27 @@ export default function KneeSegPanel({ series, onClose, onAddToFindings, toast }
                   onClick={() => exportSeg("rtstruct")}
                   disabled={!canExport}
                   title={canExport ? "9 ROI'li RT Structure Set üretir" : "Gerçek DICOM serisi gerekli (SOP Instance UID yok)"}
-                  className="cursor-pointer rounded border border-emerald-400/50 bg-emerald-400/10 px-2 py-1 text-emerald-200 enabled:hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="cursor-pointer rounded border border-emerald-400/50 bg-emerald-400/10 px-2 py-1 text-[var(--ac-emerald200)] enabled:hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   🗂️ RTSTRUCT indir
                 </button>
-                <button onClick={() => setCardOpen((v) => !v)} className="cursor-pointer rounded border border-[#2d3b4e] px-2 py-1 text-slate-300 hover:bg-[#1a2330]">
+                <button onClick={() => setCardOpen((v) => !v)} className="cursor-pointer rounded border border-[var(--t39)] px-2 py-1 text-[var(--sl300)] hover:bg-[var(--t26)]">
                   {cardOpen ? "Model kartını gizle" : "Model kartını göster"}
                 </button>
               </div>
               {!canExport && (
-                <div className="mt-1 text-[10.5px] text-amber-300/90">Bu seri gerçek DICOM değil (UID yok); SEG/RTSTRUCT üretilemez — mL istatistikleri yine de kullanılabilir.</div>
+                <div className="mt-1 text-[10.5px] text-[var(--ac-amber300)]/90">Bu seri gerçek DICOM değil (UID yok); SEG/RTSTRUCT üretilemez — mL istatistikleri yine de kullanılabilir.</div>
               )}
               {cardOpen && (
-                <div className="mt-2 rounded border border-[#1a2230] bg-[#080c12] p-2">
-                  <div className="font-bold text-slate-200">{DEEP_KNEE_MODEL_CARD.name}</div>
-                  <div className="text-[10px] text-slate-500">{DEEP_KNEE_MODEL_CARD.version}</div>
-                  <div className="mt-1 text-slate-300"><b>Amaçlanan kullanım:</b> {DEEP_KNEE_MODEL_CARD.intendedUse}</div>
-                  <div className="mt-1 text-slate-300"><b>Yöntem:</b> {DEEP_KNEE_MODEL_CARD.method}</div>
-                  <ul className="mt-1 list-disc pl-4 text-slate-400">
+                <div className="mt-2 rounded border border-[var(--t25)] bg-[var(--t45)] p-2">
+                  <div className="font-bold text-[var(--sl200)]">{DEEP_KNEE_MODEL_CARD.name}</div>
+                  <div className="text-[10px] text-[var(--sl500)]">{DEEP_KNEE_MODEL_CARD.version}</div>
+                  <div className="mt-1 text-[var(--sl300)]"><b>Amaçlanan kullanım:</b> {DEEP_KNEE_MODEL_CARD.intendedUse}</div>
+                  <div className="mt-1 text-[var(--sl300)]"><b>Yöntem:</b> {DEEP_KNEE_MODEL_CARD.method}</div>
+                  <ul className="mt-1 list-disc pl-4 text-[var(--sl400)]">
                     {DEEP_KNEE_MODEL_CARD.limitations.map((l) => <li key={l}>{l}</li>)}
                   </ul>
-                  <div className="mt-1 text-amber-200/90"><b>Doğrulama:</b> {DEEP_KNEE_MODEL_CARD.validation}</div>
+                  <div className="mt-1 text-[var(--ac-amber200)]/90"><b>Doğrulama:</b> {DEEP_KNEE_MODEL_CARD.validation}</div>
                 </div>
               )}
             </>

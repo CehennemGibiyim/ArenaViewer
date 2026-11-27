@@ -106,7 +106,7 @@ export default function RefPanel(p: Props) {
   };
 
   return (
-    <div className="relative h-full w-full border border-[#1a2230]" data-testid="reference-panel">
+    <div className="relative h-full w-full border border-[var(--t25)]" data-testid="reference-panel">
       <ViewerErrorBoundary resetKey={series?.id ?? "empty"} label={p.label}>
         <Viewport
           series={series} slice={slice} wl={wl} ww={ww} invert={p.invert}
@@ -127,12 +127,12 @@ export default function RefPanel(p: Props) {
         aria-label={`${p.label} serisi`}
         value={p.seriesId ?? ""}
         onChange={(e) => p.onSeriesChange(e.target.value || null)}
-        className="absolute right-2 top-2 max-w-[60%] rounded border border-[#1e2735] bg-[#0e141d]/90 px-1.5 py-1 text-[10px] text-slate-200 focus:outline-none"
+        className="absolute right-2 top-2 max-w-[60%] rounded border border-[var(--t30)] bg-[var(--t10)]/90 px-1.5 py-1 text-[10px] text-[var(--sl200)] focus:outline-none"
       >
         <option value="">— seri seçin —</option>
         {images.map((s) => <option key={s.id} value={s.id}>{s.modality} · {s.description} ({s.slices.length})</option>)}
       </select>
-      {series && <div className="pointer-events-none absolute bottom-1 left-2 font-mono text-[10px] text-cyan-200/80">WL {Math.round(wl)} · WW {Math.round(ww)}</div>}
+      {series && <div className="pointer-events-none absolute bottom-1 left-2 font-mono text-[10px] text-[var(--ac-cyan200)]/80">WL {Math.round(wl)} · WW {Math.round(ww)}</div>}
       {series && p.primary && (
         <div className="absolute bottom-1 right-2 flex max-w-[78%] flex-col items-end gap-1 text-[10px]">
           <div className="flex gap-1">
@@ -140,23 +140,23 @@ export default function RefPanel(p: Props) {
               onClick={runAlign}
               disabled={alignBusy}
               title="Bu kesidi ana penceredeki kesitle hizala (normalize çapraz korelasyon; öteleme + ölçek)"
-              className="rounded border border-[#243044] bg-[#0e141d]/90 px-1.5 py-0.5 text-slate-200 hover:border-cyan-400/60 hover:text-cyan-200 disabled:opacity-50"
+              className="rounded border border-[var(--t35)] bg-[var(--t10)]/90 px-1.5 py-0.5 text-[var(--sl200)] hover:border-cyan-400/60 hover:text-[var(--ac-cyan200)] disabled:opacity-50"
             >🎯 {alignBusy ? "hizalanıyor…" : "Hizala"}</button>
             {align && (
               <button
                 onClick={() => { setAlign(null); setAlignMsg(""); }}
                 title="Hizalamayı kaldır"
-                className="rounded border border-[#243044] bg-[#0e141d]/90 px-1.5 py-0.5 text-slate-300 hover:border-rose-400/60 hover:text-rose-200"
+                className="rounded border border-[var(--t35)] bg-[var(--t10)]/90 px-1.5 py-0.5 text-[var(--sl300)] hover:border-rose-400/60 hover:text-[var(--ac-rose200)]"
               >↺</button>
             )}
             <button
               onClick={() => { applyView(1, { x: 0, y: 0 }); }}
               title={p.viewSync ? "Görünüm kilidi: her iki panelin yakınlaştırma/kaydırmasını sıfırla" : "Bu panelin yakınlaştırma/kaydırmasını sıfırla"}
-              className="rounded border border-[#243044] bg-[#0e141d]/90 px-1.5 py-0.5 text-slate-300 hover:border-cyan-400/60 hover:text-cyan-200"
+              className="rounded border border-[var(--t35)] bg-[var(--t10)]/90 px-1.5 py-0.5 text-[var(--sl300)] hover:border-cyan-400/60 hover:text-[var(--ac-cyan200)]"
             >1:1</button>
           </div>
           {alignMsg && (
-            <div className={`rounded px-1.5 py-0.5 text-right ${align?.trusted ? "bg-cyan-500/15 text-cyan-200" : "bg-amber-500/15 text-amber-200"}`}>
+            <div className={`rounded px-1.5 py-0.5 text-right ${align?.trusted ? "bg-cyan-500/15 text-[var(--ac-cyan200)]" : "bg-amber-500/15 text-[var(--ac-amber200)]"}`}>
               {alignMsg}
             </div>
           )}

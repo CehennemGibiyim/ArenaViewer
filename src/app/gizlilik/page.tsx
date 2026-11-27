@@ -15,16 +15,16 @@ const items: [string, string][] = [
 
 export default function GizlilikPage() {
   return (
-    <div className="h-screen w-screen overflow-y-auto bg-[#070a0f] text-slate-200">
+    <div className="h-screen w-screen overflow-y-auto bg-[var(--t02)] text-[var(--sl200)]">
       <main className="mx-auto max-w-3xl px-5 py-10">
-        <Link href="/" className="text-xs text-cyan-400 hover:underline">← Geri</Link>
-        <h1 className="mt-3 text-2xl font-black text-slate-100">Kişisel verilerin korunması — aydınlatma metni (şablon)</h1>
-        <p className="mt-2 rounded-lg border border-amber-400/40 bg-amber-400/5 p-3 text-xs text-amber-200">Bu metin bir <b>şablondur</b> ve hukuki danışmanlık yerine geçmez. Yayımlamadan önce kurumunuzun veri sorumlusu bilgileri ve hukuk müşaviri onayıyla tamamlanmalıdır.</p>
+        <Link href="/" className="text-xs text-[var(--ac-cyan400)] hover:underline">← Geri</Link>
+        <h1 className="mt-3 text-2xl font-black text-[var(--sl100)]">Kişisel verilerin korunması — aydınlatma metni (şablon)</h1>
+        <p className="mt-2 rounded-lg border border-amber-400/40 bg-amber-400/5 p-3 text-xs text-[var(--ac-amber200)]">Bu metin bir <b>şablondur</b> ve hukuki danışmanlık yerine geçmez. Yayımlamadan önce kurumunuzun veri sorumlusu bilgileri ve hukuk müşaviri onayıyla tamamlanmalıdır.</p>
         <div className="mt-6 space-y-4">
           {items.map(([k, v]) => (
-            <section key={k} className="rounded-xl border border-[#1e2735] bg-[#0b0f16] p-4">
-              <h2 className="text-sm font-bold text-cyan-300">{k}</h2>
-              <p className="mt-1 text-[13px] leading-relaxed text-slate-300">{v}</p>
+            <section key={k} className="rounded-xl border border-[var(--t30)] bg-[var(--t05)] p-4">
+              <h2 className="text-sm font-bold text-[var(--ac-cyan300)]">{k}</h2>
+              <p className="mt-1 text-[13px] leading-relaxed text-[var(--sl300)]">{v}</p>
             </section>
           ))}
         </div>

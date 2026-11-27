@@ -25,10 +25,10 @@ interface Props {
 interface TicRow { t: string; v: string }
 
 const patternTone: Record<string, string> = {
-  washout: "text-rose-200 border-rose-400/40 bg-rose-400/10",
-  progressif: "text-emerald-200 border-emerald-400/40 bg-emerald-400/10",
-  plateau: "text-amber-200 border-amber-400/40 bg-amber-400/10",
-  yetersiz: "text-slate-300 border-[#243044]",
+  washout: "text-[var(--ac-rose200)] border-rose-400/40 bg-rose-400/10",
+  progressif: "text-[var(--ac-emerald200)] border-emerald-400/40 bg-emerald-400/10",
+  plateau: "text-[var(--ac-amber200)] border-amber-400/40 bg-amber-400/10",
+  yetersiz: "text-[var(--sl300)] border-[var(--t35)]",
 };
 const patternLabel: Record<string, string> = {
   washout: "wash-out", progressif: "progresif", plateau: "plato", yetersiz: "yetersiz veri",
@@ -111,65 +111,65 @@ export default function NuclearPanel({ series, onClose, onAddToFindings }: Props
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" data-testid="nuclear-panel" role="dialog" aria-modal="true" aria-label="Nükleer tıp analizi">
-      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-[#2d3b4e] bg-[#0b0f16] text-xs text-slate-200 shadow-2xl">
-        <div className="flex items-center justify-between border-b border-[#1a2230] px-4 py-2">
+      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-[var(--t39)] bg-[var(--t05)] text-xs text-[var(--sl200)] shadow-2xl">
+        <div className="flex items-center justify-between border-b border-[var(--t25)] px-4 py-2">
           <div>
-            <div className="text-sm font-bold text-slate-100">Nükleer tıp · MTV / SUV / TIC</div>
-            <div className="text-[10px] text-slate-500">{series.description || series.modality} · {series.slices.length} kesit · SUV birimi {series.suv?.units || "bilinmiyor"}</div>
+            <div className="text-sm font-bold text-[var(--sl100)]">Nükleer tıp · MTV / SUV / TIC</div>
+            <div className="text-[10px] text-[var(--sl500)]">{series.description || series.modality} · {series.slices.length} kesit · SUV birimi {series.suv?.units || "bilinmiyor"}</div>
           </div>
           <div className="flex items-center gap-2">
             {mtv && onAddToFindings && (
-              <button onClick={addLine} className="cursor-pointer rounded border border-cyan-400/50 px-2 py-0.5 text-cyan-200 hover:bg-cyan-400/10">Rapora ekle</button>
+              <button onClick={addLine} className="cursor-pointer rounded border border-cyan-400/50 px-2 py-0.5 text-[var(--ac-cyan200)] hover:bg-cyan-400/10">Rapora ekle</button>
             )}
-            <button onClick={onClose} aria-label="Kapat" className="cursor-pointer rounded border border-[#2d3b4e] px-2 py-0.5 hover:bg-[#1a2330]">✕</button>
+            <button onClick={onClose} aria-label="Kapat" className="cursor-pointer rounded border border-[var(--t39)] px-2 py-0.5 hover:bg-[var(--t26)]">✕</button>
           </div>
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto px-4 py-3">
           {factor === null && (
-            <div className="rounded border border-amber-400/40 bg-amber-400/10 px-2 py-1 text-amber-200">
+            <div className="rounded border border-amber-400/40 bg-amber-400/10 px-2 py-1 text-[var(--ac-amber200)]">
               Seride SUV çarpanı yok ({series.suv?.note || "SuvInfo eksik"}). Ölçmek için piksel → SUV çarpanını elle girin.
-              <input value={manualFactor} onChange={(e) => setManualFactor(e.target.value)} placeholder="çarpan" className="ml-2 w-24 rounded border border-[#232e40] bg-[#141b24] px-1.5 py-0.5 text-slate-100" />
+              <input value={manualFactor} onChange={(e) => setManualFactor(e.target.value)} placeholder="çarpan" className="ml-2 w-24 rounded border border-[var(--t34)] bg-[var(--t17)] px-1.5 py-0.5 text-[var(--sl100)]" />
             </div>
           )}
           {/* SUV varyantları: SUVbw seriden; SUVlbm/SUVbsa boy+cinsiyet gerektirir. */}
-          <div className="mt-2 rounded border border-[#243044] bg-[#0d131c] px-2 py-1.5" data-testid="suv-variants">
+          <div className="mt-2 rounded border border-[var(--t35)] bg-[var(--t09)] px-2 py-1.5" data-testid="suv-variants">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-bold text-slate-200">SUV varyantları</span>
-              <span className="text-[10px] text-slate-500">{series.suv?.note || "SUVbw bilgisi yok"}</span>
+              <span className="font-bold text-[var(--sl200)]">SUV varyantları</span>
+              <span className="text-[10px] text-[var(--sl500)]">{series.suv?.note || "SUVbw bilgisi yok"}</span>
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-slate-400">
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-[var(--sl400)]">
               <label className="flex items-center gap-1">
                 Boy (cm)
-                <input value={heightInput} onChange={(e) => setHeightInput(e.target.value)} placeholder={series.suv?.heightCm ? String(series.suv.heightCm) : "ör. 175"} aria-label="Hasta boyu (cm)" className="w-16 rounded border border-[#232e40] bg-[#141b24] px-1.5 py-0.5 text-slate-100" />
+                <input value={heightInput} onChange={(e) => setHeightInput(e.target.value)} placeholder={series.suv?.heightCm ? String(series.suv.heightCm) : "ör. 175"} aria-label="Hasta boyu (cm)" className="w-16 rounded border border-[var(--t34)] bg-[var(--t17)] px-1.5 py-0.5 text-[var(--sl100)]" />
               </label>
               <label className="flex items-center gap-1">
                 Cinsiyet
-                <select value={sexSel} onChange={(e) => setSexSel(e.target.value as Sex)} aria-label="Hasta cinsiyeti" className="rounded border border-[#232e40] bg-[#141b24] px-1.5 py-0.5 text-slate-100">
+                <select value={sexSel} onChange={(e) => setSexSel(e.target.value as Sex)} aria-label="Hasta cinsiyeti" className="rounded border border-[var(--t34)] bg-[var(--t17)] px-1.5 py-0.5 text-[var(--sl100)]">
                   <option value="unknown">bilinmiyor</option>
                   <option value="M">erkek</option>
                   <option value="F">kadın</option>
                 </select>
               </label>
-              {series.suv?.heightAssumed === "m" && <span className="text-slate-500">(DICOM boyu metre olarak yorumlandı)</span>}
+              {series.suv?.heightAssumed === "m" && <span className="text-[var(--sl500)]">(DICOM boyu metre olarak yorumlandı)</span>}
             </div>
             {suvVariantsInfo ? (
-              <ul className="mt-1 space-y-0.5 text-[10.5px] text-slate-400">
-                <li>SUVbw: <b className="text-slate-200">{factor ? factor.toPrecision(3) : "—"}</b> çarpan</li>
-                <li>SUVlbm: <b className="text-slate-200">{suvVariantsInfo.lbm.factor ? suvVariantsInfo.lbm.factor.toPrecision(3) : "—"}</b> — {suvVariantsInfo.lbm.note}</li>
-                <li>SUVbsa: <b className="text-slate-200">{suvVariantsInfo.bsa.factor ? suvVariantsInfo.bsa.factor.toPrecision(3) : "—"}</b> — {suvVariantsInfo.bsa.note}</li>
+              <ul className="mt-1 space-y-0.5 text-[10.5px] text-[var(--sl400)]">
+                <li>SUVbw: <b className="text-[var(--sl200)]">{factor ? factor.toPrecision(3) : "—"}</b> çarpan</li>
+                <li>SUVlbm: <b className="text-[var(--sl200)]">{suvVariantsInfo.lbm.factor ? suvVariantsInfo.lbm.factor.toPrecision(3) : "—"}</b> — {suvVariantsInfo.lbm.note}</li>
+                <li>SUVbsa: <b className="text-[var(--sl200)]">{suvVariantsInfo.bsa.factor ? suvVariantsInfo.bsa.factor.toPrecision(3) : "—"}</b> — {suvVariantsInfo.bsa.note}</li>
               </ul>
             ) : (
-              <p className="mt-1 text-[10.5px] text-slate-500">Seride ağırlık/doz/yarı ömür/gecikme bilgisi yok; varyantlar hesaplanamaz.</p>
+              <p className="mt-1 text-[10.5px] text-[var(--sl500)]">Seride ağırlık/doz/yarı ömür/gecikme bilgisi yok; varyantlar hesaplanamaz.</p>
             )}
-            <p className="mt-1 text-[10px] text-slate-500">SUVlbm (Janmahasatian) ve SUVbsa (Du Bois) hesaplanmış değerlerdir; klinik karar için ölçüm değildir.</p>
-            <p className="mt-1 text-[10px] text-slate-500">
+            <p className="mt-1 text-[10px] text-[var(--sl500)]">SUVlbm (Janmahasatian) ve SUVbsa (Du Bois) hesaplanmış değerlerdir; klinik karar için ölçüm değildir.</p>
+            <p className="mt-1 text-[10px] text-[var(--sl500)]">
               SUV factor varsa pencere çubuğuna SUV ön ayarları eklenir (SUV 0–2,5 / 0–5 / 0–10 / 0–15); factor yoksa gösterilmez.
             </p>
           </div>
 
           {sample && sample.sampledVoxels === 0 && (
-            <div className="mt-2 rounded border border-rose-400/40 bg-rose-400/10 px-2 py-1 text-rose-200">
+            <div className="mt-2 rounded border border-rose-400/40 bg-rose-400/10 px-2 py-1 text-[var(--ac-rose200)]">
               Seride pozitif piksel yok; SUV haritası oluşturulamadı.
             </div>
           )}
@@ -177,40 +177,40 @@ export default function NuclearPanel({ series, onClose, onAddToFindings }: Props
           {sample && sample.sampledVoxels > 0 && mtv && (
             <>
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span className="text-slate-400">Eşik:</span>
-                <select value={mode} onChange={(e) => setMode(e.target.value as "mutlak" | "yuzde")} className="rounded border border-[#232e40] bg-[#141b24] px-1.5 py-0.5">
+                <span className="text-[var(--sl400)]">Eşik:</span>
+                <select value={mode} onChange={(e) => setMode(e.target.value as "mutlak" | "yuzde")} className="rounded border border-[var(--t34)] bg-[var(--t17)] px-1.5 py-0.5">
                   <option value="mutlak">mutlak SUV</option>
                   <option value="yuzde">maksimumun %</option>
                 </select>
-                <input value={thresholdInput} onChange={(e) => setThresholdInput(e.target.value)} aria-label="Eşik değeri" className="w-20 rounded border border-[#232e40] bg-[#141b24] px-1.5 py-0.5" />
-                <span className="text-slate-500">→ SUV ≥ {threshold}</span>
-                <span className="ml-auto text-[10px] text-slate-500">{sample.sliceStep} kesitte bir, {sample.pixelStride} pikselde bir örneklendi</span>
+                <input value={thresholdInput} onChange={(e) => setThresholdInput(e.target.value)} aria-label="Eşik değeri" className="w-20 rounded border border-[var(--t34)] bg-[var(--t17)] px-1.5 py-0.5" />
+                <span className="text-[var(--sl500)]">→ SUV ≥ {threshold}</span>
+                <span className="ml-auto text-[10px] text-[var(--sl500)]">{sample.sliceStep} kesitte bir, {sample.pixelStride} pikselde bir örneklendi</span>
               </div>
 
               <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-4">
-                <div className="rounded border border-[#1a2230] p-2"><div className="text-slate-500">MTV</div><div className="text-lg font-bold text-cyan-200">{mtv.mtvMl} mL</div></div>
-                <div className="rounded border border-[#1a2230] p-2"><div className="text-slate-500">SUVpeak</div><div className="text-lg font-bold text-slate-100">{mtv.suvPeak.toFixed(1)}</div></div>
-                <div className="rounded border border-[#1a2230] p-2"><div className="text-slate-500">SUVmean (eşik üstü)</div><div className="text-lg font-bold text-slate-100">{meanAbove ?? "—"}</div></div>
-                <div className="rounded border border-[#1a2230] p-2"><div className="text-slate-500">Eşik üstü voksel</div><div className="text-lg font-bold text-slate-100">{mtv.voxelCount.toLocaleString("tr-TR")}</div></div>
+                <div className="rounded border border-[var(--t25)] p-2"><div className="text-[var(--sl500)]">MTV</div><div className="text-lg font-bold text-[var(--ac-cyan200)]">{mtv.mtvMl} mL</div></div>
+                <div className="rounded border border-[var(--t25)] p-2"><div className="text-[var(--sl500)]">SUVpeak</div><div className="text-lg font-bold text-[var(--sl100)]">{mtv.suvPeak.toFixed(1)}</div></div>
+                <div className="rounded border border-[var(--t25)] p-2"><div className="text-[var(--sl500)]">SUVmean (eşik üstü)</div><div className="text-lg font-bold text-[var(--sl100)]">{meanAbove ?? "—"}</div></div>
+                <div className="rounded border border-[var(--t25)] p-2"><div className="text-[var(--sl500)]">Eşik üstü voksel</div><div className="text-lg font-bold text-[var(--sl100)]">{mtv.voxelCount.toLocaleString("tr-TR")}</div></div>
               </div>
-              <div className="mt-1 text-[10.5px] leading-relaxed text-slate-400">{mtv.advice}</div>
-              <div className="mt-1 text-[10px] text-slate-500">Örneklenen voksel: {sample.sampledVoxels.toLocaleString("tr-TR")} · örnek hacmi {sample.voxelMl.toFixed(4)} mL · toplam ölçek {noise.toFixed(0)} (ilk SUV değerleri)</div>
+              <div className="mt-1 text-[10.5px] leading-relaxed text-[var(--sl400)]">{mtv.advice}</div>
+              <div className="mt-1 text-[10px] text-[var(--sl500)]">Örneklenen voksel: {sample.sampledVoxels.toLocaleString("tr-TR")} · örnek hacmi {sample.voxelMl.toFixed(4)} mL · toplam ölçek {noise.toFixed(0)} (ilk SUV değerleri)</div>
             </>
           )}
 
-          <div className="mt-3 rounded border border-[#1a2230] p-2">
+          <div className="mt-3 rounded border border-[var(--t25)] p-2">
             <div className="flex items-center justify-between">
-              <b className="text-slate-200">Zaman-aktivite eğrisi (TIC)</b>
-              <button onClick={() => setTic((r) => [...r, { t: "", v: "" }])} className="cursor-pointer rounded border border-[#2d3b4e] px-2 py-0.5 hover:bg-[#1a2330]">+ nokta</button>
+              <b className="text-[var(--sl200)]">Zaman-aktivite eğrisi (TIC)</b>
+              <button onClick={() => setTic((r) => [...r, { t: "", v: "" }])} className="cursor-pointer rounded border border-[var(--t39)] px-2 py-0.5 hover:bg-[var(--t26)]">+ nokta</button>
             </div>
             <div className="mt-1 space-y-1">
               {tic.map((r, i) => (
                 <div key={i} className="flex items-center gap-1">
-                  <span className="w-6 text-slate-500">#{i + 1}</span>
-                  <input value={r.t} onChange={(e) => setTic((rows) => rows.map((x, k) => (k === i ? { ...x, t: e.target.value } : x)))} placeholder="sn" aria-label={`${i + 1}. nokta zamanı (sn)`} className="w-20 rounded border border-[#232e40] bg-[#141b24] px-1.5 py-0.5" />
-                  <input value={r.v} onChange={(e) => setTic((rows) => rows.map((x, k) => (k === i ? { ...x, v: e.target.value } : x)))} placeholder="SUV/aktivite" aria-label={`${i + 1}. nokta değeri`} className="w-28 rounded border border-[#232e40] bg-[#141b24] px-1.5 py-0.5" />
+                  <span className="w-6 text-[var(--sl500)]">#{i + 1}</span>
+                  <input value={r.t} onChange={(e) => setTic((rows) => rows.map((x, k) => (k === i ? { ...x, t: e.target.value } : x)))} placeholder="sn" aria-label={`${i + 1}. nokta zamanı (sn)`} className="w-20 rounded border border-[var(--t34)] bg-[var(--t17)] px-1.5 py-0.5" />
+                  <input value={r.v} onChange={(e) => setTic((rows) => rows.map((x, k) => (k === i ? { ...x, v: e.target.value } : x)))} placeholder="SUV/aktivite" aria-label={`${i + 1}. nokta değeri`} className="w-28 rounded border border-[var(--t34)] bg-[var(--t17)] px-1.5 py-0.5" />
                   {tic.length > 3 && (
-                    <button onClick={() => setTic((rows) => rows.filter((_, k) => k !== i))} aria-label={`${i + 1}. noktayı sil`} className="cursor-pointer text-rose-300">✕</button>
+                    <button onClick={() => setTic((rows) => rows.filter((_, k) => k !== i))} aria-label={`${i + 1}. noktayı sil`} className="cursor-pointer text-[var(--ac-rose300)]">✕</button>
                   )}
                 </div>
               ))}
@@ -226,7 +226,7 @@ export default function NuclearPanel({ series, onClose, onAddToFindings }: Props
             </div>
           </div>
 
-          <div className="mt-3 rounded border border-amber-400/30 bg-amber-400/5 p-2 text-[10px] leading-relaxed text-amber-200">
+          <div className="mt-3 rounded border border-amber-400/30 bg-amber-400/5 p-2 text-[10px] leading-relaxed text-[var(--ac-amber200)]">
             MTV eşik tabanlıdır ve örnekleme (piksel/kesit adımı) ile hızlandırılmıştır; SUV kalibrasyonu doz, decay ve atenüasyon düzeltmesine bağlıdır.
             TIC için en az 3 zaman noktası gerekir; eğri yorumu klinik ve diğer tetkiklerle birlikte yapılır. Klinik karar aracı değildir.
           </div>

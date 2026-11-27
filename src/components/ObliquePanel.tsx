@@ -38,23 +38,23 @@ export default function ObliquePanel({ series, center, wl, ww, invert, rot: rotP
   const slider = (label: string, key: "x" | "y" | "z", min: number, max: number) => (
     <label className="flex items-center gap-2">{label}
       <input aria-label={label} type="range" min={min} max={max} value={rot[key]} onChange={(e) => setRot((r) => ({ ...r, [key]: Number(e.target.value) }))} className="w-32" />
-      <span className="w-10 font-mono text-cyan-300">{rot[key]}°</span>
+      <span className="w-10 font-mono text-[var(--ac-cyan300)]">{rot[key]}°</span>
     </label>
   );
   return (
-    <div className="flex h-full min-h-0 flex-col text-[11px] text-slate-300">
-      <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 border-b border-[#1a2230] bg-[#0b0f16] px-2 py-1">
+    <div className="flex h-full min-h-0 flex-col text-[11px] text-[var(--sl300)]">
+      <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 border-b border-[var(--t25)] bg-[var(--t05)] px-2 py-1">
         {slider("Eğim X", "x", -90, 90)}{slider("Eğim Y", "y", -90, 90)}{slider("Dönüş Z", "z", -180, 180)}
         <label className="flex items-center gap-2">Kalın kesit
           <input aria-label="Oblik kalın kesit" type="range" min={0} max={40} value={slab} onChange={(e) => setSlab(Number(e.target.value))} className="w-24" />
-          <span className="w-12 font-mono text-cyan-300">{slab} mm</span>
+          <span className="w-12 font-mono text-[var(--ac-cyan300)]">{slab} mm</span>
         </label>
-        {(["avg", "mip", "minip"] as const).map((k) => <button key={k} disabled={slab === 0} onClick={() => setMode(k)} className={`rounded px-2 py-0.5 font-bold disabled:opacity-40 ${mode === k && slab > 0 ? "bg-cyan-400/20 text-cyan-200" : "bg-[#141b24]"}`}>{k === "avg" ? "Ort." : k === "mip" ? "MIP" : "MinIP"}</button>)}
-        <button onClick={() => setRot({ x: 0, y: 0, z: 0 })} className="rounded bg-[#141b24] px-2 py-0.5 font-bold hover:bg-[#1f2937]">Sıfırla</button>
+        {(["avg", "mip", "minip"] as const).map((k) => <button key={k} disabled={slab === 0} onClick={() => setMode(k)} className={`rounded px-2 py-0.5 font-bold disabled:opacity-40 ${mode === k && slab > 0 ? "bg-cyan-400/20 text-[var(--ac-cyan200)]" : "bg-[var(--t17)]"}`}>{k === "avg" ? "Ort." : k === "mip" ? "MIP" : "MinIP"}</button>)}
+        <button onClick={() => setRot({ x: 0, y: 0, z: 0 })} className="rounded bg-[var(--t17)] px-2 py-0.5 font-bold hover:bg-[var(--t31)]">Sıfırla</button>
       </div>
       <div className="relative min-h-0 flex-1 bg-black">
         <canvas ref={cv} data-testid="oblique-canvas" className="mx-auto h-full max-h-full w-auto max-w-full object-contain" style={{ aspectRatio: "1 / 1" }} />
-        <div className="pointer-events-none absolute bottom-1 left-2 text-[10px] text-slate-500">Merkez: MPR imleci (x {center.x}, y {center.y}, kesit {center.z + 1}) · piksel {img.stepMm.toFixed(2)} mm</div>
+        <div className="pointer-events-none absolute bottom-1 left-2 text-[10px] text-[var(--sl500)]">Merkez: MPR imleci (x {center.x}, y {center.y}, kesit {center.z + 1}) · piksel {img.stepMm.toFixed(2)} mm</div>
       </div>
     </div>
   );

@@ -76,15 +76,15 @@ export default function MirrorView() {
   const sliceReady = received.has(state.slice);
 
   return (
-    <main className="flex h-screen w-screen flex-col bg-[#07090c] text-slate-200">
-      <header className="flex flex-wrap items-center gap-2 border-b border-[#1a2230] px-3 py-1.5 text-[11px]">
-        <span className="font-bold text-cyan-200">İKİNCİ EKRAN</span>
-        <span className={`rounded px-1.5 py-0.5 font-mono ${status === "live" ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-500/15 text-amber-300"}`}>
+    <main className="flex h-screen w-screen flex-col bg-[var(--t01)] text-[var(--sl200)]">
+      <header className="flex flex-wrap items-center gap-2 border-b border-[var(--t25)] px-3 py-1.5 text-[11px]">
+        <span className="font-bold text-[var(--ac-cyan200)]">İKİNCİ EKRAN</span>
+        <span className={`rounded px-1.5 py-0.5 font-mono ${status === "live" ? "bg-emerald-500/15 text-[var(--ac-emerald300)]" : "bg-amber-500/15 text-[var(--ac-amber300)]"}`}>
           {status === "live" ? "● canlı" : status === "unsupported" ? "desteklenmiyor" : "⏳ yayın bekleniyor"}
         </span>
-        {status === "live" && <span className="min-w-0 truncate font-mono text-slate-400">{stateLabel(state, meta, meta?.sliceCount)}</span>}
-        {status === "live" && !sliceReady && <span className="rounded bg-slate-500/20 px-1.5 py-0.5 text-slate-300">kesit alınıyor…</span>}
-        {lastAt && <span className="ml-auto font-mono text-slate-500">son mesaj {lastAt}</span>}
+        {status === "live" && <span className="min-w-0 truncate font-mono text-[var(--sl400)]">{stateLabel(state, meta, meta?.sliceCount)}</span>}
+        {status === "live" && !sliceReady && <span className="rounded bg-[var(--sl500)]/20 px-1.5 py-0.5 text-[var(--sl300)]">kesit alınıyor…</span>}
+        {lastAt && <span className="ml-auto font-mono text-[var(--sl500)]">son mesaj {lastAt}</span>}
       </header>
       <div className="relative min-h-0 flex-1">
         {series ? (
@@ -109,11 +109,11 @@ export default function MirrorView() {
             label="AYNA · SALT İZLEME"
           />
         ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-sm text-slate-400">
-            <p className="text-base font-bold text-slate-200">
+          <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-sm text-[var(--sl400)]">
+            <p className="text-base font-bold text-[var(--sl200)]">
               {status === "unsupported" ? "Bu tarayıcı ikinci ekran yayınını desteklemiyor." : "Ana pencereden yayın bekleniyor…"}
             </p>
-            <p className="max-w-md text-xs leading-relaxed text-slate-500">
+            <p className="max-w-md text-xs leading-relaxed text-[var(--sl500)]">
               Ana pencerede <b>İkinci ekran</b> düğmesine basın. Görüntülenen kesit, WL/WW ve yakınlaştırma canlı aktarılır;
               veri sunucuya gitmez. Bu pencereyi başka bir monitöre sürükleyerek çoklu monitör kullanabilirsiniz.
             </p>
