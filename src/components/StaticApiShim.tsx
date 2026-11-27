@@ -7,6 +7,7 @@
  *   - /api/reports*           → rapor kaydı/onayı/addendum, tarayıcının localStorage'ında
  *   - /api/state              → ölçümler ve anahtar kesitler, localStorage
  *   - /api/reports/draft-impression → kural tabanlı izlenim taslağı
+ *   - /api/profile/preferences → tema/düzen/kısayol tercihleri (cihazda kalıcı)
  * Diğer uçlar (çalışma listesi, PACS, yönetim, depolama) 503 döner.
  * Veriler yalnızca bu tarayıcıda kalır, hiçbir yere gönderilmez.
  * Yalnızca scripts/prepare-pages.sh tarafından Pages derlemesine eklenir.
@@ -15,6 +16,8 @@ import type { AnalyzeBody } from "@/lib/analyze";
 import { missingReviewReasons, sanitizeReviewReasons } from "@/lib/findingReview";
 import type { Finding, FindingApprovalStatus, SavedReport } from "@/lib/types";
 import { parseReportSnapshot } from "@/lib/reportDiff";
+import { DEFAULT_PREFS, mergePrefs, sanitizePrefs, type UserPrefs } from "@/lib/prefs";
+import { loadStoredPrefs, saveStoredPrefs, clearStoredPrefs } from "@/lib/prefsStore";
 
 const OPERATOR = { fullName: "Demo Radyolog", title: "Uzm. Dr.", regNo: "" };
 const K_REPORTS = "atik-demo-reports";
@@ -275,6 +278,28 @@ async function route(method: string, url: URL, init?: RequestInit): Promise<Resp
     }
   }
 
+  // Tercihler (statik demo): hesap yok, ama seçim **kalıcı** olmalı — cihaz
+  // katmanı kullanılır (src/lib/prefsStore.ts). "Kaydedildi" yalanı yok:
+  // depolama kapalıysa 200 yerine 503 döner.
+  if (p === "/api/profile/preferences") {
+    if (method === "GET") {
+      const stored = loadStoredPrefs();
+      return json({ prefs: stored ?? { ...DEFAULT_PREFS }, defaults: DEFAULT_PREFS, source: stored ? "cihaz" : "varsayılan" });
+    }
+    if (method === "PATCH" || method === "PUT") {
+      const b = await body<Record<string, unknown>>();
+      const patch = sanitizePrefs(b ?? {});
+      if (Object.keys(patch).length === 0) return fail("Geçerli tercih alanı yok");
+      const next: UserPrefs = mergePrefs(loadStoredPrefs() ?? DEFAULT_PREFS, patch);
+      if (!saveStoredPrefs(next)) return fail("Tarayıcı depolaması kapalı: tercih kalıcı yazılamadı", 503);
+      return json({ ok: true, prefs: next, source: "cihaz" });
+    }
+    if (method === "DELETE") {
+      clearStoredPrefs();
+      return json({ ok: true, prefs: { ...DEFAULT_PREFS }, source: "varsayılan" });
+    }
+  }
+
   if (p === "/api/state") {
     const key = K_STATE + (url.searchParams.get("studyUid") ?? "") + "|" + (url.searchParams.get("seriesKey") ?? "");
     if (method === "GET") return json(load(key, { annotations: [], keyImages: [] }));
@@ -316,10 +341,17 @@ if (typeof window !== "undefined" && !(window as unknown as { __apiShim?: boolea
   const orig = window.fetch.bind(window);
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-    if (/^\/api\//.test(raw)) {
+    // basePath'li mutlak yol da kabul edilir: GitHub Pages'te `/ArenaViewer/api/...`
+    // istemci kodunda göreli (`/api/...`) kalır ama elle yazılmış çağrılar için
+    // yol normalleştirilir.
+    const rawPath = raw.replace(/^https?:\/\/[^/]+/, "");
+    const base = (window as unknown as { __BASE_PATH?: string }).__BASE_PATH
+      ?? (document.documentElement.getAttribute("data-base-path") ?? "");
+    const apiPath = base && rawPath.startsWith(`${base}/api/`) ? rawPath.slice(base.length) : rawPath;
+    if (/^\/api\//.test(apiPath)) {
       const method = (init?.method ?? (typeof input === "object" && "method" in input ? input.method : "GET")).toUpperCase();
       try {
-        const res = await route(method, new URL(raw, window.location.origin), init);
+        const res = await route(method, new URL(apiPath, window.location.origin), init);
         if (res) return res;
       } catch (e) {
         return fail(e instanceof Error ? e.message : "Yerel işlem hatası", 500);

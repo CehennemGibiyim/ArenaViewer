@@ -16,7 +16,10 @@ export default function ServiceWorkerRegister() {
     if (process.env.NODE_ENV !== "production") return;
     if (!("serviceWorker" in navigator)) return;
     const onLoad = () => {
-      navigator.serviceWorker.register("/sw.js").then((reg) => {
+      // GitHub Pages'te site /<repo>/ altında yayımlanır: kök "/sw.js" orada 404
+      // verir ve çevrimdışı önbellek hiç kurulmaz. basePath ön eki şart.
+      const swUrl = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/sw.js`;
+      navigator.serviceWorker.register(swUrl, { scope: `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/` }).then((reg) => {
         reg.addEventListener("updatefound", () => {
           const worker = reg.installing;
           if (!worker) return;

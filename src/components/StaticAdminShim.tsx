@@ -14,6 +14,8 @@
  * (tam sürümde /yonetim gerçek sunucu uçlarına konuşur).
  */
 
+import { evaluateEnv, parsePrometheus, summarizeChecks, type EnvSnapshot } from "@/lib/adminHealth";
+
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
 const fail = (error: string, status = 400) => json({ error }, status);
@@ -320,6 +322,100 @@ async function route(method: string, url: URL, init?: RequestInit): Promise<Resp
       }
       return json(registryState());
     }
+  }
+
+  // ── Sistem sağlığı (demo): gerçek uçla **aynı** saf değerlendirici (`evaluateEnv`) ──
+  if (p === "/api/admin/health" && method === "GET") {
+    const demoEnv: EnvSnapshot = {
+      authMode: "hesap", requireTls: "0", hstsMaxAge: "", keySource: "env", keyCount: 2,
+      databaseUrl: false, llmConfigured: false, metricsToken: false,
+      auditSiemUrl: false, auditSyslogHost: false, storage: "fs:./.data (demo)", nodeEnv: "production",
+      appVersion: "0.2.0", ingestApiKey: false, hisApiKey: false, requireTotpRoles: "yonetici",
+    };
+    const checks = evaluateEnv(demoEnv);
+    const summary = summarizeChecks(checks);
+    const metricsText = [
+      "# HELP atik_db_up Veritabanı bağlantısı 1/0", "# TYPE atik_db_up gauge", "atik_db_up 0",
+      "# HELP atik_reports_total Rapor sayısı", "# TYPE atik_reports_total gauge",
+      'atik_reports_total{status="onaylandi"} 1180', 'atik_reports_total{status="taslak"} 37',
+      "# TYPE atik_studies_total gauge", 'atik_studies_total{work_status="okunuyor"} 6',
+      "# TYPE atik_audit_events_total counter", "atik_audit_events_total 5210",
+    ].join("\n");
+    return json({
+      generatedAt: new Date().toISOString(),
+      env: demoEnv,
+      checks,
+      summary,
+      health: { ready: null, live: true, error: "statik demoda veritabanı yok" },
+      metrics: { ok: true, parsed: parsePrometheus(metricsText) },
+      note: "DEMO VERİSİ — değerlendirme kuralları gerçek uçla aynıdır; ölçümler kurgusaldır ve canlı sunucudan okunmaz.",
+    });
+  }
+
+  // ── Yedekleme & DR tatbikatı (demo): kurgusal manifest, gerçek rapor biçimi ──
+  if (p === "/api/admin/backup/drill") {
+    if (method === "GET") {
+      return json({
+        last: {
+          at: iso(2 * DAY), ok: true,
+          summary: "4 dosya · 4 sağlam · prova başarılı",
+          checked: 4, healthy: 4, extra: 0,
+          restoreTrial: { ran: true, ok: true, written: 4, failed: 0 },
+          notes: ["DEMO — dosya adları ve özetler kurgusaldır; depo erişimi yoktur."],
+          source: "fs:./.data (demo)", appVersion: "0.2.0",
+        },
+        readiness: { level: "ok", text: "Son yedek 2 gün önce ve doğrulandı. (demo)" },
+        store: "fs:./.data (demo)",
+      });
+    }
+    if (method === "POST") {
+      const files = [
+        { key: "demo/2026/11/ct-beyin-001.dcm", state: "saglam" },
+        { key: "demo/2026/11/ct-beyin-002.dcm", state: "saglam" },
+        { key: "demo/2026/11/mr-diz-014.dcm", state: "saglam" },
+        { key: "demo/2026/11/cxr-220.dcm", state: "saglam" },
+      ] as const;
+      const report = {
+        ok: true, checked: files.length, healthy: files.length, extra: [],
+        results: files.map((f, i) => ({
+          key: f.key, state: f.state,
+          expected: `demo${String(i + 1).padStart(4, "0")}`.repeat(8).slice(0, 64),
+          actual: `demo${String(i + 1).padStart(4, "0")}`.repeat(8).slice(0, 64),
+          size: 1_048_576 * (i + 1),
+        })),
+        restoreTrial: { ran: true, ok: true, written: files.length, failed: 0 },
+        summary: `${files.length} dosya · ${files.length} sağlam · prova başarılı`,
+        notes: ["DEMO — tatbikat tarayıcıda koşar; gerçek depo/anahtar doğrulanmaz."],
+      };
+      return json({ ok: true, report, record: { ...report, at: new Date().toISOString() }, readiness: { level: "ok", text: "DEMO — son tatbikat başarılı." } });
+    }
+  }
+
+  // ── Paylaşım bağlantıları (demo): token'lar kurgusal, gerçek /paylas sayfası yok ──
+  if (p === "/api/shares") {
+    if (method === "GET") {
+      return json({
+        shares: [
+          { id: 3, token: "d3m0" + "a".repeat(44), kind: "report", reportId: 1184, createdByName: "Demo Radyolog (örnek)", expiresAt: iso(-3 * DAY), revokedAt: null, accessCount: 7, lastAccessAt: iso(5 * HOUR), createdAt: iso(4 * DAY) },
+          { id: 2, token: "d3m0" + "b".repeat(44), kind: "report", reportId: 1179, createdByName: "Ayşe Demir (örnek)", expiresAt: iso(-20 * DAY), revokedAt: null, accessCount: 2, lastAccessAt: iso(2 * DAY), createdAt: iso(3 * DAY) },
+          { id: 1, token: "d3m0" + "c".repeat(44), kind: "report", reportId: 1172, createdByName: "Demo Radyolog (örnek)", expiresAt: iso(10 * DAY), revokedAt: iso(9 * DAY), accessCount: 19, lastAccessAt: iso(9 * DAY), createdAt: iso(12 * DAY) },
+        ],
+      });
+    }
+    if (method === "POST") return fail("Statik demoda paylaşım bağlantısı oluşturulamaz (sunucu gerekir)", 503);
+  }
+  if (/^\/api\/shares\/[0-9a-f]{48}$/.test(p) && method === "DELETE") return json({ ok: true, revoked: true });
+
+  // ── Gölge mod özeti (demo) ──
+  if (p === "/api/shadow/summary" && method === "GET") {
+    return json({
+      ok: true, total: 9,
+      summary: [
+        { engine: "monai-lung-nodule-ct", model: "0.3.2-demo", count: 5, findings: 11, firstAt: iso(6 * DAY), lastAt: iso(4 * HOUR) },
+        { engine: "ich-brain-ct", model: "1.1.0-demo", count: 3, findings: 4, firstAt: iso(5 * DAY), lastAt: iso(1 * DAY) },
+        { engine: "cxr-densenet121", model: "medx-demo", count: 1, findings: 2, firstAt: iso(2 * DAY), lastAt: iso(2 * DAY) },
+      ],
+    });
   }
 
   // İş akışı istatistikleri + ikinci okuma gözetimi

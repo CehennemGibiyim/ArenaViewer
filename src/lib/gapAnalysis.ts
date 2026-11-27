@@ -679,8 +679,8 @@ export const BASE_ITEMS: GapItem[] = [
     id: "f-prefs", category: "workflow", title: "Kullanıcı başına tercihler sunucuda (layout, preset, kısayol)",
     status: "kismi", priority: "P2", effort: "S",
     market: ["RadiAnt", "OHIF"],
-    ours: "**Bu sürümde eklendi:** `/tercihler` sayfası + `/api/profile/preferences` (beyaz-listeli GET/PATCH/DELETE); açılış düzeni ve pencere ön ayarı istasyonda uygulanır. Kısayol tuşları ve tema tercihi yok.",
-    action: "Klavye kısayolları ve tema tercihleri.",
+    ours: "`/tercihler` + `/api/profile/preferences` (beyaz-listeli GET/PATCH/DELETE): tema, açılış düzeni, pencere ön ayarı ve klavye kısayolları. **Yeni — iki katman:** hesap kopyası (cihazlar arası) + cihaz kopyası (`localStorage`, `src/lib/prefsStore.ts`); sunucu yoksa cihaz kopyası kullanılır ve hangi kaynaktan okunduğu yazılır. **Statik demoda `/tercihler` artık açılıyor** (404 idi): sayfa Pages derlemesinde demo sarmalayıcıyla üretilir, `/api/profile/preferences` tarayıcı içinde karşılanır, seçimler kalıcıdır (`tests/prefs-store.test.ts`). Kısayol tuşları hesaba değil tarayıcıya bağlıdır.",
+    action: "Kısayolların da hesaba bağlanması; kurum düzeyinde varsayılan politika (yönetici belirler).",
   },
   {
     id: "f-tat", category: "workflow", title: "Turnaround/istatistik panosu (TAT, onay süresi, bulgu/adet)",
@@ -700,8 +700,8 @@ export const BASE_ITEMS: GapItem[] = [
     id: "f-share", category: "workflow", title: "Süreli paylaşım bağlantısı + watermark + denetim",
     status: "kismi", priority: "P2", effort: "M",
     market: ["RadiAnt", "Weasis"],
-    ours: "**Bu sürümde eklendi:** `share_links` tablosu + `/api/shares` (GET/POST), `/api/shares/{token}` (DELETE) ve herkese açık `/paylas/{token}` sayfası (filigranlı salt okunur rapor özeti + anahtar kesitler). Bağlantı süre seçimi 1–30 gün, kapatılabilir, her erişim erişim sayacıyla denetimde işlenir. Ham DICOM/görüntü paylaşımı (imzalı URL) yoktur.",
-    action: "Görüntü (kesit) paylaşımı için imzalı/nesne depolama URL'si; paylaşım linki yönetim paneli.",
+    ours: "`share_links` tablosu + `/api/shares` (GET/POST), `/api/shares/{token}` (DELETE) ve herkese açık `/paylas/{token}` sayfası (filigranlı salt okunur rapor özeti + anahtar kesitler). Süre seçimi 1–30 gün, kapatılabilir, her erişim sayaç + denetim kaydı üretir. **Yeni — yönetim ekranı:** Yönetim → **Paylaşım** sekmesi tüm bağlantıları (oluşturan, rapor, kalan süre, erişim sayısı/son erişim) listeler, tek tıkla kapatır; token yalnız ilk 8 karakterle gösterilir (`maskShareToken`). Ham DICOM/görüntü paylaşımı (imzalı URL) yoktur.",
+    action: "Görüntü (kesit) paylaşımı için imzalı/nesne depolama URL'si; bağlantıya özel görüntüleme kapsamı.",
   },
   {
     id: "f-kimlik-rbac", category: "trust", title: "Kullanıcı hesapları, rol denetimi (RBAC) ve iki faktörlü doğrulama",
@@ -735,8 +735,8 @@ export const BASE_ITEMS: GapItem[] = [
     id: "g-backup-dr", category: "trust", title: "Yedek/geri yükleme/DR + nesne depolama adaptörü (S3/MinIO)",
     status: "kismi", priority: "P1", effort: "L",
     market: ["OHIF", "Weasis"],
-    ours: "**Bu sürümde eklendi:** `src/lib/storageAdapter.ts` — `StorageAdapter` arayüzü (`put/get/delete/list`), `FsStorage` (atomik yazma, path traversal koruması) ve `S3Storage` (AWS SigV4 elle imzalanır; AWS/MinIO/R2/Wasabi, resmî test vektörüyle doğrulandı). Etkin arka uç `src/lib/server/storage.ts`: ayar → `S3_*` ortam değişkenleri → yerel disk; yükleme/indirme uçları adaptörden geçer (doğrudan `fs` yok). Yedek: `createManifest`/`verifyManifest`/`planRestore` + `/api/admin/backup` (manifest indirme, doğrulama, idempotent geri yükleme; tümü `backup.*` denetim kaydı). Test: `npm run test:backupdr`.",
-    action: "Zamanlanmış yedek + S3 yaşam döngüsü/nesne kilidi (WORM); gerçek DR tatbikatı kaydı.",
+    ours: "**Bu sürümde eklendi:** `src/lib/storageAdapter.ts` — `StorageAdapter` arayüzü (`put/get/delete/list`), `FsStorage` (atomik yazma, path traversal koruması) ve `S3Storage` (AWS SigV4 elle imzalanır; AWS/MinIO/R2/Wasabi, resmî test vektörüyle doğrulandı). Etkin arka uç `src/lib/server/storage.ts`: ayar → `S3_*` ortam değişkenleri → yerel disk; yükleme/indirme uçları adaptörden geçer (doğrudan `fs` yok). Yedek: `createManifest`/`verifyManifest`/`planRestore` + `/api/admin/backup` (manifest indirme, doğrulama, idempotent geri yükleme; tümü `backup.*` denetim kaydı). Test: `npm run test:backupdr`. **Yeni — DR tatbikatı:** `/api/admin/backup/drill` (POST) manifestteki **her dosyanın özetini yeniden hesaplar**, depo listesiyle karşılaştırır (eksik/fazla), isteğe bağlı **geri yükleme provası** yazar-geri okur ve özeti doğrular; çözücü yoksa açık içerik doğrulanamaz → `cozulemedi` (sessiz başarı yok), fazla dosya **silinmez**, sonuç `drill.last` + `backup.drill` denetimine yazılır. Hazırlık eşikleri (`drReadiness`) ve Yönetim → **Yedekleme & DR** sekmesi (durum, eksik dosya tablosu, prova sonucu) eklendi. Test: `npm run test:backup-drill`.",
+    action: "Zamanlanmış yedek, S3 yaşam döngüsü/nesne kilidi (WORM) ve tatbikat sonucunun kurum DR defterine aktarımı.",
   },
   {
     id: "g-kms", category: "trust", title: "KMS/anahtar rotasyonu (otomatik rotation, eski anahtarla çöz/yeniyle şifrele)",
@@ -749,14 +749,14 @@ export const BASE_ITEMS: GapItem[] = [
     id: "g-metrics", category: "trust", title: "Gözlem: Prometheus metrik, yapılandırılabilir log, readiness/liveness ayrımı",
     status: "kismi", priority: "P2", effort: "M",
     market: ["Tüm kurumsal ürünler"],
-    ours: "**Bu sürümde eklendi:** `/api/metrics` (Prometheus metin, opsiyonel Bearer), liveness/ready ayrımı (`/api/health/live`, `/api/health/ready`). Yapılandırılabilir/şifrelenmiş log ve panel altyapısı yok.",
+    ours: "**Bu sürümde eklendi:** `/api/metrics` (Prometheus metin, opsiyonel Bearer), liveness/ready ayrımı (`/api/health/live`, `/api/health/ready`). **Yeni — Yönetim → Sistem sağlığı sekmesi:** `/api/admin/health` (12 kural ortam denetimi + liveness/readiness + `/api/metrics` metinlerinin ayrıştırılmış tablosu; sır değeri yanıta yazılmaz). Yapılandırılabilir/şifrelenmiş log ve harici pano paketlemesi yok.",
     action: "Loglama seviyesi ortam değişkenine bağla; Grafana panosu örneği ekle.",
   },
   {
     id: "i-mobile", category: "trust", title: "Mobil/PWA + çevrimdışı okuma",
     status: "kismi", priority: "P2", effort: "M",
     market: ["OHIF", "Weasis"],
-    ours: "PWA: public/manifest.webmanifest (tr-TR, standalone, 192/512 simge), layout viewport/themeColor/appleWebApp ve ServiceWorkerRegister. public/sw.js yalnızca statik varlıkları (_next/static, /wasm, /codecs, /icons) önbelleğe alır; /api ve /paylas hiç önbelleğe girmez, çevrimdışıda hasta verisi gösterilmez (public/offline.html). Viewport'ta dokunmatik (touchAction none) var. Kalan: tam dokunmatik gezinme (kaydırmalı düzen seçici), bölgesel yazı tipi/kontrast ayarları ve çevrimdışı okuma listesi.",
+    ours: "PWA: public/manifest.webmanifest (tr-TR, standalone, 192/512 simge), layout viewport/themeColor/appleWebApp ve ServiceWorkerRegister. public/sw.js yalnızca statik varlıkları (_next/static, /wasm, /codecs, /icons, **/kilavuz**) önbelleğe alır; /api ve /paylas hiç önbelleğe girmez, çevrimdışıda hasta verisi gösterilmez (public/offline.html). Viewport'ta dokunmatik (touchAction none) var. Kalan: tam dokunmatik gezinme (kaydırmalı düzen seçici), bölgesel yazı tipi/kontrast ayarları ve çevrimdışı okuma listesi.",
     action: "Dokunmatik odaklı yerleşim ve çevrimdışı çalışma listesi önbelleği (yalnızca okunabilir meta veri).",
   },
   {
@@ -770,8 +770,8 @@ export const BASE_ITEMS: GapItem[] = [
     id: "i-i18n", category: "trust", title: "Arayüz çevirisi (TR/EN ve diğer diller)",
     status: "kismi", priority: "P2", effort: "M",
     market: ["OHIF", "Weasis"],
-    ours: "Tek dil (Türkçe); hasta mektubu tek dil.",
-    action: "Metinler i18n katmanına; rapor/MEKTUP çok dilli.",
+    ours: "**Yanlış bilinen:** arayüz çok dilli. 83 dilin **tam çeviri paketi** (`src/i18n/<kod>.json`, `en` ile anahtar birebir; `npm run test:i18n`), `LanguageMenu` (RTL desteği; çevrilen katman **arayüz kromu**: üst çubuk, durum şeridi ve ~30 ortak düğme — piksellerin tamamı değil) ve ISO 639-3'ün **7.027 canlı dili**ni listeleyen katalog seçici; çevirisi olmayan dil İngilizce yedeğiyle çalışır. Hasta mektubu **TR/EN/DE**, hasta sözlüğü dile bağlı. **Açık:** rapor gövdesi/taslak metinleri ve uzun modal içerikleri hâlâ yalnız Türkçe; otomatik/makine çevirisi bilinçli olarak yayımlanmıyor (`docs/CEVIRI_KATKI.md`).",
+    action: "Rapor gövdesi + uzun içeriklerin çevirisi (tıbbi metin hekim/kurum onayından geçmeli); yeni diller için katkı akışı `npm run i18n:new`.",
   },
   {
     id: "h-label", category: "workflow", title: "Etiketleme/annotasyon platformu (fırça, sikayet, ekip)",
@@ -1068,6 +1068,33 @@ export interface CandidateModule {
 }
 
 export const CANDIDATE_MODULES: CandidateModule[] = [
+  {
+    id: "help-center-live",
+    title: "Canlı kılavuz — arayüzden “bu düğme ne yapar?” sorusuna yerinde yanıt",
+    field: "Uygulama içi yardım · her ekran",
+    license: "Özgün içerik — lisans engeli yok (depo içi metin + ekran görüntüsü)",
+    evidence: "Bugün /resimlianlatim + /yardim + MENU_KILAVUZU var; hiçbiri ekranın kendisinden bağlamsal olarak açılmıyor",
+    blocker: "Her düğmeye kararlı `helpId` etiketi eklenmesi (Workstation 2.000+ satır), içerik şeması ve guide-coverage testinin genişletilmesi",
+    value: "Yeni kullanıcı için öğrenme süresini kısaltır; yanlış düğme riskini azaltır (klinik yazılımda doğrudan güvenlik)",
+  },
+  {
+    id: "admin-backup-restore-ui",
+    title: "Yedekten geri yükleme sihirbazı (manifest seç → plan → onay → rapor)",
+    field: "Yönetim · DR",
+    license: "Özgün kod — ek lisans yok",
+    evidence: "`/api/admin/backup` POST plan üretiyor; arayüzü yok. `planRestore`/`verifyManifest` testli",
+    blocker: "Gerçek dosya içeriği manifestte olmadığı için depo erişimi gerekir; çok adımlı onay + denetim kaydı tasarımı",
+    value: "DR tatbikatı ekrandan uçtan uca yapılabilir; yedek gerçekten geri yüklenebilir mi sorusu kanıtlanır",
+  },
+  {
+    id: "i18n-report-body",
+    title: "Rapor gövdesi ve hasta mektubunun tam çok dilli üretimi",
+    field: "Raporlama · çok dillilik",
+    license: "Özgün şablonlar — tıbbi çeviri için kurum/uzman onayı gerekir",
+    evidence: "83 dil arayüz çevirisi var; hasta mektubu TR/EN/DE. Rapor gövdesi Türkçe",
+    blocker: "Tıbbi metin çevirisinin hekim onayından geçmesi; şablon makrolarının dile duyarlı hâle getirilmesi",
+    value: "Yabancı hastaya taburculuk/takip mektubu; kurumlar arası paylaşımda dil engeli kalkar",
+  },
   {
     id: "skm-tea-validation",
     title: "Doğrulama hattı — SKM-TEA (Stanford AIMI) / OAI referans maskeleriyle Dice ölçümü",

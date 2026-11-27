@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import LoginForm from "@/components/LoginForm";
 import SetupForm from "@/components/SetupForm";
 import { accessEnabled } from "@/lib/server/access";
@@ -38,6 +39,19 @@ export default async function GirisPage() {
             <LoginForm mode={{ accessEnabled: accessEnabled(), authRequired: authRequired() }} />
           )}
         </Suspense>
+        {/* Giriş yapmadan da ulaşılabilen yardım: kilitli ekranda "nasıl girerim"
+            sorusunun cevabı ve görsel kılavuz buradan açılır. */}
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-2 border-t border-[var(--t22)] pt-4 text-[11px]">
+          <Link href="/yardim" className="rounded border border-[var(--sl500)]/40 px-2 py-1 font-bold text-[var(--sl200)] hover:bg-[var(--sl500)]/10">
+            Yardım / S.S.S.
+          </Link>
+          <Link href="/resimlianlatim" className="rounded border border-cyan-400/40 bg-cyan-500/10 px-2 py-1 font-bold text-[var(--ac-cyan200)] hover:bg-cyan-500/20">
+            🖼 Resimli anlatım
+          </Link>
+          <Link href="/paketler" className="rounded border border-[var(--sl500)]/40 px-2 py-1 font-bold text-[var(--sl200)] hover:bg-[var(--sl500)]/10">
+            📦 Kurulum
+          </Link>
+        </div>
       </div>
     </main>
   );

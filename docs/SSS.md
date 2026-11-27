@@ -135,11 +135,63 @@ Ayrıntı: [GORSEL_ANLATIM.md §7.1](GORSEL_ANLATIM.md).
 
 ## 16. Görsel anlatım nerede? Nasıl bu kadar az yer kaplıyor?
 
-**[GORSEL_ANLATIM.md](GORSEL_ANLATIM.md)** — uçtan uca, ekran ekran. PDF sürümü tag (`v*`) yayımında Release asset'i olarak üretilir (`.github/workflows/docs-pdf.yml`). Görseller sıkıştırılmış JPEG (q82,
-~52–84 KB) ve elle çizilmiş SVG şemalardır; toplam ≈ 650 KB. Lisanslı/dış kaynaklı PDF'ler depoya
+**Uygulama içinde: `/resimlianlatim`** — ilk açılıştan rapor onayına kadar her adım, gerçek ekran görüntüleriyle;
+her adımda "nerede / ne yapılır / ne olur" ve o adımın statik web demosunda mı yoksa yalnız yerel kurulumda mı
+yapılabildiği yazar. Bağlantılar: ana ekran araç çubuğu (**🖼 Resimli anlatım** ve bağlamsal **?**
+düğmesi → doğrudan ilgili bölüm), `/yardim` sayfası ve `/tercihler` (Ayarlar) alt bölümü. Sayfa tamamen statiktir, GitHub Pages demosunda da açılır; görseller
+`public/kilavuz/` altındadır ve `docs/img/` ile **bayt bayt aynıdır** (`tests/guide-story.test.ts` denetler).
+
+Belge hâli: **[GORSEL_ANLATIM.md](GORSEL_ANLATIM.md)** — uçtan uca, ekran ekran. PDF sürümü tag (`v*`) yayımında
+Release asset'i olarak üretilir (`.github/workflows/docs-pdf.yml`). Görseller sıkıştırılmış JPEG (q82,
+~52–84 KB) ve elle çizilmiş SVG şemalardır; toplam ≈ 653 KB. Lisanslı/dış kaynaklı PDF'ler depoya
 alınmaz, yalnızca özgün şemalar kullanılır; PDF dağıtımı isterseniz `pandoc` ile üretip Release'e koyarız.
 
 ## 17. Bu belge ile uygulama içi `/yardim` sayfası farkı?
 
 Yok — **içerik aynıdır**. Uygulama sürümü belgeyi sadeleştirir ama soru listesi ve cevaplar bire bir eşlenir;
 biri güncellenmeden diğeri güncellenemez (CI denetimi: kılavuz bakımı kuralı).
+
+## 18. Yönetim panelindeki «Sistem sağlığı» neyi denetler, neyi denetlemez?
+
+`/api/admin/health` **12 kuralı** ortam değişkenlerine bakar (kimlik modu, TLS zorunluluğu, anahtar kaynağı,
+veritabanı, depo, `METRICS_TOKEN`, SIEM aktarımı, LLM, istem alımı, HBYS, MFA zorunluluğu, sürüm) ve
+liveness/readiness ile `/api/metrics` metinlerini ayrıştırıp gösterir. Sır değerleri (anahtar, parola, jeton)
+**hiçbir zaman yanıta yazılmaz** — yalnız «tanımlı / tanımsız».
+
+Denetlemedikleri dürüstçe: gerçek PACS/HBYS bağlantısı, model doğruluğu, disk doluluğu, TLS sertifika süresi.
+Bunlar için `Yönetim → Entegrasyon` testleri, `docs/KLINIK_DOGRULAMA_PLANI.md` ve kurumun izleme sistemi gerekir.
+Statik web demosunda DB/TLS olmadığı için kart **kırmızı** görünür; yanıt bunu «DEMO VERİSİ» notuyla yazar.
+
+## 19. Yedek gerçekten geri yüklenebilir mi — nasıl kanıtlarım?
+
+**Yönetim → Yedekleme & DR** sekmesindeki tatbikat (`POST /api/admin/backup/drill`) manifestteki her dosyanın
+özetini yeniden hesaplar, depoyla karşılaştırır ve isteğe bağlı geri yükleme provası yapar (bellek içi;
+depoya yazmaz/silmez). Anahtar yoksa açık içerik doğrulanamaz → `cozulemedi` (sessiz başarı yoktur).
+Adımlar ve negatif test: [YEDEK_VE_DR.md §3.1](YEDEK_VE_DR.md). Tatbikat sonucu `drill.last` ayarına ve
+`backup.drill` denetim kaydına yazılır; yedek >30 gün eskiyse hazırlık **kritik** sayılır.
+
+## 20. Gölge mod nedir, raporu etkiler mi?
+
+`NEXT_PUBLIC_AI_SHADOW_MODE=true` ile açılır: AI adayları rapora ve ekrana **girmez**, yalnız
+`shadow_findings` tablosuna yazılır. Amaç doğrulanmamış modeli üretimde sessizce ölçmektir. Özet,
+Yönetim → AI performans sekmesindeki **Gölge mod özeti** kartıdır (`/api/shadow/summary`: motor/model,
+kayıt ve bulgu sayısı, ilk/son kayıt). Gölge kayıtları hiçbir koşulda rapor metnine dönüşmez.
+
+## 21. Resimli anlatımı nerede bulurum? Statik demoda da var mı?
+
+**Dört yerden** açılır: (1) ana ekranın üst araç çubuğunda `🖼 Resimli anlatım` (Yönetim ile
+Tercihler arasında), (2) `/yardim` sayfasının en üstündeki kart, (3) `/tercihler` sayfasının
+altındaki «Yardım ve resimli anlatım» kutusu, (4) `/giris` ekranındaki bağlantı (oturum açmadan).
+Ayrıca araç çubuğundaki **?** düğmesi doğrudan ilgili bölüme atlar ve Yönetim panelinin sağ üstünde
+`🖼 Kılavuz` vardır. Doğrudan adres: `/resimlianlatim`.
+Statik demoda da **açılır** (`…github.io/ArenaViewer/resimlianlatim/`): sayfa tamamen statiktir,
+hiçbir API çağırmaz; görseller `public/kilavuz/` altındadır ve service worker çevrimdışı önbelleğe alır.
+Kısayollar listesi: [MENU_KILAVUZU.md](MENU_KILAVUZU.md) §14.
+
+## 22. Bağlamsal yardım (?) düğmesi ne yapar?
+
+Ana araç çubuğundaki **?** düğmesi, resimli anlatımın ilgili bölümüne derin bağlantı verir
+(`/resimlianlatim#bolum-…`). Konular tek kaynaktan gelir: `src/lib/guideStory.ts` → `HELP_TOPICS`;
+her kaydın **gerçekten var olan** bir bölüme bağlandığı ve çapaların sayfada basıldığı
+`tests/guide-story.test.ts` ile denetlenir. Statik demoda da çalışır (API gerekmez). Yeni bir noktaya
+kısayol eklerken `HELP_TOPICS` + `MENU_KILAVUZU.md` satırı birlikte güncellenir.

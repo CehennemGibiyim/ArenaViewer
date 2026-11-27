@@ -23,6 +23,7 @@ Ayrıntı: [docs/KILAVUZ_BAKIMI.md](KILAVUZ_BAKIMI.md).
 
 ---
 
+> **Uygulama içi resimli anlatım:** `/resimlianlatim` (gerçek ekran görüntüleriyle adım adım; ana araç çubuğundaki **🖼 Resimli anlatım**, `/yardim` ve `/tercihler` bağlantıları).
 > **Akış odaklı resimli anlatım:** adım adım uçtan uca kullanım (web demosu / Windows / macOS-Linux /
 > Docker), AI analiz karar ağacı ve tema-dil mekanizması için **[GORSEL_ANLATIM.md](GORSEL_ANLATIM.md)**.
 > Her düğme/sekmenin birebir açıklaması bu belgededir.
@@ -69,7 +70,11 @@ Yükleme sırasında `Dosya yükleme ilerlemesi` rozeti görünür; takılırsa 
 | **Seriler** | `Seri listesini göster/gizle` — sol paneli aç/kapat. |
 | **AI / Rapor paneli** | `AI, rapor, ölçüm ve DICOM panelini göster/gizle` — sağ paneli aç/kapat. |
 
-## Bölge 3 — Izgara düzeni + Oto-düzen
+## Bölge 3 — Izgara düzeni + Oto-düzen · **🖼 Resimli anlatım** · **⚙ Yönetim** · **🧰 Tercihler**
+
+Sağ üstteki sayfa düğmeleri: **📦 Kurulum** (`/paketler`), **📊 Kıyaslama** (`/kiyaslama`), **⚙ Yönetim** (`/yonetim`),
+**🧰 Tercihler** (`/tercihler`), **🖼 Resimli anlatım** (`/resimlianlatim`), **?** (bağlamsal yardım — doğrudan kılavuzun «çalışma açma / AI» bölümüne atlar) ve **⎋ Çıkış**.
+`Resimli anlatım: adım adım görsel kullanım kılavuzu` ipucu, gerçek ekran görüntüleriyle 8 bölümlük kılavuzu açar.
 
 | Denetim | İşlev |
 |---|---|
@@ -112,7 +117,7 @@ Yükleme sırasında `Dosya yükleme ilerlemesi` rozeti görünür; takılırsa 
 | **KLİNİK KARAR İÇİN KULLANILAMAZ** | Kalıcı yasal/güvenlik bandı; her ekranda görünür. |
 | 📦 **Kurulum** | `Windows · Linux · macOS kurulum paketleri ve dosya yolları` → [`/paketler`](/paketler) |
 | 📊 **Kıyaslama** | Özellik kıyaslama tablosu ve aday modüller → [`/kiyaslama`](/kiyaslama) |
-| ⚙ **Yönetim** | Kullanıcılar, roller, oturumlar/MFA, denetim kaydı, uyum listesi, AI performans → [`/yonetim`](/yonetim) |
+| ⚙ **Yönetim** | Kullanıcılar, roller, oturumlar/MFA, denetim kaydı, uyum listesi, AI performans, **Yedekleme & DR**, **Paylaşım**, **Sistem sağlığı** → [`/yonetim`](/yonetim) |
 | 🧰 **Tercihler** | `Kullanıcı tercihleri (düzen, pencere ön ayarı, otomatik protokol)` → [`/tercihler`](/tercihler) |
 | ⎋ **Çıkış** | `Oturumu kapat` |
 | 🔔 | Bildirim zili (kritik bulgu / sistem bildirimleri) |
@@ -253,15 +258,33 @@ Metin kutusu/select içindeyken kısayollar çalışmaz.
 |---|---|---|
 | `/` | Ana iş istasyonu | Bu belge |
 | `/kiyaslama` | Özellik kıyaslaması | GAP tablosu + `Önerilen aday modüller — henüz kod yok` |
-| `/yardim` | Yardım / S.S.S. | En çok sorulan sorular ve cevapları (docs/SSS.md ile bire bir eşlenik) |
+| `/yardim` | Yardım / S.S.S. | En çok sorulan sorular ve cevapları (docs/SSS.md ile bire bir eşlenik) + resimli anlatım kartı |
+| `/resimlianlatim` | Resimli anlatım | Adım adım görsel kılavuz: nerede / ne yapılır / ne olur + gerçek ekran görüntüleri (statik; demoda da açılır) |
+| Bağlamsal yardım (`helpHref`) | Ana araç çubuğu **?** (`title="Çalışma açma ve AI analizi adımları — resimli anlatımın ilgili bölümü"`) | `src/lib/guideStory.ts` `HELP_TOPICS` → `/resimlianlatim#bolum-<bölüm>`; çapa her bölümde gerçekten var mı test edilir. Yeni bir noktaya kısayol eklerken buraya da satır ekleyin. |
 | `/yonetim` | Yönetim | Kullanıcılar, roller, oturumlar/MFA, denetim kaydı, uyum listesi, AI performans |
-| `/tercihler` | Tercihler | Düzen/pencere ön ayarı + `Klavye kısayolları` |
+| `/tercihler` | Tercihler | Tema, açılış düzeni, pencere ön ayarı, klavye kısayolları. **Statik demoda da açılır** (seçimler tarayıcıda saklanır). |
 | `/paketler` | Kurulum paketleri | Windows/Linux/macOS/Docker yolları ve dosya adları |
 | `/ayna` | İkinci ekran | BroadcastChannel ile salt ayna; statik demoda demo etiketiyle |
 | `/gizlilik` | KVKK aydınlatma | Şablon metin |
-| `/yardim` | Yardım / S.S.S. | Kurulum, worker, AI kullanımı, sık sorulanlar (docs/SSS.md ile eşlenik) |
 | `/paylas/<token>` | Salt okunur paylaşım | Süre sınırlı bağlantı; her erişim denetlenir |
-| `/giris` | Oturum | `AUTH_MODE=hesap` ise kurulum/giriş; MFA |
+| `/giris` | Oturum | `AUTH_MODE=hesap` ise kurulum/giriş; MFA. Altında **Yardım / S.S.S.**, **🖼 Resimli anlatım** ve **📦 Kurulum** bağlantıları (giriş yapmadan ulaşılır) |
+
+### Resimli anlatım tam olarak nerede? (dört yer)
+
+Kullanıcılar en çok bunu soruyor; bu yüzden sayfa **dört ayrı yerden** açılıyor:
+
+| # | Yer | Ne görürsünüz |
+|---|---|---|
+| 1 | **Ana ekranın üst araç çubuğu** (sağ blok) | `🖼 Resimli anlatım` düğmesi — `⚙ Yönetim` ile `🧰 Tercihler` arasında |
+| 2 | **Yardım / S.S.S.** (`/yardim`) | Sayfanın en üstünde «Resimli anlatım — adım adım, ekran görüntüleriyle» kartı + iki örnek görsel |
+| 3 | **Tercihler** (`/tercihler`) | En altta «Yardım ve resimli anlatım» kutusu |
+| 4 | **Giriş ekranı** (`/giris`) | Formun altında `🖼 Resimli anlatım` bağlantısı (oturum açmadan) |
+
+Ek olarak **bağlamsal** giriş: ana araç çubuğundaki küçük **?** düğmesi doğrudan kılavuzun
+«çalışma açma / AI» bölümüne atlar; **Yönetim** panelinin sağ üstünde `🖼 Kılavuz` vardır.
+
+**Statik web demosunda da açılır:** `https://cehennemgibiyim.github.io/ArenaViewer/resimlianlatim/`
+(sayfa tamamen statiktir; hiçbir API çağırmaz).
 
 ## 15. Durum şeridi
 

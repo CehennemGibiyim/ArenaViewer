@@ -11,7 +11,10 @@ set -euo pipefail
 # /yonetim TAMAMEN kaldırılmaz: statik demoda gerçek AdminPanel KURGUSAL örnek
 # veriyle açılır (src/components/StaticAdminShim.tsx — modül düzeyinde bellek;
 # değişiklikler sayfa yenilenince sıfırlanır, hasta verisi yoktur).
-rm -rf src/app/api src/app/yonetim src/app/giris src/proxy.ts src/app/tercihler src/app/paylas src/app/ayna
+# /tercihler KALDIRILMAZ: tercihler cihaz katmanına (localStorage) da yazılır;
+# statik demoda sayfa, /api/profile/preferences'ı StaticApiShim üzerinden
+# karşılayan istemci sürümüyle açılır (sunucu sürümü giriş kapısında durur).
+rm -rf src/app/api src/app/yonetim src/app/giris src/proxy.ts src/app/paylas src/app/ayna
 # API entegrasyon testleri silinen sunucu uçlarını içe aktarabilir. Statik
 # kopyanın TypeScript denetiminden testleri çıkar; gerçek CI testleri korunur.
 node -e 'const fs = require("fs"); const p = JSON.parse(fs.readFileSync("tsconfig.json", "utf8")); p.exclude = [...new Set([...(p.exclude || []), "tests"])]; fs.writeFileSync("tsconfig.json", JSON.stringify(p, null, 2) + "\n");'
@@ -55,6 +58,34 @@ export default function MirrorPage() {
         </span>
       </div>
       <MirrorView />
+    </div>
+  );
+}
+TSX
+
+cat > src/app/tercihler/page.tsx <<'TSX'
+import Link from "next/link";
+import PreferencesPanel from "@/components/PreferencesPanel";
+import StaticApiShim from "@/components/StaticApiShim";
+
+// Statik demo: oturum yok, sunucu yok. Tercihler cihazda (localStorage) saklanır
+// ve /api/profile/preferences StaticApiShim tarafından karşılanır; böylece tema,
+// düzen ve kısayol seçimi sayfa yenilense de korunur.
+export const metadata = { title: "Kullanıcı Tercihleri (demo) · ArenaViewer" };
+
+export default function TercihlerDemo() {
+  return (
+    <div className="min-h-screen bg-[var(--t02)]">
+      <div className="flex flex-wrap items-center gap-2 border-b border-amber-400/30 bg-amber-400/5 px-3 py-1.5">
+        <Link href="/" className="rounded border border-cyan-400/40 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-bold text-cyan-300">
+          ← Görüntüleyiciye dön
+        </Link>
+        <span className="font-mono text-[10.5px] leading-snug text-amber-300">
+          STATİK DEMO — tercihler yalnız bu tarayıcıda saklanır (hesap katmanı yok). Seçimleriniz yenilemede korunur.
+        </span>
+      </div>
+      <StaticApiShim />
+      <PreferencesPanel />
     </div>
   );
 }

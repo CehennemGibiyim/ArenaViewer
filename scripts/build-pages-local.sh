@@ -12,7 +12,9 @@ set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
 tmp=$(mktemp -d)
-cleanup() { rm -rf "$tmp"; }
+# KEEP=1 → çıktı korunur ve yolu yazılır: `out/*.html` içinde arama yapmak,
+# sayfanın gerçekten üretildiğini görmek için (yalnız "PASS" satırı yetmiyordu).
+cleanup() { [ "${KEEP:-0}" = "1" ] || rm -rf "$tmp"; }
 trap cleanup EXIT
 
 # Çalışma ağacının kopyası (node_modules/.git/.next hariç).
@@ -26,3 +28,4 @@ cd "$tmp"
 bash scripts/prepare-pages.sh
 GITHUB_PAGES=true NEXT_PUBLIC_STATIC_DEMO=true NEXT_PUBLIC_BASE_PATH=/ArenaViewer NEXT_TELEMETRY_DISABLED=1 npx next build
 echo "PASS statik (Pages) derlemesi: çıktı $tmp/out"
+[ "${KEEP:-0}" = "1" ] && echo "KEEP=1: dizin silinmedi → $tmp/out"

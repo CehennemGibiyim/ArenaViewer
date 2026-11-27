@@ -269,8 +269,11 @@ rapor onayı radyolodundur. ICH/nodül modelleri **tanı koymaz**; şüpheli kes
 | `diyagram-yol-haritasi.jpg` | Sürüm yol haritası | JPEG | ~72 KB |
 | `sema-ai-akisi.svg` | 6 adımlı analiz akışı (§5) | SVG | ~5 KB |
 | `sema-tema-dil.svg` | Tema + dil mekanizması (§7) | SVG | ~4 KB |
+| `sema-resimli-anlatim.svg` | Uygulama içi resimli anlatımın okuma akışı + ortam rozetleri (`/resimlianlatim`) | SVG | ~3 KB |
 
-Toplam ≈ 650 KB. **PDF/HTML dağıtımı:** bu dosyalar göreli yollarla referanslanır; `pandoc` ile PDF,
+Toplam ≈ 653 KB. Bu görsellerin tamamı `public/kilavuz/` altına **birebir** kopyalanır ve
+uygulama içi kılavuz (`/resimlianlatim`) oradan okur; iki kopyanın ayrışması
+`tests/guide-story.test.ts` tarafından yakalanır. **PDF/HTML dağıtımı:** bu dosyalar göreli yollarla referanslanır; `pandoc` ile PDF,
 `mkdocs`/`docusaurus` ile HTML üretilebilir. PDF'i depoya eklemeyin — **Release asset** olarak bırakın.
 Dış kaynaklı / lisanslı PDF'ler (örneğin Model Card'lar, RSNA kılavuzları) depoya alınmaz; yalnız
 bağlantıları [MENU_KILAVUZU](MENU_KILAVUZU.md) / [SSS](SSS.md)'de verilir.
