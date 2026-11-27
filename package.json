@@ -180,7 +180,7 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "drizzle-kit": "0.31.10",
-    "eslint": "9.39.4",
+    "eslint": "10.15.0",
     "eslint-config-next": "16.4.6",
     "iso-639-3": "^3.0.1",
     "playwright": "^1.65.1",
