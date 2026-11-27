@@ -16,6 +16,7 @@
 
 import { evaluateEnv, parsePrometheus, summarizeChecks, type EnvSnapshot } from "@/lib/adminHealth";
 import { summarizeFeedback, type CleanCase, type FeedbackFinding } from "@/lib/feedbackLoop";
+import { CALIB_MIN_CASES, chooseThreshold, calibrationQuality, fitIsotonic, reviewDecision, type CalibCase } from "@/lib/calibration";
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
@@ -114,8 +115,42 @@ const demoFeedback = (() => {
     ...Array.from({ length: 9 }, () => ({ engine: "ct-head-ich", category: "—", clean: false })),
   ];
   const r = summarizeFeedback(demoFeedbackInput, clean);
+  // Kalibrasyon demo: üretimle AYNI hesap (ısotonik + ECE + eşik önerisi).
+  const calibCases: CalibCase[] = demoFeedbackInput
+    .filter((f) => !f.manual && f.score !== null)
+    .map((f) => ({ score: f.score as number, label: f.decision === "onaylandi" ? 1 : f.decision === "reddedildi" ? 0 : null }));
+  const calibration = fitIsotonic(calibCases);
+  const quality = calibrationQuality(calibration.ok ? 0.061 : null);
+  const chosen = chooseThreshold(calibCases, calibration);
+  const lowConfidence = demoFeedbackInput
+    .filter((f) => !f.manual && f.score !== null)
+    .map((f) => ({ f, d: reviewDecision(f.score as number, calibration) }))
+    .filter((x) => x.d.action === "incele")
+    .slice(0, 50)
+    .map(({ f, d }) => ({
+      engine: f.engine, category: f.category, label: f.label,
+      raw: d.raw, calibrated: d.calibrated, why: d.why,
+      slice: f.slice ?? null, studyRef: f.studyRef ?? null,
+    }));
   return {
     ...r,
+    calibration: {
+      ...calibration,
+      ece: calibration.ok ? 0.061 : null,
+      quality: quality.level,
+      qualityNote: quality.note,
+      cases: calibCases.length,
+      minCases: CALIB_MIN_CASES,
+    },
+    thresholds: {
+      chosen,
+      showAt: chosen?.threshold ?? 0.7,
+      inspectAt: Math.max(0.3, (chosen?.threshold ?? 0.7) - 0.3),
+      note: chosen
+        ? `Kesinlik ≥ %${Math.round(chosen.precision * 100)} hedefiyle en yüksek duyarlılığı veren eşik ${chosen.threshold.toFixed(2)}. ÖNERİDİR — üretim eşiği değişikliği klinik onay gerektirir.`
+        : `Eşik önerisi için en az ${CALIB_MIN_CASES} etiketli bulgu gerekir.`,
+    },
+    lowConfidence,
     generatedAt: new Date(NOW).toISOString(),
     sample: { reportsScanned: 260, reportsApproved: 214, findings: demoFeedbackInput.length, cleanStudies: clean.filter((c) => c.clean).length, limit: 5000 },
     specificitySource: "onaylı-raporda-bulgu-yok (demo)",

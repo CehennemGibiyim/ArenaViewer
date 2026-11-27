@@ -59,9 +59,29 @@ interface FeedbackReport {
   totals: { aiShown: number; decided: number; approved: number; rejected: number; edited: number; missed: number; cleanStudies: number; sensitivity: number | null; specificity: number | null; ppv: number | null };
   thresholdCurve: { threshold: number; recall: number | null; precision: number | null; kept: number; dropped: number }[];
   suggestedThreshold: number | null; suggestedThresholdWhy: string;
+  calibration?: CalibrationView;
+  thresholds?: ThresholdView;
+  lowConfidence?: LowConfRow[];
   warnings: string[]; note: string; generatedAt?: string;
   sample?: { reportsScanned: number; reportsApproved: number; findings: number; cleanStudies: number; limit: number };
   specificitySource?: string;
+}
+
+/** Kalibrasyon (a-uncert) — `GET /api/ai/feedback` içindeki `calibration`. */
+interface CalibrationView {
+  kind: "isotonic";
+  blocks: { lo: number; hi: number; n: number; p: number }[];
+  n: number; ok: boolean; reason: string; inSample: true; meanShift: number | null;
+  ece: number | null; quality: "iyi" | "orta" | "zayif" | "bilinmiyor"; qualityNote: string;
+  cases: number; minCases: number;
+}
+interface ThresholdView {
+  chosen: { threshold: number; precision: number; recall: number; kept: number } | null;
+  showAt: number; inspectAt: number; note: string;
+}
+interface LowConfRow {
+  engine: string; category: string; label: string; raw: number; calibrated: number;
+  why: string; slice: number | null; studyRef: string | null;
 }
 
 interface DisagreementStats {
@@ -931,6 +951,93 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
                     {fb.sample && <> Örneklem: {fb.sample.reportsApproved}/{fb.sample.reportsScanned} onaylı rapor.</>}
                     {fb.specificitySource && fb.specificitySource !== "yok" && <> Özgüllük kaynağı: {fb.specificitySource}.</>}
                   </p>
+                </>
+              )}
+            </div>
+
+            {/* Kalibrasyon (a-uncert): ısotonik eşleme + ECE + eşik önerisi + düşük güven kuyruğu. */}
+            <div className={`${card} space-y-2`} data-testid="calibration">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <b className="text-xs text-[var(--sl200)]">Güven kalibrasyonu (ısotonik) ve incelenecek adaylar</b>
+                <span className="text-[10.5px] text-[var(--sl500)]">
+                  {fb?.calibration
+                    ? `${fb.calibration.cases} etiketli bulgu · ${fb.calibration.ok ? `${fb.calibration.blocks.length} blok` : "eşleme yok"}`
+                    : "yükleniyor…"}
+                </span>
+              </div>
+              {fb?.calibration && (
+                <>
+                  {!fb.calibration.ok ? (
+                    <p className="text-[10.5px] leading-snug text-[var(--ac-amber300)]">
+                      {fb.calibration.reason} Skorlar <b>düzeltilmeden</b> gösterilir; ekrandaki yüzde kalibre olasılık değildir.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        <div className="rounded-lg border border-[var(--t25)] bg-[var(--t10)] px-3 py-2">
+                          <div className="text-[10px] uppercase tracking-wide text-[var(--sl500)]">ECE (kalibrasyon hatası)</div>
+                          <div className="font-mono text-lg font-bold text-[var(--sl100)]">{fb.calibration.ece === null ? "—" : fb.calibration.ece.toFixed(3)}</div>
+                          <div className="text-[9.5px] leading-tight text-[var(--sl600)]">{fb.calibration.qualityNote}</div>
+                        </div>
+                        <div className="rounded-lg border border-[var(--t25)] bg-[var(--t10)] px-3 py-2">
+                          <div className="text-[10px] uppercase tracking-wide text-[var(--sl500)]">Ortalama düzeltme</div>
+                          <div className="font-mono text-lg font-bold text-[var(--sl100)]">{fb.calibration.meanShift === null ? "—" : `%${(fb.calibration.meanShift * 100).toFixed(1)}`}</div>
+                          <div className="text-[9.5px] leading-tight text-[var(--sl600)]">|kalibre − ham| ortalaması: skoru ne kadar düzeltiyoruz</div>
+                        </div>
+                        <div className="rounded-lg border border-[var(--t25)] bg-[var(--t10)] px-3 py-2">
+                          <div className="text-[10px] uppercase tracking-wide text-[var(--sl500)]">Önerilen eşik</div>
+                          <div className="font-mono text-lg font-bold text-[var(--ac-cyan300)]">{fb.thresholds?.chosen ? fb.thresholds.chosen.threshold.toFixed(2) : "—"}</div>
+                          <div className="text-[9.5px] leading-tight text-[var(--sl600)]">
+                            {fb.thresholds?.chosen
+                              ? `kesinlik %${Math.round(fb.thresholds.chosen.precision * 100)} · duyarlılık %${Math.round(fb.thresholds.chosen.recall * 100)}`
+                              : fb.thresholds?.note ?? "yeterli veri yok"}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-[10.5px]">
+                          <thead className="text-left text-[var(--sl500)]"><tr>{["Skor aralığı", "n", "Kalibre olasılık"].map((h) => <th key={h} className="border-b border-[var(--t25)] px-2 py-1 font-semibold">{h}</th>)}</tr></thead>
+                          <tbody>
+                            {fb.calibration.blocks.map((b, i) => (
+                              <tr key={i}>
+                                <td className="border-b border-[var(--t18)] px-2 py-1 font-mono">{b.lo === b.hi ? b.lo.toFixed(2) : `${b.lo.toFixed(2)}–${b.hi.toFixed(2)}`}</td>
+                                <td className="border-b border-[var(--t18)] px-2 py-1 font-mono">{b.n}</td>
+                                <td className="border-b border-[var(--t18)] px-2 py-1 font-mono">%{Math.round(b.p * 100)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="text-[10px] leading-snug text-[var(--sl500)]">
+                        {fb.thresholds?.note} Isotonik eşleme <b>örneklem-içidir</b> (eğitim = ölçüm verisi): dış doğrulama değildir.
+                        Ters (azalan) ilişki görülen modellerde eşleme reddedilir ve skor düzeltilmez.
+                      </p>
+                    </>
+                  )}
+                  <div>
+                    <div className="mb-1 text-[10.5px] font-semibold text-[var(--ac-amber300)]">
+                      Hekim incelesin — düşük güven ({fb.lowConfidence?.length ?? 0})
+                    </div>
+                    <div className="max-h-40 overflow-y-auto rounded border border-[var(--t25)]">
+                      <table className="w-full text-[10.5px]">
+                        <tbody>
+                          {(fb.lowConfidence ?? []).length === 0 && <tr><td className="px-2 py-3 text-center text-[var(--sl500)]">İncelenecek aday yok (yeterli skorlu aday ya da kalibrasyon bekleniyor).</td></tr>}
+                          {(fb.lowConfidence ?? []).map((r, i) => (
+                            <tr key={i} className="hover:bg-[var(--t14)]">
+                              <td className="border-b border-[var(--t18)] px-2 py-1">
+                                <div className="font-semibold text-[var(--sl200)]">{r.label}</div>
+                                <div className="text-[9.5px] text-[var(--sl500)]">
+                                  {r.engine} · {r.category}
+                                  {r.slice !== null ? ` · kesit ${r.slice}` : ""}
+                                  {" · "}ham %{Math.round(r.raw * 100)} → kalibre %{Math.round(r.calibrated * 100)}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 </>
               )}
             </div>

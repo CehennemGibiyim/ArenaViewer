@@ -690,6 +690,7 @@ npm run test:pr                     # GSPS/PR dışa aktarma + parse doğrulama
 npm run test:gsps-import            # PR/GSPS ölçüm içe aktarma (kesit eşleşmesi, uçtan uca)
 npm run test:share-images           # süreli paylaşımda anonim JPEG kesit paketi (doğrulama + uç sözleşmesi)
 npm run test:feedback               # hekim geri bildirim döngüsü: duyarlılık/özgüllük/FP + eşik önerisi
+npm run test:calibration            # ısotonik kalibrasyon, ECE, eşik önerisi ve "hekim incelesin" kararı
 npm run test:notify                 # masaüstü bildirimi + izin akışı
 npm run test:prior                  # önceki tetkik ölçüm karşılaştırması
 npm run test:uncert                 # belirsizlik bandı + CXR bulgu notu
@@ -874,6 +875,20 @@ docs/             Yayınlama ve işletim kılavuzları (görsel + videolu: docs/
   özgüllük "onaylı raporda bulgu yok" proxy'sidir ve kaynağı panoda yazılır —
   altın standart (patoloji/takip) verisi yoktur, bu tablo klinik doğrulama
   çalışmasının yerine geçmez. Test: `npm run test:feedback`.
+- **Güven kalibrasyonu (a-uncert):** `src/lib/calibration.ts` — hekim kararlarından
+  **ısotonik (PAV) kalibrasyon**: ham skor → kalibre olasılık eşlemesi (tekdüze,
+  deterministik), **ECE** ve kalite sınıfı (iyi ≤0.05 · orta ≤0.10 · zayıf),
+  `meanShift` (skoru ne kadar düzeltiyoruz), **kesinlik hedefli eşik önerisi** ve
+  **"hekim incelesin"** karar politikası (`reviewDecision`: göster/incele/gizle).
+  Panoda ECE/ortalama düzeltme/önerilen eşik kartları, blok tablosu ve düşük güven
+  kuyruğu gösterilir. Derin model adayları da işletim eşiğini taşır
+  (`DEEP_SCORE_THRESHOLD`), böylece bulgu kartındaki SINIRDA/ORTA/GÜÇLÜ belirsizlik
+  bandı yalnız CXR'de değil tüm AI modellerinde çalışır. Dürüst sınırlar: etiket
+  **hekim kararıdır**; düzenlenen/bekleyen bulgular etiketsiz sayılır ve dışarıda
+  kalır; eşleme **örneklem-içidir** (dış doğrulama değil); `n<30` ise eşleme
+  üretilmez ve skor düzeltilmeden gösterilir; **ters (azalan) ilişkide ısotonik
+  eşleme reddedilir** (uydurma eğri yok); kalibrasyon eşiği kendiliğinden
+  değiştirmez — eşik önerisi yalnız öneridir. Test: `npm run test:calibration`.
 - **STOW-RS → TİTCK yol haritası:** [docs/STOW_RS_TITCK_YOL_HARITASI.md](docs/STOW_RS_TITCK_YOL_HARITASI.md)
   — PACS'a geri yazmayı üretim seviyesine çıkarma adımları (A0–A3) ve Türkiye'de
   tıbbi cihaz yazılımı regülasyonu (TİTCK/MDR: sınıflandırma, ISO 13485, ISO 14971,

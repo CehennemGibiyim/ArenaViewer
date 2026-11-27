@@ -141,7 +141,7 @@ export function brainBoxesToFindings(boxes: DeepBox[], s: SeriesData, packed: Pa
   const pos = s.slicePositions;
 
   return boxes
-    .filter((b) => Number.isFinite(b.score) && b.score >= 0.30 && b.w > 0 && b.h > 0 && b.label)
+    .filter((b) => Number.isFinite(b.score) && b.score >= DEEP_SCORE_THRESHOLD && b.w > 0 && b.h > 0 && b.label)
     .slice(0, 8)
     .map((b, i) => {
       const z0 = Math.max(0, Math.min(Z - 1, Math.round(b.z0) * zStep));
@@ -176,6 +176,8 @@ export function brainBoxesToFindings(boxes: DeepBox[], s: SeriesData, packed: Pa
         category: "Kanama", severity: info.sev as Finding["severity"],
         confidence: Math.max(0, Math.min(1, b.score)),
         confidenceKind: "heuristic" as const,
+        // İşletim eşiği: belirsizlik bandı (skor−eşik mesafesi) bu alandan hesaplanır.
+        threshold: DEEP_SCORE_THRESHOLD,
         source: "ai-model" as const,
         metrics: { maxDiameterMm: Number(dia.toFixed(1)), zExtentMm: Number(zMm.toFixed(1)) },
       } satisfies Finding;
@@ -187,6 +189,18 @@ export function brainBoxesToFindings(boxes: DeepBox[], s: SeriesData, packed: Pa
 
 const lungRadsFor = (dia: number) => (dia < 6 ? "2" : dia < 8 ? "3" : dia < 15 ? "4A" : "4B");
 
+/**
+ * Derin model adaylarının **işletim eşiği** (modelin kendi karar sınırı).
+ *
+ * Neden sabit: model skoru kalibre olasılık değildir; 0.30'un altındaki adaylar
+ * bugüne kadar sessizce atılıyordu ve kullanıcı "model bu vakada emin değil"
+ * bilgisini göremiyordu. Bu değer `Finding.threshold` alanına yazılır; bulgu
+ * kartındaki belirsizlik bandı (src/lib/uncertainty.ts) skor−eşik mesafesini
+ * gösterir. **Kalibrasyon değildir** — kalibre olasılık `src/lib/calibration.ts`
+ * ile hekim kararlarından ayrıca öğrenilir.
+ */
+export const DEEP_SCORE_THRESHOLD = 0.3;
+
 /** Worker kutularını (gönderilen hacim uzayında) rapor bulgularına çevirir. */
 export function boxesToFindings(boxes: DeepBox[], s: SeriesData, packed: PackedVolume): Finding[] {
   const Z = s.slices.length, Y = s.height, X = s.width;
@@ -196,7 +210,7 @@ export function boxesToFindings(boxes: DeepBox[], s: SeriesData, packed: PackedV
   const pos = s.slicePositions;
 
   return boxes
-    .filter((b) => Number.isFinite(b.score) && b.score >= 0.30 && b.w > 0 && b.h > 0)
+    .filter((b) => Number.isFinite(b.score) && b.score >= DEEP_SCORE_THRESHOLD && b.w > 0 && b.h > 0)
     .slice(0, 10)
     .map((b, i) => {
       // gönderilen hacim → orijinal kesit indisleri
@@ -233,6 +247,8 @@ export function boxesToFindings(boxes: DeepBox[], s: SeriesData, packed: PackedV
         category: "Nodül", severity,
         confidence: Math.max(0, Math.min(1, b.score)),
         confidenceKind: "heuristic" as const,
+        // İşletim eşiği: belirsizlik bandı (skor−eşik mesafesi) bu alandan hesaplanır.
+        threshold: DEEP_SCORE_THRESHOLD,
         source: "ai-model" as const,
         metrics: { maxDiameterMm: Number(dia.toFixed(1)), zExtentMm: Number(zMm.toFixed(1)), lungRads },
       } satisfies Finding;

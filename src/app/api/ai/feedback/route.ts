@@ -27,6 +27,11 @@ import {
   type FeedbackFinding,
   type ReviewDecision,
 } from "@/lib/feedbackLoop";
+import {
+  CALIB_MIN_CASES, chooseThreshold, calibrationQuality, fitIsotonic,
+  reviewDecision, type CalibCase,
+} from "@/lib/calibration";
+import { calibrationBins, expectedCalibrationError } from "@/lib/modelOps";
 import type { Finding, FindingApprovalStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -43,9 +48,11 @@ export function rowsToFeedback(rows: {
   engine: string | null;
   studyId: number;
   approvedAt: Date | string | null;
-}[]): { findings: FeedbackFinding[]; clean: CleanCase[] } {
+}[]): { findings: FeedbackFinding[]; clean: CleanCase[]; calib: CalibCase[] } {
   const findings: FeedbackFinding[] = [];
   const clean: CleanCase[] = [];
+  /** Kalibrasyon için skor + hekim etiketi (düzenlenen/bekleyen dışarıda). */
+  const calib: CalibCase[] = [];
   for (const r of rows) {
     const list = (Array.isArray(r.findings) ? r.findings : []) as Finding[];
     const ap = (r.approval as Record<string, FindingApprovalStatus> | null) ?? {};
@@ -81,6 +88,14 @@ export function rowsToFeedback(rows: {
       aiShown++;
       anyFinding++;
       const decision: ReviewDecision = ap[f.id] ?? "bekliyor";
+      // Kalibrasyon etiketi: yalnız net kararlar. Düzenlenen bulgu (içerik değişti)
+      // ve bekleyen (karar yok) dışarıda — belirsiz etiketle eğri öğrenilmez.
+      if (f.confidenceKind !== "none" && Number.isFinite(f.confidence)) {
+        calib.push({
+          score: f.confidence,
+          label: decision === "onaylandi" ? 1 : decision === "reddedildi" ? 0 : null,
+        });
+      }
       findings.push({
         id: String(f.id ?? ""),
         engine,
@@ -99,7 +114,7 @@ export function rowsToFeedback(rows: {
     // (Taslak raporlar özgüllüğe katılmaz: okunmamış çalışma "negatif" sayılamaz.)
     if (anyFinding === 0) clean.push({ engine, category: "—", clean: true });
   }
-  return { findings, clean };
+  return { findings, clean, calib };
 }
 
 export async function GET(req: NextRequest) {
@@ -124,7 +139,7 @@ export async function GET(req: NextRequest) {
 
   // Yalnız onaylı raporlar "karar verilmiş" sayılır; taslaklar duyarlılık/özgüllüğe girmez.
   const decidedRows = rs.filter((r) => r.status === "onaylandi");
-  const { findings, clean } = rowsToFeedback(
+  const { findings, clean, calib } = rowsToFeedback(
     decidedRows.map((r) => ({
       id: r.id,
       findings: r.findings,
@@ -138,14 +153,57 @@ export async function GET(req: NextRequest) {
   // Temiz çalışmalar motor bilgisiyle eşleşmeli: rapor motoru boşsa "?" kovasına düşer.
   const report = summarizeFeedback(findings, clean);
 
+  // ── Kalibrasyon (a-uncert): ısotonik eşleme + ECE + eşik önerisi ──
+  const calibLabeled = calib.filter((c) => c.label !== null);
+  const calibration = fitIsotonic(calibLabeled);
+  // ECE: bölme tabanlı (modelOps) — ısotonik eşlemenin "öncesi" kalitesini gösterir.
+  const bins = calibrationBins(
+    calibLabeled.filter((c) => c.label !== null).map((c) => ({ score: c.score, approved: c.label === 1 })),
+    10,
+  );
+  const ece = expectedCalibrationError(bins);
+  const quality = calibrationQuality(ece);
+  const thresholdChoice = chooseThreshold(calibLabeled, calibration);
+  // Düşük güven kuyruğu: skoru olan AI adaylarından "hekim incelesin" kararına
+  // düşenler. Karar verilmiş adaylar da listelenir: kalibrasyon sonrası geriye
+  // dönük inceleme listesi (yanlış pozitif avı) olarak işe yarar.
+  const lowConfidence = findings
+    .filter((f) => !f.manual && f.score !== null)
+    .map((f) => ({ f, d: reviewDecision(f.score as number, calibration) }))
+    .filter((x) => x.d.action === "incele")
+    .slice(0, 50)
+    .map(({ f, d }) => ({
+      engine: f.engine, category: f.category, label: f.label,
+      raw: d.raw, calibrated: d.calibrated, why: d.why,
+      slice: f.slice ?? null, studyRef: f.studyRef ?? null,
+    }));
+
   await audit(a.user, "ai.feedback_view", "report", undefined, {
     reports: decidedRows.length,
     findings: findings.length,
     cleanStudies: clean.length,
+    calibrationOk: calibration.ok,
   });
 
   return NextResponse.json({
     ...report,
+    calibration: {
+      ...calibration,
+      ece,
+      quality: quality.level,
+      qualityNote: quality.note,
+      cases: calibLabeled.length,
+      minCases: CALIB_MIN_CASES,
+    },
+    thresholds: {
+      chosen: thresholdChoice,
+      showAt: thresholdChoice?.threshold ?? 0.7,
+      inspectAt: Math.max(0.3, (thresholdChoice?.threshold ?? 0.7) - 0.3),
+      note: thresholdChoice
+        ? `Kesinlik ≥ %${Math.round(thresholdChoice.precision * 100)} hedefiyle en yüksek duyarlılığı veren eşik ${thresholdChoice.threshold.toFixed(2)}. ÖNERİDİR — üretim eşiği değişikliği klinik onay gerektirir.`
+        : `Eşik önerisi için en az ${CALIB_MIN_CASES} etiketli bulgu gerekir (şu an ${calibLabeled.length}).`,
+    },
+    lowConfidence,
     generatedAt: new Date().toISOString(),
     sample: {
       reportsScanned: rs.length,
