@@ -169,3 +169,18 @@ Statik web demosunda DB/TLS olmadığı için kart **kırmızı** görünür; ya
 depoya yazmaz/silmez). Anahtar yoksa açık içerik doğrulanamaz → `cozulemedi` (sessiz başarı yoktur).
 Adımlar ve negatif test: [YEDEK_VE_DR.md §3.1](YEDEK_VE_DR.md). Tatbikat sonucu `drill.last` ayarına ve
 `backup.drill` denetim kaydına yazılır; yedek >30 gün eskiyse hazırlık **kritik** sayılır.
+
+## 20. Gölge mod nedir, raporu etkiler mi?
+
+`NEXT_PUBLIC_AI_SHADOW_MODE=true` ile açılır: AI adayları rapora ve ekrana **girmez**, yalnız
+`shadow_findings` tablosuna yazılır. Amaç doğrulanmamış modeli üretimde sessizce ölçmektir. Özet,
+Yönetim → AI performans sekmesindeki **Gölge mod özeti** kartıdır (`/api/shadow/summary`: motor/model,
+kayıt ve bulgu sayısı, ilk/son kayıt). Gölge kayıtları hiçbir koşulda rapor metnine dönüşmez.
+
+## 21. Bağlamsal yardım (?) düğmesi ne yapar?
+
+Ana araç çubuğundaki **?** düğmesi, resimli anlatımın ilgili bölümüne derin bağlantı verir
+(`/resimlianlatim#bolum-…`). Konular tek kaynaktan gelir: `src/lib/guideStory.ts` → `HELP_TOPICS`;
+her kaydın **gerçekten var olan** bir bölüme bağlandığı ve çapaların sayfada basıldığı
+`tests/guide-story.test.ts` ile denetlenir. Statik demoda da çalışır (API gerekmez). Yeni bir noktaya
+kısayol eklerken `HELP_TOPICS` + `MENU_KILAVUZU.md` satırı birlikte güncellenir.
