@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 260" width="940" height="260" role="img" aria-label="Tema ve dil değiştirme anatomisi: Tema seç data-theme üzerinden globals.css değişkenlerini, Dil seç atik-lang üzerinden src/i18n dil paketlerini yükler">
+  <rect width="940" height="260" rx="12" fill="#0b0f16"/>
+  <g font-family="'Segoe UI',system-ui,Arial,sans-serif">
+    <text x="235" y="28" fill="#e2e8f0" font-size="14" font-weight="700" text-anchor="middle">🎨 Tema — üst çubuktaki “Tema seç”</text>
+    <g fill="#0e141d" stroke="#22d3ee" stroke-opacity="0.5">
+      <rect x="24"  y="44" width="180" height="46" rx="8"/>
+      <rect x="28"  y="106" width="172" height="46" rx="8"/>
+      <rect x="24"  y="168" width="180" height="46" rx="8"/>
+    </g>
+    <g fill="#cbd5e1" font-size="11.5" text-anchor="middle">
+      <text x="114" y="63" font-weight="700">Seçim (4 tema)</text>
+      <text x="114" y="80" fill="#94a3b8" font-size="10">Koyu · Klinik Mavi</text>
+      <text x="114" y="129" font-weight="700">&lt;html data-theme&gt;</text>
+      <text x="114" y="145" fill="#94a3b8" font-size="10">localStorage: atik-theme</text>
+      <text x="114" y="187" font-weight="700">globals.css değişkenleri</text>
+      <text x="114" y="204" fill="#94a3b8" font-size="10">61 yüzey + 11 slate + 23 vurgu</text>
+    </g>
+    <g stroke="#38bdf8" stroke-width="2">
+      <path d="M114 90 V104" marker-end="url(#a2)"/>
+      <path d="M114 152 V166" marker-end="url(#a2)"/>
+    </g>
+    <text x="235" y="127" fill="#64748b" font-size="10.5">→ tüm arayüz renkleri anında güncellenir</text>
+    <text x="235" y="146" fill="#64748b" font-size="10.5">(koyu tema = önceki görünümle birebir)</text>
+
+    <line x1="470" y1="34" x2="470" y2="226" stroke="#1e2735"/>
+
+    <text x="705" y="28" fill="#e2e8f0" font-size="14" font-weight="700" text-anchor="middle">🌐 Dil — üst çubuktaki “Dil seç”</text>
+    <g fill="#0e141d" stroke="#22c55e" stroke-opacity="0.5">
+      <rect x="492" y="44" width="200" height="46" rx="8"/>
+      <rect x="492" y="106" width="200" height="46" rx="8"/>
+      <rect x="492" y="168" width="200" height="46" rx="8"/>
+    </g>
+    <g fill="#cbd5e1" font-size="11.5" text-anchor="middle">
+      <text x="592" y="63" font-weight="700">83 tam çeviri · 7.027 canlı dil</text>
+      <text x="592" y="80" fill="#94a3b8" font-size="10">tr · en · es · fr · de · … (arama kutusu)</text>
+      <text x="592" y="129" font-weight="700">atik-lang (localStorage)</text>
+      <text x="592" y="145" fill="#94a3b8" font-size="10">&lt;html lang&gt; + arayüz anında</text>
+      <text x="592" y="187" font-weight="700">src/i18n/&lt;kod&gt;.json</text>
+      <text x="592" y="204" fill="#94a3b8" font-size="10">seçimde lazy-import edilir</text>
+    </g>
+    <g stroke="#34d399" stroke-width="2">
+      <path d="M592 90 V104" marker-end="url(#a3)"/>
+      <path d="M592 152 V166" marker-end="url(#a3)"/>
+    </g>
+    <text x="722" y="127" fill="#64748b" font-size="10.5">→ üst çubuk / durum şeridi /</text>
+    <text x="722" y="146" fill="#64748b" font-size="10.5">ortak düğmeler çevrilir</text>
+    <text x="722" y="190" fill="#fbbf24" font-size="10" font-weight="600">Belgeler &amp; rapor</text>
+    <text x="722" y="205" fill="#fbbf24" font-size="10" font-weight="600">Türkçe kalır</text>
+    <defs>
+      <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#38bdf8"/></marker>
+      <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#34d399"/></marker>
+    </defs>
+  </g>
+</svg>

@@ -23,6 +23,7 @@ Ayrıntı: [docs/KILAVUZ_BAKIMI.md](KILAVUZ_BAKIMI.md).
 
 ---
 
+> **Uygulama içi resimli anlatım:** `/resimlianlatim` (gerçek ekran görüntüleriyle adım adım; ana araç çubuğundaki **🖼 Resimli anlatım**, `/yardim` ve `/tercihler` bağlantıları).
 > **Akış odaklı resimli anlatım:** adım adım uçtan uca kullanım (web demosu / Windows / macOS-Linux /
 > Docker), AI analiz karar ağacı ve tema-dil mekanizması için **[GORSEL_ANLATIM.md](GORSEL_ANLATIM.md)**.
 > Her düğme/sekmenin birebir açıklaması bu belgededir.
@@ -69,7 +70,11 @@ Yükleme sırasında `Dosya yükleme ilerlemesi` rozeti görünür; takılırsa 
 | **Seriler** | `Seri listesini göster/gizle` — sol paneli aç/kapat. |
 | **AI / Rapor paneli** | `AI, rapor, ölçüm ve DICOM panelini göster/gizle` — sağ paneli aç/kapat. |
 
-## Bölge 3 — Izgara düzeni + Oto-düzen
+## Bölge 3 — Izgara düzeni + Oto-düzen · **🖼 Resimli anlatım** · **⚙ Yönetim** · **🧰 Tercihler**
+
+Sağ üstteki sayfa düğmeleri: **📦 Kurulum** (`/paketler`), **📊 Kıyaslama** (`/kiyaslama`), **⚙ Yönetim** (`/yonetim`),
+**🧰 Tercihler** (`/tercihler`), **🖼 Resimli anlatım** (`/resimlianlatim`) ve **⎋ Çıkış**.
+`Resimli anlatım: adım adım görsel kullanım kılavuzu` ipucu, gerçek ekran görüntüleriyle 8 bölümlük kılavuzu açar.
 
 | Denetim | İşlev |
 |---|---|
@@ -253,13 +258,14 @@ Metin kutusu/select içindeyken kısayollar çalışmaz.
 |---|---|---|
 | `/` | Ana iş istasyonu | Bu belge |
 | `/kiyaslama` | Özellik kıyaslaması | GAP tablosu + `Önerilen aday modüller — henüz kod yok` |
-| `/yardim` | Yardım / S.S.S. | En çok sorulan sorular ve cevapları (docs/SSS.md ile bire bir eşlenik) |
+| `/yardim` | Yardım / S.S.S. | En çok sorulan sorular ve cevapları (docs/SSS.md ile bire bir eşlenik) + resimli anlatım kartı |
+| `/resimlianlatim` | Resimli anlatım | Adım adım görsel kılavuz: nerede / ne yapılır / ne olur + gerçek ekran görüntüleri (statik; demoda da açılır) |
 | `/yonetim` | Yönetim | Kullanıcılar, roller, oturumlar/MFA, denetim kaydı, uyum listesi, AI performans |
 | `/tercihler` | Tercihler | Düzen/pencere ön ayarı + `Klavye kısayolları` |
 | `/paketler` | Kurulum paketleri | Windows/Linux/macOS/Docker yolları ve dosya adları |
 | `/ayna` | İkinci ekran | BroadcastChannel ile salt ayna; statik demoda demo etiketiyle |
 | `/gizlilik` | KVKK aydınlatma | Şablon metin |
-| `/yardim` | Yardım / S.S.S. | Kurulum, worker, AI kullanımı, sık sorulanlar (docs/SSS.md ile eşlenik) |
+| `/ayna` (demo) | İkinci ekran (statik) | Oturum kapısı olmadan BroadcastChannel aynası; demo etiketiyle |
 | `/paylas/<token>` | Salt okunur paylaşım | Süre sınırlı bağlantı; her erişim denetlenir |
 | `/giris` | Oturum | `AUTH_MODE=hesap` ise kurulum/giriş; MFA |
 

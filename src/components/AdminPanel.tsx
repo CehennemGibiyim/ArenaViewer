@@ -4,8 +4,13 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { UserInfo } from "@/lib/types";
 import { AUTH_LABELS, PACS_PRESETS, type PacsAuthType, type PacsConfig } from "@/lib/pacsPresets";
+import {
+  backupAge, backupState, formatBytes, formatMetricValue, maskShareToken, shareRemaining, shadowRows,
+  summarizeChecks, type CheckLevel, type EnvCheck, type ParsedMetric,
+} from "@/lib/adminHealth";
+import { drReadiness, type DrillReport } from "@/lib/backupDrill";
 
-type Tab = "profile" | "sessions" | "users" | "audit" | "ai" | "stats" | "security" | "integration" | "compliance";
+type Tab = "profile" | "sessions" | "users" | "audit" | "ai" | "stats" | "security" | "integration" | "compliance" | "health" | "backup" | "sharing";
 interface AuditRow { id: number; ts: string; username: string; action: string; entityType: string; entityId: string; details: string; hash: string }
 interface UserRow { id: number; username: string; fullName: string; title: string; regNo: string; role: string; active: boolean; twoFactorEnabled: boolean; lastLoginAt: string | null }
 interface SessionRow { id: string; userId: number; username: string; fullName: string; role: string; createdAt: string; lastSeenAt: string; expiresAt: string; revokedAt: string | null; ip: string; client: string; state: "aktif" | "suresi-dolmus" | "iptal-edilmis"; current: boolean }
@@ -14,6 +19,22 @@ interface RegistryState { entries: RegistryRow[]; summary: Record<string, number
 interface PerfRow { engine: string; category: string; shown: number; approved: number; rejected: number; edited: number; pending: number; manualAdded: number; ppv: number | null }
 interface AccessAnomalyRow { kind: string; key: string; actor: string; severity: "yuksek" | "orta" | "izle"; title: string; detail: string; count: number; windowMin: number | null; firstAt: string; lastAt: string; entityId?: string }
 interface AccessAnomalyReport { generatedAt: string; windowDays: number; scannedAuditRows: number; scannedAttempts: number; anomalies: AccessAnomalyRow[]; alert: { total: number; high: number; sent: number }; note: string }
+
+/** /api/admin/health yanıtı — tüm alanlar sunucudan; sır değeri taşınmaz. */
+interface HealthOut {
+  generatedAt: string;
+  checks: EnvCheck[];
+  summary: { ok: number; uyari: number; kritik: number; bilgi: number; total: number };
+  health: { ready: boolean | null; live: boolean | null; error?: string };
+  metrics: { ok: boolean; parsed: ParsedMetric[]; error?: string };
+  note: string;
+}
+/** Paylaşım bağlantısı satırı (sunucu `ShareRow`). */
+interface ShareRowView {
+  id: number; token: string; kind: string; reportId: number | null; createdByName: string;
+  expiresAt: string; revokedAt: string | null; accessCount: number; lastAccessAt: string | null; createdAt: string;
+}
+interface ShadowRowView { engine: string; model: string; count: number; findings: number; firstAt: string | null; lastAt: string | null }
 
 interface DisagreementCategory { engine: string; category: string; decided: number; approved: number; rejected: number; edited: number; disagreementRate: number | null }
 interface DisagreementReason { engine: string; category: string; label: string; status: "reddedildi" | "duzenlendi"; reason: string }
@@ -88,6 +109,20 @@ import { apiFetch } from "@/lib/csrfClient";
 const card = "rounded-xl border border-[var(--t30)] bg-[var(--t06)] p-4";
 const input = "rounded-lg border border-[var(--t30)] bg-[var(--t10)] px-2.5 py-1.5 text-xs text-[var(--sl100)] focus:border-cyan-400/50 focus:outline-none";
 const btn = "cursor-pointer rounded-lg px-3 py-1.5 text-xs font-bold";
+/** Paylaşım listesindeki süresi dolmuş bağlantılar için tek satır bilgi. */
+function expiredHint(rows: { expiresAt: string; revokedAt: string | null }[]): string {
+  const now = new Date();
+  const n = rows.filter((r) => !r.revokedAt && new Date(r.expiresAt) <= now).length;
+  return n > 0 ? `${n} bağlantının süresi dolmuş (kapatılmasa da erişilemez).` : "";
+}
+
+const LEVEL_STYLE: Record<CheckLevel, string> = {
+  ok: "border-emerald-500/40 bg-emerald-500/10 text-[var(--ac-emerald200)]",
+  uyari: "border-amber-500/40 bg-amber-500/10 text-[var(--ac-amber200)]",
+  kritik: "border-rose-500/50 bg-rose-500/10 text-[var(--ac-rose200)]",
+  bilgi: "border-[var(--t32)] bg-[var(--t10)] text-[var(--sl300)]",
+};
+const LEVEL_LABEL: Record<CheckLevel, string> = { ok: "TAMAM", uyari: "UYARI", kritik: "KRİTİK", bilgi: "BİLGİ" };
 
 export default function AdminPanel({ user }: { user: UserInfo }) {
   const [tab, setTab] = useState<Tab>("profile");
@@ -120,6 +155,59 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
   const loadSiem = useCallback(async () => { const r = await api<{ pending: number; failed: number; sent: number; abandoned: number; configured: boolean; maxAttempts: number }>("/api/audit/export?siem=stats"); if (r.ok) setSiem(r.data); }, []);
   // AI
   const [perf, setPerf] = useState<{ rows: PerfRow[]; note: string; disagreement?: DisagreementStats } | null>(null);
+  // Sistem sağlığı (g-metrics + ortam denetimi) — Yönetim → Sağlık
+  const [health, setHealth] = useState<HealthOut | null>(null);
+  const [healthBusy, setHealthBusy] = useState(false);
+  const [healthErr, setHealthErr] = useState("");
+  const loadHealth = useCallback(async () => {
+    setHealthBusy(true); setHealthErr("");
+    const r = await api<HealthOut & { error?: string }>("/api/admin/health");
+    if (r.ok) setHealth(r.data);
+    else setHealthErr(r.data?.error ?? "Sistem sağlığı okunamadı");
+    setHealthBusy(false);
+  }, []);
+  // Yedekleme / DR tatbikatı — Yönetim → Yedekleme
+  const [drill, setDrill] = useState<{ last: (DrillReport & { at: string; summary: string }) | null; readiness: { level: CheckLevel; text: string }; store: string } | null>(null);
+  const [drillBusy, setDrillBusy] = useState(false);
+  const [drillOut, setDrillOut] = useState<DrillReport | null>(null);
+  const [drillErr, setDrillErr] = useState("");
+  const loadDrill = useCallback(async () => {
+    const r = await api<{ last: (DrillReport & { at: string }) | null; readiness: { level: CheckLevel; text: string }; store: string; error?: string }>("/api/admin/backup/drill");
+    if (r.ok) setDrill({ last: r.data.last, readiness: r.data.readiness, store: r.data.store });
+  }, []);
+  const runDrillNow = async (restoreTrial: boolean) => {
+    setDrillBusy(true); setDrillErr(""); setDrillOut(null);
+    const r = await api<{ ok: boolean; report: DrillReport; readiness: { level: CheckLevel; text: string }; error?: string }>("/api/admin/backup/drill", json("POST", { restoreTrial }));
+    setDrillBusy(false);
+    if (!r.ok) { setDrillErr(r.data?.error ?? "Tatbikat koşulamadı"); return; }
+    setDrillOut(r.data.report);
+    flash(r.data.report.ok ? "Tatbikat başarılı: yedek geri yüklenebilir." : "Tatbikat HATALI — ayrıntı ekranda.");
+    await loadDrill();
+  };
+  // Paylaşım bağlantıları — Yönetim → Paylaşım
+  const [shares, setShares] = useState<ShareRowView[]>([]);
+  const [sharesErr, setSharesErr] = useState("");
+  const [shareBusy, setShareBusy] = useState("");
+  const loadShares = useCallback(async () => {
+    setSharesErr("");
+    const r = await api<{ shares: ShareRowView[]; error?: string }>("/api/shares");
+    if (r.ok) setShares(r.data.shares ?? []);
+    else setSharesErr(r.data?.error ?? "Paylaşım bağlantıları okunamadı");
+  }, []);
+  const revokeShareNow = async (token: string) => {
+    setShareBusy(token);
+    const r = await api<{ ok?: boolean; error?: string }>(`/api/shares/${token}`, { method: "DELETE" });
+    setShareBusy("");
+    flash(r.ok ? "Paylaşım bağlantısı kapatıldı." : r.data?.error ?? "Bağlantı kapatılamadı");
+    await loadShares();
+  };
+  // Gölge mod özeti (t-validation) — Yönetim → AI sekmesindeki kart
+  const [shadow, setShadow] = useState<{ total: number; summary: ShadowRowView[]; error?: string } | null>(null);
+  const loadShadow = useCallback(async () => {
+    const r = await api<{ total: number; summary: ShadowRowView[]; error?: string }>("/api/shadow/summary");
+    if (r.ok) setShadow({ total: r.data.total ?? 0, summary: r.data.summary ?? [] });
+    else setShadow({ total: 0, summary: [], error: r.data?.error ?? "Gölge mod özeti alınamadı" });
+  }, []);
   // iş akışı istatistikleri (F4)
   const [stats, setStats] = useState<WorkflowStats | null>(null);
   const [statsNote, setStatsNote] = useState("");
@@ -243,12 +331,16 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
         const r = await api<{ rows: PerfRow[]; note: string; disagreement?: DisagreementStats }>("/api/ai/performance");
         if (r.ok) setPerf(r.data);
         await loadRegistry();
+        await loadShadow();
       }
+      if (tab === "health") await loadHealth();
+      if (tab === "backup") await loadDrill();
+      if (tab === "sharing") await loadShares();
       if (tab === "stats") { await loadStats(targetHoursRef.current, trendModalityRef.current); await loadPeer(); }
       if (["security", "integration", "compliance"].includes(tab)) await loadSettings();
       if (tab === "security") { await loadKeyring(); await loadAnomalies(); }
     })();
-  }, [tab, loadProfile, loadAudit, loadSiem, loadStats, loadSettings, loadUsers, loadMfa, loadKeyring, loadSessions, loadRegistry, loadPeer, loadAnomalies]);
+  }, [tab, loadProfile, loadAudit, loadSiem, loadStats, loadSettings, loadUsers, loadMfa, loadKeyring, loadSessions, loadRegistry, loadPeer, loadAnomalies, loadHealth, loadDrill, loadShares, loadShadow]);
 
   const saveSettings = async (patch: Record<string, unknown>) => {
     const r = await api<{ error?: string }>("/api/settings", json("PUT", patch));
@@ -357,7 +449,7 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
     flash(`CSV indirildi (${audit.length} kayıt${aq ? ", filtreli" : ""}). Tüm geçmiş için arama kutusunu boş bırakıp yenileyin.`);
   };
 
-  const tabs: [Tab, string][] = [["profile", "Profil & MFA"], ["sessions", "Oturumlar"], ["users", "Kullanıcılar"], ["audit", "Denetim kaydı"], ["ai", "AI performans"], ["stats", "İş akışı"], ["security", "Güvenlik & saklama"], ["integration", "Entegrasyon"], ["compliance", "Uyum"]];
+  const tabs: [Tab, string][] = [["profile", "Profil & MFA"], ["sessions", "Oturumlar"], ["users", "Kullanıcılar"], ["audit", "Denetim kaydı"], ["ai", "AI performans"], ["stats", "İş akışı"], ["security", "Güvenlik & saklama"], ["backup", "Yedekleme & DR"], ["sharing", "Paylaşım"], ["health", "Sistem sağlığı"], ["integration", "Entegrasyon"], ["compliance", "Uyum"]];
 
   const savePeerPct = async () => {
     const n = Number(peerPct);
@@ -385,6 +477,7 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
         <h1 className="font-mono text-sm font-black tracking-[0.15em] text-[var(--sl100)]">ATIK<span className="text-[var(--ac-cyan400)]">VIEWER</span> · YÖNETİM</h1>
         <span className="ml-auto flex items-center gap-3">
           <span className="text-xs text-[var(--sl400)]" title={`Rol: ${user.role}`}>{user.title} {user.fullName} · <span className="font-mono text-[10px] text-[var(--sl500)]">{user.role}</span></span>
+          <Link href="/resimlianlatim" prefetch={false} className="rounded-md border border-cyan-400/40 bg-cyan-500/10 px-2.5 py-1 text-[11px] font-bold text-[var(--ac-cyan300)] hover:bg-cyan-500/20" title="Resimli anlatım: adım adım görsel kullanım kılavuzu">🖼 Kılavuz</Link>
           <button className={`${btn} border border-rose-400/40 text-[var(--ac-rose300)] hover:bg-rose-400/10`} onClick={() => void apiFetch("/api/auth/logout", { method: "POST" }).finally(() => { window.location.reload(); })}>⎋ Çıkış</button>
         </span>
       </header>
@@ -635,6 +728,40 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
         {tab === "ai" && (
           <div className="mt-4 space-y-3">
             <div className="rounded-lg border border-amber-400/30 bg-amber-400/5 p-3 text-xs text-[var(--ac-amber200)]">{perf?.note ?? "Yükleniyor…"}</div>
+            {/* Gölge mod (t-validation): AI adayları rapora girmeden ölçülür — /api/shadow/summary */}
+            <div className={`${card} space-y-1.5`} data-testid="shadow-summary">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <b className="text-xs text-[var(--sl200)]">Gölge mod özeti</b>
+                <span className="text-[10.5px] text-[var(--sl500)]">
+                  {shadow ? `${shadow.total} kayıt · ${shadowRows(shadow.summary).totalFindings} aday bulgu` : "yükleniyor…"}
+                  {shadowRows(shadow?.summary ?? []).lastAt ? ` · son ${new Date(shadowRows(shadow?.summary ?? []).lastAt!).toLocaleString("tr-TR")}` : ""}
+                </span>
+              </div>
+              <p className="text-[10.5px] leading-snug text-[var(--sl500)]">
+                NEXT_PUBLIC_AI_SHADOW_MODE=true iken AI adayları rapora/ekrana girmez; yalnız kaydedilir. Bu tablo, doğrulanmamış modelin
+                üretimde sessizce ölçülmesini sağlar — burada gösterilen sayılar klinik doğruluk değildir.
+              </p>
+              {shadow?.error && <p className="text-[10.5px] text-[var(--ac-amber300)]">{shadow.error}</p>}
+              {shadow && shadow.summary.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[11px]">
+                    <thead className="text-left text-[var(--sl500)]"><tr>{["Motor", "Model", "Kayıt", "Aday bulgu", "İlk", "Son"].map((h) => <th key={h} className="border-b border-[var(--t25)] px-2 py-1.5 font-semibold">{h}</th>)}</tr></thead>
+                    <tbody>
+                      {shadow.summary.map((r) => (
+                        <tr key={`${r.engine}${r.model}`}>
+                          <td className="border-b border-[var(--t18)] px-2 py-1 font-mono text-[10.5px] text-[var(--ac-cyan300)]">{r.engine}</td>
+                          <td className="border-b border-[var(--t18)] px-2 py-1">{r.model}</td>
+                          <td className="border-b border-[var(--t18)] px-2 py-1 font-mono">{r.count}</td>
+                          <td className="border-b border-[var(--t18)] px-2 py-1 font-mono text-[var(--ac-amber300)]">{r.findings}</td>
+                          <td className="border-b border-[var(--t18)] px-2 py-1 text-[10px] text-[var(--sl500)]">{r.firstAt ? new Date(r.firstAt).toLocaleString("tr-TR") : "—"}</td>
+                          <td className="border-b border-[var(--t18)] px-2 py-1 text-[10px] text-[var(--sl500)]">{r.lastAt ? new Date(r.lastAt).toLocaleString("tr-TR") : "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
             <div className={`${card} overflow-x-auto p-0`}>
               <table className="w-full text-[11.5px]">
                 <thead className="text-left text-[var(--sl500)]"><tr>{["Motor", "Kategori", "Gösterilen", "Onaylanan", "Reddedilen", "Düzenlenen", "Bekleyen", "Kesinlik (PPV)", "AI'nın kaçırdığı (hekim ekledi)"].map((h) => <th key={h} className="border-b border-[var(--t25)] px-3 py-2 font-semibold">{h}</th>)}</tr></thead>
@@ -1059,6 +1186,237 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
               )}
               {anomaly && <p className="mt-3 text-[9.5px] leading-snug text-[var(--sl600)]">{anomaly.note}</p>}
             </div>
+          </div>
+        )}
+
+        {tab === "health" && (
+          <div className="mt-4 space-y-3">
+            <div className={`${card} flex flex-wrap items-center gap-2`}>
+              <b className="text-sm text-[var(--sl100)]">Sistem sağlığı ve ortam denetimi</b>
+              <span className="text-[11px] text-[var(--sl500)]">
+                Değerler bu sunucudan okunur; sırlar (anahtar, parola, jeton) hiçbir zaman gösterilmez.
+              </span>
+              <button className={`${btn} ml-auto bg-cyan-500 text-[var(--sl950)] disabled:opacity-40`} disabled={healthBusy} onClick={() => void loadHealth()}>
+                {healthBusy ? "Okunuyor…" : "↻ Yenile"}
+              </button>
+            </div>
+            {healthErr && <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-[var(--ac-rose200)]">{healthErr}</div>}
+            {health && (
+              <>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  {([
+                    ["Tamam", health.summary.ok, "ok"],
+                    ["Uyarı", health.summary.uyari, "uyari"],
+                    ["Kritik", health.summary.kritik, "kritik"],
+                    ["Bilgi", health.summary.bilgi, "bilgi"],
+                  ] as [string, number, CheckLevel][]).map(([l, n, lvl]) => (
+                    <div key={l} className={`rounded-xl border p-3 ${LEVEL_STYLE[lvl]}`}>
+                      <div className="text-[10px] font-bold uppercase tracking-widest opacity-80">{l}</div>
+                      <div className="mt-0.5 font-mono text-2xl font-black">{n}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className={`${card} flex flex-wrap items-center gap-3 text-xs`}>
+                  <span className="font-semibold text-[var(--sl300)]">Uçlar:</span>
+                  <span className={`rounded px-2 py-0.5 font-mono text-[10.5px] ${health.health.live ? "bg-emerald-500/15 text-[var(--ac-emerald300)]" : "bg-rose-500/15 text-[var(--ac-rose300)]"}`}>
+                    liveness {health.health.live === null ? "bilinmiyor" : health.health.live ? "yanıt veriyor" : "YANIT YOK"}
+                  </span>
+                  <span className={`rounded px-2 py-0.5 font-mono text-[10.5px] ${health.health.ready ? "bg-emerald-500/15 text-[var(--ac-emerald300)]" : "bg-rose-500/15 text-[var(--ac-rose300)]"}`}>
+                    readiness {health.health.ready === null ? "bilinmiyor" : health.health.ready ? "hazır" : "HAZIR DEĞİL"}
+                  </span>
+                  <span className={`rounded px-2 py-0.5 font-mono text-[10.5px] ${health.metrics.ok ? "bg-emerald-500/15 text-[var(--ac-emerald300)]" : "bg-amber-500/15 text-[var(--ac-amber300)]"}`}>
+                    /api/metrics {health.metrics.ok ? `${health.metrics.parsed.length} seri` : health.metrics.error ?? "okunamadı"}
+                  </span>
+                  <span className="ml-auto text-[10.5px] text-[var(--sl500)]">okuma: {new Date(health.generatedAt).toLocaleString("tr-TR")}</span>
+                </div>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {health.checks.map((c) => (
+                    <div key={c.id} className={`rounded-lg border p-3 ${LEVEL_STYLE[c.level]}`}>
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <b className="text-[12px] text-[var(--sl100)]">{c.label}</b>
+                        <span className="rounded border border-current/30 px-1.5 py-0.5 font-mono text-[9px] font-black">{LEVEL_LABEL[c.level]}</span>
+                      </div>
+                      <div className="mt-0.5 font-mono text-[11px]">{c.value}</div>
+                      <p className="mt-1 text-[10.5px] leading-relaxed opacity-90">{c.hint}</p>
+                      {c.doc && <p className="mt-0.5 font-mono text-[9.5px] opacity-70">belge: {c.doc}</p>}
+                    </div>
+                  ))}
+                </div>
+                <div className={`${card} space-y-2`}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <b className="text-xs text-[var(--sl200)]">Prometheus metrikleri (ayrıştırılmış)</b>
+                    <span className="text-[10.5px] text-[var(--sl500)]">kaynak: /api/metrics · yalnız toplu sayımlar</span>
+                  </div>
+                  {!health.metrics.ok && <p className="text-[11px] text-[var(--ac-amber300)]">Metrik ucu okunamadı: {health.metrics.error ?? "bilinmeyen hata"}</p>}
+                  {health.metrics.ok && health.metrics.parsed.length === 0 && <p className="text-[11px] text-[var(--sl500)]">Metrik döndü ama seri yok.</p>}
+                  {health.metrics.parsed.map((m) => (
+                    <div key={m.name} className="rounded border border-[var(--t25)] p-2">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <code className="font-mono text-[11px] text-[var(--ac-cyan300)]">{m.name}</code>
+                        <span className="rounded border border-[var(--t32)] px-1.5 py-0.5 font-mono text-[9px] text-[var(--sl400)]">{m.type}</span>
+                      </div>
+                      {m.help && <div className="text-[10px] text-[var(--sl500)]">{m.help}</div>}
+                      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[10.5px] text-[var(--sl300)]">
+                        {m.points.map((p, i) => (
+                          <span key={i}>
+                            {Object.keys(p.labels).length > 0 && <span className="text-[var(--sl500)]">{Object.entries(p.labels).map(([k, v]) => `${k}=${v}`).join(" ")}{" "}</span>}
+                            <b className="text-[var(--ac-cyan200)]">{formatMetricValue(p.value)}</b>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10.5px] leading-relaxed text-[var(--sl500)]">{health.note}</p>
+              </>
+            )}
+            {!health && !healthBusy && <p className="text-xs text-[var(--sl500)]">Sağlık verisi yüklenmedi.</p>}
+          </div>
+        )}
+
+        {tab === "backup" && (
+          <div className="mt-4 space-y-3">
+            <div className={`${card} flex flex-wrap items-center gap-2`}>
+              <b className="text-sm text-[var(--sl100)]">Yedekleme ve felaket kurtarma (DR) tatbikatı</b>
+              <span className="text-[11px] text-[var(--sl500)]">depo: {drill?.store ?? "…"}</span>
+              <div className="ml-auto flex flex-wrap gap-2">
+                <button className={`${btn} bg-cyan-500 text-[var(--sl950)] disabled:opacity-40`} disabled={drillBusy} onClick={() => void runDrillNow(true)}>
+                  {drillBusy ? "Koşuluyor…" : "▶ Tatbikatı koş (geri yükleme provası ile)"}
+                </button>
+                <button className={`${btn} border border-[var(--sl400)]/40 text-[var(--sl300)] disabled:opacity-40`} disabled={drillBusy} onClick={() => void runDrillNow(false)}>
+                  Özet denetimi (provasız)
+                </button>
+                <a className={`${btn} border border-emerald-400/40 text-[var(--ac-emerald300)] hover:bg-emerald-400/10`} href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/admin/backup?download=1`}>⤓ Manifest indir</a>
+              </div>
+            </div>
+            <p className="rounded-lg border border-amber-400/30 bg-amber-400/5 p-2.5 text-[11px] leading-relaxed text-[var(--ac-amber200)]">
+              Tatbikat manifestteki <b>her dosyanın özetini yeniden hesaplar</b> ve isteğe bağlı olarak baytları geçici bir
+              yazıcıya yazıp geri okur. Depoya <b>yazmaz</b>, dosya <b>silmez</b>. Manifest indirmek yedek değildir: veritabanı
+              yedeği <code>pg_dump</code> ile alınır (docs/YEDEK_VE_DR.md) ve yedek şifreleme anahtarı ayrıca saklanmalıdır.
+            </p>
+            {drillErr && <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-[var(--ac-rose200)]">{drillErr}</div>}
+            {drill?.readiness && (
+              <div className={`rounded-lg border p-3 text-xs ${LEVEL_STYLE[drill.readiness.level]}`}>
+                <b className="mr-2">{LEVEL_LABEL[drill.readiness.level]}</b>{drill.readiness.text}
+                {drill.last && <span className="ml-2 text-[10.5px] opacity-80">son tatbikat: {new Date(drill.last.at).toLocaleString("tr-TR")}</span>}
+              </div>
+            )}
+            {(drillOut ?? drill?.last) && (() => {
+              const r: DrillReport = (drillOut ?? (drill?.last as unknown as DrillReport));
+              return (
+                <div className="space-y-3">
+                  <div className={`rounded-lg border px-3 py-2 text-xs font-semibold ${r.ok ? "border-emerald-500/40 bg-emerald-500/10 text-[var(--ac-emerald200)]" : "border-rose-500/50 bg-rose-500/10 text-[var(--ac-rose200)]"}`}>
+                    {r.ok ? "✓" : "✗"} {r.summary}
+                  </div>
+                  {r.restoreTrial && (
+                    <p className="text-[11px] text-[var(--sl300)]">
+                      Geri yükleme provası: {r.restoreTrial.ran ? (r.restoreTrial.ok ? "başarılı" : "BAŞARISIZ") : "yapılmadı"} · yazılan {r.restoreTrial.written} · başarısız {r.restoreTrial.failed}
+                    </p>
+                  )}
+                  {(r.notes?.length ?? 0) > 0 && (
+                    <ul className="space-y-0.5 text-[11px] text-[var(--ac-amber200)]">{r.notes.map((n) => <li key={n}>• {n}</li>)}</ul>
+                  )}
+                  {r.extra.length > 0 && (
+                    <p className="text-[10.5px] text-[var(--sl500)]">Manifestte olmayan dosyalar: {r.extra.slice(0, 12).join(", ")}{r.extra.length > 12 ? "…" : ""}</p>
+                  )}
+                  <div className={`${card} max-h-[50vh] overflow-auto p-0`}>
+                    <table className="w-full text-[11px]">
+                      <thead className="sticky top-0 bg-[var(--t06)] text-left text-[var(--sl500)]">
+                        <tr>{["Dosya", "Durum", "Boyut", "Beklenen özet", "Okunan özet"].map((h) => <th key={h} className="border-b border-[var(--t25)] px-2 py-1.5 font-semibold">{h}</th>)}</tr>
+                      </thead>
+                      <tbody>
+                        {r.results.map((f) => (
+                          <tr key={f.key}>
+                            <td className="max-w-[280px] truncate border-b border-[var(--t18)] px-2 py-1 font-mono text-[10px] text-[var(--sl300)]" title={f.key}>{f.key}</td>
+                            <td className={`border-b border-[var(--t18)] px-2 py-1 font-bold ${f.state === "saglam" ? "text-[var(--ac-emerald300)]" : "text-[var(--ac-rose300)]"}`}>{f.state}</td>
+                            <td className="border-b border-[var(--t18)] px-2 py-1 font-mono text-[10px] text-[var(--sl400)]">{formatBytes(f.size)}</td>
+                            <td className="border-b border-[var(--t18)] px-2 py-1 font-mono text-[9.5px] text-[var(--sl500)]">{f.expected.slice(0, 16)}…</td>
+                            <td className="border-b border-[var(--t18)] px-2 py-1 font-mono text-[9.5px] text-[var(--sl500)]">{f.actual ? `${f.actual.slice(0, 16)}…` : "—"}</td>
+                          </tr>
+                        ))}
+                        {r.results.length === 0 && <tr><td colSpan={5} className="px-2 py-4 text-center text-[var(--sl500)]">Doğrulanacak dosya yok — depo boş olabilir.</td></tr>}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
+            <div className={`${card} space-y-1 text-[11px] leading-relaxed text-[var(--sl400)]`}>
+              <b className="text-[var(--sl200)]">DR kontrol listesi</b>
+              <ul className="list-disc space-y-0.5 pl-4">
+                <li>Veritabanı: <code>pg_dump</code> günlük; geri yükleme ayrı sunucuda denenmeli.</li>
+                <li>Şifreleme anahtarı: <code>DATA_ENCRYPTION_KEYS</code> yedekten <b>ayrı</b> saklanır (anahtarsız yedek açılamaz).</li>
+                <li>Nesne deposu: yaşam döngüsü + nesne kilidi (WORM) kurum politikasına göre.</li>
+                <li>Tatbikat kaydı: her çalıştırma denetim zincirine <code>backup.drill</code> olarak yazılır.</li>
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {tab === "sharing" && (
+          <div className="mt-4 space-y-3">
+            <div className={`${card} flex flex-wrap items-center gap-2`}>
+              <b className="text-sm text-[var(--sl100)]">Süreli paylaşım bağlantıları</b>
+              <span className="text-[11px] text-[var(--sl500)]">yalnız onaylı rapor paylaşılır; her erişim sayılır ve denetlenir</span>
+              <button className={`${btn} ml-auto border border-[var(--sl500)]/40 text-[var(--sl300)]`} onClick={() => void loadShares()}>↻ Yenile</button>
+            </div>
+            {sharesErr && <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-[var(--ac-rose200)]">{sharesErr}</div>}
+            {(() => {
+              const now = new Date();
+              const active = shares.filter((x) => !x.revokedAt && new Date(x.expiresAt) > now).length;
+              const revoked = shares.filter((x) => x.revokedAt).length;
+              const expired = shares.length - active - revoked;
+              const accesses = shares.reduce((n, x) => n + (x.accessCount ?? 0), 0);
+              return (
+                <div className="grid gap-2 grid-cols-2 lg:grid-cols-4">
+                  {[["Bağlantı", shares.length], ["Aktif", active], ["Kapatıldı", revoked], ["Erişim (toplam)", accesses]].map(([l, v]) => (
+                    <div key={String(l)} className={card}>
+                      <div className="text-[10px] uppercase tracking-wide text-[var(--sl500)]">{l}</div>
+                      <div className="mt-0.5 font-mono text-xl font-black text-[var(--ac-cyan300)]">{String(v)}</div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {expiredHint(shares) && <p className="text-[10.5px] text-[var(--sl500)]">{expiredHint(shares)}</p>}
+            <div className={`${card} overflow-x-auto p-0`}>
+              <table className="w-full text-[11px]">
+                <thead className="bg-[var(--t06)] text-left text-[var(--sl500)]">
+                  <tr>{["Token", "Oluşturan", "Rapor", "Oluşturma", "Bitiş", "Durum", "Erişim", ""].map((h) => <th key={h} className="border-b border-[var(--t25)] px-2 py-1.5 font-semibold">{h}</th>)}</tr>
+                </thead>
+                <tbody>
+                  {shares.map((x) => {
+                    const rem = shareRemaining(x.expiresAt, x.revokedAt);
+                    return (
+                      <tr key={x.id} className="hover:bg-[var(--t14)]">
+                        <td className="border-b border-[var(--t18)] px-2 py-1.5 font-mono text-[10px] text-[var(--sl300)]" title="Tam token yalnız oluşturma anında gösterilir">
+                          {maskShareToken(x.token)}
+                          <a className="ml-1 text-[var(--ac-cyan400)] hover:underline" href={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/paylas/${x.token}`} target="_blank" rel="noreferrer">aç ↗</a>
+                        </td>
+                        <td className="border-b border-[var(--t18)] px-2 py-1.5 text-[var(--sl300)]">{x.createdByName || "—"}</td>
+                        <td className="border-b border-[var(--t18)] px-2 py-1.5 font-mono text-[10px] text-[var(--sl400)]">{x.reportId ? `#${x.reportId}` : x.kind}</td>
+                        <td className="border-b border-[var(--t18)] px-2 py-1.5 text-[10px] text-[var(--sl500)]">{new Date(x.createdAt).toLocaleString("tr-TR")}</td>
+                        <td className="border-b border-[var(--t18)] px-2 py-1.5 text-[10px] text-[var(--sl500)]">{new Date(x.expiresAt).toLocaleString("tr-TR")}</td>
+                        <td className={`border-b border-[var(--t18)] px-2 py-1.5 font-semibold ${x.revokedAt ? "text-[var(--sl500)]" : rem.hours === 0 ? "text-[var(--sl500)]" : "text-[var(--ac-emerald300)]"}`}>{rem.text}</td>
+                        <td className="border-b border-[var(--t18)] px-2 py-1.5 font-mono text-[10px] text-[var(--sl400)]">
+                          {x.accessCount}{x.lastAccessAt ? <span className="ml-1 text-[var(--sl600)]">(son {new Date(x.lastAccessAt).toLocaleDateString("tr-TR")})</span> : null}
+                        </td>
+                        <td className="border-b border-[var(--t18)] px-2 py-1.5 text-right">
+                          {!x.revokedAt && new Date(x.expiresAt) > new Date() ? (
+                            <button className={`${btn} border border-rose-400/40 px-2 py-0.5 text-[var(--ac-rose300)] hover:bg-rose-400/10 disabled:opacity-40`} disabled={shareBusy === x.token} onClick={() => void revokeShareNow(x.token)}>Kapat</button>
+                          ) : <span className="text-[10px] text-[var(--sl600)]">—</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {shares.length === 0 && <tr><td colSpan={8} className="px-3 py-6 text-center text-[var(--sl500)]">Kayıtlı paylaşım bağlantısı yok. Rapor ekranındaki “Paylaş” düğmesiyle oluşturulur.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-[10.5px] leading-relaxed text-[var(--sl500)]">
+              Token tam olarak yalnız oluşturulduğu anda gösterilir; burada ilk 8 karakter görünür (denetim kaydıyla aynı).
+              Bağlantı kapatıldığında süresi dolmamış olsa bile erişim anında reddedilir (410).
+            </p>
           </div>
         )}
 

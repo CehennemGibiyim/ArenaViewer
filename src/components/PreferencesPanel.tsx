@@ -5,6 +5,7 @@
  * yalnız beyaz-listeli alanlar gönderilir. Düzen tercihi, istasyon sonraki
  * açılışında uygulanır.
  */
+import Link from "next/link";
 import { useState } from "react";
 import { LAYOUTS, WINDOW_PRESETS, type LayoutPref, type UserPrefs } from "@/lib/prefs";
 import {
@@ -137,6 +138,22 @@ export default function PreferencesPanel() {
           <button onClick={saveSc} className="cursor-pointer rounded bg-cyan-500 px-3 py-1.5 text-xs font-bold text-[var(--sl950)] hover:bg-cyan-400">Kısayolları kaydet</button>
           <button onClick={resetSc} className="cursor-pointer rounded border border-rose-400/40 px-3 py-1.5 text-xs font-bold text-[var(--ac-rose200)] hover:bg-rose-400/10">Varsayılana döndür</button>
           {scMsg && <span className="text-xs text-[var(--sl400)]">{scMsg}</span>}
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-xl border border-cyan-400/40 bg-cyan-400/5 p-4">
+        <h2 className="text-sm font-black text-[var(--ac-cyan200)]">Yardım ve resimli anlatım</h2>
+        <p className="mt-1 text-[11.5px] leading-relaxed text-[var(--sl300)]">
+          Ayarların arayüzde nerede olduğunu, bir çalışmanın nasıl açıldığını ve raporun nasıl onaylandığını
+          <b> gerçek ekran görüntüleriyle</b> adım adım gösteren sayfa.
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Link href="/resimlianlatim" className="rounded border border-cyan-400/50 bg-cyan-500/10 px-2.5 py-1 text-[11px] font-bold text-[var(--ac-cyan200)] hover:bg-cyan-500/20">
+            🖼 Resimli anlatım →
+          </Link>
+          <Link href="/yardim" className="rounded border border-[var(--sl500)]/40 px-2.5 py-1 text-[11px] font-bold text-[var(--sl200)] hover:bg-[var(--sl500)]/10">
+            Yardım / S.S.S.
+          </Link>
         </div>
       </div>
     </div>

@@ -1069,6 +1069,33 @@ export interface CandidateModule {
 
 export const CANDIDATE_MODULES: CandidateModule[] = [
   {
+    id: "help-center-live",
+    title: "Canlı kılavuz — arayüzden “bu düğme ne yapar?” sorusuna yerinde yanıt",
+    field: "Uygulama içi yardım · her ekran",
+    license: "Özgün içerik — lisans engeli yok (depo içi metin + ekran görüntüsü)",
+    evidence: "Bugün /resimlianlatim + /yardim + MENU_KILAVUZU var; hiçbiri ekranın kendisinden bağlamsal olarak açılmıyor",
+    blocker: "Her düğmeye kararlı `helpId` etiketi eklenmesi (Workstation 2.000+ satır), içerik şeması ve guide-coverage testinin genişletilmesi",
+    value: "Yeni kullanıcı için öğrenme süresini kısaltır; yanlış düğme riskini azaltır (klinik yazılımda doğrudan güvenlik)",
+  },
+  {
+    id: "admin-backup-restore-ui",
+    title: "Yedekten geri yükleme sihirbazı (manifest seç → plan → onay → rapor)",
+    field: "Yönetim · DR",
+    license: "Özgün kod — ek lisans yok",
+    evidence: "`/api/admin/backup` POST plan üretiyor; arayüzü yok. `planRestore`/`verifyManifest` testli",
+    blocker: "Gerçek dosya içeriği manifestte olmadığı için depo erişimi gerekir; çok adımlı onay + denetim kaydı tasarımı",
+    value: "DR tatbikatı ekrandan uçtan uca yapılabilir; yedek gerçekten geri yüklenebilir mi sorusu kanıtlanır",
+  },
+  {
+    id: "i18n-report-body",
+    title: "Rapor gövdesi ve hasta mektubunun tam çok dilli üretimi",
+    field: "Raporlama · çok dillilik",
+    license: "Özgün şablonlar — tıbbi çeviri için kurum/uzman onayı gerekir",
+    evidence: "83 dil arayüz çevirisi var; hasta mektubu TR/EN/DE. Rapor gövdesi Türkçe",
+    blocker: "Tıbbi metin çevirisinin hekim onayından geçmesi; şablon makrolarının dile duyarlı hâle getirilmesi",
+    value: "Yabancı hastaya taburculuk/takip mektubu; kurumlar arası paylaşımda dil engeli kalkar",
+  },
+  {
     id: "skm-tea-validation",
     title: "Doğrulama hattı — SKM-TEA (Stanford AIMI) / OAI referans maskeleriyle Dice ölçümü",
     field: "MR diz · segmentasyon validasyonu",

@@ -8,7 +8,7 @@ const VERSION = "atikviewer-v1";
 const STATIC_CACHE = `${VERSION}-static`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const SHELL = ["/giris", "/icons/icon-192.png", "/icons/icon-512.png", "/offline.html"];
-const STATIC_PREFIXES = ["/_next/static/", "/wasm/", "/codecs/", "/icons/"];
+const STATIC_PREFIXES = ["/_next/static/", "/wasm/", "/codecs/", "/icons/", "/kilavuz/"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

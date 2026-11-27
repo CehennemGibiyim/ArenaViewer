@@ -31,7 +31,7 @@ const QA: [string, string][] = [
   ["Dili nasıl değiştiririm? Kaç dil var?",
     "Üst çubuktaki 🌐 Dil seç düğmesinden seçin; çevirisi hazır 83 dili arayıp bulun (tr en es fr de it pt nl pl ru uk cs sv ro hu bg ar he hi zh ja ko id th bn ur fa ta te mr gu kn ml pa or vi ms fil ceb da fi el sk sl et lv lt sr hr bs mk sq hy ka az kk ky uz mn sw ha yo ig zu af am ne si my km lo rw so mg ht ca eu gl tuk tat uig bak crh). Ayrıca ISO 639-3 canlı dillerinin tümü (7.027) 2+ harf aramasıyla listelenir — çevirisi olmayan dil arayüz İngilizce yedeğiyle açılır ve “EN UI” rozetiyle işaretlenir. Paket yalnız seçildiğinde indirilir; belgeler ve AI rapor gövdesi Türkçe kalır. Yeni dil PR + npm run test:i18n (tek komut: npm run i18n:new) ile eklenir."],
   ["Görsel anlatım nerede?",
-    "docs/GORSEL_ANLATIM.md — uçtan uca, ekran ekran; sıkıştırılmış JPEG + SVG şemalarla (≈650 KB). Web demosu vs Windows/macOS/Linux/Docker farkları, AI analiz karar ağacı, tema ve dil mekanizması."],
+    "Uygulama içinde: /resimlianlatim — adım adım, gerçek ekran görüntüleriyle; her adımda “nerede / ne yapılır / ne olur” ve o adımın web demosunda mı yoksa yalnız yerel kurulumda mı yapılabildiği yazar. Aynı içeriğin belge hâli docs/GORSEL_ANLATIM.md (sıkıştırılmış JPEG + SVG şemalar, ≈650 KB; sürüm etiketinde PDF). Yardım sayfasından ve Ayarlar → /tercihler ekranından bağlantı vardır."],
   ["Yeni AI modülü gelir mi? (kolon polip, kalça kırığı)",
     "Adaylar /kiyaslama sayfasındaki “Önerilen aday modüller — henüz kod yok” listesinde (BT kolongrafi polip, DX kalça kırığı, CXR RSNA pnömoni 2. skor). Açık kaynak model + yerelde çalışma + research etiketi + kurum doğrulaması çerçevesinden geçmeden eklenmez."],
 ];
@@ -46,6 +46,27 @@ export default function YardimPage() {
           ATIKVIEWER araştırma amaçlıdır; klinik karar için kullanılamaz. Yapay zekâ çıktılarının tamamı taslaktır, son söz radyoloji uzmanınındır.
           Bu sayfa <code className="rounded bg-black/40 px-1">docs/SSS.md</code> ile bire bir eşlenik tutulur; biri güncellenmeden diğeri güncellenemez.
         </p>
+        <section className="mt-6 rounded-xl border border-cyan-400/40 bg-cyan-400/5 p-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-sm font-black text-[var(--ac-cyan200)]">Resimli anlatım — adım adım, ekran görüntüleriyle</h2>
+            <Link href="/resimlianlatim" className="rounded-md border border-cyan-400/50 bg-cyan-500/10 px-2.5 py-1 text-[11px] font-bold text-[var(--ac-cyan200)] hover:bg-cyan-500/20">
+              Resimli anlatımı aç →
+            </Link>
+          </div>
+          <p className="mt-1 text-[12px] leading-relaxed text-[var(--sl300)]">
+            İlk açılış, çalışma açma, Vision AI, rapor onayı, tema/dil ve sorun giderme: her adımda nerede olduğu, ne yapılacağı ve
+            sonucun ne olacağı yazar. Adımların hangilerinin statik web demosunda çalıştığı ayrıca işaretlidir.
+          </p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {[["ekran-menu-haritasi.jpg", "Numaralandırılmış menü haritası"], ["sema-ai-akisi.svg", "Vision AI analiz karar ağacı"]].map(([f, alt]) => (
+              <Link key={f} href="/resimlianlatim" className="group block overflow-hidden rounded-lg border border-[var(--t32)]">
+                {/* eslint-disable-next-line @next/next/no-img-element -- statik kılavuz görseli; Pages dışa aktarımında next/image optimizasyonu kapalı */}
+                <img src={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/kilavuz/${f}`} alt={alt} loading="lazy" className="w-full opacity-90 transition-opacity group-hover:opacity-100" />
+              </Link>
+            ))}
+          </div>
+        </section>
+
         <div className="mt-6 space-y-4">
           {QA.map(([q, a]) => (
             <section key={q} className="rounded-xl border border-[var(--t30)] bg-[var(--t05)] p-4">
@@ -55,7 +76,8 @@ export default function YardimPage() {
           ))}
         </div>
         <p className="mt-6 text-[11px] text-[var(--sl500)]">
-          Ayrıntılar için depodaki belgeler: <code className="rounded bg-black/40 px-1">docs/KURULUM_VE_KULLANIM.md</code> · <code className="rounded bg-black/40 px-1">docs/MENU_KILAVUZU.md</code> · <code className="rounded bg-black/40 px-1">docs/SSS.md</code>
+          Ayrıntılar için depodaki belgeler: <code className="rounded bg-black/40 px-1">docs/KURULUM_VE_KULLANIM.md</code> · <code className="rounded bg-black/40 px-1">docs/MENU_KILAVUZU.md</code> · <code className="rounded bg-black/40 px-1">docs/GORSEL_ANLATIM.md</code> ·{" "}
+          <Link href="/resimlianlatim" className="text-[var(--ac-cyan400)] hover:underline">/resimlianlatim</Link>
         </p>
       </main>
     </div>
