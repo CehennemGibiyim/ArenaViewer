@@ -1,7 +1,7 @@
 import { parseDicom, type DicomDataSet } from "dicom-parser";
 import { inflateSync, unzipSync } from "fflate";
 import { assertNotAborted, withImportTimeout } from "./importOperation";
-import type { DicomOverlayPlane, DicomTag, MammographyInfo, PaletteColorLUT, Pixels, SeriesData } from "./types";
+import type { DicomGSPS, DicomOverlayPlane, DicomTag, MammographyInfo, PaletteColorLUT, Pixels, SeriesData } from "./types";
 import { suvFromDataset, parseTm } from "./suv";
 import { applyCharset } from "./dicomCharset";
 import { analyzeSliceGaps, hasSliceProblem } from "./sliceGaps";
@@ -470,6 +470,8 @@ export interface ImportStats {
   unsupported: Record<string, number>;
   failed: Record<string, number>;
   seriesOpened: number;
+  /** İçe aktarılan PR/GSPS sunum durumu sayısı (ölçüm katmanı). */
+  gsps?: number;
   ms: number;
 }
 
@@ -491,6 +493,8 @@ export async function loadMedicalFiles(
   const unsupported = new Map<string, number>();
   const failed = new Map<string, number>();
   let unreadable = 0;
+  /** PR/GSPS belgeleri: sundukları seriye sonradan bağlanır (sıra bağımsız). */
+  const pendingGsps: { seriesUid: string | undefined; doc: DicomGSPS }[] = [];
 
   stats.total = expanded.length;
   let count = 0;
@@ -594,6 +598,19 @@ export async function loadMedicalFiles(
           });
           continue;
         }
+      }
+
+      // ─── 3b. Grayscale Softcopy Presentation State (PR/GSPS) ───
+      // Ölçüm/annotasyon taşıyan sunum durumu: görüntü serisi DEĞİLDİR, kendi
+      // serisine bağlanır. Grafiksiz (yalnız pencere/döndürme) PR atlanır.
+      if (isSOPClass(sopClass, SOP_GSPS)) {
+        const gs = parsePresentationState(ds);
+        if (gs && (gs.graphics.length > 0 || gs.texts.length > 0)) {
+          const presented = gs.presentedSeriesUid || ds.string("x00081115")?.trim() || undefined;
+          pendingGsps.push({ seriesUid: presented, doc: gs });
+          stats.gsps = (stats.gsps ?? 0) + 1;
+        }
+        continue;
       }
 
       // ─── 4. DICOM Video (MPEG-2 / MPEG-4 AVC/H.264 / HEVC) — video kareleri piksel kod çözücüye girmez ───
@@ -832,6 +849,22 @@ export async function loadMedicalFiles(
     }
   }
   assertNotAborted(signal);
+
+  // PR/GSPS belgelerini sundukları seriye bağla (dosya sırasından bağımsız).
+  // Eşleşen seri yoksa belge sessizce düşmez: uyarı verilir, tahmin yapılmaz.
+  if (pendingGsps.length > 0) {
+    for (const p of pendingGsps) {
+      const target = p.seriesUid
+        ? result.find((r) => r.seriesUid === p.seriesUid)
+        : result.filter((r) => !r.specialType)[0];
+      if (!target) {
+        onWarning?.(`"${p.doc.label}" sunum durumu (PR) hiçbir seriyle eşleşmedi — ölçümleri alınmadı.`);
+        continue;
+      }
+      target.gsps = [...(target.gsps ?? []), p.doc];
+    }
+  }
+
   onProgress?.(expanded.length, expanded.length);
   stats.unreadable = unreadable;
   stats.images = imageFiles.length;

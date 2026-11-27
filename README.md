@@ -305,7 +305,13 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   polyline, dikdörtgen/poligon → kapalı polyline, elips → ellipse, etiketler → metin
   nesnesi, her anotasyon kendi referans görüntüsüne bağlı). Kesiti kaynak SOP Instance
   ile eşleşmeyen anotasyon atlanır ve menü kaç tanesinin yazıldığını söyler
-  (`src/lib/gspsGraphics.ts`). Belge rapor/imza değildir; geri içe aktarma henüz yok.
+  (`src/lib/gspsGraphics.ts`). Her tür ayrı Graphic Layer kimliğiyle yazılır
+  (LENGTH/ANGLE/COBB/RECT/ELLIPSE/POLY/…) ve **geri içe aktarma vardır:** seriyle
+  birlikte yüklenen PR dosyası seriye bağlanır, «PR ölçümünü al» düğmesi grafikleri
+  kesit eşleşmesiyle (SOP Instance UID) çalışma ölçümlerine çevirir; desteklenmeyen
+  türler ve eşleşmeyen kesitler tahmin edilmeden atlanır ve sonuç diyaloğu nedenini
+  yazar (`src/lib/gspsImport.ts`). Elips geometrisi DICOM PS3.3 C.10.6'ya uygundur
+  (merkez + iki yarı-eksen ucu). Belge rapor/imza değildir.
 - **Sürükleyerek ölçüm düzenleme:** araç çubuğundaki **Düzenle** ile çizilmiş bir ölçümün
   tutamağı sürüklenir (o nokta taşınır) veya gövdesi sürüklenir (tüm şekil taşınır) —
   uzunluk, açı, Cobb, ok, sapma ve dikdörtgen/elips/elipsoid/çokgen ROI. ROI
@@ -672,6 +678,7 @@ npm run test:registration           # önceki/şimdiki tetkik hizalaması (NCC, 
 npm run test:notify-channels        # e-posta/SMS/çağrı kanalları: ayrıştırma, eşik, PHI'siz yük
 npm run bench:window                # WL/WW dönüşümü kıyaslaması (eski vs LUT)
 npm run test:pr                     # GSPS/PR dışa aktarma + parse doğrulama
+npm run test:gsps-import            # PR/GSPS ölçüm içe aktarma (kesit eşleşmesi, uçtan uca)
 npm run test:notify                 # masaüstü bildirimi + izin akışı
 npm run test:prior                  # önceki tetkik ölçüm karşılaştırması
 npm run test:uncert                 # belirsizlik bandı + CXR bulgu notu

@@ -171,7 +171,7 @@ function gspsAnnotationEls(p: PresentationStateInput): E[] {
   if (items.length === 0) return [];
   const annots: Uint8Array[][] = items.map((i) =>
     item(
-      S(0x0070, 0x0002, "CS", "ANNOT"),
+      S(0x0070, 0x0002, "CS", i.layer),
       SQ(0x0008, 0x1140, [item(S(0x0008, 0x1150, "UI", p.sopClassUid), S(0x0008, 0x1155, "UI", p.sopUids[i.slice]))]),
       SQ(0x0070, 0x0008, i.texts.map((t) => item(
         S(0x0070, 0x0003, "CS", "PIXEL"), S(0x0070, 0x0004, "CS", "PIXEL"),
@@ -189,12 +189,14 @@ function gspsAnnotationEls(p: PresentationStateInput): E[] {
       ))),
     ),
   );
+  // Graphic Layer Sequence: kullanılan her katman için bir öğe (sıra = çizim sırası).
+  const layers = [...new Set(items.map((i) => i.layer))];
   return [
-    SQ(0x0070, 0x0060, [item(
-      S(0x0070, 0x0002, "CS", "ANNOT"),
+    SQ(0x0070, 0x0060, layers.map((name, idx) => item(
+      S(0x0070, 0x0002, "CS", name),
       US_EL(0x0070, 0x0061, 255),
-      S(0x0070, 0x0062, "IS", "1"),
-    )]),
+      S(0x0070, 0x0062, "IS", String(idx + 1)),
+    ))),
     SQ(0x0070, 0x0001, annots),
   ];
 }

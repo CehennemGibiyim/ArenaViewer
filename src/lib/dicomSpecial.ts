@@ -268,11 +268,21 @@ export function parsePresentationState(ds: DicomDataSet): DicomGSPS | null {
   const graphicSeq = ds.elements["x00700001"];
   const graphics: GSPSGraphicObject[] = [];
   const texts: GSPSTextObject[] = [];
+  // Her grafik/metin nesnesinin bağlı olduğu görüntü (0008,1140 → 0008,1155).
+  const refs: (string | undefined)[] = [];
+  // Graphic Layer kimliği (0070,0002) → anotasyon türü eşlemesi. Yalnız kendi
+  // yazdığımız PR belgelerinde bulunur; dış belgelerde tür geometriden çıkarılır.
+  const layers: string[] = [];
 
   if (graphicSeq?.items) {
     for (const item of graphicSeq.items) {
       if (!item.dataSet) continue;
       const itemDs = item.dataSet;
+
+      // Bu grafik katmanı öğesinin referans görüntüsü (varsa).
+      const imgSeq = itemDs.elements["x00081140"];
+      const refUid = imgSeq?.items?.[0]?.dataSet?.string("x00081155")?.trim() || undefined;
+      const layer = (itemDs.string("x00700002") || "").trim().toUpperCase();
 
       // Text Objects (0070,0008)
       const textSeq = itemDs.elements["x00700008"];
@@ -280,7 +290,15 @@ export function parsePresentationState(ds: DicomDataSet): DicomGSPS | null {
         for (const tItem of textSeq.items) {
           if (!tItem.dataSet) continue;
           const text = tItem.dataSet.string("x00700006") || "";
-          if (text) texts.push({ text });
+          // Anchor Point (0070,0014) FL çifti: metnin görüntüdeki bağlantı noktası.
+          const anchor = readFloatArray(tItem.dataSet, "x00700014");
+          if (text) {
+            texts.push({
+              text,
+              ...(anchor.length >= 2 ? { anchorPoint: { x: anchor[0], y: anchor[1] } } : {}),
+              ...(refUid ? { referenceSopUid: refUid } : {}),
+            });
+          }
         }
       }
 
@@ -292,7 +310,10 @@ export function parsePresentationState(ds: DicomDataSet): DicomGSPS | null {
           const gType = (gItem.dataSet.string("x00700023") || "POLYLINE").toUpperCase() as GSPSGraphicObject["type"];
           // Graphic Data (0070,0022) FL'dir: ikili okunur (metin olarak okumak bozuk değer verir).
           const data = readFloatArray(gItem.dataSet, "x00700022");
+          if (data.length === 0) continue;
           graphics.push({ type: gType, data });
+          refs.push(refUid);
+          layers.push(layer);
         }
       }
     }
@@ -302,12 +323,25 @@ export function parsePresentationState(ds: DicomDataSet): DicomGSPS | null {
   const description = ds.string("x00700081") || "";
   const presentationLutShape = (ds.string("x20500020") || "IDENTITY").toUpperCase() as DicomGSPS["presentationLutShape"];
 
+  // Displayed Area (0070,005A): TLHC \\ BRHC, piksel koordinatı.
+  const areaRaw = ds.string("x0070005a") || "";
+  const areaNums = areaRaw.split("\\").map((v) => Number(v.trim())).filter((v) => Number.isFinite(v));
+  const displayedArea = areaNums.length >= 4
+    ? { tl: { x: areaNums[0], y: areaNums[1] }, br: { x: areaNums[2], y: areaNums[3] } }
+    : undefined;
+
+  const presentedSeriesUid = ds.elements["x00081115"]?.items?.[0]?.dataSet?.string("x0020000e")?.trim() || undefined;
+
   return {
     id: `gsps-${Date.now()}`,
     label,
     description,
     graphics,
     texts,
+    ...(displayedArea ? { displayedArea } : {}),
+    ...(presentedSeriesUid ? { presentedSeriesUid } : {}),
+    referenceSopUids: refs,
+    ...(layers.some(Boolean) ? { layers } : {}),
     presentationLutShape,
   };
 }
