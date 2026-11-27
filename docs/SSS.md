@@ -150,3 +150,22 @@ alınmaz, yalnızca özgün şemalar kullanılır; PDF dağıtımı isterseniz `
 
 Yok — **içerik aynıdır**. Uygulama sürümü belgeyi sadeleştirir ama soru listesi ve cevaplar bire bir eşlenir;
 biri güncellenmeden diğeri güncellenemez (CI denetimi: kılavuz bakımı kuralı).
+
+## 18. Yönetim panelindeki «Sistem sağlığı» neyi denetler, neyi denetlemez?
+
+`/api/admin/health` **12 kuralı** ortam değişkenlerine bakar (kimlik modu, TLS zorunluluğu, anahtar kaynağı,
+veritabanı, depo, `METRICS_TOKEN`, SIEM aktarımı, LLM, istem alımı, HBYS, MFA zorunluluğu, sürüm) ve
+liveness/readiness ile `/api/metrics` metinlerini ayrıştırıp gösterir. Sır değerleri (anahtar, parola, jeton)
+**hiçbir zaman yanıta yazılmaz** — yalnız «tanımlı / tanımsız».
+
+Denetlemedikleri dürüstçe: gerçek PACS/HBYS bağlantısı, model doğruluğu, disk doluluğu, TLS sertifika süresi.
+Bunlar için `Yönetim → Entegrasyon` testleri, `docs/KLINIK_DOGRULAMA_PLANI.md` ve kurumun izleme sistemi gerekir.
+Statik web demosunda DB/TLS olmadığı için kart **kırmızı** görünür; yanıt bunu «DEMO VERİSİ» notuyla yazar.
+
+## 19. Yedek gerçekten geri yüklenebilir mi — nasıl kanıtlarım?
+
+**Yönetim → Yedekleme & DR** sekmesindeki tatbikat (`POST /api/admin/backup/drill`) manifestteki her dosyanın
+özetini yeniden hesaplar, depoyla karşılaştırır ve isteğe bağlı geri yükleme provası yapar (bellek içi;
+depoya yazmaz/silmez). Anahtar yoksa açık içerik doğrulanamaz → `cozulemedi` (sessiz başarı yoktur).
+Adımlar ve negatif test: [YEDEK_VE_DR.md §3.1](YEDEK_VE_DR.md). Tatbikat sonucu `drill.last` ayarına ve
+`backup.drill` denetim kaydına yazılır; yedek >30 gün eskiyse hazırlık **kritik** sayılır.

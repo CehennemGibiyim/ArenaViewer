@@ -117,7 +117,7 @@ Sağ üstteki sayfa düğmeleri: **📦 Kurulum** (`/paketler`), **📊 Kıyasla
 | **KLİNİK KARAR İÇİN KULLANILAMAZ** | Kalıcı yasal/güvenlik bandı; her ekranda görünür. |
 | 📦 **Kurulum** | `Windows · Linux · macOS kurulum paketleri ve dosya yolları` → [`/paketler`](/paketler) |
 | 📊 **Kıyaslama** | Özellik kıyaslama tablosu ve aday modüller → [`/kiyaslama`](/kiyaslama) |
-| ⚙ **Yönetim** | Kullanıcılar, roller, oturumlar/MFA, denetim kaydı, uyum listesi, AI performans → [`/yonetim`](/yonetim) |
+| ⚙ **Yönetim** | Kullanıcılar, roller, oturumlar/MFA, denetim kaydı, uyum listesi, AI performans, **Yedekleme & DR**, **Paylaşım**, **Sistem sağlığı** → [`/yonetim`](/yonetim) |
 | 🧰 **Tercihler** | `Kullanıcı tercihleri (düzen, pencere ön ayarı, otomatik protokol)` → [`/tercihler`](/tercihler) |
 | ⎋ **Çıkış** | `Oturumu kapat` |
 | 🔔 | Bildirim zili (kritik bulgu / sistem bildirimleri) |
