@@ -30,6 +30,7 @@ Bu klasör, Windows · Linux · macOS üzerinde çalışan kurulum paketlerinin
 | `docs/GORSEL_ANLATIM.md` | Görselli uçtan uca anlatım — web demosu vs Windows/macOS/Linux/Docker; AI analiz karar ağacı; tema ve dil |
 | `docs/SSS.md` | Sık sorulan sorular (uygulama içi karşılığı `/yardim`) |
 | `docs/KILAVUZ_BAKIMI.md` | Kılavuzların her değişiklikle güncel tutulması kuralı + kontrol listesi |
+| `docs/CEVIRI_KATKI.md` | Yeni dil paketi ekleme — 78 tam çeviri + seçicide 7.027 canlı ISO 639-3 dili |
 
 ```powershell
 # Üretim (CI'da .github/workflows/release.yml otomatik yapar)

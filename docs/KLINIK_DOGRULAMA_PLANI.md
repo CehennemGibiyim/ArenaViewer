@@ -74,3 +74,21 @@ henüz doğrulanmamış modelin bulgularını rapora yazmaktan kaçınmak.
 Bu depodaki hiçbir model tanı koymaz. Rapor her zaman “aday/yönlendirme” dilini
 korur ve hekim onayı olmadan “onaylandı” statüsüne geçemez. Doğrulama eksik olan
 her model bu listede açıkça “açıkta” sayılır.
+
+## 6. Diz MR — SKM-TEA (Stanford AIMI) karşılaştırması — **YAPILMADI**
+
+> Durum kaydı (2026-11-27): **Bu kıyaslama hiçbir aşamada başlatılmamıştır; ölçülmüş
+> değer yoktur.** Bu depoda SKM-TEA verisi indirilmemiş, işlenmemiş ve üzerinde
+> Dice/HD95 gibi hiçbir ölçüm çalıştırılmamıştır.
+
+- Kayıtlar (§0) tablosunda SKM-TEA **yer almaz**; diz MR modeli yalnız
+  araştırma etiketlidir ve bağımsız referansla ölçümü **bekleyen iş**tir
+  (`src/lib/gapAnalysis.ts` → `skm-tea-validation`, `nextUp`).
+- Model kartında ve `/kiyaslama` aday listesinde aynı dürüst not vardır:
+  bağımsız/prospektif doğrulama yapılmamıştır.
+- Ölçüm tamamlandığında bu bölüme aynı §0 biçiminde tablo satırı eklenir
+  (kapsam, Dice/HD95, tarih) ve `docs/KURULUM_VE_KULLANIM.md` §7 güncellenir.
+- Kullanıcı SKM-TEA kaydını **henüz başlatmadı** (karar bekliyor). Kayıt olmadan
+  veri yoktur; veri yoksa kıyaslama yoktur — raporlanır, ölçülmüş gibi yazılamaz.
+- Gerekirse yalnızca herkese açık örnek (`arjundd/skm-tea-mini`) ile hat doğrulaması
+  yapılabilir; bu da RUA'ya tabidir ve yine ölçümle ve bu dosyaya kayıtla kapanır.

@@ -1074,7 +1074,7 @@ export const CANDIDATE_MODULES: CandidateModule[] = [
     field: "MR diz · segmentasyon validasyonu",
     license: "SKM-TEA: Stanford AIMI kaydı + ücretsiz araştırma lisansı; OAI (iMorphics 88 tarama): kayıt/DUC gerekli",
     evidence: "NeurIPS 2021 Datasets & Benchmarks — 155 qDESS MR, 6 yapı maskesi + 16 patoloji kutusu (DICOM/NIfTI/HDF5); OAI 88 iMorphics taraması (nnunet_knee'nin eğitim alanıyla aynı aile)",
-    blocker: "Kayıt + ~15–20 vaka indirme + Dice/HD95 ölçüm betiği (dipnot: sekans farkı nedeniyle skorlar eğitim Dice'ından düşük beklenir)",
+    blocker: "KIYASLAMA HENÜZ YAPILMADI — depoda ölçülmüş hiçbir Dice/HD95 değeri yoktur; veri indirilmemiştir. Kayıt (kullanıcı kararında) + ~15–20 vaka indirme + Dice/HD95 ölçüm betiği gerekir (dipnot: sekans farkı nedeniyle skorlar eğitim Dice'ından düşük beklenir)",
     value: "a-knee modülünün dürüst sayısal kalite ölçümü — sonuç kıyaslama sayfasına ve model kartına yazılır",
     nextUp: true,
   },

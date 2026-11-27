@@ -20,8 +20,8 @@
 | Hasta verisi gösteren yeni ekran görüntüsü | `docs/img/` — **anonimleştirerek** (sekme çubuğu ve görev çubuğu kırpılmalı; hasta adı/ID yok) |
 | Yeni modal/işlem akışı | İlgili bölgeye akış özeti; **[GORSEL_ANLATIM.md](GORSEL_ANLATIM.md)** §4–§7 akışı güncellenir; gerekirse yeni diyagram (PIL/mermaid, < 100 KB JPEG/SVG) |
 | Görsel akış adımı / ekran değişti | GORSEL_ANLATIM.md ilgili bölümü; görüntü güncellendiyse sıkıştırılmış JPEG (q82) veya elle SVG; **hasta verisi asla** |
-| Yeni görünen metin / düğme etiketi | [`src/i18n/*.json`](../src/i18n) — **78 dil paketi** aynı anahtarlarla güncellenir; `npm run test:i18n` yeşil |
-| Yeni dil paketi | `src/i18n/<kod>.json` + `LANGUAGES` + `registry` satırı; `en.json` anahtarları birebir; `npm run test:i18n` |
+| Yeni görünen metin / düğme etiketi | [`src/i18n/*.json`](../src/i18n) — **78 tam çeviri paketi** aynı anahtarlarla güncellenir; `npm run test:i18n` yeşil |
+| Yeni dil paketi | `npm run i18n:new -- <kod> "<Native>" "<English>"` (iskelet + kayıtlar otomatik) → çeviri → `npm run test:i18n`; ayrıntı [CEVIRI_KATKI.md](CEVIRI_KATKI.md) |
 | Belge değişikliği (docs/*.md) | Varsa GORSEL_ANLATIM / SSS / MENU_KILAVUZU çapraz bağlantıları gözden geçir |
 | Yalnız arka uç / DB değişikliği | Kılavuz gerekmez; PR açıklamasında "kılavuz gerekmedi" yazın |
 
@@ -29,7 +29,7 @@
 
 ```bash
 npm run test:guide-coverage   # tests/guide-coverage.test.ts — statik title/aria-label ↔ kılavuz birebir
-npm run test:i18n             # tests/i18n-coverage.test.ts — 78 paket anahtar paritesi + kayıt/registry
+npm run test:i18n             # tests/i18n-coverage.test.ts — 78 paket anahtar paritesi + kayıt/registry + ISO 639-3 kataloğu (src/i18n/catalog.json) denetimi
 ```
 
 - `src/components/Workstation.tsx`, `RightPanel.tsx`, `KneeSegPanel.tsx` dosyalarındaki **statik**
@@ -37,7 +37,7 @@ npm run test:i18n             # tests/i18n-coverage.test.ts — 78 paket anahtar
 - [`menu-kilavuzu.manifest.json`](menu-kilavuzu.manifest.json) içindeki küratörlü anchor'lar da geçmelidir.
 - `KURULUM_VE_KULLANIM.md`, menü kılavuzuna bağlanmalıdır.
 - Ayrıca `src/components/{Workstation,RightPanel,KneeSegPanel,LanguageMenu,IntendedUseModal}.tsx` taranır; yeni statik `title`/`aria-label` doğrudan kılavuza bağlıdır.
-- Dil paketleri için `test:i18n`, her paketin `en.json` ile anahtar eşleşmesini ve `src/lib/i18n.ts` kaydını doğrular — eksik anahtar ya da kayıt unutulursa CI kırmızıdır.
+- Dil paketleri için `test:i18n`, her paketin `en.json` ile anahtar eşleşmesini, `src/lib/i18n.ts` kaydını ve `catalog.json` kataloğunun ISO 639-3 bütünlüğünü (benzersiz 3 harf kodları, dolu adlar, LANGUAGES ↔ canlı dil eşlemesi) doğrular — eksik anahtar, kayıt veya bozuk katalog unutulursa CI kırmızıdır. Katalog elle düzenlenmez; `npm run i18n:catalog` ile yeniden üretilir.
 - `npm test` zinciri her iki testi de içerir; GitHub Actions CI'da her PR ve main itmesinde koşar.
 
 ## Kontrol listesi (PR yazarına)
@@ -48,14 +48,14 @@ npm run test:i18n             # tests/i18n-coverage.test.ts — 78 paket anahtar
 - [ ] Görüntü değiştiyse yenileri anonim (sekme çubuğu/görev çubuğu yok, hasta verisi yok)
 - [ ] Kılavuz gerekmediyse neden yazıldı
 - [ ] Görsel akış değiştiyse **GORSEL_ANLATIM.md** adımı/görseli güncellendi
-- [ ] Yeni görünen tüm metinler **78 dil paketine** eklendi (`npm run test:i18n` yeşil)
+- [ ] Yeni görünen tüm metinler **78 tam çeviri paketine** eklendi (`npm run test:i18n` yeşil)
 
 ## Belge kümesi ve değişmezler
 
 - Gösterge: arayüz = **MENU_KILAVUZU.md**, uçtan uca akış = **[GORSEL_ANLATIM.md](GORSEL_ANLATIM.md)**, şikâyet/cevap = **[SSS.md](SSS.md)** (uygulama içi: `/yardim`).
 - Üçü birbirine bağlanır; biri değişince diğerleri gözden geçirilir.
 - `ar`/`he` RTL dillerinde yerleşim LTR kalır — RTL görsel denetimi yapılana kadar yeni çeviri eklerken bu bilinçli sınıra uyun.
-- "Dünyadaki tüm diller" taahhüdü değildir: **78 pilot paket** bakım eşiğini karşılar; yeni dil ancak kayıt + `test:i18n` + anlamlı çeviri ile girer. Kalite < kapsam.
+- "Tüm diller destekleniyor" taahhüdü **yalnız listeler düzeyindedir**: ISO 639-3'ün 7.027 canlı dili seçiciden görünebilir (çevrilmemişte arayüz İngilizce yedeğiyle açılır, satırda "EN UI" işareti vardır). Tam çeviri 78 dildir; yeni dil ancak kayıt + `test:i18n` + anlamlı çeviri ile girer. Kalite < kapsam. Çevrilmemiş dili İngilizce yedeğiyle açmak dürüst davranıştır; doğrulanmamış makine çıktısını paket diye yayımlamak değildir. Ayrıntı: [CEVIRI_KATKI.md](CEVIRI_KATKI.md).
 
 ## PDF dağıtımı
 

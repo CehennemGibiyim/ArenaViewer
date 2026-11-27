@@ -97,11 +97,13 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   (Koyu · Klinik Mavi · Açık Tema · Yüksek Kontrast — seçim tüm yüzey/kenar renklerine
   uygulanır, `atik-theme` ile saklanır) ve `prefers-reduced-motion` desteği. WCAG kontrast
   matematiği testlidir (`npm run test:a11y`).
-- **Uluslararasılaştırma:** üst çubuktaki **🌐 Dil seç** ile 78 dil paketi (`tr en es fr de
-  it pt nl pl ru uk cs sv ro hu bg ar he hi zh ja ko id th`); paketler seçimde lazy-import
-  edilir (yalnız seçilen dil iner), yedek İngilizce. Kapsam: arayüz kromu; belgeler ve AI
-  rapor gövdesi Türkçe kalır. Yeni dil: `src/i18n/<kod>.json` + kayıt + `npm run test:i18n`
-  (CI anahtar paritesini zorlar). Ayrıntı: [docs/GORSEL_ANLATIM.md §7.3](docs/GORSEL_ANLATIM.md).
+- **Uluslararasılaştırma:** üst çubuktaki **🌐 Dil seç** iki katmanlıdır — (1) **78 dilin
+  tam çevirisi** (`tr en es fr de it pt nl pl ru uk cs sv ro hu bg ar he hi zh ja ko id th` …)
+  seçimde lazy-import edilir; (2) **ISO 639-3 canlı dillerinin tümü (7.027)** listelenir, çevirisi
+  olmayan dil arayüz İngilizce yedeğiyle açılır ve çeviri katkısı bekler (makine çevirisiyle
+  doldurulmuş paket asla yayımlanmaz). Yedek İngilizce. Kapsam: arayüz kromu; belgeler ve AI
+  rapor gövdesi Türkçe kalır. Yeni dil: tek komut `npm run i18n:new` + anlamlı çeviri +
+  `npm run test:i18n` (CI anahtar paritesini zorlar). Ayrıntı: [docs/CEVIRI_KATKI.md](docs/CEVIRI_KATKI.md) · [docs/GORSEL_ANLATIM.md §7.3](docs/GORSEL_ANLATIM.md).
 - **Erişim anomalisi (KVKK):** Yönetim → Güvenlik sekmesindeki «Erişim
   anomalileri» kartı son 7 günün denetim kaydını ve başarısız giriş
   denemelerini kural tabanlı tarar: 10 dk'da ≥25 farklı çalışma açma, 1
