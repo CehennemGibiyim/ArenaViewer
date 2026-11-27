@@ -11,7 +11,9 @@
 > Dış kaynaklı / lisanslı kılavuzların kopyaları depoya **konmaz** — yalnız özgün, basitleştirilmiş
 > şemalar kullanılır (bkz. §9).
 >
-> **Dil notu:** Gövde Türkçedir; UI ekran görüntülerindeki etiketler arayüzle birebir aynıdır.
+> **PDF:** Tag (`v*`) push'unda `.github/workflows/docs-pdf.yml` bu belgeyi (`MENU_KILAVUZU`, `SSS`, `KURULUM_VE_KULLANIM` ile birlikte) Noto Sans ile XeLaTeX üzerinden PDF'e çevirir ve **Release** asset'i olarak yayımlar. PDF'ler depoya alınmaz.
+
+**Dil notu:** Gövde Türkçedir; UI ekran görüntülerindeki etiketler arayüzle birebir aynıdır.
 > Arayüz dilini değiştirmek için §7.3'e bakın. Uluslararası PDF dağıtımı gerekiyorsa en temiz yol,
 > bu belgeyi `pandoc --pdf-engine=xelatex -V mainfont="Noto Sans" docs/GORSEL_ANLATIM.md -o GORSEL_ANLATIM-tr.pdf`
 > ile üretip dili `src/i18n/*.json` anahtarlarıyla çoğaltmaktır; **kaynağı SVG + JPEG** tuttuğu için
@@ -225,15 +227,15 @@ hiçbir temadan etkilenmez** (piksel verisi siyahtır; yalnız krom değişir).
 - Klavye: `Tab` sırayla gezinti · `Enter/Space` etkinleştir · `Esc` modal kapat · görüntü üstünde `U/K/V` ölçüm.
 - Yazdırılabilir rapor (`#print-root`) her zaman siyah-beyaz okunur.
 
-### 7.3 Dil — 24 dil paketi, seçimde indirilir
+### 7.3 Dil — 78 dil paketi, seçimde indirilir
 
 - Üst çubuktaki **🌐 `Dil seç`** düğmesi → arama kutusu (yazın: "turk", "germ", "日本"…) → dil.
-- **24 dil kayıtlıdır:** `tr, en, es, fr, de, it, pt, nl, pl, ru, uk, cs, sv, ro, hu, bg, ar, he, hi, zh, ja, ko, id, th` — dünyadaki konuşucu sayısının ~%75'i.
+- **78 dil kayıtlıdır:** `tr, en, es, fr, de, it, pt, nl, pl, ru, uk, cs, sv, ro, hu, bg, ar, he, hi, zh, ja, ko, id, th, bn, ur, fa, ta, te, mr, gu, kn, ml, pa, or, vi, ms, fil, ceb, da, fi, el, sk, sl, et, lv, lt, sr, hr, bs, mk, sq, hy, ka, az, kk, ky, uz, mn, sw, ha, yo, ig, zu, af, am, ne, si, my, km, lo, rw, so, mg, ht, ca, eu, gl` — dünyanın en çok konuşulan ~80 dilini (konuşucuların ~%90'ı) kapsar; kalan ~7.000 dil ancak topluluk katkısıyla ve aynı kalite eşiğiyle eklenir.
 - Paketler `src/i18n/<kod>.json` dosyalarında durur; **yalnız seçtiğiniz dil indirilir** (lazy-load) — ilk açılış yavaşlamaz, paket boyutu ~2 KB/dil.
 - **Yedek:** eksik anahtar İngilizce'ye düşer; o da yoksa anahtarın kendisi (CI yakalar).
 - Kapsam: üst çubuk, durum şeridi, ortak düğmeler ve Tema/Dil seçicileri çevrilir. **Belgeler (`docs/*.md`), AI rapor gövdesi ve modal içerikleri henüz yalnız Türkçe'dir.** `ar`/`he` seçildiğinde `lang` öznitelik doğrudur; yerleşim LTR kalır (RTL görsel denetimi ayrı iştir).
 - **Yeni dil eklemek:** `src/i18n/xx.json` (en.json anahtarlarıyla) + `src/lib/i18n.ts` LANGUAGES + registry satırları → `npm run test:i18n` PASS. Katkılar PR ile; [KILAVUZ_BAKIMI.md](KILAVUZ_BAKIMI.md).
-- "Bütün dilleri" tek PR'da beklemek yerine: mimari **sınırlamıyor** — 24 pilot paketi gerçek ve doğrulanmış çevirilerle geldi; geri kalan ~6.000 dil (Papua Yeni Gine vb.) katkıyla eklenir. Hatalı/düşük kalite paket eklemektense **eklememeyi** tercih ediyoruz (kalite eşiği: ana diline yakın çeviri + `test:i18n`).
+- "Bütün dilleri" tek PR'da beklemek yerine: mimari **sınırlamıyor** — 78 pilot paketi gerçek ve doğrulanmış çevirilerle geldi; geri kalan ~6.000 dil (Papua Yeni Gine vb.) katkıyla eklenir. Hatalı/düşük kalite paket eklemektense **eklememeyi** tercih ediyoruz (kalite eşiği: ana diline yakın çeviri + `test:i18n`).
 
 ---
 
@@ -281,7 +283,7 @@ Arayüzde **her yeni düğme, sekme, sayfa veya süreç** değiştirildiğinde �
 
 1. **[MENU_KILAVUZU.md](MENU_KILAVUZU.md)** — düğme tablosu/haritası satırı,
 2. **Bu belgede** §4–§7 ilgili adımı (gerekirse görsel),
-3. **Dil paketleri** — yeni görünen tüm metinler `src/i18n/*.json`'a **24 dilde** eklenir ve
+3. **Dil paketleri** — yeni görünen tüm metinler `src/i18n/*.json`'a **78 dilde** eklenir ve
    `npm run test:i18n` çalıştırılır (CI da bunu zorlar).
 
 Görüntü yenilemek gerekirse sıkıştırmayı §Başındaki kuralla yapın (JPEG q82). Kılavuz dışı bırakılan

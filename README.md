@@ -97,7 +97,7 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   (Koyu · Klinik Mavi · Açık Tema · Yüksek Kontrast — seçim tüm yüzey/kenar renklerine
   uygulanır, `atik-theme` ile saklanır) ve `prefers-reduced-motion` desteği. WCAG kontrast
   matematiği testlidir (`npm run test:a11y`).
-- **Uluslararasılaştırma:** üst çubuktaki **🌐 Dil seç** ile 24 dil paketi (`tr en es fr de
+- **Uluslararasılaştırma:** üst çubuktaki **🌐 Dil seç** ile 78 dil paketi (`tr en es fr de
   it pt nl pl ru uk cs sv ro hu bg ar he hi zh ja ko id th`); paketler seçimde lazy-import
   edilir (yalnız seçilen dil iner), yedek İngilizce. Kapsam: arayüz kromu; belgeler ve AI
   rapor gövdesi Türkçe kalır. Yeni dil: `src/i18n/<kod>.json` + kayıt + `npm run test:i18n`
