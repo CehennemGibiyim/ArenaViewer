@@ -1409,13 +1409,14 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
                       </tr>
                     );
                   })}
-                  {shares.length === 0 && <tr><td colSpan={8} className="px-3 py-6 text-center text-[var(--sl500)]">Kayıtlı paylaşım bağlantısı yok. Rapor ekranındaki “Paylaş” düğmesiyle oluşturulur.</td></tr>}
+                  {shares.length === 0 && <tr><td colSpan={8} className="px-3 py-6 text-center text-[var(--sl500)]">Kayıtlı paylaşım bağlantısı yok. Rapor ekranındaki “Paylaş” düğmesi ya da görüntüleyicideki `Dışa aktar ▾ → Anonim kesit paylaş` ile oluşturulur.</td></tr>}
                 </tbody>
               </table>
             </div>
             <p className="text-[10.5px] leading-relaxed text-[var(--sl500)]">
               Token tam olarak yalnız oluşturulduğu anda gösterilir; burada ilk 8 karakter görünür (denetim kaydıyla aynı).
-              Bağlantı kapatıldığında süresi dolmamış olsa bile erişim anında reddedilir (410).
+              Bağlantı kapatıldığında süresi dolmamış olsa bile erişim anında reddedilir (410); görüntü paylaşımlarında
+              kapalı bağlantının anonim JPEG paketi nesne deposundan da silinir.
             </p>
           </div>
         )}

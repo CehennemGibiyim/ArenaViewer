@@ -380,8 +380,17 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   görüntü, her kayıt anında teknik/bulgular/izlenim/öneri metinlerini,
   bulgu onay/gerekçe durumunu ve tam bulgu tablosunu (`findingsJson`) içerir
   (`src/lib/reportDiff.ts`, `POST /api/reports/[id]/restore`).
-- **Süreli paylaşım:** onaylı rapor için süre seçilebilir (1–30 gün), kapatılabilir,
-  filigranlı salt okunur bağlantı (`/paylas/<token>`); her erişim denetimde işlenir. Ham görüntü paylaşılmaz.
+- **Süreli paylaşım:** onaylı rapor için süre seçilebilir (24 saat–30 gün), kapatılabilir,
+  filigranlı salt okunur bağlantı (`/paylas/<token>`); her erişim denetimde işlenir.
+- **Görüntü paylaşımı (f-share):** Dışa aktar ▾ → *Anonim kesit paylaş* ile seçilen kesit
+  aralığı pencere/seviye uygulanmış **anonim JPEG** olarak süreli bağlantıya eklenir
+  (en fazla 24 kesit, kesit ≤1024 px, paket ≤6 MB; uzun aralıkta eşit aralıklı örnekleme;
+  `src/lib/shareImage.ts`). Kareler `/api/share/<token>/image/<n>` ucundan `image/jpeg` +
+  `no-store` ile servis edilir; filigranlı sayfa salt okunur ve indirmesizdir, her açılış
+  denetime yazılır. Ham DICOM gönderilmez, hasta kimliği görüntüye yakılmaz, ölçüm/AI
+  çizimi paylaşılmaz; bağlantı kapatılınca ya da süresi dolunca görüntü blob'u sunucuda
+  **silinir**. Paketteki JPEG'ler uygulama anahtarıyla şifreli nesne deposunda tutulur;
+  indirme/zoom engeli yalnız tarayıcı düzeyindedir (ekran görüntüsü alınabilir).
 - **İş akışı:** çalışma listesi, PACS (DICOMweb QIDO/WADO — hazır sistem ayarları, şifreli kimlik, bağlantı testi), HBYS istem alımı,
   kritik bulgu bildirimleri, şifreli sunucu depolaması, hash zincirli denetim kaydı
 
@@ -679,6 +688,7 @@ npm run test:notify-channels        # e-posta/SMS/çağrı kanalları: ayrışt�
 npm run bench:window                # WL/WW dönüşümü kıyaslaması (eski vs LUT)
 npm run test:pr                     # GSPS/PR dışa aktarma + parse doğrulama
 npm run test:gsps-import            # PR/GSPS ölçüm içe aktarma (kesit eşleşmesi, uçtan uca)
+npm run test:share-images           # süreli paylaşımda anonim JPEG kesit paketi (doğrulama + uç sözleşmesi)
 npm run test:notify                 # masaüstü bildirimi + izin akışı
 npm run test:prior                  # önceki tetkik ölçüm karşılaştırması
 npm run test:uncert                 # belirsizlik bandı + CXR bulgu notu

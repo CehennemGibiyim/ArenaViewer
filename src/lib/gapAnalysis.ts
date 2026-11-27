@@ -697,11 +697,11 @@ export const BASE_ITEMS: GapItem[] = [
     action: "Kuyruk tablosu + ilerleme; başarısız yeniden deneme.",
   },
   {
-    id: "f-share", category: "workflow", title: "Süreli paylaşım bağlantısı + watermark + denetim",
+    id: "f-share", category: "workflow", title: "Süreli paylaşım bağlantısı + watermark + denetim (rapor + anonim görüntü)",
     status: "kismi", priority: "P2", effort: "M",
     market: ["RadiAnt", "Weasis"],
-    ours: "`share_links` tablosu + `/api/shares` (GET/POST), `/api/shares/{token}` (DELETE) ve herkese açık `/paylas/{token}` sayfası (filigranlı salt okunur rapor özeti + anahtar kesitler). Süre seçimi 1–30 gün, kapatılabilir, her erişim sayaç + denetim kaydı üretir. **Yeni — yönetim ekranı:** Yönetim → **Paylaşım** sekmesi tüm bağlantıları (oluşturan, rapor, kalan süre, erişim sayısı/son erişim) listeler, tek tıkla kapatır; token yalnız ilk 8 karakterle gösterilir (`maskShareToken`). Ham DICOM/görüntü paylaşımı (imzalı URL) yoktur.",
-    action: "Görüntü (kesit) paylaşımı için imzalı/nesne depolama URL'si; bağlantıya özel görüntüleme kapsamı.",
+    ours: "`share_links` tablosu + `/api/shares` (GET/POST), `/api/shares/{token}` (DELETE) ve herkese açık `/paylas/{token}` sayfası (filigranlı salt okunur rapor özeti + anahtar kesitler). Süre seçimi (24/72/168/720 saat), kapatılabilir, her erişim sayaç + denetim kaydı üretir. Yönetim → **Paylaşım** sekmesi bağlantıları listeler/kapatır. **Yeni (f-share):** süreli paylaşım artık **görüntü** de taşır — Dışa aktar ▾ → *Anonim kesit paylaş*: seçilen aralık pencere/seviyeyle **anonim JPEG** olarak üretilir (en fazla 24 kesit, ≤1024 px, ≤6 MB, uzun aralıkta eşit aralıklı örnekleme), nesne deposunda tutulur ve `/api/share/{token}/image/{n}` ucundan `image/jpeg` + `no-store` ile servis edilir. Ham DICOM gönderilmez, hasta kimliği yakılmaz, ölçüm/AI çizimi paylaşılmaz; kapatma/süre dolumu blob'u **siler**. Kalan: indirme/zoom engeli yalnız tarayıcı düzeyinde, QR/kısa bağlantı, alıcı kimlik doğrulaması ve bağlantı başına parola yoktur.",
+    action: "Alıcı kimlik doğrulaması (OTP/parola) + QR; görüntü sayfasında ölçüm imleci ve paylaşım kapsamı (seri/kesit) seçimi.",
   },
   {
     id: "f-kimlik-rbac", category: "trust", title: "Kullanıcı hesapları, rol denetimi (RBAC) ve iki faktörlü doğrulama",

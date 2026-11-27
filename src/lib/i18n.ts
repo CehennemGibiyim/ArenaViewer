@@ -291,6 +291,15 @@ export function translate(code: string, key: string): string {
   return loaded.get(code)?.[key] ?? loaded.get(FALLBACK_LOCALE)?.[key] ?? key;
 }
 
+/**
+ * `{ad}` yer tutucularını doldurur. Eksik değer olduğu gibi bırakılır (sessizce
+ * boşaltılmaz) — çeviride hata varsa ekranda görünür.
+ */
+export function interpolate(template: string, vars?: Record<string, string | number>): string {
+  if (!vars) return template;
+  return template.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
+}
+
 /** Bileşenlerde kullanım: `const { locale, t, setLocale } = useI18n();` */
 export function useI18n() {
   const locale = useSyncExternalStore(subscribe, () => active, () => DEFAULT_LOCALE);
@@ -306,7 +315,7 @@ export function useI18n() {
   return {
     locale,
     languages: LANGUAGES,
-    t: (key: string) => translate(locale, key),
+    t: (key: string, vars?: Record<string, string | number>) => interpolate(translate(locale, key), vars),
     setLocale: (code: string) => setLocale(code),
   };
 }

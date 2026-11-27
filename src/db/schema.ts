@@ -199,7 +199,7 @@ export const reportAddenda = pgTable("report_addenda", {
 export const shareLinks = pgTable("share_links", {
   id: serial("id").primaryKey(),
   token: text("token").notNull().unique(),
-  kind: text("kind").notNull(), // report | study
+  kind: text("kind").notNull(), // report | image
   reportId: integer("report_id").references(() => reports.id, { onDelete: "cascade" }),
   studyId: integer("study_id").references(() => studies.id, { onDelete: "cascade" }),
   createdBy: integer("created_by"),
