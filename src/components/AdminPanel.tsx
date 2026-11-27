@@ -471,7 +471,7 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
   };
 
   return (
-    <div className="h-screen w-screen overflow-y-auto bg-[var(--t02)] text-[var(--sl200)]">
+    <div className="doc-page min-h-dvh w-full bg-[var(--t02)] text-[var(--sl200)]">
       <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-[var(--t25)] bg-[var(--t05)]/95 px-5 py-3 backdrop-blur print:hidden">
         <Link href="/" className="rounded-md border border-cyan-400/40 bg-cyan-500/10 px-3 py-1.5 text-xs font-bold text-[var(--ac-cyan300)] hover:bg-cyan-500/20">← Görüntüleyici</Link>
         <h1 className="font-mono text-sm font-black tracking-[0.15em] text-[var(--sl100)]">ATIK<span className="text-[var(--ac-cyan400)]">VIEWER</span> · YÖNETİM</h1>

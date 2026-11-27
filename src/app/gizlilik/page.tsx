@@ -15,7 +15,7 @@ const items: [string, string][] = [
 
 export default function GizlilikPage() {
   return (
-    <div className="h-screen w-screen overflow-y-auto bg-[var(--t02)] text-[var(--sl200)]">
+    <div className="doc-page min-h-dvh w-full bg-[var(--t02)] text-[var(--sl200)]">
       <main className="mx-auto max-w-3xl px-5 py-10">
         <Link href="/" className="text-xs text-[var(--ac-cyan400)] hover:underline">← Geri</Link>
         <h1 className="mt-3 text-2xl font-black text-[var(--sl100)]">Kişisel verilerin korunması — aydınlatma metni (şablon)</h1>

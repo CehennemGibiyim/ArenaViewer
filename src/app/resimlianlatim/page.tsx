@@ -20,7 +20,7 @@ export default function ResimliAnlatimPage() {
   const stats = guideStats();
 
   return (
-    <div className="min-h-screen w-full overflow-y-auto bg-[var(--t02)] text-[var(--sl200)]">
+    <div id="top" className="doc-page min-h-dvh w-full bg-[var(--t02)] text-[var(--sl200)]">
       <header className="sticky top-0 z-20 border-b border-[var(--t25)] bg-[var(--t05)]/95 px-4 py-2.5 backdrop-blur print:hidden">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-2">
           <Link href="/" className="rounded-md border border-cyan-400/40 bg-cyan-500/10 px-2.5 py-1 text-[11px] font-bold text-[var(--ac-cyan300)] hover:bg-cyan-500/20">
@@ -162,6 +162,10 @@ export default function ResimliAnlatimPage() {
             · <code className="font-mono">docs/MENU_KILAVUZU.md</code>.
           </p>
         </footer>
+        {/* Uzun sayfada başa dönüş (JS gerekmez; belge kaydırması kullanılır) */}
+        <a href="#top" className="fixed bottom-4 right-4 z-30 rounded-full border border-cyan-400/50 bg-[var(--t05)]/95 px-3 py-2 text-[11px] font-bold text-[var(--ac-cyan200)] shadow-lg backdrop-blur hover:bg-cyan-500/20 print:hidden">
+          ↑ Başa dön
+        </a>
       </main>
     </div>
   );
