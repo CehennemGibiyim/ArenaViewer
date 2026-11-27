@@ -65,6 +65,38 @@ Yanıt: `{ ok, errors[], warnings[], checked, summary }`. `summary` örneği:
 node scripts/supplychain.mjs verify --dir <sürüm-klasörü> --strict
 ```
 
+### 3.1 Tek tuşla tatbikat (`/api/admin/backup/drill`)
+
+Yukarıdaki adımların **panelden** hâli: **Yönetim → Yedekleme & DR**. Tatbikat,
+manifestteki her dosyanın özetini yeniden hesaplar, depo listesiyle karşılaştırır
+ve istersen geri yükleme provası yapar.
+
+```bash
+# Durum: son tatbikat + hazırlık değerlendirmesi
+curl -s -b cookies.txt https://radyo.kurum.local/api/admin/backup/drill
+
+# Tatbikat: { "restoreTrial": true, "download": <manifest> }
+curl -s -b cookies.txt -X POST -H 'Content-Type: application/json' \
+     -H "x-csrf-token: $(grep av_csrf cookies.txt | awk '{print $7}')" \
+     -d "{\"restoreTrial\": true, \"download\": $(cat yedek-2026-01-15.json)}" \
+     https://radyo.kurum.local/api/admin/backup/drill
+```
+
+Dosya başına durum: `saglam`, `ozet-uyusmuyor`, `eksik`, `cozulemedi`, `yazilamadi`.
+Sözleşmeler:
+
+- Çözücü (anahtar) yoksa **açık içerik özeti doğrulanamaz** → `cozulemedi`.
+  Tatbikat `ok: false` döner; sessiz başarı yoktur. `shaScope: "cipher"` olan
+  dosyalar anahtarsız da doğrulanır (bütünlük ≠ içerik kurtarma).
+- Geri yükleme provası **bellek içi** yazar-geri okur; gerçek depoya yazmaz,
+  dosya silmez. Bozulan bayt prova `failed` sayacına düşer.
+- Manifest dışındaki depo dosyaları `extra` olarak raporlanır, **silinmez**.
+- Sonuç `drill.last` ayarına ve `backup.drill` denetim kaydına yazılır; tatbikat
+  tarihi/süresi/sonucu arşivlenebilir (kontrol listesi §5).
+
+Hazırlık değerlendirmesi (`readiness`): yedek yok veya >30 gün → **kritik**,
+>7 gün → **uyarı**, son doğrulama başarısız → **kritik**.
+
 ## 4. Felaket senaryoları
 
 ### 4.1 Disk arızası (veritabanı sağlam, dosyalar gitti)
@@ -101,3 +133,5 @@ kurtarılamaz. **Anahtar kaybı = veri kaybı**; bu yüzden anahtar yedeği zoru
 - [ ] Silinen dosya `verify` ile **hata** olarak raporlandı (negatif test)
 - [ ] Anahtar ayrı kasada; yedekle aynı ortamda değil
 - [ ] Tatbikat tarihi, süresi ve sonucu arşivlendi
+- [ ] `/api/admin/backup/drill` (POST, `restoreTrial: true`) → `ok: true`, `readiness.level: ok`
+- [ ] Bozulmuş kopya ile tatbikat **başarısız** dönüyor (negatif test: bir dosyanın son baytını değiştir)
