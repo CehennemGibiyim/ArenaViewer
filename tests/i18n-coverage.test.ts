@@ -28,7 +28,8 @@ const en = JSON.parse(readFileSync(path.join(i18nDir, "en.json"), "utf8")) as Re
 const enKeys = Object.keys(en).sort();
 ok(enKeys.length >= 20, `referans en.json en az 20 anahtar (${enKeys.length})`);
 
-const packFiles = readdirSync(i18nDir).filter((f) => f.endsWith(".json"));
+// catalog.json çeviri paketi değil, ISO 639-3 canlı diller kataloğudur (aşağıda denetlenir)
+const packFiles = readdirSync(i18nDir).filter((f) => f.endsWith(".json") && f !== "catalog.json");
 ok(packFiles.length >= 20, `en az 20 dil paketi (${packFiles.length})`);
 
 for (const file of packFiles) {
@@ -59,6 +60,36 @@ for (const file of packFiles) {
 
 ok(/DEFAULT_LOCALE\s*=\s*"tr"/.test(libSrc), "DEFAULT_LOCALE = tr");
 ok(/FALLBACK_LOCALE\s*=\s*"en"/.test(libSrc), "FALLBACK_LOCALE = en");
+
+// --- ISO 639-3 canlı diller kataloğu -------------------------------------
+// Seçicide "dünyadaki tüm canlı diller" bu kayıttan listelenir; çevirisi
+// olmayan diller İngilizce yedeğiyle açılır. Katalog üretimi: tools/i18n/gen-catalog.mjs
+const catalogPath = path.join(i18nDir, "catalog.json");
+try {
+  const catalog = JSON.parse(readFileSync(catalogPath, "utf8")) as { c: string; n: string; p1?: string }[];
+  ok(Array.isArray(catalog) && catalog.length >= 6500, `katalog en az 6500 canlı dil (${catalog.length})`);
+  const codes = new Set<string>();
+  let malformed = 0, emptyName = 0, dup = 0, badP1 = 0;
+  for (const e of catalog) {
+    if (!/^[a-z]{3}$/.test(e.c)) malformed += 1;
+    if (!e.n || !e.n.trim()) emptyName += 1;
+    if (codes.has(e.c)) dup += 1;
+    codes.add(e.c);
+    if (e.p1 !== undefined && !/^[a-z]{2}$/.test(e.p1)) badP1 += 1;
+  }
+  ok(malformed === 0, `katalog kodları 3 harf küçük (hatalı: ${malformed})`);
+  ok(emptyName === 0, `katalog adları boş değil (boş: ${emptyName})`);
+  ok(dup === 0, `katalog kodları benzersiz (yinelenen: ${dup})`);
+  ok(badP1 === 0, `ISO 639-1 alanları 2 harf küçük (hatalı: ${badP1})`);
+  // Çevirisi hazır her dil katalogda bir canlı dil olarak doğrulanır
+  const catalogSet = new Set<string>();
+  for (const e of catalog) { catalogSet.add(e.c); if (e.p1) catalogSet.add(e.p1); }
+  const translated = [...libSrc.matchAll(/code:\s*"([a-z-]+)"/g)].map((m) => m[1]);
+  const unmapped = translated.filter((code) => !catalogSet.has(code));
+  ok(unmapped.length === 0, `LANGUAGES kodları canlı ISO dilleriyle eşleşiyor${unmapped.length ? " — " + unmapped.join(",") : ""}`);
+} catch (e) {
+  ok(false, `catalog.json okunamadı — ${(e as Error).message}`);
+}
 
 if (failures > 0) {
   console.error(`\ni18n coverage: ${failures} hata`);

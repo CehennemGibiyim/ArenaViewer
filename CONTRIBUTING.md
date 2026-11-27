@@ -18,8 +18,9 @@ Arayüze eklenen, kaldırılan veya yeniden adlandırılan **her menü/düğme/s
 
 1. **Resimli anlatım:** [`docs/GORSEL_ANLATIM.md`](docs/GORSEL_ANLATIM.md) §4–§7 içindeki ilgili
    adım/görsel güncellenir (hasta verisi asla; sıkıştırılmış JPEG q82 / elle SVG, depo hedefi < 1 MB).
-2. **Dil paketleri:** yeni görünen her metin `src/i18n/*.json` içinde **78 dilde** eklenir;
-   `npm run test:i18n` yeşildir.
+2. **Dil paketleri:** yeni görünen her metin `src/i18n/*.json` içinde **78 tam çeviri dilinde** eklenir;
+   `npm run test:i18n` yeşildir. Yeni bir dil ekleniyorsa tek komut `npm run i18n:new` +
+   anlamlı çeviri + `npm run test:i18n` kullanılır — ayrıntı: [docs/CEVIRI_KATKI.md](docs/CEVIRI_KATKI.md).
 
 Ayrıntı ve kontrol listesi: [docs/KILAVUZ_BAKIMI.md](docs/KILAVUZ_BAKIMI.md).
 PR şablonu bu adımları hatırlatır; atlanması CI kırmızı demek, dolayısıyla merge yoktur.

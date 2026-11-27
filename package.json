@@ -144,6 +144,8 @@
     "test:lazy-fill": "tsx tests/lazy-fill.test.ts",
     "test:knee-seg": "tsx tests/knee-seg.test.ts",
     "test:i18n": "tsx tests/i18n-coverage.test.ts",
+    "i18n:catalog": "node tools/i18n/gen-catalog.mjs",
+    "i18n:new": "node tools/i18n/new-pack.mjs",
     "test:guide-coverage": "tsx tests/guide-coverage.test.ts"
   },
   "dependencies": {
@@ -170,6 +172,7 @@
     "drizzle-kit": "0.31.10",
     "eslint": "9.39.4",
     "eslint-config-next": "16.4.6",
+    "iso-639-3": "^3.0.1",
     "playwright": "^1.65.1",
     "postcss": "8.5.23",
     "tailwindcss": "4.1.17",

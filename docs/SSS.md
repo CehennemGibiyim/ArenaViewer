@@ -125,13 +125,13 @@ Ayrıntı: [GORSEL_ANLATIM.md §7.1](GORSEL_ANLATIM.md).
 
 ## 15. Dili nasıl değiştiririm? Kaç dil destekliyorsunuz?
 
-Üst çubuktaki **🌐 Dil seç** düğmesinden 78 kayıtlı dilden birini seçin (arama kutusuna yazmak yeterli):
-`tr en es fr de it pt nl pl ru uk cs sv ro hu bg ar he hi zh ja ko id th bn ur fa ta te mr gu kn ml pa or vi ms fil ceb da fi el sk sl et lv lt sr hr bs mk sq hy ka az kk ky uz mn sw ha yo ig zu af am ne si my km lo rw so mg ht ca eu gl`. Seçtiğiniz dil paketi **anında ve
-yalnız o dil** indirilir; yedek İngilizce. Çevrilen katman arayüzün kromudur (üst çubuk, durum şeridi,
-ortak düğmeler, Tema/Dil seçicileri). **Belgeler, AI rapor gövdesi ve bazı uzun metinler henüz yalnız Türkçe'dir.**
-`ar`/`he` seçiminde ekran okuyucu dili doğru ayarlanır; yerleşim LTR kalır. "Dünyadaki tüm diller" tek
-attımda vaat edilmez: yeni dil ancak `src/i18n/<kod>.json` + kayıt + `npm run test:i18n` ile girer
-(ayrıntı: [KILAVUZ_BAKIMI.md](KILAVUZ_BAKIMI.md)). Ayrıntı: [GORSEL_ANLATIM.md §7.3](GORSEL_ANLATIM.md).
+Üst çubuktaki **🌐 Dil seç** düğmesinden seçebilirsiniz (arama kutusuna yazmak yeterli). İki katman vardır:
+
+1. **Çevirisi hazır 78 dil** — `tr en es fr de it pt nl pl ru uk cs sv ro hu bg ar he hi zh ja ko id th bn ur fa ta te mr gu kn ml pa or vi ms fil ceb da fi el sk sl et lv lt sr hr bs mk sq hy ka az kk ky uz mn sw ha yo ig zu af am ne si my km lo rw so mg ht ca eu gl`. Seçtiğiniz dil paketi **anında ve yalnız o dil** indirilir; yedek İngilizce.
+2. **ISO 639-3'teki 7.027 canlı dilin tümü** — 2+ harf yazınca listelenir. Çevirisi henüz yapılmamış bir dili de seçebilirsiniz: arayüz **İngilizce yedeğiyle** açılır ve "EN UI" rozetiyle işaretlenir; o dilin çevirisi katkı ile beklenir.
+
+Çeviriden dürüstçe yapılmayan seçenek yok sayılmış değildir; fakat 7.000+ dilin her biri için **doğrulanmış** çeviri ancak katkının kendisiyle gelir — bu yüzden her çevirisi olmayan dil açıkça "İngilizce arayüz" etiketiyle işaretlidir, makine çevirisiyle doldurulmuş paket asla yayımlanmaz. Çevrilen katman arayüzün kromudur (üst çubuk, durum şeridi, ortak düğmeler, Tema/Dil seçicileri). **Belgeler, AI rapor gövdesi ve bazı uzun metinler henüz yalnız Türkçe'dir.**
+`ar`/`he` seçiminde ekran okuyucu dili doğru ayarlanır; yerleşim LTR kalır. Yeni dil eklemek tek komut: `npm run i18n:new` + anlamlı çeviri + `npm run test:i18n` (ayrıntı: [CEVIRI_KATKI.md](CEVIRI_KATKI.md)). Ayrıntı: [GORSEL_ANLATIM.md §7.3](GORSEL_ANLATIM.md).
 
 ## 16. Görsel anlatım nerede? Nasıl bu kadar az yer kaplıyor?
 

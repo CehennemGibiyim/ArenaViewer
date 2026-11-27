@@ -121,7 +121,7 @@ export const DEEP_KNEE_MODEL_CARD: ModelCard = {
     "Arbitrer oblik düzlemler v1'de desteklenmez (eksen-hizalı sagittal/aksiyel beklenir).",
   ],
   validation:
-    "YOK — yazarların kendi test split'i dışında bağımsız/prospektif doğrulama yapılmamıştır. Kurumsal validasyon: SKM-TEA/OAI referans maskeleriyle Dice ölçümü ve gölge mod gerekir.",
+    "YOK — yazarların kendi test split'i dışında bağımsız/prospektif doğrulama yapılmamıştır (2026-11-27: SKM-TEA kıyaslaması HENÜZ YAPILMADI; ölçülmüş Dice/HD95 kaydı yoktur — bkz. docs/KLINIK_DOGRULAMA_PLANI.md §6). Kurumsal validasyon: SKM-TEA/OAI referans maskeleriyle Dice ölçümü ve gölge mod gerekir.",
 };
 
 export function modelCardFor(engine: EngineKind): ModelCard {

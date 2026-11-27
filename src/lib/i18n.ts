@@ -7,9 +7,15 @@
  *   ilk açılışta yalnız `tr` + `en` (yedek) yüklenir, kullanıcı başka dili
  *   seçtiğinde ilgili paket `import()` ile çekilir (bundle'ı şişirmez).
  * - Eksik anahtarlar sırayla: seçili dil → `en` → anahtarın kendisi.
- * - 78 dil paketle gelir (dünyanın en çok konuşulan ~80 dili; konuşucuların ~%90'ı).
- *   Kalan diller topluluk katkısıyla, aynı kalite eşiğiyle eklenir.
- *   Yeni dil eklemek: paket JSON'u + aşağıdaki kayıt + CI (`npm run test:i18n`).
+ * - 78 dilin **tam çevirisi** gelir (dünyanın en çok konuşulan ~80 dili).
+ *   Buna ek olarak dil seçicisinde **ISO 639-3'ün 7.027 canlı dilinin tümü**
+ *   listelenir (`src/i18n/catalog.json`, derleme zamanı yerine seçicide lazy
+ *   yüklenir): çevirisi olmayan dil seçilebilir, arayüz İngilizce yedeğiyle
+ *   çalışır ve çeviri katkısı bekler. Asla makine çevirisiyle doldurulmuş,
+ *   doğrulanmamış paket yayımlanmaz — kapsam > kalite yapılmaz.
+ * - Yeni dil eklemek tek komuttur: `npm run i18n:new -- <kod> "<Native>" "<English>"`
+ *   (iskelet + `src/lib/i18n.ts` kayıtları otomatik; sonra çeviri + CI
+ *   `npm run test:i18n`). Ayrıntı: docs/CEVIRI_KATKI.md.
  * - Uzun metinler (raporlar, modal içerikleri, belgeler) henüz yalnızca
  *   Türkçe'dir; çevirilen katman arayüz kromudur (üst çubuk, durum şeridi,
  *   tema/dil seçicileri).
@@ -111,6 +117,25 @@ export const DEFAULT_LOCALE = "tr";
 export const FALLBACK_LOCALE = "en";
 const STORAGE_KEY = "atik-lang";
 
+/** ISO 639-3 canlı diller kataloğu kaydı (`src/i18n/catalog.json`). */
+export interface CatalogEntry {
+  /** ISO 639-3 (3 harf) */
+  c: string;
+  /** İngilizce dil adı */
+  n: string;
+  /** ISO 639-1 (2 harf), varsa */
+  p1?: string;
+}
+
+let catalogPromise: Promise<CatalogEntry[]> | null = null;
+/** Canlı diller kataloğunu bir kez yükler (seçici açılınca çağrılır). */
+export function loadCatalog(): Promise<CatalogEntry[]> {
+  catalogPromise ??= import("@/i18n/catalog.json").then(
+    (m) => m.default as unknown as CatalogEntry[],
+  );
+  return catalogPromise;
+}
+
 type Pack = Record<string, string>;
 const loaded = new Map<string, Pack>([
   ["en", en as Pack],
@@ -204,16 +229,8 @@ function emit() {
   for (const l of listeners) l();
 }
 
-/** Dil paketini (gerekirse) yükleyip etkin dili değiştirir. Bilinmeyen kod sessizce yoksayılır. */
-export async function setLocale(code: string): Promise<void> {
-  const info = LANGUAGES.find((l) => l.code === code);
-  if (!info) return;
-  if (!loaded.has(code)) {
-    const loader = registry[code];
-    if (!loader) return; // kayıt var ama paket yok: yoksay (CI bunu zaten yakalar)
-    const mod = await loader();
-    loaded.set(code, mod.default);
-  }
+/** Etkin dili uygular: kalıcılık + <html lang/dir> + dinleyiciler. */
+function applyLocale(code: string): void {
   active = code;
   try {
     localStorage.setItem(STORAGE_KEY, code);
@@ -222,6 +239,31 @@ export async function setLocale(code: string): Promise<void> {
     document.documentElement.setAttribute("dir", "ltr");
   } catch { /* depolama kapalıysa oturum içi geçerlidir */ }
   emit();
+}
+
+/**
+ * Etkin dili değiştirir.
+ * - 78 çevirili dilden biriyse ilgili paket lazy yüklenir.
+ * - Katalogdaki çevirisi olmayan bir ISO 639-3 diliyse paket yoktur; arayüz
+ *   İngilizce yedeğiyle çalışır (bilinçli dürüst davranış — bkz. docs/CEVIRI_KATKI.md).
+ * - Tanınmayan kod sessizce yoksayılır.
+ */
+export async function setLocale(code: string): Promise<void> {
+  const known = LANGUAGES.find((l) => l.code === code);
+  if (!known) {
+    const catalog = await loadCatalog();
+    const hit = catalog.find((e) => e.c === code || e.p1 === code);
+    if (!hit) return;
+    applyLocale(code);
+    return;
+  }
+  if (!loaded.has(code)) {
+    const loader = registry[code];
+    if (!loader) return; // kayıt var ama paket yok: yoksay (CI bunu zaten yakalar)
+    const mod = await loader();
+    loaded.set(code, mod.default);
+  }
+  applyLocale(code);
 }
 
 export function getLocale(): string {

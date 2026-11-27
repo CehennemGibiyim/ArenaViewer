@@ -229,7 +229,7 @@ ARENA Viewer'a yeni bir tarama tipinde yapay zekâ bulgusu eklenmesi **bilinçli
    önceliklendirdiği sırayla plana konur.
 
 Bugün sıradaki adaylar: **kolon polip (BT)**, **kalça/kırık (DX)**, **akciğer grafisi pnömoni skoru (CXR)**.
-Sıradaki büyük kilometre taşı: SKM-TEA ile diz MR doğrulaması (gölge mod) → STOW-RS ile PACS'a geri yazma.
+Sıradaki büyük kilometre taşı: SKM-TEA ile diz MR doğrulaması (gölge mod; **henüz başlamadı** — kayıt kullanıcı kararında bekler, ölçülmüş hiçbir sonuç yoktur; durum: [KLINIK_DOGRULAMA_PLANI.md §6](KLINIK_DOGRULAMA_PLANI.md)) → STOW-RS ile PACS'a geri yazma.
 
 ## 8. Depo boyutu ve dosya haritası
 
