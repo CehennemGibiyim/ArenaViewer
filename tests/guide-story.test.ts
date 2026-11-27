@@ -107,6 +107,16 @@ ok(page.includes("id={helpAnchor(section.id)}"), "her bölüm helpAnchor ile kim
 ok(page.includes("href={`#${helpAnchor(s.id)}`}"), "içindekiler aynı çapalara bağlanır");
 
 // ── 5. İstatistik ve güvenlik ──
+// Erişim noktaları: kullanıcı "resimli anlatımı bulamıyorum" dediği için dört
+// giriş noktası test edilir (araç çubuğu + yardım + tercihler + giriş ekranı).
+const giris = read("src/app/giris/page.tsx").toString("utf8");
+ok(giris.includes('href="/resimlianlatim"'), "giriş ekranından resimli anlatıma bağlantı var (oturum açmadan)");
+ok(/🖼 Resimli anlatım/.test(giris), "giriş ekranındaki bağlantı görünür etiket taşır");
+ok(wsSrc.includes('data-testid="guide-link"'), "araç çubuğu düğmesi test için işaretli (yeri kaymasın)");
+const menu = read("docs/MENU_KILAVUZU.md").toString("utf8");
+ok(menu.includes("Resimli anlatım tam olarak nerede?"), "menü kılavuzu erişim noktalarını listeler");
+ok(sss.includes("Resimli anlatımı nerede bulurum?"), "SSS erişim noktalarını listeler");
+
 const stats = guideStats();
 ok(stats.steps === steps.length && stats.images === images.length, "özet sayıları içerikle uyumlu");
 ok(stats.web + stats.local + stats.partial === steps.length, "ortam dağılımı toplamı adım sayısına eşit");

@@ -1,13 +1,20 @@
 "use client";
 
 /**
- * Kullanıcı tercihleri paneli (F3). Sunucuda (`/api/profile/preferences`) saklanır;
- * yalnız beyaz-listeli alanlar gönderilir. Düzen tercihi, istasyon sonraki
- * açılışında uygulanır.
+ * Kullanıcı tercihleri paneli (F3).
+ *
+ * **İki katman:** (1) hesap — `/api/profile/preferences` (girişli kurulumda
+ * cihazlar arası taşınır), (2) cihaz — `localStorage` (`src/lib/prefsStore.ts`).
+ * Cihaz katmanı olmadan panel statik demoda/çevrimdışıyken hiç açılmıyordu;
+ * artık her ortamda açılır ve yalnız beyaz-listeli alanlar gönderilir.
+ * Kaydetme sonucu **dürüstçe** yazılır: hangi katmana yazıldığı söylenir.
  */
 import Link from "next/link";
-import { useState } from "react";
-import { LAYOUTS, WINDOW_PRESETS, type LayoutPref, type UserPrefs } from "@/lib/prefs";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { DEFAULT_PREFS, LAYOUTS, THEMES, WINDOW_PRESETS, type LayoutPref, type ThemeName, type UserPrefs } from "@/lib/prefs";
+import {
+  applyTheme, clearStoredPrefs, loadStoredPrefs, mergeSources, saveStoredPrefs, type PrefSource,
+} from "@/lib/prefsStore";
 import {
   DEFAULT_SHORTCUTS, SHORTCUT_ACTIONS, SHORTCUT_LABELS, formatKeyList, loadShortcuts, parseKeyList,
   resetShortcuts, saveShortcuts, shortcutConflicts, type ShortcutAction,
@@ -15,10 +22,14 @@ import {
 import { apiFetch } from "@/lib/csrfClient";
 
 export default function PreferencesPanel() {
-  const [prefs, setPrefs] = useState<UserPrefs | null>(null);
+  // İlk boyama **cihaz katmanından** yapılır (senkron, effect gerekmez): sayfa
+  // açılır açılmaz kullanıcı kendi seçimini görür; sunucu kopyası gelince
+  // birleştirilir. Aksi hâlde her açılışta "kayıtlı tercih yok" görünüyordu.
+  const [prefs, setPrefs] = useState<UserPrefs | null>(() => (typeof window === "undefined" ? null : loadStoredPrefs()));
   const [defaults, setDefaults] = useState<UserPrefs | null>(null);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const [source, setSource] = useState<PrefSource>("varsayılan");
   const [shortcuts, setShortcuts] = useState<Record<ShortcutAction, string[]>>(DEFAULT_SHORTCUTS);
   const [scMsg, setScMsg] = useState("");
 
@@ -31,46 +42,115 @@ export default function PreferencesPanel() {
   const resetSc = () => { setShortcuts(resetShortcuts()); setScMsg("Varsayılan kısayollara dönüldü."); };
   const conflicts = shortcutConflicts(shortcuts);
 
-  const load = async () => {
+  // Sunucu + cihaz katmanını birlikte okur. Sunucu yoksa (statik demo, oturum
+  // düşmüş, çevrimdışı) cihaz kopyası kullanılır; ikisi de yoksa varsayılan —
+  // ve bunun **varsayılan** olduğu kullanıcıya söylenir.
+  const load = useCallback(async () => {
+    setBusy(true); setMsg("");
+    let server: Partial<UserPrefs> | null = null;
+    let serverErr = "";
     try {
       const r = await apiFetch("/api/profile/preferences");
-      if (!r.ok) throw new Error(((await r.json().catch(() => ({}))) as { error?: string }).error ?? "Tercihler yüklenemedi");
-      const d = (await r.json()) as { prefs: UserPrefs; defaults: UserPrefs };
-      setPrefs(d.prefs); setDefaults(d.defaults);
-      setShortcuts(loadShortcuts());
-    } catch (e) { setMsg(e instanceof Error ? e.message : "Tercihler yüklenemedi"); }
-  };
+      if (r.ok) {
+        const d = (await r.json()) as { prefs?: Partial<UserPrefs>; defaults?: UserPrefs };
+        server = d.prefs ?? null;
+        if (d.defaults) setDefaults(d.defaults);
+      } else {
+        serverErr = ((await r.json().catch(() => ({}))) as { error?: string }).error ?? `HTTP ${r.status}`;
+      }
+    } catch (e) {
+      serverErr = e instanceof Error ? e.message : "sunucuya ulaşılamadı";
+    }
+    const merged = mergeSources(server);
+    setPrefs(merged.prefs);
+    setSource(merged.source);
+    setShortcuts(loadShortcuts());
+    applyTheme(merged.prefs.theme);
+    setBusy(false);
+    const notes: string[] = [];
+    if (merged.source === "cihaz") notes.push("Hesap tercihleri okunamadı; bu tarayıcıdaki kayıt yüklendi.");
+    if (merged.source === "varsayılan") notes.push("Kayıtlı tercih bulunamadı; varsayılanlar gösteriliyor.");
+    if (serverErr && merged.source !== "sunucu") notes.push(`Sunucu: ${serverErr}`);
+    if (merged.warning) notes.push(merged.warning);
+    setMsg(notes.join(" "));
+  }, []);
 
   const save = async (next: UserPrefs) => {
     setBusy(true); setMsg("");
-    const r = await apiFetch("/api/profile/preferences", {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(next),
-    });
-    const d = (await r.json().catch(() => ({}))) as { ok?: boolean; prefs?: UserPrefs; error?: string };
+    // 1) Cihaz katmanı her zaman yazılır (çevrimdışı da çalışsın).
+    const deviceSaved = saveStoredPrefs(next);
+    applyTheme(next.theme);
+    // 2) Hesap katmanı varsa güncellenir.
+    let serverSaved = false;
+    let serverErr = "";
+    try {
+      const r = await apiFetch("/api/profile/preferences", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(next),
+      });
+      const d = (await r.json().catch(() => ({}))) as { ok?: boolean; prefs?: UserPrefs; error?: string };
+      if (r.ok && d.prefs) { setPrefs(d.prefs); serverSaved = true; }
+      else serverErr = d.error ?? `HTTP ${r.status}`;
+    } catch (e) {
+      serverErr = e instanceof Error ? e.message : "sunucuya ulaşılamadı";
+    }
     setBusy(false);
-    if (!r.ok || !d.prefs) { setMsg(d.error ?? "Kaydedilemedi"); return; }
-    setPrefs(d.prefs);
-    setMsg("Tercihler kaydedildi.");
+    if (!deviceSaved && !serverSaved) { setMsg("Kaydedilemedi: tarayıcı depolaması kapalı ve sunucuya ulaşılamadı."); return; }
+    if (deviceSaved && serverSaved) setSource("sunucu");
+    else if (deviceSaved) setSource("cihaz");
+    setMsg(
+      deviceSaved && serverSaved
+        ? "Kaydedildi: bu tarayıcı + hesabınız (cihazlar arası taşınır)."
+        : deviceSaved
+          ? `Bu tarayıcıya kaydedildi.${serverErr ? ` Hesap katmanı yazılamadı (${serverErr}) — giriş yapınca tekrar deneyin.` : ""}`
+          : "Yalnız hesaba kaydedildi (bu tarayıcıda depolama kapalı).",
+    );
   };
 
   const reset = async () => {
     setBusy(true); setMsg("");
-    const r = await apiFetch("/api/profile/preferences", { method: "DELETE" });
-    const d = (await r.json().catch(() => ({}))) as { prefs?: UserPrefs };
+    clearStoredPrefs();
+    applyTheme(DEFAULT_PREFS.theme);
+    setPrefs({ ...DEFAULT_PREFS });
+    setSource("varsayılan");
+    let serverReset = false;
+    try {
+      const r = await apiFetch("/api/profile/preferences", { method: "DELETE" });
+      const d = (await r.json().catch(() => ({}))) as { prefs?: UserPrefs };
+      if (d.prefs) { setPrefs(d.prefs); serverReset = true; }
+    } catch { /* çevrimdışı: cihaz kopyası silindi, bu yeterli */ }
     setBusy(false);
-    if (d.prefs) { setPrefs(d.prefs); setMsg("Varsayılanlara dönüldü."); } else setMsg("Sıfırlanamadı");
+    setMsg(serverReset ? "Varsayılanlara dönüldü (cihaz + hesap)." : "Varsayılanlara dönüldü (bu tarayıcı).");
   };
+
+  // Panel açılınca kendiliğinden yüklenir: statik demoda "önce düğmeye bas"
+  // şartı, hiç yüklenmemiş boş ekran demekti.
+  // Otomatik yükleme: yalnız bir kez. `setState` effect gövdesinde değil,
+  // `load()` içindeki async akışta (veya kaynağı atamak için ref üzerinden) olur;
+  // React kuralları senkron setState'i effect gövdesinde istemiyor.
+  const autoRef = useRef(false);
+  useEffect(() => {
+    if (autoRef.current) return;
+    autoRef.current = true;
+    void load();
+  }, [load]);
 
   const sel = "rounded border border-[var(--t34)] bg-[var(--t17)] px-2 py-1 text-xs text-[var(--sl200)]";
 
   return (
     <div className="mx-auto max-w-3xl p-6">
-      <button onClick={() => void load()} className="cursor-pointer rounded border border-[var(--sl500)]/40 px-2 py-1 text-[11px] font-bold text-[var(--ac-cyan200)] hover:bg-[var(--sl500)]/10">Tercihleri getir</button>
+      <button onClick={() => void load()} disabled={busy} className="cursor-pointer rounded border border-[var(--sl500)]/40 px-2 py-1 text-[11px] font-bold text-[var(--ac-cyan200)] hover:bg-[var(--sl500)]/10 disabled:opacity-50">↻ Yenile</button>
       <h1 className="text-lg font-black text-[var(--ac-cyan300)]">Kullanıcı tercihleri</h1>
-      <p className="mt-1 text-xs text-[var(--sl400)]">Tercihleriniz sunucuda, kimlik doğrulamalı hesabınızla saklanır ve cihazlar arası taşınır.</p>
+      <p className="mt-1 text-xs text-[var(--sl400)]">
+        Tercihleriniz <b>hesabınızda</b> (girişli kurulumda, cihazlar arası taşınır) ve <b>bu tarayıcıda</b> saklanır.
+        Statik demoda yalnız tarayıcı katmanı vardır — seçimler yine kalıcıdır.
+      </p>
+      <p className="mt-1 text-[11px] text-[var(--sl500)]">
+        Kaynak: <b>{source === "sunucu" ? "hesap" : source === "cihaz" ? "bu tarayıcı" : "varsayılan"}</b>
+        {source === "varsayılan" && " — henüz kayıtlı bir seçiminiz yok."}
+      </p>
 
-      {!prefs && <p className="mt-4 text-sm text-[var(--sl400)]">{msg || "Tercihleri yüklemek için Yenile’yi kullanın."}</p>}
+      {!prefs && <p className="mt-4 text-sm text-[var(--sl400)]">{msg || (busy ? "Yükleniyor…" : "Tercihler okunuyor…")}</p>}
       {prefs && (
         <div className="mt-4 space-y-4 rounded-xl border border-[var(--t34)] bg-[var(--t07)] p-4">
           <label className="block text-xs">
@@ -96,6 +176,28 @@ export default function PreferencesPanel() {
           <label className="flex items-center gap-2 text-xs">
             <input type="checkbox" checked={prefs.autoSelectLatest} onChange={(e) => setPrefs({ ...prefs, autoSelectLatest: e.target.checked })} />
             Çalışma listesinde en yeni çalışmayı otomatik seç
+          </label>
+
+          <label className="block text-xs">
+            <span className="font-bold text-[var(--sl200)]">Görünüm teması</span>
+            <select
+              className={`mt-1 w-full ${sel}`}
+              value={prefs.theme}
+              onChange={(e) => {
+                const theme = e.target.value as ThemeName;
+                setPrefs({ ...prefs, theme });
+                applyTheme(theme); // seçim anında görünür; kaydet ile kalıcılaşır
+              }}
+            >
+              {THEMES.map((tm) => (
+                <option key={tm} value={tm}>
+                  {tm === "koyu" ? "Koyu (varsayılan)" : tm === "clinic-blue" ? "Klinik mavi" : tm === "slate-light" ? "Açık tema" : "Yüksek kontrast"}
+                </option>
+              ))}
+            </select>
+            <span className="mt-0.5 block text-[10px] text-[var(--sl500)]">
+              Tema, görüntüleyicinin üst çubuğundaki seçiciyle aynı anahtarı (`atik-theme`) kullanır.
+            </span>
           </label>
 
           <div className="flex flex-wrap items-center gap-2 pt-2">

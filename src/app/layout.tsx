@@ -6,16 +6,21 @@ import UpdateNotice from "@/components/UpdateNotice";
 import HighContrastInit from "@/components/HighContrastInit";
 import "./globals.css";
 
+// GitHub Pages'te site `/ArenaViewer/` altında yayımlanır. Kök mutlak yollar
+// (`/icons/...`, `/manifest.webmanifest`) orada 404 verir; bu yüzden basePath
+// ön eki burada da eklenir (Next.js `metadataBase`'i kendiliğinden uygulamaz).
+const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+
 export const metadata: Metadata = {
   title: "ATIKVIEWER — Vision AI Radyoloji İstasyonu",
   description:
     "DICOM görüntüleme, kesit kesit AI analizi ve yapısal radyoloji raporu üretimi. Araştırma amaçlıdır.",
-  manifest: "/manifest.webmanifest",
+  manifest: `${BASE}/manifest.webmanifest`,
   applicationName: "AtikViewer",
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "AtikViewer" },
   icons: [
-    { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
-    { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    { url: `${BASE}/icons/icon-192.png`, sizes: "192x192", type: "image/png" },
+    { url: `${BASE}/icons/icon-512.png`, sizes: "512x512", type: "image/png" },
   ],
 };
 

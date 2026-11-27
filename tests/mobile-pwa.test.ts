@@ -41,9 +41,12 @@ ok(!off.includes("fetch(") && !off.includes("/api/"), "çevrimdışı sayfa hast
 // ── kayıt ve meta ──
 const reg = read("src/components/ServiceWorkerRegister.tsx");
 ok(reg.includes('process.env.NODE_ENV !== "production"'), "hizmet işçisi yalnızca üretimde kaydediliyor");
-ok(reg.includes('register("/sw.js")'), "/sw.js kaydediliyor");
+ok(/register\(swUrl/.test(reg) && reg.includes("/sw.js`"), "sw.js basePath'li kaydediliyor (Pages alt yolunda 404 yok)");
+ok(/scope: `\$\{process\.env\.NEXT_PUBLIC_BASE_PATH/.test(reg), "service worker kapsamı basePath'e ayarlı");
 const layout = read("src/app/layout.tsx");
-ok(layout.includes('manifest: "/manifest.webmanifest"'), "layout manifest bağlantısını veriyor");
+// GitHub Pages alt yolunda kök mutlak yol 404 verir → basePath ön eki zorunlu.
+ok(/manifest: `\$\{BASE\}\/manifest\.webmanifest`/.test(layout), "layout manifest bağlantısını veriyor (basePath'li)");
+ok(/const BASE = process\.env\.NEXT_PUBLIC_BASE_PATH/.test(layout), "manifest/ikon yolları basePath'ten türetiliyor");
 ok(layout.includes("viewportFit: \"cover\"") && layout.includes("themeColor:"), "viewport/themeColor tanımlı");
 ok(layout.includes("<ServiceWorkerRegister />"), "kayıt bileşeni yerleştirilmiş");
 

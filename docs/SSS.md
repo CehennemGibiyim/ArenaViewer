@@ -177,7 +177,18 @@ Adımlar ve negatif test: [YEDEK_VE_DR.md §3.1](YEDEK_VE_DR.md). Tatbikat sonuc
 Yönetim → AI performans sekmesindeki **Gölge mod özeti** kartıdır (`/api/shadow/summary`: motor/model,
 kayıt ve bulgu sayısı, ilk/son kayıt). Gölge kayıtları hiçbir koşulda rapor metnine dönüşmez.
 
-## 21. Bağlamsal yardım (?) düğmesi ne yapar?
+## 21. Resimli anlatımı nerede bulurum? Statik demoda da var mı?
+
+**Dört yerden** açılır: (1) ana ekranın üst araç çubuğunda `🖼 Resimli anlatım` (Yönetim ile
+Tercihler arasında), (2) `/yardim` sayfasının en üstündeki kart, (3) `/tercihler` sayfasının
+altındaki «Yardım ve resimli anlatım» kutusu, (4) `/giris` ekranındaki bağlantı (oturum açmadan).
+Ayrıca araç çubuğundaki **?** düğmesi doğrudan ilgili bölüme atlar ve Yönetim panelinin sağ üstünde
+`🖼 Kılavuz` vardır. Doğrudan adres: `/resimlianlatim`.
+Statik demoda da **açılır** (`…github.io/ArenaViewer/resimlianlatim/`): sayfa tamamen statiktir,
+hiçbir API çağırmaz; görseller `public/kilavuz/` altındadır ve service worker çevrimdışı önbelleğe alır.
+Kısayollar listesi: [MENU_KILAVUZU.md](MENU_KILAVUZU.md) §14.
+
+## 22. Bağlamsal yardım (?) düğmesi ne yapar?
 
 Ana araç çubuğundaki **?** düğmesi, resimli anlatımın ilgili bölümüne derin bağlantı verir
 (`/resimlianlatim#bolum-…`). Konular tek kaynaktan gelir: `src/lib/guideStory.ts` → `HELP_TOPICS`;

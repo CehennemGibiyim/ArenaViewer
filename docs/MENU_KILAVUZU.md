@@ -262,13 +262,29 @@ Metin kutusu/select içindeyken kısayollar çalışmaz.
 | `/resimlianlatim` | Resimli anlatım | Adım adım görsel kılavuz: nerede / ne yapılır / ne olur + gerçek ekran görüntüleri (statik; demoda da açılır) |
 | Bağlamsal yardım (`helpHref`) | Ana araç çubuğu **?** (`title="Çalışma açma ve AI analizi adımları — resimli anlatımın ilgili bölümü"`) | `src/lib/guideStory.ts` `HELP_TOPICS` → `/resimlianlatim#bolum-<bölüm>`; çapa her bölümde gerçekten var mı test edilir. Yeni bir noktaya kısayol eklerken buraya da satır ekleyin. |
 | `/yonetim` | Yönetim | Kullanıcılar, roller, oturumlar/MFA, denetim kaydı, uyum listesi, AI performans |
-| `/tercihler` | Tercihler | Düzen/pencere ön ayarı + `Klavye kısayolları` |
+| `/tercihler` | Tercihler | Tema, açılış düzeni, pencere ön ayarı, klavye kısayolları. **Statik demoda da açılır** (seçimler tarayıcıda saklanır). |
 | `/paketler` | Kurulum paketleri | Windows/Linux/macOS/Docker yolları ve dosya adları |
 | `/ayna` | İkinci ekran | BroadcastChannel ile salt ayna; statik demoda demo etiketiyle |
 | `/gizlilik` | KVKK aydınlatma | Şablon metin |
-| `/ayna` (demo) | İkinci ekran (statik) | Oturum kapısı olmadan BroadcastChannel aynası; demo etiketiyle |
 | `/paylas/<token>` | Salt okunur paylaşım | Süre sınırlı bağlantı; her erişim denetlenir |
-| `/giris` | Oturum | `AUTH_MODE=hesap` ise kurulum/giriş; MFA |
+| `/giris` | Oturum | `AUTH_MODE=hesap` ise kurulum/giriş; MFA. Altında **Yardım / S.S.S.**, **🖼 Resimli anlatım** ve **📦 Kurulum** bağlantıları (giriş yapmadan ulaşılır) |
+
+### Resimli anlatım tam olarak nerede? (dört yer)
+
+Kullanıcılar en çok bunu soruyor; bu yüzden sayfa **dört ayrı yerden** açılıyor:
+
+| # | Yer | Ne görürsünüz |
+|---|---|---|
+| 1 | **Ana ekranın üst araç çubuğu** (sağ blok) | `🖼 Resimli anlatım` düğmesi — `⚙ Yönetim` ile `🧰 Tercihler` arasında |
+| 2 | **Yardım / S.S.S.** (`/yardim`) | Sayfanın en üstünde «Resimli anlatım — adım adım, ekran görüntüleriyle» kartı + iki örnek görsel |
+| 3 | **Tercihler** (`/tercihler`) | En altta «Yardım ve resimli anlatım» kutusu |
+| 4 | **Giriş ekranı** (`/giris`) | Formun altında `🖼 Resimli anlatım` bağlantısı (oturum açmadan) |
+
+Ek olarak **bağlamsal** giriş: ana araç çubuğundaki küçük **?** düğmesi doğrudan kılavuzun
+«çalışma açma / AI» bölümüne atlar; **Yönetim** panelinin sağ üstünde `🖼 Kılavuz` vardır.
+
+**Statik web demosunda da açılır:** `https://cehennemgibiyim.github.io/ArenaViewer/resimlianlatim/`
+(sayfa tamamen statiktir; hiçbir API çağırmaz).
 
 ## 15. Durum şeridi
 

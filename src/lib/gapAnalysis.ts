@@ -679,8 +679,8 @@ export const BASE_ITEMS: GapItem[] = [
     id: "f-prefs", category: "workflow", title: "Kullanıcı başına tercihler sunucuda (layout, preset, kısayol)",
     status: "kismi", priority: "P2", effort: "S",
     market: ["RadiAnt", "OHIF"],
-    ours: "**Bu sürümde eklendi:** `/tercihler` sayfası + `/api/profile/preferences` (beyaz-listeli GET/PATCH/DELETE); açılış düzeni ve pencere ön ayarı istasyonda uygulanır. Kısayol tuşları ve tema tercihi yok.",
-    action: "Klavye kısayolları ve tema tercihleri.",
+    ours: "`/tercihler` + `/api/profile/preferences` (beyaz-listeli GET/PATCH/DELETE): tema, açılış düzeni, pencere ön ayarı ve klavye kısayolları. **Yeni — iki katman:** hesap kopyası (cihazlar arası) + cihaz kopyası (`localStorage`, `src/lib/prefsStore.ts`); sunucu yoksa cihaz kopyası kullanılır ve hangi kaynaktan okunduğu yazılır. **Statik demoda `/tercihler` artık açılıyor** (404 idi): sayfa Pages derlemesinde demo sarmalayıcıyla üretilir, `/api/profile/preferences` tarayıcı içinde karşılanır, seçimler kalıcıdır (`tests/prefs-store.test.ts`). Kısayol tuşları hesaba değil tarayıcıya bağlıdır.",
+    action: "Kısayolların da hesaba bağlanması; kurum düzeyinde varsayılan politika (yönetici belirler).",
   },
   {
     id: "f-tat", category: "workflow", title: "Turnaround/istatistik panosu (TAT, onay süresi, bulgu/adet)",

@@ -42,6 +42,8 @@ const QA: [string, string][] = [
     "Rapor panelinde her bulguyu «Onayla» veya «Düzenlendi» olarak işaretleyin (gerekçe zorunlu); sunucu da bu kapıyı denetler. Ardından «Onayla» → rapor `ONAYLI` rozetini alır ve imza (ad, ünvan, sicil) yazılır. PDF: rapor ekranındaki yazdır/PDF düğmesi tarayıcının yazdırma penceresini açar — altbilgide sürüm ve «tıbbi cihaz değildir» durumu yer alır. Onaylı rapor değiştirilemez; düzeltme için addendum eklenir (sürüm geçmişi korunur)."],
   ["Bu belge ile uygulama içi `/yardim` sayfası farkı?",
     "Yok — içerik aynıdır: aynı sorular ve aynı cevaplar. Uygulama sürümü yalnız düzeni sadeleştirir; bir yüzey güncellenmeden diğeri güncellenemez (`tests/help-faq.test.ts` her soruyu iki yönde eşleştirir)."],
+  ["Resimli anlatımı nerede bulurum? Statik demoda da var mı?",
+    "Dört yerden açılır: 1) ana ekranın üst araç çubuğunda 🖼 Resimli anlatım (Yönetim ile Tercihler arasında), 2) bu Yardım sayfasının en üstündeki kart, 3) Tercihler sayfasının altındaki «Yardım ve resimli anlatım» kutusu, 4) giriş ekranındaki bağlantı. Ayrıca araç çubuğundaki ? düğmesi doğrudan ilgili bölüme atlar. Doğrudan adres: /resimlianlatim — statik GitHub Pages demosunda da açılır (sayfa hiçbir API çağırmaz, görseller /kilavuz/ altındadır)."],
   ["Bağlamsal yardım (?) düğmesi ne yapar?",
     "Ana araç çubuğundaki ? düğmesi, resimli anlatımın ilgili bölümüne derin bağlantı verir (/resimlianlatim#bolum-…). Konular tek kaynaktan gelir: src/lib/guideStory.ts → HELP_TOPICS; her kaydın gerçekten var olan bir bölüme bağlandığı ve çapaların sayfada basıldığı testlerle denetlenir. Statik demoda da çalışır (API gerekmez)."],
   ["Yeni bir AI modülü eklenecek mi? \"BT kolon polip\", \"kalça kırığı\"?",
