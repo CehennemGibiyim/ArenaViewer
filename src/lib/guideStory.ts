@@ -24,6 +24,7 @@ export const GUIDE_IMAGE_WIDTHS: Record<string, number> = {
   "ekran-menu-haritasi.jpg": 1366,
   "sema-ai-akisi.svg": 960,
   "sema-tema-dil.svg": 960,
+  "sema-resimli-anlatim.svg": 940,
 };
 
 export interface GuideStep {
@@ -60,6 +61,18 @@ export const GUIDE_INTRO = {
     "hiçbirinde hasta verisi yoktur.",
   disclaimer:
     "ATIKVIEWER araştırma amaçlıdır ve tıbbi cihaz değildir. Yapay zekâ çıktılarının tamamı taslaktır; son söz radyoloji uzmanınındır.",
+  /**
+   * Fotoğraf göstermeyen adımlar için elle çizilmiş **özgün** adaptör şeması
+   * (`public/kilavuz/sema-resimli-anlatim.svg`). Var olan bir ekran görüntüsünü
+   * başka bir adımın kanıtı gibi göstermemek için ayrı bir görsel kullanılır.
+   */
+  /**
+   * Sürüm numarası **elle yazılmaz**: ekran görüntüleri eski bir sürümden
+   * kalabilir. Kılavuz bu yüzden "güncel sürümde şu düğmeler var" der.
+   */
+  versionNote: "Ekran görüntüleri geliştirme derlemesinden alınmıştır; düğme adları güncel sürümle aynıdır.",
+  flowImage: "sema-resimli-anlatim.svg",
+  flowAlt: "Resimli anlatım akışı: oku → nerede olduğunu bul → adımı uygula → sonucu doğrula",
 } as const;
 
 export const GUIDE_SECTIONS: GuideSection[] = [

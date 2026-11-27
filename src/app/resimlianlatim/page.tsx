@@ -44,6 +44,20 @@ export default function ResimliAnlatimPage() {
         <p className="mt-2 rounded-lg border border-amber-400/40 bg-amber-400/5 p-3 text-[12px] leading-relaxed text-[var(--ac-amber200)]">
           {GUIDE_INTRO.disclaimer}
         </p>
+        {/* Akış şeması: adımların nasıl okunacağını gösteren özgün SVG */}
+        <figure className="mt-4">
+          {/* eslint-disable-next-line @next/next/no-img-element -- statik kılavuz görseli; Pages dışa aktarımında next/image optimizasyonu kapalı */}
+          <img
+            src={guideImageSrc(GUIDE_INTRO.flowImage, base)}
+            alt={GUIDE_INTRO.flowAlt}
+            width={GUIDE_IMAGE_WIDTHS[GUIDE_INTRO.flowImage] ?? 960}
+            className="w-full rounded-xl border border-[var(--t32)] bg-[var(--t05)]"
+          />
+          <figcaption className="mt-1 text-[10.5px] text-[var(--sl500)]">
+            {GUIDE_INTRO.flowAlt} · {GUIDE_INTRO.versionNote}
+          </figcaption>
+        </figure>
+
         {process.env.NEXT_PUBLIC_STATIC_DEMO === "true" && (
           <p className="mt-2 rounded-lg border border-cyan-400/40 bg-cyan-400/10 p-2.5 text-[11.5px] text-[var(--ac-cyan200)]">{GUIDE_DEMO_NOTE}</p>
         )}

@@ -54,9 +54,19 @@ const pubDir = path.join(root, "public/kilavuz");
 const present = existsSync(pubDir) ? require("node:fs").readdirSync(pubDir) : [];
 ok(present.every((f: string) => existsSync(path.join(root, "docs/img", f))), "public/kilavuz'da docs/img'de olmayan dosya yok");
 
+// ── 2b. Akış şeması (fotoğrafsız adımlar için özgün SVG) ──
+const flow = GUIDE_INTRO.flowImage;
+ok(existsSync(path.join(root, "public/kilavuz", flow)), `akış şeması public/kilavuz/${flow} mevcut`);
+ok(existsSync(path.join(root, "docs/img", flow)), `akış şeması docs/img/${flow} mevcut`);
+ok(Buffer.compare(readFileSync(path.join(root, "public/kilavuz", flow)), readFileSync(path.join(root, "docs/img", flow))) === 0, "akış şeması iki kopya aynı");
+ok(images.every((f) => f !== flow), "akış şeması bir adımın ekran görüntüsü yerine kullanılmaz (yanlış kanıt olmaz)");
+const svg = readFileSync(path.join(root, "public/kilavuz", flow)).toString("utf8");
+ok(/viewBox="0 0 940 230"/.test(svg), "akış şeması beklenen tuvali taşır (GUIDE_IMAGE_WIDTHS ile uyumlu)");
+ok(/role="img"/.test(svg) && /aria-label="[^"]{20,}"/.test(svg), "SVG erişilebilirlik etiketleri var");
+
 // ── 3. Sayfa görselleri gerçekten basıyor ──
 const page = read("src/app/resimlianlatim/page.tsx").toString("utf8");
-ok(page.includes("guideImageSrc(step.image"), "sayfa görsel yolunu guideImageSrc ile üretir (basePath uyumlu)");
+ok(page.includes("guideImageSrc(step.image") && page.includes("guideImageSrc(GUIDE_INTRO.flowImage"), "sayfa görsel yolunu guideImageSrc ile üretir (basePath uyumlu)");
 ok(page.includes("alt={step.alt"), "sayfa alt metin (erişilebilirlik) yazıyor");
 ok(page.includes("process.env.NEXT_PUBLIC_BASE_PATH"), "GitHub Pages alt yolu kullanılıyor");
 ok(!/<img[^>]+src="\/docs\//.test(page), "sayfa docs/ altına doğrudan bağlanmıyor (Pages'te yoktur)");
