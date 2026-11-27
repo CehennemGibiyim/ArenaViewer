@@ -844,6 +844,11 @@ docs/             Yayınlama ve işletim kılavuzları (görsel + videolu: docs/
   `Klinik_Dogrulama_LUNA16.md`) ve açıkta kalan CXR modeli için yapılması gerekenleri
   birleştirir; performans izleme `/yonetim → AI performans` üzerindedir (PPV,
   kalibrasyon bölmeleri).
+- **STOW-RS → TİTCK yol haritası:** [docs/STOW_RS_TITCK_YOL_HARITASI.md](docs/STOW_RS_TITCK_YOL_HARITASI.md)
+  — PACS'a geri yazmayı üretim seviyesine çıkarma adımları (A0–A3) ve Türkiye'de
+  tıbbi cihaz yazılımı regülasyonu (TİTCK/MDR: sınıflandırma, ISO 13485, ISO 14971,
+  IEC 62304, klinik değerlendirme, ÜTS) için dürüst bir envanter ve sıra.
+  Hukuki/regülasyon danışmanlığı değildir; hiçbir adım başlamış sayılmaz.
 - **Gölge mod:** Henüz doğrulanmamış bir modeli üretimde denemek için
   `NEXT_PUBLIC_AI_SHADOW_MODE=true`. Bu durumda AI adayları **rapora/ekrana girmez**;
   yalnızca etiket/şiddet/skor özeti `shadow_findings` tablosuna yazılır
