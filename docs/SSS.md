@@ -115,7 +115,31 @@ Adaylar `/kiyaslama` sayfasında **"Önerilen aday modüller — henüz kod yok"
 **açık kaynak model + yerelde çalışma + research etiketi + kurum doğrulaması** çerçevesinden geçince eklenir;
 doktor talepleriniz öncelik sırasını belirler. Ayrıntı: [KURULUM_VE_KULLANIM.md §7](KURULUM_VE_KULLANIM.md).
 
-## 14. Bu belge ile uygulama içi `/yardim` sayfası farkı?
+## 14. Tema seçiyordum ama renkler değişmiyordu — düzeldi mi?
+
+Evet (2026-11-26). Seçici her zaman çalışıyordu; ancak arayüzün yüzey/kenar renkleri sabit hex olduğundan
+hiçbir şey değişmiyor gibi görünüyordu. Tüm yapısal renkler artık `globals.css` değişkenlerine bağlıdır;
+`Koyu (Varsayılan)` eski görünümle birebir, `Klinik Mavi`, `Açık Tema` (kontrast ≈18:1) ve
+`Yüksek Kontrast` artık gerçekten uygulanır. Seçim `atik-theme` anahtarında saklanır.
+Ayrıntı: [GORSEL_ANLATIM.md §7.1](GORSEL_ANLATIM.md).
+
+## 15. Dili nasıl değiştiririm? Kaç dil destekliyorsunuz?
+
+Üst çubuktaki **🌐 Dil seç** düğmesinden 24 kayıtlı dilden birini seçin (arama kutusuna yazmak yeterli):
+`tr en es fr de it pt nl pl ru uk cs sv ro hu bg ar he hi zh ja ko id th`. Seçtiğiniz dil paketi **anında ve
+yalnız o dil** indirilir; yedek İngilizce. Çevrilen katman arayüzün kromudur (üst çubuk, durum şeridi,
+ortak düğmeler, Tema/Dil seçicileri). **Belgeler, AI rapor gövdesi ve bazı uzun metinler henüz yalnız Türkçe'dir.**
+`ar`/`he` seçiminde ekran okuyucu dili doğru ayarlanır; yerleşim LTR kalır. "Dünyadaki tüm diller" tek
+attımda vaat edilmez: yeni dil ancak `src/i18n/<kod>.json` + kayıt + `npm run test:i18n` ile girer
+(ayrıntı: [KILAVUZ_BAKIMI.md](KILAVUZ_BAKIMI.md)). Ayrıntı: [GORSEL_ANLATIM.md §7.3](GORSEL_ANLATIM.md).
+
+## 16. Görsel anlatım nerede? Nasıl bu kadar az yer kaplıyor?
+
+**[GORSEL_ANLATIM.md](GORSEL_ANLATIM.md)** — uçtan uca, ekran ekran. Görseller sıkıştırılmış JPEG (q82,
+~52–84 KB) ve elle çizilmiş SVG şemalardır; toplam ≈ 650 KB. Lisanslı/dış kaynaklı PDF'ler depoya
+alınmaz, yalnızca özgün şemalar kullanılır; PDF dağıtımı isterseniz `pandoc` ile üretip Release'e koyarız.
+
+## 17. Bu belge ile uygulama içi `/yardim` sayfası farkı?
 
 Yok — **içerik aynıdır**. Uygulama sürümü belgeyi sadeleştirir ama soru listesi ve cevaplar bire bir eşlenir;
 biri güncellenmeden diğeri güncellenemez (CI denetimi: kılavuz bakımı kuralı).

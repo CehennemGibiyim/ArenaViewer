@@ -167,6 +167,8 @@ veritabanısız kullanım yeterlidir. Docker yolunda şema ilk açılışta otom
 
 > **Hangi düğme neye yarar?** Tüm menülerin tek tek açıklaması ve numaralı ekran haritası:
 > **[MENU_KILAVUZU.md](MENU_KILAVUZU.md)** (sürekli güncel tutulur — bkz. [KILAVUZ_BAKIMI.md](KILAVUZ_BAKIMI.md)).
+> **Adım adım görselli anlatım:** web demosu / Windows / macOS-Linux / Docker farklarını, AI analiz karar
+> ağacını ve tema/dil mekanizmasını **[GORSEL_ANLATIM.md](GORSEL_ANLATIM.md)** belgesinde ekran ekran bulursunuz.
 > **En çok sorulan sorular:** [SSS.md](SSS.md) — worker'ı ayrıca başlatmak gerekir mi,
 > AI kendiliğinden mi çalışır, GPU şart mı … (uygulama içindeki karşılığı: **`/yardim`** sayfası).
 >
@@ -248,6 +250,7 @@ varlıklar olarak yeterlidir. MP4, standart oynatıcılarda (VLC, tarayıcı, Gi
 
 - [WINDOWS_KURULUM.md](WINDOWS_KURULUM.md) — Windows ayrıntılı kurulum, sık hatalar
 - [MENU_KILAVUZU.md](MENU_KILAVUZU.md) — her düğme/menü tek tek (numaralı ekran haritasıyla)
+- [GORSEL_ANLATIM.md](GORSEL_ANLATIM.md) — uçtan uca görselli kullanım (web · Windows · macOS/Linux · Docker); tema & dil
 - [SSS.md](SSS.md) — sık sorulan sorular (uygulama içi: **`/yardim`**)
 - [KILAVUZ_BAKIMI.md](KILAVUZ_BAKIMI.md) — kılavuzu her değişiklikle güncel tutma kuralı
 - [OLLAMA.md](OLLAMA.md) · [GITHUB_YAYINLAMA.md](GITHUB_YAYINLAMA.md) · [YEDEK_VE_DR.md](YEDEK_VE_DR.md)

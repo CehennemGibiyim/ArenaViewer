@@ -23,6 +23,10 @@ Ayrıntı: [docs/KILAVUZ_BAKIMI.md](KILAVUZ_BAKIMI.md).
 
 ---
 
+> **Akış odaklı resimli anlatım:** adım adım uçtan uca kullanım (web demosu / Windows / macOS-Linux /
+> Docker), AI analiz karar ağacı ve tema-dil mekanizması için **[GORSEL_ANLATIM.md](GORSEL_ANLATIM.md)**.
+> Her düğme/sekmenin birebir açıklaması bu belgededir.
+
 ## İçindekiler
 
 1. [Bölge 1 — Dosya & çalışma listesi](#bölge-1--dosya--çalışma-listesi)
@@ -49,7 +53,8 @@ Ayrıntı: [docs/KILAVUZ_BAKIMI.md](KILAVUZ_BAKIMI.md).
 |---|---|
 | **A** logo + `ATIKVIEWER` | Marka bloğu; sağındaki numara derleme (build) anlamına gelir. |
 | ↻ **Yenile** | `Arayüz paketini temiz biçimde yeniden yükle` — service worker/önbelleği atlayıp temiz yükleme yapar (`/?fresh=`). |
-| **Tema seç** | `Koyu (Varsayılan)` · `Klinik Mavi` · `Açık Tema` · `Yüksek Kontrast`. Ziyaretçi tercihi tarayıcıda saklanır. |
+| **Tema seç** | `Koyu (Varsayılan)` · `Klinik Mavi` · `Açık Tema` · `Yüksek Kontrast`. Seçim `atik-theme` anahtarıyla saklanır ve **tüm arayüz renklerine uygulanır** (koyu = eski görünümle birebir; açık tema kontrast ≈18:1). DICOM pikseli temadan etkilenmez. Ayrıntı: [GORSEL_ANLATIM §7.1](GORSEL_ANLATIM.md). |
+| **🌐 Dil seç** | `Dil seç` — 24'ten `tr` (varsayılan) `en es fr de it pt nl pl ru uk cs sv ro hu bg ar he hi zh ja ko id th` arasından arama ile seçim; paket `atik-lang` ile saklanır ve **lazy-import** edilir (yalnız seçilen dil indirilir, yedek `en`). Çevrilen katman = arayüz kromu; belgeler ve AI rapor gövdesi Türkçe kalır. Ayrıntı: [GORSEL_ANLATIM §7.3](GORSEL_ANLATIM.md). |
 | **Dosya aç** | Çoklu DICOM/görsel dosyası seç (`.dcm`, `.jpg/.png`, video, PDF, SR). |
 | **Klasör aç** | Tüm klasör hiyerarşisini yükler (`showDirectoryPicker`; FSAPI yoksa `webkitdirectory`). |
 | 📋 **Liste** | `Çalışma listesi / PACS` — kayıtlı incelemeleri açar, PACS (QIDO/WADO) sorgusu başlatır. |
@@ -263,6 +268,11 @@ Alt şerit soldan sağa: `HAZIR` / `HAZIRLANIYOR…` / `ANALİZ: <aşama>` / `AN
 varsa `<genişlik>×<yükseklik>` · `Ölçüm: N` · `★ N` · `Katman: N`;
 en sağda `DEMO / ARAŞTIRMA — klinik karar için kullanılamaz` uyarısı ve
 `Amaçlanan kullanım ve sürüm bilgisi` → **Hakkında** penceresi açan sürüm düğmesi.
+Yardım / sık sorulan sorular için: **`/yardim`** (depodaki karşılığı [SSS.md](SSS.md)).
+
+**Hakkında penceresi (`Hakkında ve amaçlanan kullanım`)** içeriği: üstte `Kopyala` (`Metni panoya kopyala` — metni panoya alır),
+orada `ATIKVIEWER bir tıbbi cihaz değildir…` amber bandı, `Kullanıcılar`, `Amaçlanan kullanım`,
+`Amaçlanmayan kullanımlar` (kırmızı), `Bilinen sınırlar` (amber) bölümleri, alt satırda düzenleme bilgisi ve **Yardım / S.S.S. →** bağlantısı (`/yardim`).
 
 AI çalışanının sağlık durumu ana ekranda değil, **`/paketler`** sayfasındaki `AiWorkerStatus` kartında
 gösterilir (model dosyaları ve worker erişilebilirliği).

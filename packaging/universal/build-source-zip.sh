@@ -106,6 +106,9 @@ Windows
   docs/WINDOWS_KURULUM.md          Windows kurulum rehberi ve hata çözümleri
   docs/KURULUM_VE_KULLANIM.md      tüm işletim sistemleri için görsel+videolu kılavuz
   docs/MENU_KILAVUZU.md            her düğme/menü için numaralı ekran haritalı kılavuz
+  docs/GORSEL_ANLATIM.md           görselli uçtan uca anlatım (web/Windows/macOS/Linux/Docker)
+  docs/SSS.md                      sık sorulan sorular (uygulama içi: /yardim)
+  docs/KILAVUZ_BAKIMI.md           kılavuzu her değişiklikle güncel tutma kuralı
 
 Linux
   packaging/linux/install.sh       tek komutla kurulum (Debian/Fedora/Arch)

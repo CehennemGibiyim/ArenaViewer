@@ -14,8 +14,15 @@ npm run lint && npm run typecheck
 
 Arayüze eklenen, kaldırılan veya yeniden adlandırılan **her menü/düğme/sekme/kısayol**,
 **aynı PR içinde** [`docs/MENU_KILAVUZU.md`](docs/MENU_KILAVUZU.md) belgesine işlenir ve
-`npm run test:guide-coverage` yeşildir. Ayrıntı ve kontrol listesi: [docs/KILAVUZ_BAKIMI.md](docs/KILAVUZ_BAKIMI.md).
-PR şablonu bu adımı hatırlatır; atlanması CI kırmızı demek, dolayısıyla merge yoktur.
+`npm run test:guide-coverage` yeşildir. **Ayrıca iki eşlik zorunluluğu vardır:**
+
+1. **Resimli anlatım:** [`docs/GORSEL_ANLATIM.md`](docs/GORSEL_ANLATIM.md) §4–§7 içindeki ilgili
+   adım/görsel güncellenir (hasta verisi asla; sıkıştırılmış JPEG q82 / elle SVG, depo hedefi < 1 MB).
+2. **Dil paketleri:** yeni görünen her metin `src/i18n/*.json` içinde **24 dilde** eklenir;
+   `npm run test:i18n` yeşildir.
+
+Ayrıntı ve kontrol listesi: [docs/KILAVUZ_BAKIMI.md](docs/KILAVUZ_BAKIMI.md).
+PR şablonu bu adımları hatırlatır; atlanması CI kırmızı demek, dolayısıyla merge yoktur.
 
 ## Klinik / araştırma etiketi kuralı
 
