@@ -137,13 +137,13 @@ Ayrıntı: [GORSEL_ANLATIM.md §7.1](GORSEL_ANLATIM.md).
 
 **Uygulama içinde: `/resimlianlatim`** — ilk açılıştan rapor onayına kadar her adım, gerçek ekran görüntüleriyle;
 her adımda "nerede / ne yapılır / ne olur" ve o adımın statik web demosunda mı yoksa yalnız yerel kurulumda mı
-yapılabildiği yazar. Bağlantılar: ana ekran araç çubuğu (**🖼 Resimli anlatım**), `/yardim` sayfası ve
-`/tercihler` (Ayarlar) alt bölümü. Sayfa tamamen statiktir, GitHub Pages demosunda da açılır; görseller
+yapılabildiği yazar. Bağlantılar: ana ekran araç çubuğu (**🖼 Resimli anlatım** ve bağlamsal **?**
+düğmesi → doğrudan ilgili bölüm), `/yardim` sayfası ve `/tercihler` (Ayarlar) alt bölümü. Sayfa tamamen statiktir, GitHub Pages demosunda da açılır; görseller
 `public/kilavuz/` altındadır ve `docs/img/` ile **bayt bayt aynıdır** (`tests/guide-story.test.ts` denetler).
 
 Belge hâli: **[GORSEL_ANLATIM.md](GORSEL_ANLATIM.md)** — uçtan uca, ekran ekran. PDF sürümü tag (`v*`) yayımında
 Release asset'i olarak üretilir (`.github/workflows/docs-pdf.yml`). Görseller sıkıştırılmış JPEG (q82,
-~52–84 KB) ve elle çizilmiş SVG şemalardır; toplam ≈ 650 KB. Lisanslı/dış kaynaklı PDF'ler depoya
+~52–84 KB) ve elle çizilmiş SVG şemalardır; toplam ≈ 653 KB. Lisanslı/dış kaynaklı PDF'ler depoya
 alınmaz, yalnızca özgün şemalar kullanılır; PDF dağıtımı isterseniz `pandoc` ile üretip Release'e koyarız.
 
 ## 17. Bu belge ile uygulama içi `/yardim` sayfası farkı?

@@ -14,7 +14,10 @@
  */
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
-import { GUIDE_DEMO_NOTE, GUIDE_INTRO, GUIDE_SECTIONS, guideImageSrc, guideStats } from "../src/lib/guideStory";
+import {
+  GUIDE_DEMO_NOTE, GUIDE_INTRO, GUIDE_SECTIONS, HELP_TOPICS, guideImageSrc, guideStats,
+  helpAnchor, helpHref, helpTopicSection,
+} from "../src/lib/guideStory";
 
 let failed = 0;
 const ok = (cond: boolean, msg: string) => {
@@ -86,6 +89,22 @@ const manifest = JSON.parse(read("docs/menu-kilavuzu.manifest.json").toString("u
 ok(guide.includes("/resimlianlatim"), "MENU_KILAVUZU.md resimli anlatım sayfasını listeler");
 ok(sss.includes("/resimlianlatim"), "SSS.md resimli anlatım sayfasını anar");
 ok(manifest.includes("/resimlianlatim"), "menü manifestosunda sayfa anchor'ı var");
+
+// ── 4b. Bağlamsal yardım (helpHref) ──
+ok(HELP_TOPICS.length >= 4, `en az 4 yardım konusu (${HELP_TOPICS.length})`);
+ok(new Set(HELP_TOPICS.map((t) => t.id)).size === HELP_TOPICS.length, "yardım konusu kimlikleri benzersiz");
+for (const t of HELP_TOPICS) {
+  ok(!!helpTopicSection(t.section), `"${t.id}" konusu var olan bölüme bağlı (${t.section})`);
+  ok(t.label.length >= 8, `"${t.id}" için okunur etiket var`);
+}
+ok(helpHref("ai-analiz") === "/resimlianlatim#bolum-ai", `helpHref çapa üretir (${helpHref("ai-analiz")})`);
+ok(helpHref("tema-dil", "/ArenaViewer") === "/ArenaViewer/resimlianlatim#bolum-tema-dil", "helpHref GitHub Pages alt yolunu korur");
+const wsSrc = read("src/components/Workstation.tsx").toString("utf8");
+ok(wsSrc.includes('helpHref("calisma-acma")'), "ana araç çubuğundaki ? düğmesi bağlamsal yardıma gider");
+ok(wsSrc.includes('from "@/lib/guideStory"'), "Workstation bağlantıyı tek kaynaktan üretir (elle URL yok)");
+// Sayfa, çapaları gerçekten basıyor mu?
+ok(page.includes("id={helpAnchor(section.id)}"), "her bölüm helpAnchor ile kimliklendirilir");
+ok(page.includes("href={`#${helpAnchor(s.id)}`}"), "içindekiler aynı çapalara bağlanır");
 
 // ── 5. İstatistik ve güvenlik ──
 const stats = guideStats();

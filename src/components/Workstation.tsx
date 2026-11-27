@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { helpHref } from "@/lib/guideStory";
 import Viewport, { type HeatData, type OverlayData, type ScanState } from "./Viewport";
 import RefPanel from "./RefPanel";
 import RightPanel, { type FeedItem } from "./RightPanel";
@@ -1974,6 +1975,8 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
           <Link href="/yonetim" prefetch={false} className="rounded-lg border border-[var(--sl500)]/50 px-2.5 py-1.5 text-xs font-bold text-[var(--sl200)] hover:bg-[var(--sl500)]/10">⚙ Yönetim</Link>
           <Link href="/tercihler" prefetch={false} title="Kullanıcı tercihleri (düzen, pencere ön ayarı, otomatik protokol)" className="rounded-lg border border-[var(--sl500)]/50 px-2.5 py-1.5 text-xs font-bold text-[var(--sl200)] hover:bg-[var(--sl500)]/10">🧰 Tercihler</Link>
           <Link href="/resimlianlatim" prefetch={false} title="Resimli anlatım: adım adım görsel kullanım kılavuzu" className="rounded-lg border border-cyan-400/50 bg-cyan-500/10 px-2.5 py-1.5 text-xs font-bold text-[var(--ac-cyan200)] hover:bg-cyan-500/20">🖼 Resimli anlatım</Link>
+          {/* Bağlamsal yardım: doğrudan "çalışma açma" bölümüne atlar */}
+          <Link href={helpHref("calisma-acma")} prefetch={false} title="Çalışma açma ve AI analizi adımları — resimli anlatımın ilgili bölümü" className="rounded-lg border border-[var(--sl500)]/50 px-2 py-1.5 text-xs font-bold text-[var(--sl300)] hover:bg-[var(--sl500)]/10">?</Link>
           <button onClick={() => void apiFetch("/api/auth/logout", { method: "POST" }).finally(() => { window.location.reload(); })} title="Oturumu kapat" className="rounded-lg border border-rose-400/40 px-2.5 py-1.5 text-xs font-bold text-[var(--ac-rose300)] hover:bg-rose-400/10">⎋ Çıkış</button>
           <NotificationsBell />
           <button onClick={openReport} className="cursor-pointer rounded-lg border border-cyan-400/60 bg-gradient-to-r from-cyan-500/20 to-emerald-500/20 px-3 py-1.5 text-xs font-bold text-[var(--ac-cyan200)] hover:text-white">📄 Rapor <span className={`ml-1 rounded-full px-1.5 text-[9px] font-black ${reportStatus === "onaylandi" ? "bg-emerald-500 text-[var(--sl950)]" : "bg-rose-500 text-white"}`}>{reportStatus === "onaylandi" ? "ONAYLI" : "TASLAK"}</span></button>

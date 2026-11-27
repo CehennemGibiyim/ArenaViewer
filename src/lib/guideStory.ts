@@ -304,6 +304,46 @@ export const GUIDE_DEMO_NOTE =
   "sunucu gerektiren adımlar “yerel kurulum” olarak işaretlenmiştir.";
 
 /** Adımların ortam dağılımı — sayfa başında özet olarak gösterilir. */
+/**
+ * Bağlamsal yardım (yeni fikir: `help-center-live`).
+ *
+ * Her ekran/düğme için kararlı bir `helpId` ve o noktaya götüren derin bağlantı.
+ * Arayüzden `helpHref("ai-analiz")` çağrılır; kılavuz sayfası `#help-…` çapasına
+ * atlar (statik HTML'de de çalışır, API gerekmez).
+ *
+ * Kural: burada listelenen her anahtarın **gerçekten bir bölümde karşılığı**
+ * olmalı — `tests/guide-story.test.ts` bunu denetler. Böylece "Yardım" düğmesi
+ * olmayan bir sayfaya götürmez.
+ */
+export const HELP_TOPICS = [
+  { id: "ilk-acilis", section: "ilk-acilis", label: "İlk açılış: ekranı tanı" },
+  { id: "calisma-acma", section: "calisma-acma", label: "DICOM / çalışma açma" },
+  { id: "ai-analiz", section: "ai", label: "Vision AI analizi" },
+  { id: "rapor-onay", section: "rapor", label: "Rapor: taslak → onay" },
+  { id: "tema-dil", section: "tema-dil", label: "Tema, dil ve kontrast" },
+  { id: "sorun-giderme", section: "sorun", label: "Bir şey çalışmıyorsa" },
+] as const;
+
+export type HelpTopicId = (typeof HELP_TOPICS)[number]["id"];
+
+/** Kılavuz sayfasındaki çapa kimliği (bölüm bazlı). */
+export const helpAnchor = (sectionId: string) => `bolum-${sectionId}`;
+
+/**
+ * Bağlamsal yardım bağlantısı. `base` GitHub Pages alt yoludur
+ * (`NEXT_PUBLIC_BASE_PATH`); statik demoda da doğru URL üretir.
+ */
+export function helpHref(topic: HelpTopicId, base = ""): string {
+  const t = HELP_TOPICS.find((x) => x.id === topic);
+  if (!t) return `${base}/resimlianlatim`;
+  return `${base}/resimlianlatim#${helpAnchor(t.section)}`;
+}
+
+/** Çapa kimlikleri bölümlerde gerçekten var mı? (test + geliştirici için) */
+export function helpTopicSection(sectionId: string): GuideSection | undefined {
+  return GUIDE_SECTIONS.find((s) => s.id === sectionId);
+}
+
 export function guideStats(sections: readonly GuideSection[] = GUIDE_SECTIONS) {
   const steps = sections.flatMap((s) => s.steps);
   return {

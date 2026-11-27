@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { GUIDE_DEMO_NOTE, GUIDE_IMAGE_WIDTHS, GUIDE_INTRO, GUIDE_SECTIONS, guideImageSrc, guideStats } from "@/lib/guideStory";
+import { GUIDE_DEMO_NOTE, GUIDE_IMAGE_WIDTHS, GUIDE_INTRO, GUIDE_SECTIONS, guideImageSrc, guideStats, helpAnchor } from "@/lib/guideStory";
 
 export const metadata: Metadata = {
   title: "ATIKVIEWER — Resimli Anlatım",
@@ -81,7 +81,7 @@ export default function ResimliAnlatimPage() {
           <ol className="mt-2 grid gap-1 sm:grid-cols-2">
             {GUIDE_SECTIONS.map((s) => (
               <li key={s.id}>
-                <a href={`#${s.id}`} className="text-[12.5px] font-semibold text-[var(--ac-cyan400)] hover:underline">
+                <a href={`#${helpAnchor(s.id)}`} className="text-[12.5px] font-semibold text-[var(--ac-cyan400)] hover:underline">
                   {s.title}
                 </a>
                 <span className="ml-1 text-[11px] text-[var(--sl500)]">({s.steps.length} adım)</span>
@@ -91,7 +91,8 @@ export default function ResimliAnlatimPage() {
         </nav>
 
         {GUIDE_SECTIONS.map((section) => (
-          <section key={section.id} id={section.id} className="mt-8 scroll-mt-16">
+          <section key={section.id} id={helpAnchor(section.id)} className="mt-8 scroll-mt-16">
+            {/* Çapa: bağlamsal yardım bağlantıları (#bolum-…) buraya atlar */}
             <h2 className="text-lg font-black text-[var(--sl100)]">{section.title}</h2>
             <p className="mt-1 text-[12.5px] text-[var(--sl400)]">{section.goal}</p>
 

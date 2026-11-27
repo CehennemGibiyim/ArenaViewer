@@ -73,7 +73,7 @@ Yükleme sırasında `Dosya yükleme ilerlemesi` rozeti görünür; takılırsa 
 ## Bölge 3 — Izgara düzeni + Oto-düzen · **🖼 Resimli anlatım** · **⚙ Yönetim** · **🧰 Tercihler**
 
 Sağ üstteki sayfa düğmeleri: **📦 Kurulum** (`/paketler`), **📊 Kıyaslama** (`/kiyaslama`), **⚙ Yönetim** (`/yonetim`),
-**🧰 Tercihler** (`/tercihler`), **🖼 Resimli anlatım** (`/resimlianlatim`) ve **⎋ Çıkış**.
+**🧰 Tercihler** (`/tercihler`), **🖼 Resimli anlatım** (`/resimlianlatim`), **?** (bağlamsal yardım — doğrudan kılavuzun «çalışma açma / AI» bölümüne atlar) ve **⎋ Çıkış**.
 `Resimli anlatım: adım adım görsel kullanım kılavuzu` ipucu, gerçek ekran görüntüleriyle 8 bölümlük kılavuzu açar.
 
 | Denetim | İşlev |
@@ -260,6 +260,7 @@ Metin kutusu/select içindeyken kısayollar çalışmaz.
 | `/kiyaslama` | Özellik kıyaslaması | GAP tablosu + `Önerilen aday modüller — henüz kod yok` |
 | `/yardim` | Yardım / S.S.S. | En çok sorulan sorular ve cevapları (docs/SSS.md ile bire bir eşlenik) + resimli anlatım kartı |
 | `/resimlianlatim` | Resimli anlatım | Adım adım görsel kılavuz: nerede / ne yapılır / ne olur + gerçek ekran görüntüleri (statik; demoda da açılır) |
+| Bağlamsal yardım (`helpHref`) | Ana araç çubuğu **?** (`title="Çalışma açma ve AI analizi adımları — resimli anlatımın ilgili bölümü"`) | `src/lib/guideStory.ts` `HELP_TOPICS` → `/resimlianlatim#bolum-<bölüm>`; çapa her bölümde gerçekten var mı test edilir. Yeni bir noktaya kısayol eklerken buraya da satır ekleyin. |
 | `/yonetim` | Yönetim | Kullanıcılar, roller, oturumlar/MFA, denetim kaydı, uyum listesi, AI performans |
 | `/tercihler` | Tercihler | Düzen/pencere ön ayarı + `Klavye kısayolları` |
 | `/paketler` | Kurulum paketleri | Windows/Linux/macOS/Docker yolları ve dosya adları |
