@@ -229,7 +229,7 @@ ARENA Viewer'a yeni bir tarama tipinde yapay zekâ bulgusu eklenmesi **bilinçli
    önceliklendirdiği sırayla plana konur.
 
 Bugün sıradaki adaylar: **kolon polip (BT)**, **kalça/kırık (DX)**, **akciğer grafisi pnömoni skoru (CXR)**.
-Sıradaki büyük kilometre taşı: SKM-TEA ile diz MR doğrulaması (gölge mod; **henüz başlamadı** — kayıt kullanıcı kararında bekler, ölçülmüş hiçbir sonuç yoktur; durum: [KLINIK_DOGRULAMA_PLANI.md §6](KLINIK_DOGRULAMA_PLANI.md)) → STOW-RS ile PACS'a geri yazma.
+Sıradaki büyük kilometre taşı: SKM-TEA ile diz MR doğrulaması (gölge mod; **henüz başlamadı** — kayıt kullanıcı kararında bekler, ölçülmüş hiçbir sonuç yoktur; durum: [KLINIK_DOGRULAMA_PLANI.md §6](KLINIK_DOGRULAMA_PLANI.md)) → STOW-RS ile PACS'a geri yazma. Yol haritası: [STOW_RS_TITCK_YOL_HARITASI.md](STOW_RS_TITCK_YOL_HARITASI.md) (durumu/ölçülmüş envanter + TİTCK adımı).
 
 ## 8. Depo boyutu ve dosya haritası
 
@@ -255,5 +255,6 @@ varlıklar olarak yeterlidir. MP4, standart oynatıcılarda (VLC, tarayıcı, Gi
 - [KILAVUZ_BAKIMI.md](KILAVUZ_BAKIMI.md) — kılavuzu her değişiklikle güncel tutma kuralı
 - [OLLAMA.md](OLLAMA.md) · [GITHUB_YAYINLAMA.md](GITHUB_YAYINLAMA.md) · [YEDEK_VE_DR.md](YEDEK_VE_DR.md)
 - [KLINIK_DOGRULAMA_PLANI.md](KLINIK_DOGRULAMA_PLANI.md) — SKM-TEA sırası ve gölge mod
+- [STOW_RS_TITCK_YOL_HARITASI.md](STOW_RS_TITCK_YOL_HARITASI.md) — STOW-RS üretim planı + TİTCK/Türkiye regülasyon adımları (hukuki tavsiye değildir)
 - [RISK_YONETIMI.md](RISK_YONETIMI.md) — ISO 14971 risk dosyası
 - README §"Yerel Derin AI" — worker API'leri, model yolları, `x-dims`/`x-elapsed-ms` başlıkları

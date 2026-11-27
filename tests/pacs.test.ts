@@ -11,7 +11,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { friendlyStatus, qidoInstances, qidoStudies, testConnection, wadoInstance } from "../src/lib/server/pacs";
-import type { PacsConfig } from "../src/lib/pacsPresets";
+import { EMPTY_TLS, type PacsConfig } from "../src/lib/pacsPresets";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /** Mock sunucu hazır olduğunda gerçek portu bu değerden okuruz (port 0 ile başlar). */
@@ -28,6 +28,7 @@ function cfg(over: Partial<PacsConfig> = {}): PacsConfig {
     limit: 50,
     includefield: true,
     notes: "",
+    tls: { ...EMPTY_TLS },
     ...over,
   };
 }

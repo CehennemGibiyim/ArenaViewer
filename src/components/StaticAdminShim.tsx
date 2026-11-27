@@ -165,8 +165,9 @@ const seedSettings = () => ({
   pacs: {
     name: "", kind: "orthanc", qidoRoot: "", wadoRoot: "",
     auth: { type: "none", username: "", password: "", token: "", headerName: "", headerValue: "" },
+    tls: { caPem: "", clientCertPem: "", clientKeyPem: "" },
     allowSelfSigned: false, limit: 50, includefield: false, notes: "",
-    hasPassword: false, hasToken: false, hasHeader: false,
+    hasPassword: false, hasToken: false, hasHeader: false, hasClientKey: false,
   },
   pacsMwl: { mwlRoot: "", dimseUrl: "" },
   compliance: "{}",
@@ -378,7 +379,7 @@ async function route(method: string, url: URL, init?: RequestInit): Promise<Resp
       if (b && typeof b === "object") {
         const keep = ["retentionDraftDays", "criticalWebhookUrl", "notifyChannels", "compliance", "peerReviewSamplePct", "pacsBaseUrl"] as const;
         for (const k of keep) if (k in b) (settings as Record<string, unknown>)[k] = b[k];
-        if (b.pacs && typeof b.pacs === "object") settings = { ...settings, pacs: { ...settings.pacs, ...(b.pacs as Record<string, unknown>), hasPassword: settings.pacs.hasPassword, hasToken: settings.pacs.hasToken, hasHeader: settings.pacs.hasHeader, auth: { ...settings.pacs.auth, ...((b.pacs as { auth?: Record<string, unknown> }).auth ?? {}) } } };
+        if (b.pacs && typeof b.pacs === "object") settings = { ...settings, pacs: { ...settings.pacs, ...(b.pacs as Record<string, unknown>), hasPassword: settings.pacs.hasPassword, hasToken: settings.pacs.hasToken, hasHeader: settings.pacs.hasHeader, hasClientKey: settings.pacs.hasClientKey, auth: { ...settings.pacs.auth, ...((b.pacs as { auth?: Record<string, unknown> }).auth ?? {}) }, tls: { ...settings.pacs.tls, ...(((b.pacs as { tls?: Record<string, unknown> }).tls ?? {})) } } };
         if (b.pacsMwl && typeof b.pacsMwl === "object") settings = { ...settings, pacsMwl: { ...settings.pacsMwl, ...(b.pacsMwl as Record<string, unknown>) } };
       }
       return json({ ok: true });

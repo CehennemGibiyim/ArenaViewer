@@ -13,6 +13,27 @@
 
 export type PacsAuthType = "none" | "basic" | "bearer" | "header";
 
+/**
+ * Kurum PACS'ına TLS katmanı (Faz A0.2) — AET/IP beyaz listesi ve VPN kurumun
+ * altyapısının işidir; burada yalnızca bağlantının kendisi yapılandırılır.
+ * Değerler PEM metin bloğudur. `clientKeyPem` sunucuda AES-256-GCM ile şifreli
+ * saklanır ve yönetim API'sinde boş döner (AES-256-GCM: auth.password ile aynı
+ * anahtar halkası); `caPem`/`clientCertPem` gizli değildir, açık saklanır.
+ */
+export interface PacsTls {
+  /** Sunucu sertifikasını imzalayan kurumsal CA (PEM) — boşsa sistem CA'ları kullanılır. */
+  caPem: string;
+  /** mTLS için istemci sertifikası (PEM). Anahtarla birlikte verilmek zorundadır. */
+  clientCertPem: string;
+  /** mTLS istemci özel anahtarı (PEM) — sunucuda şifreli saklanır. */
+  clientKeyPem: string;
+}
+
+export const EMPTY_TLS: PacsTls = { caPem: "", clientCertPem: "", clientKeyPem: "" };
+
+/** mTLS yalnız iki bileşen BİRLİKTE geçerliyse uygulanır (yarım yapılandırma istemciyi değil, sunucuyu hatalıya düşürür). */
+export const isMtlsConfigured = (t: PacsTls | undefined): boolean => !!(t?.clientCertPem && t?.clientKeyPem);
+
 export interface PacsAuth {
   type: PacsAuthType;
   username: string;
@@ -43,6 +64,8 @@ export interface PacsConfig {
   includefield: boolean;
   /** Kuruma özgü notlar (AE başlığı, port, conformance statement vb.). */
   notes: string;
+  /** TLS/mTLS yapılandırması (A0.2); boşsa normal doğrulama kullanılır. */
+  tls: PacsTls;
 }
 
 export const EMPTY_AUTH: PacsAuth = { type: "none", username: "", password: "", token: "", headerName: "", headerValue: "" };
@@ -57,6 +80,7 @@ export const DEFAULT_PACS: PacsConfig = {
   limit: 50,
   includefield: true,
   notes: "",
+  tls: { ...EMPTY_TLS },
 };
 
 export interface PacsPreset {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { audit } from "@/lib/server/audit";
 import { authorize } from "@/lib/server/auth";
-import { encryptText, keySource } from "@/lib/server/crypto";
+import { encryptText, isEncrypted, keySource } from "@/lib/server/crypto";
 import { publicPacsConfig } from "@/lib/server/pacs";
 import { loadMwlEndpoints, loadPacsConfig } from "@/lib/server/pacsConfig";
 import { getSetting, isHttpUrl, setSetting } from "@/lib/server/settings";
@@ -39,6 +39,20 @@ async function savePacs(b: Record<string, unknown>): Promise<string | null> {
   const raw = typeof b.pacs === "object" && b.pacs ? (b.pacs as Record<string, unknown>) : null;
   if (!raw) return null;
   const cur = (await loadPacsConfig()) ?? DEFAULT_PACS;
+  // Sırların HAM (şifreli) hali doğrudan DB'den okunur: loadPacsConfig sırları çözer,
+  // çözülmüş değeri geri yazmak şifrelemeyi düz metne düşürür (2026-11-27 denetiminde bulundu).
+  let rawStored: Record<string, unknown> = {};
+  try {
+    const t = (await getSetting("pacs", "")).trim();
+    rawStored = t ? (JSON.parse(t) as Record<string, unknown>) : {};
+  } catch { rawStored = {}; }
+  const rawStoredAuth = (typeof rawStored.auth === "object" && rawStored.auth ? rawStored.auth : {}) as Record<string, unknown>;
+  const rawStoredTls = (typeof rawStored.tls === "object" && rawStored.tls ? rawStored.tls : {}) as Record<string, unknown>;
+  /** Mevcut sır: ham şifreli değer korunur; DB'de düz metin duruyorsa bu kaydette şifrelenir. */
+  const keepExisting = (raw: unknown): string => {
+    const v = typeof raw === "string" ? raw : "";
+    return v ? (isEncrypted(v) ? v : encryptText(v)) : "";
+  };
   const inAuth = (typeof raw.auth === "object" && raw.auth ? raw.auth : {}) as Record<string, unknown>;
 
   const qidoRoot = str(raw.qidoRoot, 512);
@@ -53,11 +67,26 @@ async function savePacs(b: Record<string, unknown>): Promise<string | null> {
   // Boş gönderilen sır alanı mevcut değeri korur; yalnızca açıkça temizlenmek istenirse
   // clearSecrets gönderilir (yönetim panelinde "Temizle").
   const keep = raw.clearSecrets !== true;
-  const secret = (incoming: unknown, existing: string) => {
+  const secret = (incoming: unknown, existingRaw: unknown) => {
     const v = str(incoming, 1024);
     if (v) return encryptText(v);
-    return keep ? existing : "";
+    return keep ? keepExisting(existingRaw) : "";
   };
+  // TLS/mTLS (A0.2): CA/istemci sertifikası gizli değildir (açık saklanır);
+  // istemci özel anahtarı parola gibi şifrelenir. PEM bloğu zorunlu işaretleri taşır.
+  const inTls = (typeof raw.tls === "object" && raw.tls ? raw.tls : {}) as Record<string, unknown>;
+  const pem = (v: unknown) => str(v, 16384);
+  const isPemBlock = (v: string) => !v || (v.includes("-----BEGIN") && v.includes("-----END"));
+  const caPem = pem(inTls.caPem);
+  const clientCertPem = pem(inTls.clientCertPem);
+  const clientKeyInput = pem(inTls.clientKeyPem);
+  if (!isPemBlock(caPem) || !isPemBlock(clientCertPem) || !isPemBlock(clientKeyInput)) {
+    return "PACS: PEM alanları -----BEGIN ...-----END bloğu olmalıdır";
+  }
+  const clientKeyPem = clientKeyInput ? encryptText(clientKeyInput) : keep ? keepExisting(rawStoredTls.clientKeyPem) : "";
+  if (Boolean(clientCertPem) !== Boolean(clientKeyPem)) {
+    return "PACS: mTLS için istemci sertifikası ve özel anahtarı birlikte verilmelidir";
+  }
 
   const limitRaw = Number(raw.limit ?? cur.limit);
   const cfg: PacsConfig = {
@@ -70,13 +99,14 @@ async function savePacs(b: Record<string, unknown>): Promise<string | null> {
     limit: Number.isFinite(limitRaw) ? Math.max(1, Math.min(1000, Math.floor(limitRaw))) : 50,
     includefield: raw.includefield !== false,
     notes: str(raw.notes, 2000),
+    tls: { caPem, clientCertPem, clientKeyPem },
     auth: {
       type: type as PacsAuthType,
       username: str(inAuth.username, 128),
-      password: secret(inAuth.password, cur.auth.password),
-      token: secret(inAuth.token, cur.auth.token),
+      password: secret(inAuth.password, rawStoredAuth.password),
+      token: secret(inAuth.token, rawStoredAuth.token),
       headerName: str(inAuth.headerName, 64),
-      headerValue: secret(inAuth.headerValue, cur.auth.headerValue),
+      headerValue: secret(inAuth.headerValue, rawStoredAuth.headerValue),
     },
   };
   await setSetting("pacs", JSON.stringify(cfg));

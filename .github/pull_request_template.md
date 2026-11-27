@@ -9,7 +9,7 @@
 - [ ] Kurulum/çalıştırma adımı değiştiyse `docs/KURULUM_VE_KULLANIM.md` güncellendi
 - [ ] Görüntü eklendiyse anonim (sekme çubuğu / görev çubuğu yok, hasta verisi yok)
 - [ ] Görsel akış değiştiyse `docs/GORSEL_ANLATIM.md` §4–§7 güncellendi
-- [ ] Yeni görünen metinler 78 tam çeviri paketine eklendi (`npm run test:i18n` yeşil); yeni dil ise `npm run i18n:new` + [docs/CEVIRI_KATKI.md](../docs/CEVIRI_KATKI.md)
+- [ ] Yeni görünen metinler 83 tam çeviri paketine eklendi (`npm run test:i18n` yeşil); yeni dil ise `npm run i18n:new` + [docs/CEVIRI_KATKI.md](../docs/CEVIRI_KATKI.md)
 - [ ] Değişiklik yoksa nedenini yazın: ________________________________
 
 ## Klinik / araştırma etiketi

@@ -127,7 +127,7 @@ Ayrıntı: [GORSEL_ANLATIM.md §7.1](GORSEL_ANLATIM.md).
 
 Üst çubuktaki **🌐 Dil seç** düğmesinden seçebilirsiniz (arama kutusuna yazmak yeterli). İki katman vardır:
 
-1. **Çevirisi hazır 78 dil** — `tr en es fr de it pt nl pl ru uk cs sv ro hu bg ar he hi zh ja ko id th bn ur fa ta te mr gu kn ml pa or vi ms fil ceb da fi el sk sl et lv lt sr hr bs mk sq hy ka az kk ky uz mn sw ha yo ig zu af am ne si my km lo rw so mg ht ca eu gl`. Seçtiğiniz dil paketi **anında ve yalnız o dil** indirilir; yedek İngilizce.
+1. **Çevirisi hazır 83 dil** — `tr en es fr de it pt nl pl ru uk cs sv ro hu bg ar he hi zh ja ko id th bn ur fa ta te mr gu kn ml pa or vi ms fil ceb da fi el sk sl et lv lt sr hr bs mk sq hy ka az kk ky uz mn sw ha yo ig zu af am ne si my km lo rw so mg ht ca eu gl tuk tat uig bak crh`. Seçtiğiniz dil paketi **anında ve yalnız o dil** indirilir; yedek İngilizce.
 2. **ISO 639-3'teki 7.027 canlı dilin tümü** — 2+ harf yazınca listelenir. Çevirisi henüz yapılmamış bir dili de seçebilirsiniz: arayüz **İngilizce yedeğiyle** açılır ve "EN UI" rozetiyle işaretlenir; o dilin çevirisi katkı ile beklenir.
 
 Çeviriden dürüstçe yapılmayan seçenek yok sayılmış değildir; fakat 7.000+ dilin her biri için **doğrulanmış** çeviri ancak katkının kendisiyle gelir — bu yüzden her çevirisi olmayan dil açıkça "İngilizce arayüz" etiketiyle işaretlidir, makine çevirisiyle doldurulmuş paket asla yayımlanmaz. Çevrilen katman arayüzün kromudur (üst çubuk, durum şeridi, ortak düğmeler, Tema/Dil seçicileri). **Belgeler, AI rapor gövdesi ve bazı uzun metinler henüz yalnız Türkçe'dir.**

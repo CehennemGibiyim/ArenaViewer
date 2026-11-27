@@ -2,7 +2,7 @@
 
 /**
  * Dil seçici (üst çubuk). İki katman:
- *  1. Çevirisi hazır diller (`LANGUAGES`, 78) — arama ile filtrelenir.
+ *  1. Çevirisi hazır diller (`LANGUAGES`, 83) — arama ile filtrelenir.
  *  2. ISO 639-3 canlı dillerinin tümü (`catalog.json`, 7.027) — 2+ harf
  *     yazınca görünür; çevirisi olmayan dil arayüz **İngilizce yedeğiyle**
  *     açılır (dürüst davranış) ve çeviri katkısı bekler.

@@ -109,7 +109,8 @@ Windows
   docs/GORSEL_ANLATIM.md           görselli uçtan uca anlatım (web/Windows/macOS/Linux/Docker)
   docs/SSS.md                      sık sorulan sorular (uygulama içi: /yardim)
   docs/KILAVUZ_BAKIMI.md           kılavuzu her değişiklikle güncel tutma kuralı
-  docs/CEVIRI_KATKI.md             yeni dil paketi ekleme (78 tam çeviri + ISO 639-3 kataloğu)
+  docs/STOW_RS_TITCK_YOL_HARITASI.md  STOW-RS üretimi + TİTCK adımları (kısa yol haritası)
+  docs/CEVIRI_KATKI.md             yeni dil paketi ekleme (83 tam çeviri + ISO 639-3 kataloğu)
 
 Linux
   packaging/linux/install.sh       tek komutla kurulum (Debian/Fedora/Arch)

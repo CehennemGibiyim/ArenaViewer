@@ -30,7 +30,8 @@ Bu klasör, Windows · Linux · macOS üzerinde çalışan kurulum paketlerinin
 | `docs/GORSEL_ANLATIM.md` | Görselli uçtan uca anlatım — web demosu vs Windows/macOS/Linux/Docker; AI analiz karar ağacı; tema ve dil |
 | `docs/SSS.md` | Sık sorulan sorular (uygulama içi karşılığı `/yardim`) |
 | `docs/KILAVUZ_BAKIMI.md` | Kılavuzların her değişiklikle güncel tutulması kuralı + kontrol listesi |
-| `docs/CEVIRI_KATKI.md` | Yeni dil paketi ekleme — 78 tam çeviri + seçicide 7.027 canlı ISO 639-3 dili |
+| `docs/STOW_RS_TITCK_YOL_HARITASI.md` | STOW-RS'i üretim seviyesine çıkarma planı (A0–A3) + TİTCK/MDR adımları ve maliyet/süre tahmini (hukuki tavsiye değildir) |
+| `docs/CEVIRI_KATKI.md` | Yeni dil paketi ekleme — 83 tam çeviri + seçicide 7.027 canlı ISO 639-3 dili |
 
 ```powershell
 # Üretim (CI'da .github/workflows/release.yml otomatik yapar)

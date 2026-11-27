@@ -1,6 +1,6 @@
 # Çeviri Katkısı — yeni dil paketi nasıl eklenir
 
-ARENA Viewer arayüzü **78 dille eksiksiz çevrilidir** (`src/i18n/*.json`). Buna ek
+ARENA Viewer arayüzü **83 dille eksiksiz çevrilidir** (`src/i18n/*.json`). Buna ek
 olarak dil seçicisi **ISO 639-3 standardındaki 7.027 canlı dilin tümünü** listeler;
 çevirisi henüz yapılmamış bir dil seçilirse arayüz **İngilizce yedeğiyle** açılır
 (bilinçli dürüst davranış — makine çevirisiyle doldurulmuş, doğrulanmamış paket
@@ -45,7 +45,7 @@ Herkes, kendi anadilini tam destekli dil listesine eklemek için katkıda buluna
 
 ## Sık sorulan: "Tüm diller neden hemen çevrilmiyor?"
 
-Dünyada ~7.000 yaşayan dil var; 78'i konuşucuların ~%90'ını kapsıyor. Kalan ~6.950
+Dünyada ~7.000 yaşayan dil var; 83'ü konuşucuların ~%90'ını kapsıyor. Kalan ~6.944
 dilin her biri 30 anahtarın özenli, doğrulanabilir çevirisiyle gelir — binlerce
 dilin doğrulanamayan çıktısını "destekleniyor" diye göstermektense, herkes her dili
 **seçebilsin** ama arayüz yedeğiyle açılsın: destek iddiasını ancak çeviri ve CI

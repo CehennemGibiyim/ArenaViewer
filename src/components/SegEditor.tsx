@@ -17,6 +17,7 @@ import {
   maxAxes, paint, prune, thresholdFill, volume, type SegMask,
 } from "@/lib/segmentation";
 import { buildRtStruct, buildSegDocument } from "@/lib/dicomSeg";
+import { sendDerivedToPacs } from "@/lib/sendDerived";
 import { buildWindowLUT } from "@/lib/window";
 
 interface Props {
@@ -253,7 +254,7 @@ export default function SegEditor({ series, slice: activeSlice, wl, ww, invert, 
     setSlice(slice + 1);
   };
 
-  const exportSeg = async (kind: "seg" | "rtstruct") => {
+  const exportSeg = async (kind: "seg" | "rtstruct", destination: "download" | "pacs" = "download") => {
     if (!series.seriesUid || !series.sopClassUid || !series.sopUids?.length) {
       toast("Bu seride SOP Instance UID bilgisi yok; SEG/RTSTRUCT üretilemez.", 7000);
       return;
@@ -279,6 +280,14 @@ export default function SegEditor({ series, slice: activeSlice, wl, ww, invert, 
       const bytes = kind === "seg"
         ? buildSegDocument({ ...base, segments: [{ def, mask: current }] })
         : buildRtStruct({ ...base, rois: [{ def, mask: current }] });
+      if (destination === "pacs") {
+        if (!series.studyUid) { toast("Çalışma UID'si yok; PACS'e gönderilemez.", 6000); return; }
+        const out = await sendDerivedToPacs(kind, bytes, series.studyUid, `${kind === "seg" ? "SEG" : "RTSTRUCT"}-${series.modality}-${current.slices.size}-kesit.dcm`);
+        if (out.ok) toast(`${kind === "seg" ? "SEG" : "RTSTRUCT"} PACS'e gönderildi — ${out.stored} nesne (${out.pacs ?? "PACS"}). Araştırma amaçlıdır; PACS kabulü kurumunuza bağlıdır.`, 8000);
+        else toast(`PACS'e gönderilemedi: ${out.error}`, 9000);
+        persist(current);
+        return;
+      }
       downloadBytes(bytes, `${kind === "seg" ? "SEG" : "RTSTRUCT"}-${series.modality}-${current.slices.size}-kesit.dcm`);
       toast(`${kind === "seg" ? "SEG" : "RTSTRUCT"} indirildi (${current.slices.size} kesit). Hekim düzenlemesine açıktır.`, 7000);
       persist(current);
@@ -367,6 +376,8 @@ export default function SegEditor({ series, slice: activeSlice, wl, ww, invert, 
           <div className="grid grid-cols-1 gap-1">
             <button disabled={busy} className="rounded border border-emerald-400/40 px-2 py-1 text-[var(--ac-emerald200)] hover:bg-emerald-400/10 disabled:opacity-50" onClick={() => void exportSeg("seg")}>🧩 DICOM SEG indir</button>
             <button disabled={busy} className="rounded border border-emerald-400/40 px-2 py-1 text-[var(--ac-emerald200)] hover:bg-emerald-400/10 disabled:opacity-50" onClick={() => void exportSeg("rtstruct")}>🧩 RTSTRUCT indir</button>
+            <button disabled={busy} className="rounded border border-cyan-400/40 px-2 py-1 text-[var(--ac-cyan200)] hover:bg-cyan-400/10 disabled:opacity-50" onClick={() => void exportSeg("seg", "pacs")} title="Üretilen DICOM SEG'i PACS'e STOW-RS ile geri yazar">☁ SEG → PACS (STOW)</button>
+            <button disabled={busy} className="rounded border border-cyan-400/40 px-2 py-1 text-[var(--ac-cyan200)] hover:bg-cyan-400/10 disabled:opacity-50" onClick={() => void exportSeg("rtstruct", "pacs")} title="Üretilen RTSTRUCT'u PACS'e STOW-RS ile geri yazar">☁ RTSTRUCT → PACS (STOW)</button>
           </div>
 
           <p className="rounded border border-amber-400/30 bg-amber-400/5 p-2 text-[10px] leading-relaxed text-[var(--ac-amber200)]">

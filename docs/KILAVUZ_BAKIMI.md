@@ -20,7 +20,7 @@
 | Hasta verisi gösteren yeni ekran görüntüsü | `docs/img/` — **anonimleştirerek** (sekme çubuğu ve görev çubuğu kırpılmalı; hasta adı/ID yok) |
 | Yeni modal/işlem akışı | İlgili bölgeye akış özeti; **[GORSEL_ANLATIM.md](GORSEL_ANLATIM.md)** §4–§7 akışı güncellenir; gerekirse yeni diyagram (PIL/mermaid, < 100 KB JPEG/SVG) |
 | Görsel akış adımı / ekran değişti | GORSEL_ANLATIM.md ilgili bölümü; görüntü güncellendiyse sıkıştırılmış JPEG (q82) veya elle SVG; **hasta verisi asla** |
-| Yeni görünen metin / düğme etiketi | [`src/i18n/*.json`](../src/i18n) — **78 tam çeviri paketi** aynı anahtarlarla güncellenir; `npm run test:i18n` yeşil |
+| Yeni görünen metin / düğme etiketi | [`src/i18n/*.json`](../src/i18n) — **83 tam çeviri paketi** aynı anahtarlarla güncellenir; `npm run test:i18n` yeşil |
 | Yeni dil paketi | `npm run i18n:new -- <kod> "<Native>" "<English>"` (iskelet + kayıtlar otomatik) → çeviri → `npm run test:i18n`; ayrıntı [CEVIRI_KATKI.md](CEVIRI_KATKI.md) |
 | Belge değişikliği (docs/*.md) | Varsa GORSEL_ANLATIM / SSS / MENU_KILAVUZU çapraz bağlantıları gözden geçir |
 | Yalnız arka uç / DB değişikliği | Kılavuz gerekmez; PR açıklamasında "kılavuz gerekmedi" yazın |
@@ -48,14 +48,14 @@ npm run test:i18n             # tests/i18n-coverage.test.ts — 78 paket anahtar
 - [ ] Görüntü değiştiyse yenileri anonim (sekme çubuğu/görev çubuğu yok, hasta verisi yok)
 - [ ] Kılavuz gerekmediyse neden yazıldı
 - [ ] Görsel akış değiştiyse **GORSEL_ANLATIM.md** adımı/görseli güncellendi
-- [ ] Yeni görünen tüm metinler **78 tam çeviri paketine** eklendi (`npm run test:i18n` yeşil)
+- [ ] Yeni görünen tüm metinler **83 tam çeviri paketine** eklendi (`npm run test:i18n` yeşil)
 
 ## Belge kümesi ve değişmezler
 
 - Gösterge: arayüz = **MENU_KILAVUZU.md**, uçtan uca akış = **[GORSEL_ANLATIM.md](GORSEL_ANLATIM.md)**, şikâyet/cevap = **[SSS.md](SSS.md)** (uygulama içi: `/yardim`).
 - Üçü birbirine bağlanır; biri değişince diğerleri gözden geçirilir.
 - `ar`/`he` RTL dillerinde yerleşim LTR kalır — RTL görsel denetimi yapılana kadar yeni çeviri eklerken bu bilinçli sınıra uyun.
-- "Tüm diller destekleniyor" taahhüdü **yalnız listeler düzeyindedir**: ISO 639-3'ün 7.027 canlı dili seçiciden görünebilir (çevrilmemişte arayüz İngilizce yedeğiyle açılır, satırda "EN UI" işareti vardır). Tam çeviri 78 dildir; yeni dil ancak kayıt + `test:i18n` + anlamlı çeviri ile girer. Kalite < kapsam. Çevrilmemiş dili İngilizce yedeğiyle açmak dürüst davranıştır; doğrulanmamış makine çıktısını paket diye yayımlamak değildir. Ayrıntı: [CEVIRI_KATKI.md](CEVIRI_KATKI.md).
+- "Tüm diller destekleniyor" taahhüdü **yalnız listeler düzeyindedir**: ISO 639-3'ün 7.027 canlı dili seçiciden görünebilir (çevrilmemişte arayüz İngilizce yedeğiyle açılır, satırda "EN UI" işareti vardır). Tam çeviri 83 dildir; yeni dil ancak kayıt + `test:i18n` + anlamlı çeviri ile girer. Kalite < kapsam. Çevrilmemiş dili İngilizce yedeğiyle açmak dürüst davranıştır; doğrulanmamış makine çıktısını paket diye yayımlamak değildir. Ayrıntı: [CEVIRI_KATKI.md](CEVIRI_KATKI.md).
 
 ## PDF dağıtımı
 

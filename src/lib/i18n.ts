@@ -7,7 +7,7 @@
  *   ilk açılışta yalnız `tr` + `en` (yedek) yüklenir, kullanıcı başka dili
  *   seçtiğinde ilgili paket `import()` ile çekilir (bundle'ı şişirmez).
  * - Eksik anahtarlar sırayla: seçili dil → `en` → anahtarın kendisi.
- * - 78 dilin **tam çevirisi** gelir (dünyanın en çok konuşulan ~80 dili).
+ * - 83 dilin **tam çevirisi** gelir (dünyanın en çok konuşulan ~80 dili).
  *   Buna ek olarak dil seçicisinde **ISO 639-3'ün 7.027 canlı dilinin tümü**
  *   listelenir (`src/i18n/catalog.json`, derleme zamanı yerine seçicide lazy
  *   yüklenir): çevirisi olmayan dil seçilebilir, arayüz İngilizce yedeğiyle
@@ -111,6 +111,11 @@ export const LANGUAGES: LanguageInfo[] = [
   { code: "zh", native: "中文（简体）", english: "Chinese (Simplified)", dir: "ltr" },
   { code: "ja", native: "日本語", english: "Japanese", dir: "ltr" },
   { code: "ko", native: "한국어", english: "Korean", dir: "ltr" },
+  { code: "tuk", native: "Türkmençe", english: "Turkmen", dir: "ltr" },
+  { code: "tat", native: "Татарча", english: "Tatar", dir: "ltr" },
+  { code: "uig", native: "ئۇيغۇرچە", english: "Uyghur", dir: "rtl" },
+  { code: "bak", native: "Башҡортса", english: "Bashkir", dir: "ltr" },
+  { code: "crh", native: "qırımtatar tili", english: "Crimean Tatar", dir: "ltr" },
 ];
 
 export const DEFAULT_LOCALE = "tr";
@@ -220,6 +225,11 @@ const registry: Record<string, () => Promise<{ default: Pack }>> = {
   zh: () => import("@/i18n/zh.json"),
   ja: () => import("@/i18n/ja.json"),
   ko: () => import("@/i18n/ko.json"),
+  tuk: () => import("@/i18n/tuk.json"),
+  tat: () => import("@/i18n/tat.json"),
+  uig: () => import("@/i18n/uig.json"),
+  bak: () => import("@/i18n/bak.json"),
+  crh: () => import("@/i18n/crh.json"),
 };
 
 let active: string = DEFAULT_LOCALE;
@@ -243,7 +253,7 @@ function applyLocale(code: string): void {
 
 /**
  * Etkin dili değiştirir.
- * - 78 çevirili dilden biriyse ilgili paket lazy yüklenir.
+ * - 83 çevirili dilden biriyse ilgili paket lazy yüklenir.
  * - Katalogdaki çevirisi olmayan bir ISO 639-3 diliyse paket yoktur; arayüz
  *   İngilizce yedeğiyle çalışır (bilinçli dürüst davranış — bkz. docs/CEVIRI_KATKI.md).
  * - Tanınmayan kod sessizce yoksayılır.

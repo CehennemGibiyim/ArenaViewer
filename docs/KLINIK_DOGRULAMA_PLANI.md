@@ -92,3 +92,4 @@ her model bu listede açıkça “açıkta” sayılır.
   veri yoktur; veri yoksa kıyaslama yoktur — raporlanır, ölçülmüş gibi yazılamaz.
 - Gerekirse yalnızca herkese açık örnek (`arjundd/skm-tea-mini`) ile hat doğrulaması
   yapılabilir; bu da RUA'ya tabidir ve yine ölçümle ve bu dosyaya kayıtla kapanır.
+- Üretim hattı sıralaması ve TİTCK adımları: [STOW_RS_TITCK_YOL_HARITASI.md](STOW_RS_TITCK_YOL_HARITASI.md).
