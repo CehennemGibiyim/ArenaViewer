@@ -37,8 +37,9 @@ copyFileSync("src/i18n/en.json", packPath);
 let lib = readFileSync("src/lib/i18n.ts", "utf8");
 const infoAnchor = "];\n\nexport const DEFAULT_LOCALE";
 const regAnchor = "};\n\nlet active:";
-const langLine = `  { code: "${code}", native: "${native.replace(/"/g, '\\"')}", english: "${english.replace(/"/g, '\\"')}", dir: "${dir}" },\n`;
-const regLine = `  ${code}: () => import("@/i18n/${code}.json"),\n`;
+// JSON.stringify ile kaçırılır — ters bölü/özel karakterler de dahil (CodeQL: incomplete string escaping)
+const langLine = `  { code: ${JSON.stringify(code)}, native: ${JSON.stringify(native)}, english: ${JSON.stringify(english)}, dir: ${JSON.stringify(dir)} },\n`;
+const regLine = `  ${code}: () => import(${JSON.stringify(`@/i18n/${code}.json`)}),\n`;
 if (!lib.includes(infoAnchor)) fail("LANGUAGES kapanış çapası bulunamadı (src/lib/i18n.ts değişmiş olabilir) — kayıt satırını elle ekleyin.");
 if (!lib.includes(regAnchor)) fail("registry kapanış çapası bulunamadı (src/lib/i18n.ts değişmiş olabilir) — import satırını elle ekleyin.");
 lib = lib.replace(infoAnchor, langLine + infoAnchor).replace(regAnchor, regLine + regAnchor);
