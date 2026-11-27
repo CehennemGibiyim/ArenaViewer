@@ -770,7 +770,7 @@ export const BASE_ITEMS: GapItem[] = [
     id: "i-i18n", category: "trust", title: "Arayüz çevirisi (TR/EN ve diğer diller)",
     status: "kismi", priority: "P2", effort: "M",
     market: ["OHIF", "Weasis"],
-    ours: "**Yanlış bilinen:** arayüz çok dilli. 83 dilin **tam çeviri paketi** (`src/i18n/<kod>.json`, `en` ile anahtar birebir; `npm run test:i18n`), `LanguageMenu` (RTL desteği, `-0.6` düzeyinde arayüz kromu) ve ISO 639-3'ün **7.027 canlı dili**ni listeleyen katalog seçici; çevirisi olmayan dil İngilizce yedeğiyle çalışır. Hasta mektubu **TR/EN/DE**, hasta sözlüğü dile bağlı. **Açık:** rapor gövdesi/taslak metinleri ve uzun modal içerikleri hâlâ yalnız Türkçe; otomatik/makine çevirisi bilinçli olarak yayımlanmıyor (`docs/CEVIRI_KATKI.md`).",
+    ours: "**Yanlış bilinen:** arayüz çok dilli. 83 dilin **tam çeviri paketi** (`src/i18n/<kod>.json`, `en` ile anahtar birebir; `npm run test:i18n`), `LanguageMenu` (RTL desteği; çevrilen katman **arayüz kromu**: üst çubuk, durum şeridi ve ~30 ortak düğme — piksellerin tamamı değil) ve ISO 639-3'ün **7.027 canlı dili**ni listeleyen katalog seçici; çevirisi olmayan dil İngilizce yedeğiyle çalışır. Hasta mektubu **TR/EN/DE**, hasta sözlüğü dile bağlı. **Açık:** rapor gövdesi/taslak metinleri ve uzun modal içerikleri hâlâ yalnız Türkçe; otomatik/makine çevirisi bilinçli olarak yayımlanmıyor (`docs/CEVIRI_KATKI.md`).",
     action: "Rapor gövdesi + uzun içeriklerin çevirisi (tıbbi metin hekim/kurum onayından geçmeli); yeni diller için katkı akışı `npm run i18n:new`.",
   },
   {
