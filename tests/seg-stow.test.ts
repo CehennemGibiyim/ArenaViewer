@@ -101,7 +101,7 @@ async function main(): Promise<void> {
     await assert.rejects(stowInstance(cfg, segBytes), (e: Error) => {
       assert.match(e.message, /reddetti/, "red hatası mesajı korunur");
       assert.match(e.message, /272/, "Failure Reason (0008,1197) kullanıcıya görünür");
-      assert.match(e.message, new RegExp(segSopUid.replace(/\./g, "\\.")), "reddedilen nesnenin SOP Instance UID'si görünür");
+      assert.ok(e.message.includes(segSopUid), "reddedilen nesnenin SOP Instance UID'si görünür");
       return true;
     });
     console.log("PASS STOW: ret detayı (SOP UID + Failure Reason) kullanıcıya görünür");
@@ -131,4 +131,4 @@ async function main(): Promise<void> {
   console.log("Tüm seg-stow testleri geçti.");
 }
 
-main().catch((e) => { console.error(e); process.exitCode = 1; });
+main().catch((e) => { const msg = e instanceof Error ? e.message : String(e); console.error("seg-stow testi başarısız:", msg.replace(/[\r\n]+/g, " ")); process.exitCode = 1; });
