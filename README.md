@@ -237,6 +237,17 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   kesitler KO ve pencere/döndürme ayarı GSPS (PR) olarak PACS'e gönderilebilir.
   KO/PR gönderiminde kesit UID'leri önce QIDO-RS ile PACS'te doğrulanır;
   her gönderim denetim kaydına yazılır (`/api/pacs/stow`, `pacsSend.ts`).
+- **C-STORE (DIMSE) köprüsü:** DIMSE TCP/PDU yığını Node içinde olmadığı için
+  **sözleşme + köprü süreci** yaklaşımı. `src/lib/cstore.ts` DIMSE durum kodu
+  sözleşmesini (0x0000 başarı, 0x0101 eşleşme yok, 0x0102-0x0105 geçici,
+  0x0801 attribute hatası) ve yeniden deneme politikasını taşır (içerik reddi
+  yeniden denemEZ); `/api/pacs/cstore` kuyruk ögelerini (şifreli payload) tutar,
+  köprü sürecinin (dcm4che `cstore-scu`) sonuç raporunu işler. Köprü script'i:
+
+  ```bash
+  npm run cstore:bridge -- --enqueue manifest.json   # manifest → kuyruk
+  npm run cstore:bridge -- --report report.json b-42  # DIMSE raporunu uygula
+  ```
 - **Üretken taslak + üslup:** Rapor için izlenim taslağı üretilir (LLM varsa
   OpenAI uyumlu uç, yoksa kural tabanlı; yalnızca onaylanmış bulgular, kimlik
   gönderilmez). Hekimin geçmiş onaylı raporlarından kimliksiz üslup örneği
@@ -758,6 +769,7 @@ Anahtar üretme: `node -e "console.log(require('crypto').randomBytes(32).toStrin
 | `npm run mpps:bridge` | MPPS (N-CREATE/N-SET) olayını `/api/his/mpps` ucuna iletir (`HIS_API_KEY` gerekir) |
 | `npm run fhir:pull` | FHIR çekim köprüsü (ServiceRequest/ImagingStudy → `/api/his/fhir`; `FHIR_URL`+token gerekir) |
 | `npm run batch:worker` | Toplu içe aktarma kuyruğu worker'ı (manifest → kuyruk → DICOM doğrulama turu) |
+| `npm run cstore:bridge` | C-STORE (DIMSE) köprü süreci (manifest → kuyruk, DIMSE raporu → uygulanma) |
 | `npx drizzle-kit push --config=drizzle.config.ts` | Şemayı `DATABASE_URL`'deki DB'ye uygula (Docker/üretim) |
 
 ## Testler
@@ -847,6 +859,7 @@ npm run test:hl7-adt                # ADT A08/A31 güncelleme, A40/A41 birleşti
 npm run test:mpps                   # MPPS N-CREATE/N-SET sözleşmesi (Implicit VR gidiş-dönüş)
 npm run test:fhir-in                # FHIR girişi (ServiceRequest/ImagingStudy, çekim köprüsü)
 npm run test:batch-import           # Toplu içe aktarma kuyruğu (hata sınıflandırma, backoff, gerçek DICOM)
+npm run test:cstore                 # C-STORE (DIMSE) sözleşmesi (durum kodu, yeniden deneme, gerçek DICOM)
 npm run test:webhard                # hız sınırı + CSRF + CSP
 npm run test:supplychain            # SBOM + SHA256SUMS + SLSA köken doğrulaması
 npm run test:backupdr               # depolama adaptörü + yedek/geri yükleme

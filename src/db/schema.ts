@@ -457,5 +457,37 @@ export const batchImportQueue = pgTable(
   (t) => [index("batch_queue_batch_idx").on(t.batchId, t.status)],
 );
 
+/**
+ * C-STORE (DIMSE) kuyruğu (e-stow). STOW-RS (DICOMweb) yanında DIMSE C-STORE
+ * gönderimleri kuyrukta sıralanır: payload baytları şifreli, meta veri düz;
+ * DIMSE durum kodları (status_code) köprüden gelir ve yeniden deneme politikası
+ * bu kodalara göre uygulanır.
+ */
+export const cstoreQueue = pgTable(
+  "cstore_queue",
+  {
+    id: serial("id").primaryKey(),
+    batchId: text("batch_id").notNull(),
+    aet: text("aet").notNull().default(""),
+    name: text("name").notNull(),
+    sopClass: text("sop_class").notNull().default(""),
+    sopUid: text("sop_uid").notNull().default(""),
+    studyUid: text("study_uid").notNull(),
+    seriesUid: text("series_uid").notNull().default(""),
+    size: integer("size").notNull().default(0),
+    sha256: text("sha256").notNull().default(""),
+    /** Şifreli DICOM baytları (base64) — crypto.encryptText çıktısı; listelemede dönmez. */
+    payloadCipher: text("payload_cipher"),
+    status: text("status").notNull().default("pending"), // pending | processing | done | failed
+    statusCode: integer("status_code").notNull().default(0),
+    attempts: integer("attempts").notNull().default(0),
+    lastError: text("last_error").notNull().default(""),
+    owner: text("owner").notNull().default(""),
+    lastAttemptAt: timestamp("last_attempt_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("cstore_queue_batch_idx").on(t.batchId, t.status)],
+);
+
 export type Study = typeof studies.$inferSelect;
 export type Report = typeof reports.$inferSelect;
