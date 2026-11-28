@@ -16,7 +16,7 @@ import {
   copySlice, emptyMask, growRegion, makeSegmentDef, maskFromJson, maskPixelCount, maskToJson,
   maxAxes, paint, prune, thresholdFill, volume, type SegMask,
 } from "@/lib/segmentation";
-import { buildRtStruct, buildSegDocument } from "@/lib/dicomSeg";
+import { buildRtStruct, buildSegDocument, sliceSopMap } from "@/lib/dicomSeg";
 import { sendDerivedToPacs } from "@/lib/sendDerived";
 import { buildWindowLUT } from "@/lib/window";
 
@@ -279,7 +279,7 @@ export default function SegEditor({ series, slice: activeSlice, wl, ww, invert, 
       const def = makeSegmentDef(1, label.trim().slice(0, 64) || "Hedef alan", "MANUAL");
       const bytes = kind === "seg"
         ? buildSegDocument({ ...base, segments: [{ def, mask: current }] })
-        : buildRtStruct({ ...base, rois: [{ def, mask: current }] });
+        : buildRtStruct({ ...base, rois: [{ def, mask: current }], sliceSopUids: sliceSopMap(series.sopUids) });
       if (destination === "pacs") {
         if (!series.studyUid) { toast("Çalışma UID'si yok; PACS'e gönderilemez.", 6000); return; }
         const out = await sendDerivedToPacs(kind, bytes, series.studyUid, `${kind === "seg" ? "SEG" : "RTSTRUCT"}-${series.modality}-${current.slices.size}-kesit.dcm`);

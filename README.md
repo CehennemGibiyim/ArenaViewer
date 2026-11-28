@@ -145,6 +145,11 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   olarak yazılır, içbükeylikler korunur. Kontur noktaları **Douglas–Peucker**
   (ε = 0,5 mm, `contourToleranceMm` ile ayarlanır) ile sadeleştirilir — düz
   kenarlardaki staircase noktaları yazılmaz, DICOM en az 3 nokta garantilenir.
+  **Delikler (iç kontur):** halka/donut segmentlerde dış sınırın içindeki boşluk
+  ayrıca izlenir ve RTSTRUCT'a **ikinci CLOSED_PLANAR kontur** olarak yazılır —
+  yalnız dış sınır yazılsaydı PACS/TP hacmi dolu silindir hesaplardı. Kenara açılan
+  çentik delik sayılmaz. Her kontur, ait olduğu kesiti `ContourImageSequence`
+  (3006,0016) ile referanslar (SOP UID yoksa uydurma referans yazılmaz).
   DICOM **SEG** (1 bit/piksel, renk/etiket/algoritma) ve **RTSTRUCT**
   (CLOSED_PLANAR konturlar) dışa aktarımı; Dışa aktar menüsündeki işaret tabanlı
   SEG çıktısı elle çizilen maskeyle **birleştirilir**. AI aday örtüsü
@@ -701,6 +706,7 @@ npm run test:siem                   # SIEM kuyruğu, yeniden deneme, HMAC imza
 npm run test:ctp                    # CTP cSVD dekonvolüsyonu + otomatik AIF
 npm run test:sr1500                 # TID 1500 yapılandırılmış ölçüm SR (+köprü)
 npm run test:seg                    # segmentasyon maskesi + DICOM SEG/RTSTRUCT
+npm run test:seg-holes              # RTSTRUCT delik (iç kontur) + kesit referansı
 npm run test:dp                     # Douglas–Peucker kontur sadeleştirme
 npm run test:recistfull             # RECIST hedef seçimi + non-hedef + genel yanıt
 npm run test:tracking               # lezyon eşleştirme + nodül takibi köprüsü

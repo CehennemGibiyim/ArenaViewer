@@ -4,7 +4,7 @@
  * ve hacim hesabı denetlenir.
  */
 import { parseDicom } from "dicom-parser";
-import { buildRtStruct, buildSegDocument, contourPoints, maskContour, packBinaryFrames, sliceContourPoints, traceContours, unpackBinaryFrame, SOP_RTSTRUCT, SOP_SEG } from "../src/lib/dicomSeg";
+import { buildRtStruct, buildSegDocument, contourPoints, floodOutside, maskContour, packBinaryFrames, sliceContourPoints, traceContours, traceContoursWithHoles, unpackBinaryFrame, SOP_RTSTRUCT, SOP_SEG } from "../src/lib/dicomSeg";
 import { copySlice, emptyMask, getPixel, growRegion, makeSegmentDef, maskFromJson, maskPixelCount, maskToJson, maxAxes, paint, prune, sliceAxes, thresholdFill, unionMasks, volume } from "../src/lib/segmentation";
 
 let failed = 0;
@@ -194,11 +194,22 @@ ok(polys[0].length > polys[1].length, "konturlar büyükten küçüğe sıralı"
 const largest = maskContour(twoBlobs, 20, 10);
 ok(largest.length === polys[0].length && largest[0].x === polys[0][0].x && largest[0].y === polys[0][0].y, "maskContour en büyük bileşeni döndürür");
 
-// halka: yalnız dış sınır (delik ayrı kontur değil)
+// halka: dış sınır + DELİK ayrı kontur (c-seg-rtstruct: iç kontur desteği)
 const ring = gridMask(12, 12, (x, y) => x >= 2 && x < 10 && y >= 2 && y < 10 && !(x >= 4 && x < 8 && y >= 4 && y < 8));
 const ringPolys = traceContours(ring, 12, 12);
-ok(ringPolys.length === 1, "halkada tek dış kontur");
-ok(ringPolys[0].every((p) => p.x <= 3 || p.x >= 8 || p.y <= 3 || p.y >= 8), "delik sınırı dış kontura karışmaz");
+ok(ringPolys.length === 2, `halkada dış sınır + delik konturu (${ringPolys.length})`);
+ok(ringPolys[0].every((p) => p.x <= 3 || p.x >= 8 || p.y <= 3 || p.y >= 8), "dış kontur yalnız halka gövdesinde");
+const ringHoles = traceContoursWithHoles(ring, 12, 12);
+ok(ringHoles.outer.length === 1 && ringHoles.holes.length === 1, "traceContoursWithHoles deliği ayırır");
+ok(ringHoles.holes[0].every((p) => p.x >= 4 && p.x <= 7 && p.y >= 4 && p.y <= 7), "delik konturu delik bölgesinde kalır");
+ok(floodOutside(ring, 12, 12)[5 * 12 + 5] === 0, "delik 'dış' sayılmaz (maskenin parçası)");
+ok(floodOutside(ring, 12, 12)[0] === 1, "görüntü kenarı dıştır");
+const noHole = gridMask(12, 12, (x, y) => x >= 2 && x < 10 && y >= 2 && y < 10);
+ok(traceContoursWithHoles(noHole, 12, 12).holes.length === 0, "dolu maskede delik yok");
+// Delik kenara değerse delik DEĞİLDİR (çentik): tek kontur kalır.
+const notch = gridMask(12, 12, (x, y) => x >= 2 && x < 10 && y >= 2 && y < 10 && !(x >= 2 && x < 5 && y >= 5 && y < 8));
+ok(traceContoursWithHoles(notch, 12, 12).holes.length === 0, "kenara açılan boşluk delik sayılmaz (çentik)");
+ok(traceContours(notch, 12, 12).length === 1, "çentik tek dış kontur üretir");
 
 // tek piksel ve komşu çift
 ok(traceContours(gridMask(5, 5, (x, y) => x === 2 && y === 2), 5, 5)[0].length === 1, "tek piksel tek nokta");

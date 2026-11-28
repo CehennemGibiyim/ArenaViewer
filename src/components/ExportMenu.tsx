@@ -11,7 +11,7 @@ import { buildAnonymizedDicom } from "@/lib/dicomWrite";
 import { annotationsToMeasurements, exportCoverage, siteCode } from "@/lib/measurementExport";
 import { buildMeasurementReportSr } from "@/lib/sr1500";
 import { writableAnnotationCount } from "@/lib/gspsGraphics";
-import { buildRtStruct, buildSegDocument } from "@/lib/dicomSeg";
+import { buildRtStruct, buildSegDocument, sliceSopMap } from "@/lib/dicomSeg";
 import { emptyMask, makeSegmentDef, maskFromJson, paint, prune, unionMasks, type SegMask } from "@/lib/segmentation";
 import { apiFetch } from "@/lib/csrfClient";
 import { sendDerivedToPacs } from "@/lib/sendDerived";
@@ -331,7 +331,7 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
     // Elle çizilen maske varsa segment adı onu da kapsar.
     const bytes = kind === "seg"
       ? buildSegDocument({ ...base, segments: [{ def, mask }] })
-      : buildRtStruct({ ...base, rois: [{ def, mask }] });
+      : buildRtStruct({ ...base, rois: [{ def, mask }], sliceSopUids: sliceSopMap(series.sopUids) });
     const ext = kind === "seg" ? "SEG" : "RTSTRUCT";
     if (destination === "pacs") {
       if (!series.studyUid) { toast("Çalışma UID'si yok; PACS'e gönderilemez.", 6000); return; }
