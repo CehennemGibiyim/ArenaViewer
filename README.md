@@ -47,8 +47,12 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   çevirme (tek sabit, tip korunur), RGB 8/16-bit, **Planar Configuration 1**,
   YBR_FULL, **native 4:2:2 / 4:2:0** açma, **PALETTE COLOR** (ikili US tanımlayıcı,
   8/16-bit LUT, `firstMapped`), çok kareli renkli seriler; çıktı 32-bit RGBA
-  (`rgbaSlices`) ve görüntüleyicide fotometri rozeti. 40 birim + 24 uçtan uca
-  DICOM testi (`test:photometric`, `test:photometric-e2e`).
+  (`rgbaSlices`) ve görüntüleyicide fotometri rozeti. **Nadir YBR türevleri:**
+  YBR_RCT (dönüştürülebilir) ve YBR_ICT (BT.709) tanıma + `rctToRgb`/`ictToRgb`
+  matrisleri `colorToRgba` tarafından yönlendiriliyor; **renk haritası denetimi**
+  `colorMapInfo()` ile renkli seride kullanılan yol/matris rapor edilir. 40 birim
+  + 24 uçtan uca DICOM testi (`test:photometric`, `test:photometric-e2e`,
+  `test:photometric-colormap`).
   **Sıkıştırılmamış renkli çerçeveler Web Worker'da çözülür** (`colorDecode.ts`
   saf çekirdek + `colorWorker.ts`): 4:2:2/4:2:0 yukarı örnekleme, planar
   birleştirme, YBR→RGB ve 16-bit endian ana iş parçacığını meşgul etmez; worker
@@ -882,6 +886,7 @@ npm run test:gray-e2e               # uçtan uca gri çözme: slope/intercept, B
 npm run test:fusion-z               # kesitler arası z kayması: konum eşleme, parabolik incelme, katman
 npm run test:photometric            # fotometri: MONO1/2, RGB/planar, YBR 4:2:2, palet LUT
 npm run test:photometric-e2e        # sentetik DICOM ile renkli/paletli/çok kareli içe aktarma
+npm run test:photometric-colormap    # nadir YBR türevleri (RCT/ICT) + renk haritası denetimi
 npm run test:tic-roi                # ROI tabanlı TIC: faz eşleme, zaman ekseni, wash-out/plato/progresif
 npm run verify:sources              # (ağ gerekir) kaynak adreslerini yeniden doğrula
 npm run test:closeloop              # kapanış döngüsü süre/eskalasyon kuralları
