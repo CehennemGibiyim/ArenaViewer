@@ -34,6 +34,8 @@ import {
 
 import { decodeGrayNative, grayFrameBytes, type GrayNativeParams } from "./pixelDecode";
 import { decodeGrayNativeAsync, pixelWorkerReady } from "./pixelWorker";
+import { colorFrameBytes, colorWorkerEligible, decodeColorFrame, type ColorFrameParams } from "./colorDecode";
+import { colorWorkerReady, decodeColorFrameAsync } from "./colorWorker";
 const TAG_NAMES: Record<string, string> = {
   x00020010: "Transfer Syntax UID", x00080008: "Image Type", x00080016: "SOP Class UID",
   x00080018: "SOP Instance UID", x00080020: "Study Date", x00080030: "Study Time",
@@ -281,6 +283,50 @@ async function decodeGrayFrames(
   return out.length ? out : null;
 }
 
+/**
+ * Renkli (RGB / YBR ailesi / 4:2:2–4:2:0) **sıkıştırılmamış** çerçeveleri worker'da
+ * (yoksa eşzamanlı) çözer — v-perf. Kapsam dışı (palet, kapsüllenmiş, planarsız
+ * olmayan) durumda `null` döner ve çağıran eski yola düşer; davranış değişmez.
+ */
+async function decodeColorFrames(
+  ds: DicomDataSet,
+  info: PixelInfo,
+  bigEndian: boolean,
+  slope: number,
+  intercept: number,
+  paletteLut?: PaletteColorLUT | null,
+): Promise<{ frames: Pixels[]; rgbaFrames: Uint32Array[] } | null> {
+  const el = ds.elements["x7fe00010"];
+  if (!el || paletteLut) return null;
+  const params: ColorFrameParams = {
+    rows: info.rows, cols: info.cols, samples: info.samples,
+    bitsAllocated: info.bitsAllocated, bitsStored: info.bitsStored,
+    planar: info.planar, photometric: info.photometric,
+    // Native (sıkıştırılmamış) renk verisi: YBR ise RGB'ye çevrilir. `dicom.ts`
+    // renkli yolu da bunu yapar (`ybrRaw = !encapsulated || JLS`).
+    convertYbr: true, slope, intercept, bigEndian,
+  };
+  if (!colorWorkerEligible(params)) return null;
+  const len = colorFrameBytes(params);
+  if (len <= 0) return null;
+  const base = ds.byteArray.byteOffset + el.dataOffset;
+  const limit = ds.byteArray.byteOffset + ds.byteArray.byteLength;
+  const useWorker = colorWorkerReady();
+  const frames: Pixels[] = [];
+  const rgbaFrames: Uint32Array[] = [];
+  for (let f = 0; f < info.frames; f++) {
+    const offset = base + f * len;
+    if (offset + len > limit) break; // readNative ile aynı davranış
+    const r = useWorker ? await decodeColorFrameAsync(ds.byteArray, offset, params) : null;
+    // Worker yoksa/reddettiyse eşzamanlı saf yolu kullan (davranış değişmez).
+    const res = r ?? decodeColorFrame(ds.byteArray, offset, params);
+    if (!res) return null;
+    frames.push(res.gray);
+    rgbaFrames.push(res.rgba);
+  }
+  return frames.length ? { frames, rgbaFrames } : null;
+}
+
 async function decodePixels(
   ds: DicomDataSet,
   ts: string | undefined,
@@ -296,6 +342,13 @@ async function decodePixels(
   if (!encapsulated && info.samples === 1 && info.photometric !== "PALETTE COLOR" && !paletteLut) {
     const grayFrames = await decodeGrayFrames(ds, info, ts === TS_EXPLICIT_BE, slope, intercept);
     if (grayFrames) return { frames: grayFrames, rgbaFrames: undefined, isColor: false, width: info.cols, height: info.rows };
+  }
+  // Renkli (RGB/YBR, sıkıştırılmamış): çözme + YBR→RGB worker'da.
+  if (!encapsulated && info.samples >= 3) {
+    const colorFrames = await decodeColorFrames(ds, info, ts === TS_EXPLICIT_BE, slope, intercept, paletteLut);
+    if (colorFrames) {
+      return { frames: colorFrames.frames, rgbaFrames: colorFrames.rgbaFrames, isColor: true, width: info.cols, height: info.rows };
+    }
   }
   const raws = encapsulated
     ? await decodeEncapsulated(ds, el, ts ?? "", info)

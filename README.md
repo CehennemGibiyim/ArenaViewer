@@ -49,6 +49,11 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   8/16-bit LUT, `firstMapped`), çok kareli renkli seriler; çıktı 32-bit RGBA
   (`rgbaSlices`) ve görüntüleyicide fotometri rozeti. 40 birim + 24 uçtan uca
   DICOM testi (`test:photometric`, `test:photometric-e2e`).
+  **Sıkıştırılmamış renkli çerçeveler Web Worker'da çözülür** (`colorDecode.ts`
+  saf çekirdek + `colorWorker.ts`): 4:2:2/4:2:0 yukarı örnekleme, planar
+  birleştirme, YBR→RGB ve 16-bit endian ana iş parçacığını meşgul etmez; worker
+  yoksa eşzamanlı yola düşer. Bit eşdeğerliği `test:color-worker` (37) ve
+  uçtan uca `test:color-decode-e2e` (17) ile sabit.
 - **Kıyaslama tablosu ve kaynak politikası (`/kiyaslama`):** tablodaki durumlar
   `src/lib/gapAnalysis.ts` + `gapProgress` üzerinden **kodla senkron** hesaplanır
   (sayfada sabit yüzde yok). Her satırın dayanağı `src/lib/gapSources.ts` kayıt
@@ -749,6 +754,8 @@ npm run test:stream-load            # kademeli yükleme: dalga planı, eşzamanl
 npm run test:gpu-atlas              # doku atlası: katman planı, LRU, sahte GL ile "gereksiz yükleme yok"
 npm run test:code-mapping           # kurum RadLex/SNOMED eşleme dosyası: okuma, doğrulama, SR'da lisanslı kod
 npm run test:pixel-worker           # gri piksel çözme worker'ı: node:vm ile bit eşdeğerliği, yedek yol
+npm run test:color-worker           # renkli çerçeve worker'ı: saf çekirdek ≡ worker (bit eşdeğeri)
+npm run test:color-decode-e2e       # sentetik DICOM → RGBA/gri: YBR, 4:2:2, planar, 16-bit, çok kare
 npm run test:gray-e2e               # uçtan uca gri çözme: slope/intercept, Bits Stored maskesi, çok kare sırası
 npm run test:fusion-z               # kesitler arası z kayması: konum eşleme, parabolik incelme, katman
 npm run test:photometric            # fotometri: MONO1/2, RGB/planar, YBR 4:2:2, palet LUT
