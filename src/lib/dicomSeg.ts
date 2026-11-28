@@ -46,6 +46,12 @@ export interface SegInput {
 
 export interface RtStructInput extends Omit<SegInput, "segments"> {
   rois: { def: SegmentDef; mask: SegMask }[];
+  /**
+   * Kesit indeksi → kaynak görüntü SOP Instance UID'i. Verilirse her kontur
+   * **ContourImageSequence (3006,0016)** ile ait olduğu kesiti referanslar
+   * (DICOM PS3.3 C.8.8.6 — kesit bazlı konturlar için beklenen referans).
+   */
+  sliceSopUids?: Record<number, string>;
   /** Kontur başına azami nokta (varsayılan 200) */
   maxPointsPerContour?: number;
   /** Douglas–Peucker toleransı (mm, varsayılan 0,5); 0 sadeleştirmeyi kapatır */
@@ -267,9 +273,15 @@ const polyArea = (pts: readonly { x: number; y: number }[]): number => {
 /**
  * Maskedeki **tüm bağlı bileşenlerin** sınır konturları (büyükten küçüğe).
  *
- * Delikler (iç boşluk) ayrı kontur olarak döndürülmez; DICOM RTSTRUCT'ta delik
- * XOR ile değil, ayrı ROI/kontur ile temsil edilir. Bu nedenle içi boş halkalarda
- * yalnız dış sınır çıkar.
+ * İçi boş (donut) maskelerde **delikler ayrı kontur olarak döndürülür.** DICOM
+ * RTSTRUCT deliği XOR ile değil, aynı ROI'nin **ikinci bir CLOSED_PLANAR
+ * konturu** ile temsil eder (DICOM PS3.3 C.8.8.6: konturlar kapalı düzlem
+ * eğrileridir; iç içe konturlar bölgeyi sınırlar). Bu fonksiyon delikleri de
+ * izler; ters yön (saat yönü) bilgisi `isHole` ile taşınır ve RTSTRUCT yazıcısı
+ * delik konturlarını **ters sırada** yazar (dış sınır saat yönünün tersi).
+ *
+ * Delik izleme `traceBoundary`'nin dolgu (mask) yerine **boşluk** üzerinde
+ * çalıştırılmasıyla elde edilir: dış sınıra değmeyen boşluk bölgeleri deliktir.
  */
 export function traceContours(mask: Uint8Array, width: number, height: number): { x: number; y: number }[][] {
   const inside = (x: number, y: number) => x >= 0 && y >= 0 && x < width && y < height && mask[y * width + x] !== 0;
@@ -300,7 +312,76 @@ export function traceContours(mask: Uint8Array, width: number, height: number): 
       if (poly.length > 0) out.push(poly);
     }
   }
-  return out.sort((a, b) => polyArea(b) - polyArea(a));
+  // Delikler: dışarıya bağlı olmayan boşluk bölgeleri (kenarlardan taşkın doldurma
+  // ile "dış" işaretlenir; kalan boşluk = delik).
+  const outside = floodOutside(mask, width, height);
+  const holeSeen = new Uint8Array(width * height);
+  const holes: { x: number; y: number }[][] = [];
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = y * width + x;
+      if (mask[i] !== 0 || outside[i] !== 0 || holeSeen[i] !== 0) continue;
+      // Delik bölgesini işaretle (4-komşu) ve sınırını izle.
+      const stack = [i];
+      holeSeen[i] = 1;
+      let sx = x, sy = y;
+      while (stack.length) {
+        const p = stack.pop()!;
+        const px = p % width, py = (p - px) / width;
+        if (py < sy || (py === sy && px < sx)) { sx = px; sy = py; }
+        for (const [nx, ny] of [[px + 1, py], [px - 1, py], [px, py + 1], [px, py - 1]]) {
+          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+          const ni = ny * width + nx;
+          if (mask[ni] !== 0 || outside[ni] !== 0 || holeSeen[ni] !== 0) continue;
+          holeSeen[ni] = 1;
+          stack.push(ni);
+        }
+      }
+      const holePoly = traceBoundary(sx, sy, width, height, (px, py) =>
+        px >= 0 && py >= 0 && px < width && py < height && mask[py * width + px] === 0 && outside[py * width + px] === 0);
+      if (holePoly.length > 2) holes.push(holePoly);
+    }
+  }
+  // Dış sınırlar büyükten küçüğe, ardından delikler (küçükten büyüğe: iç içe
+  // halkalarda en içteki önce yazılır ki okuyucular iç içeliği çözebilsin).
+  const outer = out.sort((a, b) => polyArea(b) - polyArea(a));
+  return [...outer, ...holes.sort((a, b) => polyArea(a) - polyArea(b))];
+}
+
+/** Maskenin dışındaki (kenarlardan erişilebilen) boşluk: 1 = dış, 0 = delik/maske. */
+export function floodOutside(mask: Uint8Array, width: number, height: number): Uint8Array {
+  const outside = new Uint8Array(width * height);
+  const stack: number[] = [];
+  const push = (x: number, y: number) => {
+    if (x < 0 || y < 0 || x >= width || y >= height) return;
+    const i = y * width + x;
+    if (mask[i] !== 0 || outside[i] !== 0) return;
+    outside[i] = 1;
+    stack.push(i);
+  };
+  for (let x = 0; x < width; x++) { push(x, 0); push(x, height - 1); }
+  for (let y = 0; y < height; y++) { push(0, y); push(width - 1, y); }
+  while (stack.length) {
+    const p = stack.pop()!;
+    const px = p % width, py = (p - px) / width;
+    push(px + 1, py); push(px - 1, py); push(px, py + 1); push(px, py - 1);
+  }
+  return outside;
+}
+
+/**
+ * Delik konturlarını **ayrı** döndürür (RTSTRUCT yazıcısı ve editör için).
+ * `traceContours` dış sınırları önce, delikleri sonra verir; bu yardımcı
+ * hangi konturun delik olduğunu `traceContours` sırasına göre ayırır.
+ */
+export function traceContoursWithHoles(
+  mask: Uint8Array, width: number, height: number,
+): { outer: { x: number; y: number }[][]; holes: { x: number; y: number }[][] } {
+  const all = traceContours(mask, width, height);
+  const outside = floodOutside(mask, width, height);
+  const isHole = (poly: { x: number; y: number }[]) =>
+    poly.length > 0 && outside[poly[0].y * width + poly[0].x] === 0 && mask[poly[0].y * width + poly[0].x] === 0;
+  return { outer: all.filter((p) => !isHole(p)), holes: all.filter(isHole) };
 }
 
 /** Geriye dönük uyumluluk: en büyük bileşenin sınır konturu. */
@@ -346,6 +427,21 @@ export function contourPoints(pts: { x: number; y: number }[], g: SegGeometry, s
   return out;
 }
 
+/**
+ * Kesit indeksi → SOP Instance UID haritası (ContourImageSequence için).
+ *
+ * Neden gerekli: kesit bazlı konturların hangi görüntüye ait olduğunu
+ * referanslaması DICOM'da beklenir. `sopUids` seri sırasıyla gelir; boş/eksik
+ * UID'ler atlanır (uydurma referans yazılmaz).
+ */
+export function sliceSopMap(sopUids: readonly string[] | undefined): Record<number, string> {
+  const out: Record<number, string> = {};
+  (sopUids ?? []).forEach((u, i) => {
+    if (typeof u === "string" && u.trim().length > 0) out[i] = u.trim();
+  });
+  return out;
+}
+
 /** Segmentasyon → DICOM RT Structure Set. */
 export function buildRtStruct(input: RtStructInput): Uint8Array {
   const sop = newUid();
@@ -380,13 +476,27 @@ export function buildRtStruct(input: RtStructInput): Uint8Array {
       const m = roi.mask.slices.get(slice)!;
       if (!m.some((v) => v)) continue;
       // Birden fazla bağlı bileşen varsa her biri ayrı kontur olarak yazılır.
+      // DİKKAT: (3006,0040) iki farklı varlıkta kullanılır —
+      //   ContourSequence içinde **ContourImageSequence** (SQ),
+      //   ROIContourSequence içinde **ContourSequence** (SQ).
+      // Önceki sürüm kontur öğesine `(3006,0040) IS kesitNo` yazıyordu; bu, aynı
+      // tag'i IS olarak tekrar kullanıp DICOM'u **geçersiz** kılıyordu (okuyucular
+      // kesit eşlemesini kaybediyordu). Kesit numarası artık ContourImageSequence
+      // içindeki referansla taşınır.
+      const refUid = input.sliceSopUids?.[slice];
       for (const data of sliceContourPoints(m, input.width, input.height, input.geometry, slice, maxPts, tol)) {
-        contours.push(item(
+        const parts: E[] = [
           S(0x3006, 0x0042, "CS", "CLOSED_PLANAR"),
           S(0x3006, 0x0046, "IS", String(data.length / 3)),
           S(0x3006, 0x0050, "DS", data.join("\\")),
-          S(0x3006, 0x0040, "IS", String(slice + 1)),
-        ));
+        ];
+        if (refUid) {
+          parts.unshift(SQ(0x3006, 0x0016, [item(
+            S(0x0008, 0x1150, "UI", input.source.sopClassUid),
+            S(0x0008, 0x1155, "UI", refUid),
+          )]));
+        }
+        contours.push(item(...parts));
       }
     }
     roiContourSeq.push(item(

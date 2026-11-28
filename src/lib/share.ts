@@ -8,11 +8,13 @@
 /** Seçilebilir geçerlilik süreleri (saat). */
 export const SHARE_TTL_HOURS = [24, 72, 168, 720] as const;
 /**
- * Şimdilik yalnızca rapor (metin + anahtar kesitler) paylaşılır. Çalışmanın ham
- * DICOM'u paylaşıma açılmaz: bu, görüntü erişimi için ayrı, daha sıkı bir model
- * (ve imzalı URL/saklama politikası) gerektirir.
+ * İki paylaşım türü:
+ *  - `report`: onaylı rapor metni + anahtar kesit (mevcut).
+ *  - `image`:  seçilen kesitlerin **anonim JPEG** hali (ham DICOM DEĞİL; WL/WW
+ *    uygulanmış, hasta kimliği yakılmamış, ölçüm/AI çizimi yok). Sunucuda gömülü
+ *    tutulur, süre/kapatma sonunda silinir. Ayrıntı: `src/lib/shareImage.ts`.
  */
-export const SHARE_KINDS = ["report"] as const;
+export const SHARE_KINDS = ["report", "image"] as const;
 export type ShareKind = (typeof SHARE_KINDS)[number];
 
 /** Paylaşım sayfasında gösterilecek en fazla anahtar kesit sayısı. */
@@ -87,6 +89,22 @@ export function summarizeShares(rows: ShareRow[], now = new Date()): ShareSummar
 /** Paylaşım sayfasındaki filigran metni (token öneki ile izlenebilirlik). */
 export function watermarkText(token: string, name = "ATIKVIEWER"): string {
   return `${name} · SÜRELİ PAYLAŞIM · ${token.slice(0, 8).toUpperCase()} · ${new Date().toISOString().slice(0, 10)}`;
+}
+
+/** Görüntü paylaşımının sayfa yükü (anonim başlık + kareler). */
+export interface SharedImagePayload {
+  kind: "image";
+  createdAt: Date | string;
+  expiresAt: Date | string;
+  /** Seri etiketi (hasta adı YOK) */
+  label: string;
+  modality: string;
+  studyDate: string;
+  /** 1 tabanlı kare numaraları ve sunucudaki görüntü ucu */
+  frames: { n: number; slice: number; width: number; height: number; bytes: number }[];
+  /** `/api/share/{token}/image/{n}` — token dışında parametre yok */
+  watermark?: string;
+  note: string;
 }
 
 /** Paylaşım sayfasının salt okunur yükü. */

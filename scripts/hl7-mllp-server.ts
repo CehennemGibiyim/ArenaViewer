@@ -1,9 +1,12 @@
 /**
  * HL7 v2 (MLLP) alıcısı — HBYS/RIS köprüsü.
  *
- * Kurum içi HBYS, ORM^O01 gibi sipariş mesajlarını TCP/MLLP ile gönderir. Bu süreç
- * mesajı ayrıştırır ve ArenaViewer'ın `/api/his/orders` ucuna (HIS_API_KEY ile)
- * çevirir; gönderene ACK döner. MWL/C-FIND (DICOM DIMSE) burada değildir.
+ * Kurum içi HBYS, ORM^O01 sipariş mesajlarını ve ORU^R01 sonuç (iadesi)
+ * mesajlarını TCP/MLLP ile gönderir. Bu süreç mesajı ayrıştırır, siparişleri
+ * ArenaViewer'ın `/api/his/orders`, sonuçları `/api/his/results` ucuna
+ * (HIS_API_KEY ile) çevirir; gönderene ACK döner. ADT (A08/A31/A40/A41)
+ * hasta güncelleme/birleştirme de buradadır. MWL/C-FIND (DICOM DIMSE)
+ * burada değildir.
  *
  * Çalıştırma:
  *   HL7_PORT=2575 HIS_API_KEY=<anahtar> npm run hl7:mllp
@@ -16,6 +19,8 @@
  */
 import net from "node:net";
 import { buildAck, orderFromHl7, parseHl7 } from "../src/lib/hl7";
+import { adtEvent } from "../src/lib/hl7Adt";
+import { resultFromHl7 } from "../src/lib/resultPull";
 
 const HOST = process.env.HL7_HOST || "127.0.0.1";
 const PORT = Number(process.env.HL7_PORT || 2575);
@@ -44,6 +49,56 @@ const server = net.createServer((sock) => {
       }
       if (!msg) { sock.write(buildAck({ segments: [], sendingApp: "", sendingFacility: "", type: "", trigger: "", messageControlId: "" }, "AE", "Geçersiz HL7 mesajı")); continue; }
 
+      // ADT (A08/A31/A40/A41): hasta güncelleme ve birleştirme → /api/his/adt.
+      // Sipariş ucuyla karıştırılmaz; ADT mesajı çalışma **oluşturmaz**.
+      const event = adtEvent(msg);
+      if (event !== "other") {
+        try {
+          const r = await fetch(`${BASE}/api/his/adt`, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain", "x-api-key": KEY },
+            body: raw,
+          });
+          const body = (await r.json().catch(() => ({}))) as { ok?: boolean; reason?: string; applied?: { details?: string } };
+          if (r.ok && body.ok) sock.write(buildAck(msg, "AA", `ADT ${event}: ${body.applied?.details ?? "uygulandı"}`));
+          else sock.write(buildAck(msg, r.status === 422 ? "AR" : "AE", body.reason ?? `HTTP ${r.status}`));
+        } catch (e) {
+          sock.write(buildAck(msg, "AE", `ArenaViewer yanit vermedi: ${e instanceof Error ? e.message : String(e)}`));
+        }
+        continue;
+      }
+
+      // Sonuç (ORU^R01): HBYS/RIS iadesi → /api/his/results; siparişle karıştırılmaz.
+      if (msg.type.startsWith("ORU")) {
+        const result = resultFromHl7(msg);
+        if (!result) {
+          sock.write(buildAck(msg, "AR", "ORU^R01'den sonuç çıkarılamadı (accession/sonuç metni gerekli)."));
+          continue;
+        }
+        try {
+          const r = await fetch(`${BASE}/api/his/results`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-api-key": KEY },
+            body: JSON.stringify({ source: "hl7", results: [{
+              source: "hl7",
+              patientId: result.patientId,
+              accessionNumber: result.accessionNumber,
+              modality: result.modality,
+              bodyPart: result.bodyPart,
+              description: result.description,
+              text: result.text,
+              at: result.at,
+            }] }),
+          });
+          const body = (await r.json().catch(() => ({}))) as { ok?: boolean; reason?: string; accepted?: number; batchId?: string };
+          if (r.ok && body.ok) sock.write(buildAck(msg, "AA", `Sonuc alindi (batch ${body.batchId ?? "?"}, kabul ${body.accepted ?? 0}).`));
+          else sock.write(buildAck(msg, r.status === 422 ? "AR" : "AE", body.reason ?? `HTTP ${r.status}`));
+        } catch (e) {
+          sock.write(buildAck(msg, "AE", `ArenaViewer yanit vermedi: ${e instanceof Error ? e.message : String(e)}`));
+        }
+        continue;
+      }
+
       const order = orderFromHl7(msg);
       if (!order) {
         sock.write(buildAck(msg, "AR", "Sipariş alanları eksik (hasta/istek/modality)."));
@@ -71,5 +126,5 @@ const server = net.createServer((sock) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`[hl7] MLLP dinleniyor: ${HOST}:${PORT} → ${BASE}/api/his/orders`);
+  console.log(`[hl7] MLLP dinleniyor: ${HOST}:${PORT} → ${BASE}/api/his/orders + /api/his/results`);
 });

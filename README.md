@@ -47,8 +47,17 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   çevirme (tek sabit, tip korunur), RGB 8/16-bit, **Planar Configuration 1**,
   YBR_FULL, **native 4:2:2 / 4:2:0** açma, **PALETTE COLOR** (ikili US tanımlayıcı,
   8/16-bit LUT, `firstMapped`), çok kareli renkli seriler; çıktı 32-bit RGBA
-  (`rgbaSlices`) ve görüntüleyicide fotometri rozeti. 40 birim + 24 uçtan uca
-  DICOM testi (`test:photometric`, `test:photometric-e2e`).
+  (`rgbaSlices`) ve görüntüleyicide fotometri rozeti. **Nadir YBR türevleri:**
+  YBR_RCT (dönüştürülebilir) ve YBR_ICT (BT.709) tanıma + `rctToRgb`/`ictToRgb`
+  matrisleri `colorToRgba` tarafından yönlendiriliyor; **renk haritası denetimi**
+  `colorMapInfo()` ile renkli seride kullanılan yol/matris rapor edilir. 40 birim
+  + 24 uçtan uca DICOM testi (`test:photometric`, `test:photometric-e2e`,
+  `test:photometric-colormap`).
+  **Sıkıştırılmamış renkli çerçeveler Web Worker'da çözülür** (`colorDecode.ts`
+  saf çekirdek + `colorWorker.ts`): 4:2:2/4:2:0 yukarı örnekleme, planar
+  birleştirme, YBR→RGB ve 16-bit endian ana iş parçacığını meşgul etmez; worker
+  yoksa eşzamanlı yola düşer. Bit eşdeğerliği `test:color-worker` (37) ve
+  uçtan uca `test:color-decode-e2e` (17) ile sabit.
 - **Kıyaslama tablosu ve kaynak politikası (`/kiyaslama`):** tablodaki durumlar
   `src/lib/gapAnalysis.ts` + `gapProgress` üzerinden **kodla senkron** hesaplanır
   (sayfada sabit yüzde yok). Her satırın dayanağı `src/lib/gapSources.ts` kayıt
@@ -114,6 +123,27 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   bir kez yazılır (`accessAnomalyAlerted` ile tekrar engellenir).
   **Sınırlılık:** heuristiktir, suistimal kanıtı değildir — alarm önce
   kişiye doğrulatılır. `GET /api/security/access-anomaly` yalnız yönetici.
+- **Satır düzeyi erişim matrisi (KVKK):** `src/lib/privacyPolicy.ts` +
+  `src/lib/server/privacyRepo.ts` — yonetici tüm raporlar; radyolog yalnızca
+  kendi oluşturduğu (`createdBy`) ya da kendisine atanmış çalışma
+  (`studies.assignedTo`)ın raporu; teknisyen hiçbir rapor görmez.
+  `/api/reports` ve `/api/reports/[id]` bu matrisle filtrelenir; erişim
+  olmayan kullanıcı **404** alır (varlık sızıntısı önlenir).
+- **Saklama (retention) politikası:** `PRIVACY_RETENTION_REPORT_DAYS` /
+  `PRIVACY_RETENTION_SHARE_DAYS` / `PRIVACY_RETENTION_NOTIFICATION_DAYS`
+  ayarlarından doğan sweep — tanımlı değilse **hiçbir şey silinmez**
+  (yanlışlıkla veri kaybı, KVKK ihlalinden büyük hata). **Imzalı (onaylı)
+  raporlar korunaklı** — hukuki kayıt olarak silme politikasına tabi değildir.
+  Sweep yalnız yönetici çalışır (`POST /api/privacy/retention`), her silme
+  `privacy.retention_delete` denetimiyle kaydedilir. Zamanlı çalıştırma:
+  `npm run privacy:sweep -- --once`. Sınır: TLS zorunluluğu altyapı katmanı
+  kararı, açık rıza/aydinlatma metni prod konfigürasyonu.
+- **Rapor snapshot ölçüm/SR hash'leri (r-version):** Kayıt/onay
+  snapshot'ına `measurementHash` (ekran ölçüm metninin SHA-256'sı) ve `srHash`
+  (SR metnini üreten girdilerin normalize JSON temsili, `src/lib/reportHash.ts`)
+  yazılır; client kayıt çağrısı `measurementsText`'i ayrıca gönderir. Geri
+  yükleme snapshot'taki hash'leri yeni sürüme taşır (kayıp olmaz) ve yanıtta
+  döndürür. Eski snapshot'larda bu alan tanımlı değildir (tolerans).
 - **Model kayıt defteri:** Yönetim → AI: model sürümleri (aday/aktif/emekli),
   trafik payı, parmak izi; `/api/ai/registry` deterministik **A/B ataması**
   (tohum → kova) ve aşama değişikliğinde denetim kaydı.
@@ -145,6 +175,11 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   olarak yazılır, içbükeylikler korunur. Kontur noktaları **Douglas–Peucker**
   (ε = 0,5 mm, `contourToleranceMm` ile ayarlanır) ile sadeleştirilir — düz
   kenarlardaki staircase noktaları yazılmaz, DICOM en az 3 nokta garantilenir.
+  **Delikler (iç kontur):** halka/donut segmentlerde dış sınırın içindeki boşluk
+  ayrıca izlenir ve RTSTRUCT'a **ikinci CLOSED_PLANAR kontur** olarak yazılır —
+  yalnız dış sınır yazılsaydı PACS/TP hacmi dolu silindir hesaplardı. Kenara açılan
+  çentik delik sayılmaz. Her kontur, ait olduğu kesiti `ContourImageSequence`
+  (3006,0016) ile referanslar (SOP UID yoksa uydurma referans yazılmaz).
   DICOM **SEG** (1 bit/piksel, renk/etiket/algoritma) ve **RTSTRUCT**
   (CLOSED_PLANAR konturlar) dışa aktarımı; Dışa aktar menüsündeki işaret tabanlı
   SEG çıktısı elle çizilen maskeyle **birleştirilir**. AI aday örtüsü
@@ -227,6 +262,17 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   kesitler KO ve pencere/döndürme ayarı GSPS (PR) olarak PACS'e gönderilebilir.
   KO/PR gönderiminde kesit UID'leri önce QIDO-RS ile PACS'te doğrulanır;
   her gönderim denetim kaydına yazılır (`/api/pacs/stow`, `pacsSend.ts`).
+- **C-STORE (DIMSE) köprüsü:** DIMSE TCP/PDU yığını Node içinde olmadığı için
+  **sözleşme + köprü süreci** yaklaşımı. `src/lib/cstore.ts` DIMSE durum kodu
+  sözleşmesini (0x0000 başarı, 0x0101 eşleşme yok, 0x0102-0x0105 geçici,
+  0x0801 attribute hatası) ve yeniden deneme politikasını taşır (içerik reddi
+  yeniden denemEZ); `/api/pacs/cstore` kuyruk ögelerini (şifreli payload) tutar,
+  köprü sürecinin (dcm4che `cstore-scu`) sonuç raporunu işler. Köprü script'i:
+
+  ```bash
+  npm run cstore:bridge -- --enqueue manifest.json   # manifest → kuyruk
+  npm run cstore:bridge -- --report report.json b-42  # DIMSE raporunu uygula
+  ```
 - **Üretken taslak + üslup:** Rapor için izlenim taslağı üretilir (LLM varsa
   OpenAI uyumlu uç, yoksa kural tabanlı; yalnızca onaylanmış bulgular, kimlik
   gönderilmez). Hekimin geçmiş onaylı raporlarından kimliksiz üslup örneği
@@ -305,7 +351,18 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   polyline, dikdörtgen/poligon → kapalı polyline, elips → ellipse, etiketler → metin
   nesnesi, her anotasyon kendi referans görüntüsüne bağlı). Kesiti kaynak SOP Instance
   ile eşleşmeyen anotasyon atlanır ve menü kaç tanesinin yazıldığını söyler
-  (`src/lib/gspsGraphics.ts`). Belge rapor/imza değildir; geri içe aktarma henüz yok.
+  (`src/lib/gspsGraphics.ts`). Her tür ayrı Graphic Layer kimliğiyle yazılır
+  (LENGTH/ANGLE/COBB/RECT/ELLIPSE/POLY/…) ve **geri içe aktarma vardır:** seriyle
+  birlikte yüklenen PR dosyası seriye bağlanır, «PR ölçümünü al» düğmesi grafikleri
+  kesit eşleşmesiyle (SOP Instance UID) çalışma ölçümlerine çevirir; desteklenmeyen
+  türler ve eşleşmeyen kesitler tahmin edilmeden atlanır ve sonuç diyaloğu nedenini
+  yazar (`src/lib/gspsImport.ts`). Elips geometrisi DICOM PS3.3 C.10.6'ya uygundur
+  (merkez + iki yarı-eksen ucu). **PR güncelleme akışı** da vardır: mevcut bir PR
+  (`baseGsps`) verildiğinde eski grafik/metin/katman nesneleri koruyarak yeni
+  pencere/anlatma birleştirilerek **yeni** PR üretilir — yeni SOP Instance UID
+  üretilir ve eski instance'a not içinde referans verilir; referans kesit bu PR'ın
+  sopUids'inde olmayan eski öğeler atlanır, aynı geometri + katman bir kez yazılır
+  (`buildUpdatedPresentationState`, `tests/gsps-update.test.ts`). Belge rapor/imza değildir.
 - **Sürükleyerek ölçüm düzenleme:** araç çubuğundaki **Düzenle** ile çizilmiş bir ölçümün
   tutamağı sürüklenir (o nokta taşınır) veya gövdesi sürüklenir (tüm şekil taşınır) —
   uzunluk, açı, Cobb, ok, sapma ve dikdörtgen/elips/elipsoid/çokgen ROI. ROI
@@ -374,8 +431,17 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   görüntü, her kayıt anında teknik/bulgular/izlenim/öneri metinlerini,
   bulgu onay/gerekçe durumunu ve tam bulgu tablosunu (`findingsJson`) içerir
   (`src/lib/reportDiff.ts`, `POST /api/reports/[id]/restore`).
-- **Süreli paylaşım:** onaylı rapor için süre seçilebilir (1–30 gün), kapatılabilir,
-  filigranlı salt okunur bağlantı (`/paylas/<token>`); her erişim denetimde işlenir. Ham görüntü paylaşılmaz.
+- **Süreli paylaşım:** onaylı rapor için süre seçilebilir (24 saat–30 gün), kapatılabilir,
+  filigranlı salt okunur bağlantı (`/paylas/<token>`); her erişim denetimde işlenir.
+- **Görüntü paylaşımı (f-share):** Dışa aktar ▾ → *Anonim kesit paylaş* ile seçilen kesit
+  aralığı pencere/seviye uygulanmış **anonim JPEG** olarak süreli bağlantıya eklenir
+  (en fazla 24 kesit, kesit ≤1024 px, paket ≤6 MB; uzun aralıkta eşit aralıklı örnekleme;
+  `src/lib/shareImage.ts`). Kareler `/api/share/<token>/image/<n>` ucundan `image/jpeg` +
+  `no-store` ile servis edilir; filigranlı sayfa salt okunur ve indirmesizdir, her açılış
+  denetime yazılır. Ham DICOM gönderilmez, hasta kimliği görüntüye yakılmaz, ölçüm/AI
+  çizimi paylaşılmaz; bağlantı kapatılınca ya da süresi dolunca görüntü blob'u sunucuda
+  **silinir**. Paketteki JPEG'ler uygulama anahtarıyla şifreli nesne deposunda tutulur;
+  indirme/zoom engeli yalnız tarayıcı düzeyindedir (ekran görüntüsü alınabilir).
 - **İş akışı:** çalışma listesi, PACS (DICOMweb QIDO/WADO — hazır sistem ayarları, şifreli kimlik, bağlantı testi), HBYS istem alımı,
   kritik bulgu bildirimleri, şifreli sunucu depolaması, hash zincirli denetim kaydı
 
@@ -447,6 +513,27 @@ npm run build
 npm start
 ```
 
+### Uzak/konteyner önizlemede çalıştırma (iframe, farklı köken)
+
+Geliştirme sunucusunu bir bulut sandbox'ında veya IDE önizlemesinde (sayfa **başka
+bir kökende** iframe içinde açılır) çalıştırırken iki ayar gerekir — ikisi de
+üretim davranışını değiştirmez:
+
+```bash
+PORT=38247
+npx next dev -p 38247 -H 0.0.0.0   # 0.0.0.0 şart: ters vekil 127.0.0.1'e ulaşamaz
+```
+
+- `next.config.ts` → `allowedDevOrigins` (varsayılan `*.e2b.app`, `localhost:38247`,
+  `127.0.0.1:38247`; ek kökenler `PREVIEW_ORIGINS=a.example,b.example` ile). Bu liste
+  olmadan Next.js 16 sunucu eylemlerini/HMR'i reddeder ve sayfa hidrasyonu sessizce kırılır.
+- `PREVIEW_EMBED=1` → **yalnız `NODE_ENV !== "production"` iken** CSP'de
+  `frame-ancestors *` yazılır ve `X-Frame-Options` gönderilmez (aksi hâlde önizleme boş
+  görünür). Üretimde `frame-ancestors 'self'` + `X-Frame-Options: SAMEORIGIN` aynen kalır.
+- `.env` (gitignore'lu) en az `DATABASE_URL` + `DATA_ENCRYPTION_KEY` (base64, 32 bayt)
+  içermeli; yerel Postgres yoksa arayüz açılır, DB'ye bağlı uçlar `503` döner
+  (`/api/health` → `{"ok":false,"check":"ready"}`) — bu beklenen davranıştır, tahmin edilmez.
+
 > **Windows — tek komutla kurulum (önerilen):** betik önkoşulları (Git, Node.js,
 > Python), yapay zekâ paketlerini (`ai-worker/requirements.txt`) ve modelleri
 > (akciğer ≈84 MB + beyin ≈147 MB) kendisi kurar:
@@ -513,10 +600,11 @@ python ai-worker/server.py          # worker'ı başlatır (CPU'da da çalışı
   Hasta görüntüsü yalnızca bu makinedeki worker'a gider, dış ağa çıkmaz.
 - Not: Büyük HU hacimleri için `next.config.ts` içinde gövde sınırı 700 MB'a ayarlıdır.
 
-### HBYS/RIS sipariş köprüsü (HL7 v2 MLLP)
+### HBYS/RIS köprüsü (HL7 v2 MLLP — sipariş + sonuç)
 
-Kurum içi HBYS, teknik olarak `ORM^O01` gibi sipariş mesajlarını TCP/MLLP ile gönderir.
-Bu mesajları ArenaViewer'ın `/api/his/orders` ucuna çeviren ayrı bir dinleyici script'i vardır:
+Kurum içi HBYS, teknik olarak `ORM^O01` sipariş ve `ORU^R01` **sonuç** (iadesi)
+mesailarını TCP/MLLP ile gönderir. Bu mesailleri ArenaViewer'ın `/api/his/orders`
+ve `/api/his/results` ucuna çeviren ayrı bir dinleyici script'i vardır:
 
 ```bash
 HIS_API_KEY=<ayarlardaki anahtar> HL7_PORT=2575 npm run hl7:mllp
@@ -526,6 +614,9 @@ HIS_API_KEY=<ayarlardaki anahtar> HL7_PORT=2575 npm run hl7:mllp
 - Hedef: `HIS_BASE_URL` (varsayılan `http://127.0.0.1:3000`) → `/api/his/orders`, `x-api-key` başlığı ile.
 - Yanıt: PACS/HBYS'e `MSA|AA` (kabul), `AR` (eksik alan) veya `AE` (ulaşılamadı) ACK'i döner.
 - Ayrıştırma: `src/lib/hl7.ts` (saf fonksiyonlar, `npm run test:hl7`).
+- **ORU^R01 sonuç:** OBR-2 accession, OBR-4 modalite kodu, OBR-16 vücut bölgesi,
+  OBR-7 sonuç zamanı, OBX-5 sonuç metni; `src/lib/resultPull.ts` `resultFromHl7` ile
+  çıkarılır → `/api/his/results` kuyruğuna yazılır (belirsizse eşleşme YAPILMAZ).
 
 ### Modality Worklist (MWL) — modalite konsolu
 
@@ -546,6 +637,84 @@ MWL_PACS_HOST=10.0.0.20 MWL_PACS_PORT=104 MWL_PACS_AET=ORTHANC npm run mwl:cfind
   DICOM StudyInstanceUID varsa korunur, PACS'ten gelen görüntü aynı UID ile eşleşir.
 - `findscu` (dcm4che) yoksa `MWL_BACKEND=bin` + `MWL_BIN` ile kendi C-FIND betiğinizi bağlayın;
   köprü ham Implicit VR yanıtını da DICOM JSON'a çevirir (`parseImplicitVr`).
+
+### MPPS, ADT ve çoklu AET yönlendirme
+
+MWL **yapılacak** işi verir; işin **yapıldığını** modalite MPPS ile bildirir. Node içinde
+DIMSE (TCP/PDU) yığını yoktur; ArenaViewer sözleşmeyi ve eşleştirmeyi tutar, ağ geçidi
+dcm4che/Orthanc/Mirth olur.
+
+```bash
+# Ağ geçidi olayı (DICOM JSON) → /api/his/mpps
+HIS_API_KEY=<anahtar> npm run mpps:bridge -- olay.json
+cat olay.json | HIS_API_KEY=<anahtar> npm run mpps:bridge
+```
+
+- Sözleşme: `src/lib/mpps.ts` (N-CREATE `IN PROGRESS`, N-SET `COMPLETED`/`DISCONTINUED`;
+  `COMPLETED` için bitiş saati, `DISCONTINUED` için gerekçe **zorunlu**).
+- Uygulama: `IN PROGRESS → okunuyor`, `COMPLETED → bekliyor` (onay değil), `DISCONTINUED`
+  çalışma **açmaz**; imzalı (`onayli`) çalışma MPPS ile geri alınmaz, yinelenen bildirim yazılmaz.
+- Eşleşme: Study Instance UID, yoksa accession. İkisi de yoksa olay reddedilir (tahmin yok).
+- **ADT** (`/api/his/adt`, `src/lib/hl7Adt.ts`): `A08/A31` hasta güncellemesi (boş alan
+  yazılmaz → ad silinmez), `A40/A41` birleştirme (MRG-1 eski kimlikler → PID-3 hedef,
+  eski kimlikler `legacy_patient_ids`'te emekli). Şifreli `patient_id` alanında SQL eşitliği
+  çalışmadığı için arama **çözerek** yapılır.
+- **Çoklu AET:** `PACS_AET_ROUTES="CT1=https://pacs-a/api,CT;MR1=https://pacs-b/api;*=https://pacs/api,US"`
+  — sıra: AE+modality → AE → joker; eşleşme yoksa varsayılan PACS ve gerekçe görünür.
+- Testler: `npm run test:hl7-adt`, `npm run test:mpps` (MPPS yükü Implicit VR LE baytlara
+  yazılıp `mwl.ts` okuyucusuyla geri okunur).
+
+### FHIR girişi — ServiceRequest/ImagingStudy
+
+Kurum FHIR sunucusu (OHIF/Microsoft Fabric tipik HIS entegrasyonu) **sipariş** ve
+**çalışma** bilgilerini FHIR R4 kaynaklarıyla gönderir. ArenaViewer bu girişi
+`src/lib/fhirIn.ts` ile ayrıştırır ve çalışma kayıtlarına `fhir` kaynaklı yazar
+(HL7/MWL/MPPS ile aynı `upsertStudy` köprüsü):
+
+```bash
+# Köprü süreci: periyodik çekim (ServiceRequest + ImagingStudy) → /api/his/fhir
+FHIR_URL=https://fhir.kurum/fhir/r4 FHIR_TOKEN=xxx npm run fhir:pull
+FHIR_URL=... FHIR_USER=admin FHIR_PASSWORD=xxx FHIR_INTERVAL=300 npm run fhir:pull
+```
+
+- **Sözleşme:** `ServiceRequest` (identifier → accession, `code` → modalite/vücut bölgesi,
+  `occurrenceDateTime` → tarih) ve `ImagingStudy` (`identifier[urn:dicom:uid]` → Study UID,
+  accession). `Bundle` ya da tek kaynak acceptance kabul edilir; ServiceRequest+ImagingStudy
+  birleştirilir (UID ImagingStudy'den, modalite ServiceRequest'ten).
+- **Tahmin yok:** hasta kimliği/accession/modalite eksikse sipariş **reddedilir**; bilinmeyen
+  modalite kodu uyarı üretir (boş bırakır); UID olmayan ImagingStudy reddedilir.
+- **Uçlar:** `POST /api/his/fhir` (push Bundle, `x-api-key`), `GET /api/his/fhir?pull=ServiceRequest|ImagingStudy`
+  (çekim), `PUT /api/his/fhir` (FHIR kökü + Bearer/Basic token ayarlama; token/parola şifrelenerek saklanır).
+- **Çıktı** olarak FHIR R4 DiagnosticReport (`src/lib/fhir.ts`) zaten vardı; girdi ile denge kuruldu.
+- **Sonuç çekimi (d-followup):** `DiagnosticReport` kaynakları `diagnosticReportToResult`
+  ile sonuç yüküne çevrilir (identifier → accession, `code` → modalite, `conclusion` → metin,
+  `imagingStudy` referansı → çalışma UID); kuyruk `/api/his/results` (`his_results` tablosu,
+  şifreli metin) eşleme+kapatma sözleşmesini taşır. Köprü:
+  `FHIR_URL=… FHIR_TOKEN=… npm run result:pull` (periyodik DiagnosticReport çekimi).
+- Testler: `npm run test:fhir-in` (ham FHIR JSON → ayrıştırma + mock fetch ile gerçek çekim/push akışı),
+  `npm run test:result` (ORU^R01 + DiagnosticReport sözleşmesi + eşleme/kapatma).
+
+### Toplu/arka plan içe aktarma kuyruğu (f-batch)
+
+Klasör/seri toplu içe aktarma (tarayıcı) zaten çalışıyordu; arka plan kuyruğu eklendi:
+
+```bash
+# Worker: manifest (dosya meta verileri) → kuyruk → gerçek DICOM doğrulama turu
+BATCH_MANIFEST=manifest.json npm run batch:worker -- --once
+```
+
+- **Sözleşme:** `src/lib/batchImport.ts` saf karar çekirdeği — öge durum makinesi
+  (`pending → processing → done/failed`), **hata sınıflandırma** (geçersiz DICOM ve
+  içerik reddi yeniden denemEZ; ağ/zaman aşımı/5xx/429 yeniden denebilir), **backoff**
+  (20 sn × 2ⁿ, 10 dk doygun), sha+isim dedupe.
+- **İlerleme + hata raporu:** gerçek öge durumları üzerinden hesaplanır (tahmin yok);
+  gruplı hata raporu + CSV (`GET /api/ingest/batch?batchId=…&report=csv`).
+- **Uçlar:** `POST /api/ingest/batch` (kuyruka öge ekle), `GET /api/ingest/batch?batchId=…`
+  (ilerleme + öge listesi, payload sızmaz). Baytlar AES şifreli saklanır.
+- **Worker:** `scripts/batch-worker.ts` gerçek `dicom-parser` ile DICOM doğrular
+  (Study UID/modalite/hasta), hatalı ögeleri backoff ile yeniden dener.
+- Testler: `npm run test:batch-import` (46 assert; gerçek Explicit VR LE DICOM baytları
+  `dicomWrite` ile üretilip `dicom-parser` ile parse edilir).
 
 ## Tedarik zinciri (SBOM + SLSA)
 
@@ -635,8 +804,14 @@ Anahtar üretme: `node -e "console.log(require('crypto').randomBytes(32).toStrin
 | `npm run build` / `npm start` | Üretim derlemesi / sunucusu |
 | `npm run build:pages` | GitHub Pages statik derlemesini yerelde sınar (`scripts/prepare-pages.sh` + `next build`, geçici kopyada) |
 | `npx drizzle-kit push` | Şemayı yerel DB'ye uygula |
-| `npm run hl7:mllp` | HL7 v2 (MLLP) sipariş alıcısını başlatır (`HIS_API_KEY` gerekir) |
+| `npm run hl7:mllp` | HL7 v2 (MLLP) köprü alıcısı — sipariş (`/api/his/orders`) + ORU^R01 sonuç (`/api/his/results`; `HIS_API_KEY` gerekir) |
 | `npm run mwl:cfind` | Modality Worklist DIMSE C-FIND köprüsü (`MWL_PACS_HOST`/`MWL_PACS_AET` gerekir) |
+| `npm run mpps:bridge` | MPPS (N-CREATE/N-SET) olayını `/api/his/mpps` ucuna iletir (`HIS_API_KEY` gerekir) |
+| `npm run fhir:pull` | FHIR çekim köprüsü (ServiceRequest/ImagingStudy → `/api/his/fhir`; `FHIR_URL`+token gerekir) |
+| `npm run result:pull` | Sonuç çekim köprüsü (DiagnosticReport → `/api/his/results`; `FHIR_URL`+token gerekir) |
+| `npm run privacy:sweep` | Saklama sweep köprüsü (retention politikası açıksa silme; `HIS_API_KEY` gerekir) |
+| `npm run batch:worker` | Toplu içe aktarma kuyruğu worker'ı (manifest → kuyruk → DICOM doğrulama turu) |
+| `npm run cstore:bridge` | C-STORE (DIMSE) köprü süreci (manifest → kuyruk, DIMSE raporu → uygulanma) |
 | `npx drizzle-kit push --config=drizzle.config.ts` | Şemayı `DATABASE_URL`'deki DB'ye uygula (Docker/üretim) |
 
 ## Testler
@@ -672,6 +847,11 @@ npm run test:registration           # önceki/şimdiki tetkik hizalaması (NCC, 
 npm run test:notify-channels        # e-posta/SMS/çağrı kanalları: ayrıştırma, eşik, PHI'siz yük
 npm run bench:window                # WL/WW dönüşümü kıyaslaması (eski vs LUT)
 npm run test:pr                     # GSPS/PR dışa aktarma + parse doğrulama
+npm run test:gsps-import            # PR/GSPS ölçüm içe aktarma (kesit eşleşmesi, uçtan uca)
+npm run test:gsps-update           # PR/GSPS güncelleme akışı (eski nesneler korunma, yeni UID)
+npm run test:share-images           # süreli paylaşımda anonim JPEG kesit paketi (doğrulama + uç sözleşmesi)
+npm run test:feedback               # hekim geri bildirim döngüsü: duyarlılık/özgüllük/FP + eşik önerisi
+npm run test:calibration            # ısotonik kalibrasyon, ECE, eşik önerisi ve "hekim incelesin" kararı
 npm run test:notify                 # masaüstü bildirimi + izin akışı
 npm run test:prior                  # önceki tetkik ölçüm karşılaştırması
 npm run test:uncert                 # belirsizlik bandı + CXR bulgu notu
@@ -682,6 +862,7 @@ npm run test:siem                   # SIEM kuyruğu, yeniden deneme, HMAC imza
 npm run test:ctp                    # CTP cSVD dekonvolüsyonu + otomatik AIF
 npm run test:sr1500                 # TID 1500 yapılandırılmış ölçüm SR (+köprü)
 npm run test:seg                    # segmentasyon maskesi + DICOM SEG/RTSTRUCT
+npm run test:seg-holes              # RTSTRUCT delik (iç kontur) + kesit referansı
 npm run test:dp                     # Douglas–Peucker kontur sadeleştirme
 npm run test:recistfull             # RECIST hedef seçimi + non-hedef + genel yanıt
 npm run test:tracking               # lezyon eşleştirme + nodül takibi köprüsü
@@ -690,6 +871,8 @@ npm run test:lungquant              # LAA-950, PD15, kesit profili, örnekleme
 npm run test:model-registry         # model kayıt defteri + A/B ataması
 npm run test:model-evaluate      # toplu model değerlendirme (AUC/eşik tablosu/Brier/ECE)
 npm run test:access-anomaly      # erişim anomalisi tespiti (KVKK, heuristik kurallar)
+npm run test:privacy               # satır düzeyi rol matrisi + saklama politikası
+npm run test:report-hash             # rapor snapshot ölçüm/SR hash'leri (r-version)
 npm run test:a11y                   # WCAG kontrastı + tema sabitleri
 npm run test:nuclear                # MTV/SUV örnekleme + TIC sınıflandırması
 npm run test:patient-letter         # hasta mektubu: TR/EN/DE, okuma düzeyi, taslak kilidi
@@ -703,10 +886,13 @@ npm run test:stream-load            # kademeli yükleme: dalga planı, eşzamanl
 npm run test:gpu-atlas              # doku atlası: katman planı, LRU, sahte GL ile "gereksiz yükleme yok"
 npm run test:code-mapping           # kurum RadLex/SNOMED eşleme dosyası: okuma, doğrulama, SR'da lisanslı kod
 npm run test:pixel-worker           # gri piksel çözme worker'ı: node:vm ile bit eşdeğerliği, yedek yol
+npm run test:color-worker           # renkli çerçeve worker'ı: saf çekirdek ≡ worker (bit eşdeğeri)
+npm run test:color-decode-e2e       # sentetik DICOM → RGBA/gri: YBR, 4:2:2, planar, 16-bit, çok kare
 npm run test:gray-e2e               # uçtan uca gri çözme: slope/intercept, Bits Stored maskesi, çok kare sırası
 npm run test:fusion-z               # kesitler arası z kayması: konum eşleme, parabolik incelme, katman
 npm run test:photometric            # fotometri: MONO1/2, RGB/planar, YBR 4:2:2, palet LUT
 npm run test:photometric-e2e        # sentetik DICOM ile renkli/paletli/çok kareli içe aktarma
+npm run test:photometric-colormap    # nadir YBR türevleri (RCT/ICT) + renk haritası denetimi
 npm run test:tic-roi                # ROI tabanlı TIC: faz eşleme, zaman ekseni, wash-out/plato/progresif
 npm run verify:sources              # (ağ gerekir) kaynak adreslerini yeniden doğrula
 npm run test:closeloop              # kapanış döngüsü süre/eskalasyon kuralları
@@ -715,6 +901,11 @@ npm run test:stowanon               # anonim seri → PACS (plan + sunucu doğru
 npm run test:estow                  # seçimli gönderme: kesit aralığı + seçim bütünlüğü
 npm run test:wadoframe              # kare düzeyinde getirme + istemci önbelleği
 npm run test:mwl                    # Modality Worklist (DICOMweb + DIMSE köprüsü)
+npm run test:hl7-adt                # ADT A08/A31 güncelleme, A40/A41 birleştirme, çoklu AET
+npm run test:mpps                   # MPPS N-CREATE/N-SET sözleşmesi (Implicit VR gidiş-dönüş)
+npm run test:fhir-in                # FHIR girişi (ServiceRequest/ImagingStudy, çekim köprüsü)
+npm run test:batch-import           # Toplu içe aktarma kuyruğu (hata sınıflandırma, backoff, gerçek DICOM)
+npm run test:cstore                 # C-STORE (DIMSE) sözleşmesi (durum kodu, yeniden deneme, gerçek DICOM)
 npm run test:webhard                # hız sınırı + CSRF + CSP
 npm run test:supplychain            # SBOM + SHA256SUMS + SLSA köken doğrulaması
 npm run test:backupdr               # depolama adaptörü + yedek/geri yükleme
@@ -791,8 +982,24 @@ docs/             Yayınlama ve işletim kılavuzları (görsel + videolu: docs/
   yalnız yönerge/engellenen adres/köken yazılır (hasta bağlamı taşınmaz).
 - **Hız sınırı:** API uçları sınıf bazlı kayan pencere ile sınırlanır (giriş 10/dk,
   analiz 30/dk, PACS/HBYS 60/dk, yazma 120/dk, genel 600/dk). Sınır aşımı `429` +
-  `Retry-After` döner. Sayaçlar süreç belleğindedir (tek örnek); çok örnekli dağıtımda
-  Redis gerekir. Ölçüm/test için `AV_RATE_LIMIT=off`.
+  `Retry-After` döner. **Çok örnekli dağıtım:** `REDIS_URL=redis://…` verilirse sayaçlar
+  Redis'te **kayan pencere Lua** ile atomik ve örnekler arası paylaşılır (anahtar
+  `av:rate:<IP|kullanıcı>` — yalnız sayaç, PHI yok). `REDIS_URL` yokken `INSTANCE_COUNT>1`
+  ise gerçek sınır ≈ `limit × örnek sayısı` olur; uygulama **açılışta uyarır**, 429 yanıtında
+  `X-RateLimit-Shared: 0` görünür ve Yönetim → Sağlık bunu **kritik** bulgu olarak listeler.
+  Redis erişilemezse hız sınırı **fail-open** çalışır (istek geçer, durum `health()` ile görünür).
+  İstemci sürücü bağımlılığı olmadan RESPB ile yazıldı (`src/lib/rateStoreRuntime.ts`); gerçek
+  istemci `installRateStore` ile enjekte edilebilir. Ölçüm/test için `AV_RATE_LIMIT=off`.
+- **Denetim arşivi:** `AUDIT_RETENTION_DAYS` verilirse eşik dışındaki denetim kayıtları
+  **şifreli arşive** (AES-256-GCM) imzalı manifestoyla kopyalanır; `POST /api/audit/archive`
+  koşuyu çalıştırır, `/api/audit/archive/verify` imza + içerik + zincir doğrular. Denetim tablosu
+  DELETE işlemine kapalı olduğu için silme yapılmaz — saklama DB partisyonuyla uygulanır.
+  Ayrıntı: `docs/YEDEK_VE_DR.md`.
+- **CSP raporları:** CSP hem `report-uri` (eski) hem `report-to` taşır; yanıtlarda
+  `Reporting-Endpoints: csp-endpoint="/api/csp-report"` + `Report-To` grubu verilir. Rapor ucu
+  klasik `csp-report` gövdesini, Reporting API'nin `application/reports+json` dizisini ve tekil
+  `{type,body}` biçimini işler; her satır türe göre denetim zincirine (ve SIEM kuyruğuna) yazılır,
+  dizide en çok 5 satır alınır, özette yalnız yönerge + engellenen köken bulunur.
 - **CSRF:** durum değiştiren API istekleri `Origin`/`Referer`/`Sec-Fetch-Site` kontrolünden
   ve `av_csrf` çerezi ↔ `x-csrf-token` başlığı eşleşmesinden geçer (tarayıcı tarafındaki
   yardımcı: `src/lib/csrfClient.ts` → `apiFetch`). İlk sayfa yüklemesindeki çerez yarışı
@@ -844,6 +1051,32 @@ docs/             Yayınlama ve işletim kılavuzları (görsel + videolu: docs/
   `Klinik_Dogrulama_LUNA16.md`) ve açıkta kalan CXR modeli için yapılması gerekenleri
   birleştirir; performans izleme `/yonetim → AI performans` üzerindedir (PPV,
   kalibrasyon bölmeleri).
+- **Hekim geri bildirim döngüsü (a-feedback):** `GET /api/ai/feedback` +
+  `src/lib/feedbackLoop.ts`, onaylı raporlardaki hekim kararlarından **duyarlılık,
+  özgüllük ve kesinlik** ile %95 Wilson güven aralıklarını, motor ve kategori
+  düzeyinde ayrı satırlar hâlinde üretir; panoda **yanlış pozitif listesi** (etiket,
+  kesit, skor, hekim gerekçesi), **AI'nın kaçırdıkları** listesi (hekimin elle
+  eklediği bulgular) ve bir **eşik önerisi** tablosu (F1 ızgarası; eşitlikte düşük
+  eşik) gösterilir. Dürüst sınırlar: referans standardı hekimin kendi kararıdır,
+  düzenlenen bulgu gerçek pozitif sayılır, duyarlılık/özgüllük **motor düzeyinde**
+  hesaplanır (elle eklenen bulgu ve temiz çalışma bir kategoriye bağlanamaz),
+  özgüllük "onaylı raporda bulgu yok" proxy'sidir ve kaynağı panoda yazılır —
+  altın standart (patoloji/takip) verisi yoktur, bu tablo klinik doğrulama
+  çalışmasının yerine geçmez. Test: `npm run test:feedback`.
+- **Güven kalibrasyonu (a-uncert):** `src/lib/calibration.ts` — hekim kararlarından
+  **ısotonik (PAV) kalibrasyon**: ham skor → kalibre olasılık eşlemesi (tekdüze,
+  deterministik), **ECE** ve kalite sınıfı (iyi ≤0.05 · orta ≤0.10 · zayıf),
+  `meanShift` (skoru ne kadar düzeltiyoruz), **kesinlik hedefli eşik önerisi** ve
+  **"hekim incelesin"** karar politikası (`reviewDecision`: göster/incele/gizle).
+  Panoda ECE/ortalama düzeltme/önerilen eşik kartları, blok tablosu ve düşük güven
+  kuyruğu gösterilir. Derin model adayları da işletim eşiğini taşır
+  (`DEEP_SCORE_THRESHOLD`), böylece bulgu kartındaki SINIRDA/ORTA/GÜÇLÜ belirsizlik
+  bandı yalnız CXR'de değil tüm AI modellerinde çalışır. Dürüst sınırlar: etiket
+  **hekim kararıdır**; düzenlenen/bekleyen bulgular etiketsiz sayılır ve dışarıda
+  kalır; eşleme **örneklem-içidir** (dış doğrulama değil); `n<30` ise eşleme
+  üretilmez ve skor düzeltilmeden gösterilir; **ters (azalan) ilişkide ısotonik
+  eşleme reddedilir** (uydurma eğri yok); kalibrasyon eşiği kendiliğinden
+  değiştirmez — eşik önerisi yalnız öneridir. Test: `npm run test:calibration`.
 - **STOW-RS → TİTCK yol haritası:** [docs/STOW_RS_TITCK_YOL_HARITASI.md](docs/STOW_RS_TITCK_YOL_HARITASI.md)
   — PACS'a geri yazmayı üretim seviyesine çıkarma adımları (A0–A3) ve Türkiye'de
   tıbbi cihaz yazılımı regülasyonu (TİTCK/MDR: sınıflandırma, ISO 13485, ISO 14971,

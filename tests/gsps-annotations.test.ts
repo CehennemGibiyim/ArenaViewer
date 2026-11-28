@@ -24,7 +24,9 @@ const ann = (over: Partial<Annotation> & { kind: Annotation["kind"]; points: { x
 const len = annotationToGraphic(ann({ kind: "length", points: [{ x: 10, y: 20 }, { x: 30, y: 40 }] }))!;
 ok(len.type === "POLYLINE" && len.data.join(",") === "10,20,30,40", "uzunluk → açık POLYLINE (noktalar aynen)");
 const ell = annotationToGraphic(ann({ kind: "ellipse", points: [{ x: 30, y: 40 }, { x: 10, y: 20 }] }))!;
-ok(ell.type === "ELLIPSE" && ell.data.join(",") === "10,20,10,40,30,20,30,40", `elips → ELLIPSE (normalize bbox, ${ell.data.join(",")})`);
+// DICOM PS3.3 C.10.6: ELLIPSE = [cx,cy, x1,y1, x2,y2] — merkez + iki yarı-eksen ucu.
+ok(ell.type === "ELLIPSE" && ell.data.join(",") === "20,30,30,30,20,40", `elips → standart ELLIPSE (merkez + eksen uçları, ${ell.data.join(",")})`);
+ok(annotationToGraphic(ann({ kind: "ellipse", points: [{ x: 5, y: 5 }, { x: 5, y: 25 }] })) === null, "sıfır yarı-eksenli elips çizilmez (null)");
 const rect = annotationToGraphic(ann({ kind: "rect", points: [{ x: 0, y: 0 }, { x: 10, y: 5 }] }))!;
 ok(rect.type === "POLYLINE" && rect.data.length === 10 && rect.data[0] === 0 && rect.data[8] === 0, "dikdörtgen → kapalı POLYLINE (ilk nokta tekrar)");
 const pg = annotationToGraphic(ann({ kind: "polygon", points: [{ x: 0, y: 0 }, { x: 4, y: 0 }, { x: 4, y: 4 }] }))!;
@@ -70,7 +72,9 @@ const parsed = parsePresentationState(ds)!;
 ok(parsed !== null, "üretilen belge PR olarak okunabilir");
 ok(parsed.graphics.length === 2, `2 grafik yazıldı (eşleşmeyen kesit atlandı) — ${parsed.graphics.length}`);
 ok(parsed.graphics[0].type === "POLYLINE" && parsed.graphics[0].data.join(",") === "10,20,40,20", "uzunluk grafiği geri okunur (FL)");
-ok(parsed.graphics[1].type === "ELLIPSE" && parsed.graphics[1].data.join(",") === "5,5,5,25,15,5,15,25", "elips grafiği geri okunur");
+ok(parsed.graphics[1].type === "ELLIPSE" && parsed.graphics[1].data.join(",") === "10,15,15,15,10,25", `elips grafiği standart biçimde geri okunur (${parsed.graphics[1].data.join(",")})`);
+ok(parsed.displayedArea === undefined, "Displayed Area yoksa uydurulmaz");
+ok(!parsed.layers?.some((l) => !l), "her grafik nesnesinin katman kimliği var");
 ok(parsed.texts.length === 1 && parsed.texts[0].text === "uzunluk 12 mm", "metin nesnesi metniyle geri okunur");
 
 // Not: VOI LUT / döndürme alanları bu değişiklikten etkilenmemeli.

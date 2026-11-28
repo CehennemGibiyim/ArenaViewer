@@ -5,6 +5,18 @@ const pages = process.env.GITHUB_PAGES === "true";
 const basePath = pages ? (process.env.NEXT_PUBLIC_BASE_PATH ?? "") : "";
 
 const nextConfig: NextConfig = {
+  // Geliştirme önizlemesi (Arena sandbox / uzak tüneller): Next.js 16 sunucu
+  // eylemlerini ve HMR isteklerini Host/Origin ile doğrular; bu ortamların
+  // kökenleri `allowedDevOrigins` listesinde olmazsa sayfa hidrasyonu sessizce
+  // kırılır. Yalnız **dev** derlemesinde etkilidir, üretimi değiştirmez.
+  ...(pages ? {} : {
+    allowedDevOrigins: [
+      "*.e2b.app",
+      "localhost:38247",
+      "127.0.0.1:38247",
+      ...(process.env.PREVIEW_ORIGINS ?? "").split(",").map((s) => s.trim()).filter(Boolean),
+    ],
+  }),
   ...(pages ? { output: "export" as const, basePath, trailingSlash: true, images: { unoptimized: true } } : {}),
   // Derin AI uç noktası büyük HU hacimleri (gzip int16) alır; Next.js'in varsayılan
   // 10 MiB gövde sınırı veriyi sessizce keser → 700 MB'a çıkarılır.

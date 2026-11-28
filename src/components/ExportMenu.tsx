@@ -11,13 +11,15 @@ import { buildAnonymizedDicom } from "@/lib/dicomWrite";
 import { annotationsToMeasurements, exportCoverage, siteCode } from "@/lib/measurementExport";
 import { buildMeasurementReportSr } from "@/lib/sr1500";
 import { writableAnnotationCount } from "@/lib/gspsGraphics";
-import { buildRtStruct, buildSegDocument } from "@/lib/dicomSeg";
+import { buildRtStruct, buildSegDocument, sliceSopMap } from "@/lib/dicomSeg";
 import { emptyMask, makeSegmentDef, maskFromJson, paint, prune, unionMasks, type SegMask } from "@/lib/segmentation";
 import { apiFetch } from "@/lib/csrfClient";
 import { sendDerivedToPacs } from "@/lib/sendDerived";
 import { type CodeTable, parseCodeTable } from "@/lib/codeMapping";
 import { loadCodeTable, CODE_MAP_KEY } from "@/lib/codeTableClient";
 import { writePreference } from "@/lib/browserPreferences";
+import ShareImageDialog from "@/components/ShareImageDialog";
+import { useI18n } from "@/lib/i18n";
 
 interface QueueItem {
   id: number;
@@ -69,6 +71,8 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
   const [queueOpen, setQueueOpen] = useState(false);
   const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
   const [queueBusy, setQueueBusy] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const { t } = useI18n();
 
   const refreshQueue = async () => {
     try {
@@ -327,7 +331,7 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
     // Elle çizilen maske varsa segment adı onu da kapsar.
     const bytes = kind === "seg"
       ? buildSegDocument({ ...base, segments: [{ def, mask }] })
-      : buildRtStruct({ ...base, rois: [{ def, mask }] });
+      : buildRtStruct({ ...base, rois: [{ def, mask }], sliceSopUids: sliceSopMap(series.sopUids) });
     const ext = kind === "seg" ? "SEG" : "RTSTRUCT";
     if (destination === "pacs") {
       if (!series.studyUid) { toast("Çalışma UID'si yok; PACS'e gönderilemez.", 6000); return; }
@@ -397,10 +401,14 @@ export default function ExportMenu({ series, wl, ww, invert, slice, rotation = 0
           <button className={item} disabled={sending !== null} onClick={() => void exportSeg("seg")} title="İşaretli alanlardan DICOM Segmentasyon (SEG, 1 bit/piksel) üretir">🧩 Segmentasyon → DICOM SEG</button>
           <button className={item} disabled={sending !== null} onClick={() => void exportSeg("rtstruct")} title="İşaretli alanlardan RTSTRUCT (ROI konturları) üretir">🧩 Segmentasyon → RTSTRUCT</button>
           <button className={item} onClick={exportSr1500} title="Ölçümleri TID 1500 yapılandırılmış rapor (Comprehensive SR) olarak indirir">📐 Ölçümler → DICOM SR (TID 1500)</button>
+          <button className={item} disabled={!series} onClick={() => { setOpen(false); setShareOpen(true); }} title={t("share.title")}>🔗 {t("share.menu")}</button>
           <button className={item} onClick={() => codeFileRef.current?.click()} title="Kurumun lisanslı RadLex/SNOMED CT eşleme dosyası (CSV/TSV/JSON) — yalnız özel 99ATIKVIEWER kodları değiştirilir">🔖 Kurum kod eşlemesi yükle…{codeMap ? ` (${codeMap.accepted})` : ""}</button>
           {codeMap && <button className={item} onClick={clearCodeMap} title="Saklanan eşleme tablosunu siler">🗑 Kurum kod eşlemesini kaldır</button>}
           <div className="px-3 py-1 text-[10px] leading-relaxed text-[var(--sl500)]">Video/PNG görüntü verisini olduğu gibi aktarır; kimlik bilgisi içermez ama anonimleştirme/DICOM etiketi taşımaz.</div>
         </div>
+      )}
+      {shareOpen && series && (
+        <ShareImageDialog series={series} wl={wl} ww={ww} invert={invert} slice={slice} toast={toast} onClose={() => setShareOpen(false)} />
       )}
       {dlg && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">

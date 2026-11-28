@@ -59,12 +59,14 @@ kısmi kalır ve demo modu gerçek kullanıcı kimliği doğrulamaz.
 ## 0.1 Modalite bazında donanım durumu (tarama)
 
 Görüntüleme altyapısı (füzyon, ölçüm, pencere, hanging protocol) tüm modalitelerde
-ortaktır; **MPR/MIP/VR henüz yoktur**. Modaliteye özel **AI bulgu motoru** ve
-**rapor şablonu** kapsamı aşağıdadır:
+ortaktır. **Ortogonal ve oblik MPR var** (axial/koronal/sagittal, serbest eğim/dönüş,
+kalın kesit Ort./MIP/MinIP, kavisli MPR); **3B hacim görüntüleme (VolumeView) var**.
+Eksik olan: **VR (hacim render — ray-casting) ve MIP'in bağımsız 3B görünümü**.
+Modaliteye özel **AI bulgu motoru** ve **rapor şablonu** kapsamı aşağıdadır:
 
 | Modalite | Görüntüleme | AI bulgu/analiz | Rapor şablonu | Asma protokolü |
 |---|---|---|---|---|
-| CT | Tam (pencereler, kalibrasyon, füzyon); MPR/MIP yok | **Yerel modeller:** toraks nodül (MONAI, bbox) + beyin İCH (6 sınıf, bbox) — hasta verisi dış ağa çıkmaz | 11 | BT Beyin / Toraks / Abdomen-Pelvis / Anjiyo / Ürotrakt |
+| CT | Tam (pencereler, kalibrasyon, füzyon, MPR/oblik/kavisli MPR, kalın kesit MIP/MinIP); VR (ray-casting) yok | **Yerel modeller:** toraks nodül (MONAI, bbox) + beyin İCH (6 sınıf, bbox) — hasta verisi dış ağa çıkmaz | 11 | BT Beyin / Toraks / Abdomen-Pelvis / Anjiyo / Ürotrakt |
 | MR | Tam (sekans listesi, karşılaştırma, ölçüm) | **Yalnız görüntü incelemesi** (tanı üretmez) — MR'ya özel model yok | 17 | MR Çoklu Sekans (T1/T2/FLAIR/DWI düzeni) |
 | CR / DX | Tam (PA/lateral düzeni, teknik kalite kontrolü) | **Yerel derin model:** Medical_X DenseNet121 (Apache-2.0) — 14 torasik bulgu olasılığı + Grad-CAM ısı örtüsü; CTR hesaplayıcı. Lokalizasyon kutusu YOK, skorlar kalibre değil, klinik doğrulaması yok | 2 | Direkt Grafi |
 | US | Tam (cine + renkli Doppler) | TI-RADS skor paneli; tanı motoru yok | 6 | Yok |
@@ -87,14 +89,14 @@ Notlar:
 
 | ID | Özellik | P | Çaba | Piyasa örneği | Bizde şu an | Fikir / nasıl yapılır |
 |---|---|---|---|---|---|---|
-| A1 | **Akciğer grafisi/filitrio AI** (pnömotoraks, effüzyon, konsolidasyon, katlak, TB) + ısı haritası | P1 | M | Lunit, Aidoc, Gleamer | **Bu sürümde kısmen:** CTR hesabı + CXR teknik kalite modülü (`src/lib/cxr.ts`: projeksiyon, inspirasyon, rotasyon, penetrasyon → rapora teknik satır); tanısal sınıflandırma ve ısı haritası hâlâ yok. | Kalan: CXR ONNX modeli + bbox/Grad-CAM (ağırlık kaynağı kararı gerekli); bulgu onay akışına bağlanır.
+| A1 | **Akciğer grafisi/filitrio AI** (pnömotoraks, effüzyon, konsolidasyon, katlak, TB) + ısı haritası | P1 | M | Lunit, Aidoc, Gleamer | **Bu sürümde var:** CTR hesabı + CXR teknik kalite modülü (`src/lib/cxr.ts`: projeksiyon, inspirasyon, rotasyon, penetrasyon → rapora teknik satır) **ve** 14 sınıflı CXR modeli (`src/lib/cxrModel.ts`: sınıf başına eşik, `Finding.source = "ai-model"`, Grad-CAM ısı örtüsü, bulgu onay akışına bağlı, gölge mod desteği). Kalan: model ağırlıklarının kurum içi doğrulanmış sürümü ve bbox düzeyinde lokalizasyon (şu an sınıf + ısı haritası).
 | A2 | **İnme paketi: ASPECTS + CTP perfüzyon** (CBF/CBV/MTT/Tmax, core/penumbra) | P1 | L | Viz.ai, Aidoc | **Bu sürümde kısmen:** ASPECTS 10 bölge skoru panelde işaretlenir; `stroke.ts` basitleştirilmiş CTP özeti (TTP/gecikme, CBF/CBV oranları, core/penumbra adayı). Dekonvolüsyon/AIF seçimi yoktur. | Kalan: model tabanlı AIF + dekonvolüsyon; injeksiyon öncesi/sonrası seri eşleme.
 | A3 | **MSK/X-ışını kırık ve landmarke AI** | P2 | L | Gleamer | Yok (görüntü ölçümü var) | Öncelikle açık-kinelig/veya bölge sınıflandırma + heatmap; el/omurGAĞI/ayak Landmarke nokta önerisi. |
-| A4 | **Mamografi: BI-RADS yoğunluk + DBT (tomosentez)** | P2 | L | Lunit, iCAD | “MG modu” olduğu belgelenmiş ama yoğunluk/DBT özel akışı yok | CC/MLO layout + DBT slab navigasyonu + BI-RADS a/b/c/d yoğunluk önerisi; PI-RADS/Radslex benzeri sözlük. |
+| A4 | **Mamografi: BI-RADS yoğunluk + DBT (tomosentez)** | P2 | L | Lunit, iCAD | “MG modu” belgelenmiş; yoğunluk/DBT özel akışı yok (CT/MG pencereleri ve MG görüntüleme var, BI-RADS yoğunluk sınıflandırması ve DBT slab gezinmesi yok). | CC/MLO layout + DBT slab navigasyonu + BI-RADS a/b/c/d yoğunluk önerisi; PI-RADS/RadLex benzeri sözlük. |
 | A5 | **Kalsiyum skoru (Agatston) + kemik yoğunluğu** | P2 | M | Aidoc | **Bu sürümde kısmen uygulandı:** `src/lib/structuredReport.ts` içinde damar bazlı Agatston (HU ağırlıkları, ≥1 mm² alan eşiği, S0–S4 kategori) + oportünist L1–L4 trabeküler HU kategorisi; rapor panelinden hekim ölçü değerleri girer. Otomatik piksel segmentasyonu yok. | Kalan: piksel bazlı otomatik kalsiyum/segmentasyon modeli + DEXA korelasyonu. |
 | A6 | **Akciğer kvantifikasyonu: lob/emphisema (LAA-950)/volüm** | P2 | L | 3D Slicer, Aidoc | **Bu sürümde eklendi:** histogramdan LAA-950, ortalama HU, PD15 ve hacim mL (`lungQuant.ts`); sınıf normal–hafif/orta/ağır. Lob segmentasyonu yok. | Kalan: lob segmentasyonu (kural/SAM) + kesit/3B dağılım grafiği.
 | A7 | **Nükleer tıp: DSA çıkarma, TIC, MTV/SUVpeak** | P3 | L | RadiAnt, Hermes | **Bu sürümde eklendi:** pre/post subtraksiyon özeti, TIC modeli (wash-out/plato/progressif) ve SUV haritasından MTV/SUVpeak (`nuclear.ts`). | Kalan: gerçek rekonstrüksiyon kalibrasyonu + 3B metabolik hacim görselleştirmesi.
-| A8 | **Model operasyonları: kayıt, A/B, kalibrasyon, drift** | P2 | L | Tüm üreticiler | **Bu sürümde eklendi:** güven kalibrasyonu (binler + ECE), z tabanlı drift kontrolü, model parmak izi (`modelOps.ts`); `/api/ai/performance` kalibrasyon/ECE dönüyor. Kayıt defteri tablosu yok. | Kalan: model kayıt defteri + A/B dağıtımı ve denetim kaydı.
+| A8 | **Model operasyonları: kayıt, A/B, kalibrasyon, drift** | P2 | L | Tüm üreticiler | **Bu sürümde var:** güven kalibrasyonu (binler + ECE), z tabanlı drift kontrolü, model parmak izi (`modelOps.ts`); `/api/ai/performance` kalibrasyon/ECE dönüyor. **Model kayıt defteri ve A/B ataması var:** `ai_model_registry` tablosu (`src/db/schema.ts`), `/api/ai/registry` CRUD + deterministik **tohum→kova A/B ataması** ve aşama değişikliğinde denetim kaydı (`src/lib/modelRegistry.ts`). **Yeni (a-uncert):** hekim kararlarından **ısotonik (PAV) kalibrasyon**, ECE kalite sınıfı ve kesinlik hedefli eşik önerisi (`src/lib/calibration.ts`) — örneklem-içi, dış doğrulama değil. | Kalan: kalibrasyonun dış doğrulama setiyle genellenebilirliği ve eşik değişikliğinin klinik süreçle onaylanması.
 
 **Hızlı kazanç:** A1’in ilk sürümü (CXR sınıflandırma + heatmap) mevcut `ai-worker` mimarisine doğal uyar; `Finding`/`bbox`/onay akışı hazır. A5 (Agatston) kural tabanlı olduğu için en düşük riskli nicel modüllerden biridir.
 
@@ -104,7 +106,7 @@ Notlar:
 
 | ID | Özellik | P | Çaba | Bizde şu an | Fikir |
 |---|---|---|---|---|---|
-| B1 | **Kavisli MPR + damar/omurga merkez hattı** | P1 | M | Oblik MPR var; curved yok | IP/centroid algoritmasıyla merkez hattı örnekleme; oblik panele bağlama. |
+| B1 | **Kavisli MPR + damar/omurga merkez hattı** | P1 | M | **Bu sürümde eklendi:** `src/lib/curvedMpr.ts` — aksiyel kesit üzerinde işaretlenen merkez hattı, Catmull-Rom splini + yay uzunluğuna göre eşit örnekleme + paralel taşıma çerçevesi (bükülmesiz düzleştirme), yanal yarı genişlik ve kalın kesit ayarı (`tests/curved-mpr.test.ts`). | Kalan: merkez hattının ölçüm/rapor akışına aktarımı; otomatik merkez hattı (IP/centroid) önerisi. |
 | B2 | **3B imleç / tıklayınca diğer panele atlama** | P1 | M | Cross-reference çizgileri kısmi; tıklayınca senkron yok | İMPP koordinatını diğer serilerde konuma çevir; “git” olayı. |
 | B3 | **Cinematic / fotorealistik VR, kırpma kutusu, kemik çıkarma** | P2 | M | WebGL VR var; kırpma/kemik çıkarma yok | Transfer fonksiyonu genişlet; clip plane + marching cubes ile kemik yüzeyi. |
 | B4 | **Çoklu monitör, dokunmatik, stack scroll, referans çizgileri** | P3 | S–M | Tam ekran var; geri kalanı yok | Fullscreen API + window.open port paylaşımı; pointer pinch; scroll-wrap modu. |

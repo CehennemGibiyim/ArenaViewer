@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { CspReportFilter, clientKey, summarizeCspReport } from "@/lib/webSecurity";
+import { CspReportFilter, clientKey, reportLines } from "@/lib/webSecurity";
 import { audit } from "@/lib/server/audit";
 
 export const dynamic = "force-dynamic";
@@ -35,11 +35,14 @@ export async function POST(req: NextRequest) {
     } catch {
       /* bozuk gövde: sessizce yut */
     }
-    const line = summarizeCspReport(parsed);
-    if (line) {
-      if (filter.allow(clientKey(req.headers), line)) {
+    // Üç gövde biçimi: klasik `{"csp-report":{…}}`, Reporting API dizisi
+    // (`application/reports+json`) ve tekil `application/report`. Hepsi aynı
+    // özete indirgenir; çoklu dizide en fazla 5 satır işlenir (gürültü sınırı).
+    const ip = clientKey(req.headers);
+    for (const { type, line } of reportLines(parsed, 5)) {
+      if (filter.allow(ip, line)) {
         try {
-          await audit(null, "csp.report", "security", "", { line });
+          await audit(null, "csp.report", "security", "", { line, type });
         } catch (e) {
           // Denetim yazılamadı: sayfa kırılmasın; satırı yerelde bırak.
           console.warn(`[csp] denetim yazılamadı (${e instanceof Error ? e.message : String(e)}): ${line}`);

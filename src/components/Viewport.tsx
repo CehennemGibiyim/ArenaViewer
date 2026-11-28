@@ -555,12 +555,26 @@ export default function Viewport(props: ViewportProps) {
         ctx.lineWidth = 1.8;
 
         for (const gr of gs.graphics) {
-          if (gr.type === "ELLIPSE" && gr.data.length >= 4) {
+          // Geometri DICOM PS3.3 C.10.5–C.10.6: ELLIPSE [cx,cy,x1,y1,x2,y2] (merkez +
+          // iki yarı-eksen ucu), CIRCLE [cx,cy,rx,ry]. Eski kod elipsi "cx,cy,rx,ry"
+          // sanıyordu; standart bir PR'da eksen ucu merkez sayılıp şekil bozuluyordu.
+          if (gr.type === "ELLIPSE" && gr.data.length >= 6) {
+            const [cx0, cy0, x1, y1, x2, y2] = gr.data;
+            const ex = Math.max(Math.abs(x1 - cx0), Math.abs(x2 - cx0));
+            const ey = Math.max(Math.abs(y1 - cy0), Math.abs(y2 - cy0));
+            const cPt = toC({ x: cx0, y: cy0 });
+            ctx.beginPath();
+            ctx.ellipse(cPt.x, cPt.y, ex * scale, ey * scale, 0, 0, Math.PI * 2);
+            ctx.stroke();
+          } else if (gr.type === "CIRCLE" && gr.data.length >= 4) {
             const [cx0, cy0, rx0, ry0] = gr.data;
             const cPt = toC({ x: cx0, y: cy0 });
             ctx.beginPath();
-            ctx.ellipse(cPt.x, cPt.y, rx0 * scale, ry0 * scale, 0, 0, Math.PI * 2);
+            ctx.ellipse(cPt.x, cPt.y, Math.abs(rx0) * scale, Math.abs(ry0) * scale, 0, 0, Math.PI * 2);
             ctx.stroke();
+          } else if (gr.type === "POINT" && gr.data.length >= 2) {
+            const pPt = toC({ x: gr.data[0], y: gr.data[1] });
+            ctx.beginPath(); ctx.arc(pPt.x, pPt.y, 3, 0, Math.PI * 2); ctx.fill();
           } else if (gr.type === "POLYLINE" && gr.data.length >= 4) {
             ctx.beginPath();
             for (let i = 0; i < gr.data.length; i += 2) {

@@ -54,6 +54,8 @@ import { findMatchingHangingProtocol, resolveHangingCellSeries } from "@/lib/han
 import { DEFAULT_SHORTCUTS, loadShortcuts, resolveAction, type ShortcutAction } from "@/lib/shortcuts";
 import { findMskProtocol, type MskMetric } from "@/lib/msk";
 import { suvPresetsForSeries } from "@/lib/petWindows";
+import { gspsToAnnotations, mergeGspsAnnotations, pickPresentationState } from "@/lib/gspsImport";
+import GspsImportDialog, { type GspsImportOutcome } from "@/components/GspsImportDialog";
 import { SHORT_DISCLAIMER, versionLine } from "@/lib/intendedUse";
 import IntendedUseModal from "@/components/IntendedUseModal";
 import LanguageMenu from "@/components/LanguageMenu";
@@ -1734,7 +1736,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         body: JSON.stringify({
           reportId: r.id, action,
           study: { studyUid: r.studyUid, patientName: r.patientName, patientId: r.patientId, patientAge: r.patientAge, patientSex: r.patientSex, studyDate: r.studyDate, institution: r.institution, modality: r.modality, bodyPart: r.bodyPart, seriesDescription: r.seriesDescription, sliceCount: r.sliceCount || 1 },
-          report: { mode, clinicalInfo: r.clinicalInfo, technique: r.technique, findingsText, impression: r.impression, recommendation: r.recommendation, findingsJson: r.findings, findingsApproval: r.findingsApproval, findingsReason: r.findingsReason, triageLevel: r.triageLevel, triageScore: r.triageScore, aiModel: r.aiModel, engine: r.engine, modelCard: r.modelCard, keyImageDataUrl: kiPayload, institution: r.institution },
+          report: { mode, clinicalInfo: r.clinicalInfo, technique: r.technique, findingsText, impression: r.impression, recommendation: r.recommendation, findingsJson: r.findings, findingsApproval: r.findingsApproval, findingsReason: r.findingsReason, triageLevel: r.triageLevel, triageScore: r.triageScore, aiModel: r.aiModel, engine: r.engine, modelCard: r.modelCard, keyImageDataUrl: kiPayload, institution: r.institution, measurementsText },
         }),
       });
     } catch { return { ok: false, error: "Sunucuya ulaşılamadı" }; }
@@ -1792,6 +1794,23 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
 
   const gotoFinding = (f: Finding) => { setSlice(f.sliceIndex); setActiveFinding(f.id); };
   const addAnnotation = (a: Omit<Annotation, "id">) => { if (lazyGate("Ölçüm/anotasyon eklenemez")) return; setAnnotations((p) => [...p, { ...a, id: uid() }]); };
+  // ───── PR/GSPS ölçüm içe aktarma (m-persist) ─────
+  const [gspsDialog, setGspsDialog] = useState<GspsImportOutcome | null>(null);
+  const importGsps = () => {
+    if (!series) return;
+    if (lazyGate("PR ölçümleri içe aktarılamaz")) return;
+    const doc = pickPresentationState(series.gsps, series.seriesUid ?? "");
+    if (!doc) {
+      toast("Bu seride ölçüm taşıyan PR (sunum durumu) yok. PR dosyasını seriyle birlikte yükleyin.", 6000);
+      return;
+    }
+    const res = gspsToAnnotations(doc, series.sopUids);
+    const { added, duplicates } = mergeGspsAnnotations(annotations, res.annotations);
+    if (added.length > 0) setAnnotations((prev) => [...prev, ...added.map((a) => ({ ...a, id: uid() }))]);
+    setGspsDialog({ label: doc.label, added: added.length, duplicates, ...res });
+    if (added.length > 0) toast(`${added.length} GSPS ölçümü çalışmaya alındı.`, 5000);
+  };
+
   const calibrate = (pxLen: number) => {
     if (!series) return;
     const v = Number((window.prompt("Çizdiğiniz doğrunun gerçek uzunluğu (mm)", "10") ?? "").replace(",", "."));
@@ -2018,6 +2037,11 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
             Katman (60xx)
           </Btn>
         )}
+        {series?.gsps && series.gsps.length > 0 && (
+          <Btn on={false} tone="violet" onClick={importGsps} title="PR (sunum durumu) belgesindeki ölçümleri çalışmaya al — kesit eşleşmesi SOP Instance UID ile yapılır">
+            PR ölçümünü al ({series.gsps.reduce((n, g) => n + g.graphics.length, 0)})
+          </Btn>
+        )}
         {series && series.slices.length > 1 && (
           <>
             <Btn on={cine} tone="emerald" onClick={() => { if (!cine && lazyGate("Cine oynatılamaz")) return; setCine((c) => !c); }}>{cine ? "■ Durdur" : "▶ Cine"}</Btn>
@@ -2175,6 +2199,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         />
       )}
       {aboutOpen && <IntendedUseModal onClose={() => setAboutOpen(false)} />}
+      {gspsDialog && <GspsImportDialog outcome={gspsDialog} onClose={() => setGspsDialog(null)} />}
       {series && nuclearOpen && (
         <NuclearPanel
           series={series}

@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { reportAddenda, reportVersions, reports, studies } from "@/db/schema";
+import { reportAddenda, reportVersions } from "@/db/schema";
 import { audit } from "@/lib/server/audit";
 import { authorize } from "@/lib/server/auth";
 import { mapReport } from "@/lib/server/studyRepo";
+import { reportAccessFor } from "@/lib/server/privacyRepo";
 
 export const dynamic = "force-dynamic";
 
@@ -12,8 +13,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const a = await authorize(req);
   if ("error" in a) return a.error;
   const id = Number((await params).id);
-  const rr = (await db.select({ r: reports, s: studies }).from(reports).innerJoin(studies, eq(reports.studyId, studies.id)).where(eq(reports.id, id)).limit(1))[0];
-  if (!rr) return NextResponse.json({ error: "Rapor bulunamadı" }, { status: 404 });
+  // Satır düzeyi erişim matrisi (t-privacy): erişim olmayan kullanıcı 404 alır
+  // (varlığın sızıntısı önlenir — "bulunamadı" ile aynı yanıt).
+  const acc = await reportAccessFor(a.user, id);
+  if (!acc.ok) {
+    return NextResponse.json({ error: acc.reason }, { status: 404 });
+  }
+  const rr = acc.row;
   const versions = await db
     .select({ id: reportVersions.id, versionNo: reportVersions.versionNo, action: reportVersions.action, createdByName: reportVersions.createdByName, createdAt: reportVersions.createdAt, snapshot: reportVersions.snapshot })
     .from(reportVersions).where(eq(reportVersions.reportId, id)).orderBy(desc(reportVersions.versionNo));

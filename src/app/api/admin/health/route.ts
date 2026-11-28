@@ -4,6 +4,8 @@ import { keySource, getKeyring } from "@/lib/server/crypto";
 import { fileStorage } from "@/lib/server/storage";
 import { APP_VERSION } from "@/lib/version";
 import { evaluateEnv, parsePrometheus, summarizeChecks, type EnvSnapshot } from "@/lib/adminHealth";
+import { rateStorePlan } from "@/lib/webSecurity";
+import { describeRetention, retentionConfig } from "@/lib/auditArchivePlan";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +55,45 @@ export async function GET(req: NextRequest) {
     requireTotpRoles: process.env.REQUIRE_TOTP_FOR_ROLES ?? "yonetici",
   };
 
+  // Hız sınırı deposu: çok örnekli kurulumda bellek deposu sessiz seyreltme
+  // demektir; panel bunu "kritik" olarak görür (g-webhard).
+  const plan = rateStorePlan();
+  const live = globalThis.__avRateStore;
+  const rateStore = {
+    kind: plan.kind,
+    shared: plan.shared,
+    warning: plan.warning,
+    // Depo kurulduysa sağlığı; kurulmadıysa "yok" (uydurma yok).
+    health: live ? await live.health() : null,
+  };
+
+  const ret = retentionConfig();
+  const archive = { days: ret.days, batch: ret.batch, dir: ret.dir, note: describeRetention(ret) };
+
   const checks = evaluateEnv(env);
+  // Denetim saklama politikası tanımsızsa üretimde denetim izi süresiz büyür
+  // ve "ne zaman silinecek" sorusu yanıtsız kalır (g-audit-export).
+  if (!ret.days) {
+    checks.push({
+      id: "audit-retention",
+      label: "Denetim saklama politikası",
+      level: process.env.NODE_ENV === "production" ? "uyari" : "bilgi",
+      value: "tanımsız",
+      hint: "AUDIT_RETENTION_DAYS tanımlayın; şifreli arşiv + imzalı manifesto Yönetim → Denetim ekranından çalıştırılır.",
+      doc: "docs/YEDEK_VE_DR.md",
+    });
+  }
+
+  if (plan.warning) {
+    checks.push({
+      id: "rate-store",
+      label: "Hız sınırı deposu (paylaşımlı)",
+      level: plan.kind === "memory" ? "kritik" : "uyari",
+      value: plan.kind === "redis" ? "redis" : "bellek",
+      hint: plan.warning,
+      doc: "docs/KURULUM_VE_KULLANIM.md §5b",
+    });
+  }
   const summary = summarizeChecks(checks);
 
   // Metrikler: kendi ucumuzu HTTP üzerinden çağırmak yerine aynı süreçte
@@ -91,6 +131,8 @@ export async function GET(req: NextRequest) {
     summary,
     health,
     metrics,
+    rateStore,
+    archive,
     /** Panelin gösterdiği uyarı: veri yoksa \"sağlıklı\" denmez. */
     note: metrics.ok && health.ready !== null
       ? "Tüm değerler bu sunucudan okundu."

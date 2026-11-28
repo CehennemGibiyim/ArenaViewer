@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { audit } from "@/lib/server/audit";
 import { authorize } from "@/lib/server/auth";
-import { revokeShare } from "@/lib/server/shareRepo";
+import { deleteShareImages, revokeShare } from "@/lib/server/shareRepo";
 
 export const dynamic = "force-dynamic";
 
-/** Bağlantıyı kapatır: oluşturan kullanıcı ya da yönetici. */
+/**
+ * Bağlantıyı kapatır: oluşturan kullanıcı ya da yönetici.
+ * Görüntü paylaşımında **blob da silinir** — kapalı bağlantının görüntüsü depoda kalmaz.
+ */
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const a = await authorize(req, ["radyolog", "yonetici"]);
   if ("error" in a) return a.error;
@@ -16,6 +19,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ t
   if (row.revokedAt && a.user.role !== "yonetici" && row.createdBy !== a.user.id) {
     return NextResponse.json({ error: "Bu bağlantıyı kapatma yetkiniz yok" }, { status: 403 });
   }
-  await audit(a.user, "share.revoke", "share", token.slice(0, 8), { alreadyClosed: !!row.revokedAt });
-  return NextResponse.json({ ok: true, revoked: true });
+  const imagesDeleted = row.kind === "image";
+  if (imagesDeleted) await deleteShareImages(token);
+  await audit(a.user, "share.revoke", "share", token.slice(0, 8), { alreadyClosed: !!row.revokedAt, imagesDeleted });
+  return NextResponse.json({ ok: true, revoked: true, imagesDeleted });
 }

@@ -17,7 +17,16 @@ export type GspsGraphicType = "POLYLINE" | "CIRCLE" | "ELLIPSE" | "POINT";
 
 export interface GspsGraphic {
   type: GspsGraphicType;
-  /** [x1,y1,x2,y2,...] — piksel koordinatları. */
+  /**
+   * Piksel koordinatları, standarda **tam uyumlu** düzen:
+   *  - POLYLINE: [x1,y1, x2,y2, …] (kapalı şekilde ilk nokta sonda tekrar eder)
+   *  - POINT:    [x,y]
+   *  - CIRCLE:   [cx,cy, rx, ry]  (DICOM PS3.3 C.10.5)
+   *  - ELLIPSE:  [cx,cy, 1, 0, 0, 1, 0, 0]  — merkez + iki yarı-eksen ucu
+   *              (DICOM PS3.3 C.10.6). Eski sürüm sınırlayıcı dikdörtgenin dört
+   *              köşesini yazıyordu; DICOM okuyucuları bunu elips sanıp
+   *              şekli bozuyordu.
+   */
   data: number[];
 }
 
@@ -30,7 +39,27 @@ export interface GspsAnnotationItem {
   slice: number;
   graphics: GspsGraphic[];
   texts: GspsText[];
+  /** Anotasyon türü — geri okumada tam eşleşme için Graphic Layer kimliğine yazılır. */
+  kind: Annotation["kind"];
+  /** DICOM Graphic Layer (0070,0002) kimliği; CS ≤ 16 karakter. */
+  layer: string;
 }
+
+/**
+ * Anotasyon türü → Graphic Layer kimliği.
+ * Graphic Layer **standart** bir alandır (DICOM PS3.3 C.10.7); başka görüntüleyiciler
+ * katmanı görmezden gelir, kendi yazdığımız PR'ı biz tam olarak geri okuyabiliriz.
+ * Böylece "hangi çizim uzunluk, hangisi Cobb" bilgisi geometriden tahmin edilmez.
+ */
+export const KIND_LAYER: Record<Annotation["kind"], string> = {
+  length: "LENGTH", angle: "ANGLE", cobb: "COBB", arrow: "ARROW", rect: "RECT",
+  ellipse: "ELLIPSE", polygon: "POLY", calib: "CALIB", ellipsoid: "ELLIPSOID",
+  deviation: "DEVIATION", msk: "MSK",
+};
+
+export const LAYER_KIND: Record<string, Annotation["kind"]> = Object.fromEntries(
+  (Object.entries(KIND_LAYER) as [Annotation["kind"], string][]).map(([k, v]) => [v, k]),
+) as Record<string, Annotation["kind"]>;
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -50,8 +79,14 @@ export function annotationToGraphic(a: Annotation): GspsGraphic | null {
   if (a.kind === "ellipse" || a.kind === "ellipsoid") {
     const b = bbox(pts);
     if (!b) return null;
-    // DICOM ELLIPSE: sınırlayıcı dikdörtgenin dört köşesi.
-    return { type: "ELLIPSE", data: [b.x1, b.y1, b.x1, b.y2, b.x2, b.y1, b.x2, b.y2].map(round2) };
+    // DICOM PS3.3 C.10.6 ELLIPSE: [cx, cy, x1, y1, x2, y2]. Merkezden yarı-eksen
+    // uçlarına iki vektör. Eksen-hizalı elipste uçlar (cx+rx, cy) ve (cx, cy+ry).
+    const cx = (b.x1 + b.x2) / 2;
+    const cy = (b.y1 + b.y2) / 2;
+    const rx = (b.x2 - b.x1) / 2;
+    const ry = (b.y2 - b.y1) / 2;
+    if (!(rx > 0) || !(ry > 0)) return null; // sıfır yarı-eksenli elips çizilemez
+    return { type: "ELLIPSE", data: [cx, cy, cx + rx, cy, cx, cy + ry].map(round2) };
   }
   if (a.kind === "rect") {
     const b = bbox(pts);
@@ -81,7 +116,7 @@ export function annotationsToGsps(annotations: Annotation[]): GspsAnnotationItem
     const texts: GspsText[] = [];
     const label = (a.text ?? "").trim();
     if (label && p0) texts.push({ text: label.slice(0, 256), anchor: [round2(p0.x), round2(p0.y)] });
-    out.push({ slice: a.slice, graphics: [graphic], texts });
+    out.push({ slice: a.slice, graphics: [graphic], texts, kind: a.kind, layer: KIND_LAYER[a.kind] ?? "ANNOT" });
   }
   return out;
 }

@@ -29,6 +29,29 @@ export function isSubsampled(photometric: string): boolean {
 export function isYbr(photometric: string): boolean {
   return photometric.startsWith("YBR");
 }
+/** Nadir YBR türevleri (JPEG 2000 renk dönüşümleri) mi? YBR_RCT (dönüştürülebilir) ya da YBR_ICT (dönüştürülmez). */
+export function isYbrDerivative(photometric: string): boolean {
+  return photometric === "YBR_RCT" || photometric === "YBR_ICT";
+}
+
+/** YBR_RCT (reversible color transform) mi? */
+export function isRct(photometric: string): boolean {
+  return photometric === "YBR_RCT";
+}
+
+/** YBR_ICT (irreversible color transform) mi? */
+export function isIct(photometric: string): boolean {
+  return photometric === "YBR_ICT";
+}
+
+/**
+ * Standart YBR (BT.601 tabanlı, 4:2:2/4:2:0 dahil) mi? Nadir türevler
+ * (YBR_RCT/YBR_ICT) bu taşıma fonksiyonundan yararlanır ama farklı matrisle
+ * dönüştürülür, bu yüzden ayrı tanımak gerekir.
+ */
+export function isStandardYbr(photometric: string): boolean {
+  return isYbr(photometric) && !isYbrDerivative(photometric);
+}
 
 /** Dar aralıklı (partial range) YBR mi? (JPEG/native 4:2:2 çoğunlukla partial) */
 export function isPartialRange(photometric: string): boolean {
@@ -62,6 +85,72 @@ export function ybrToRgb(y: number, cb: number, cr: number, partial = false): [n
     b = y + 1.772 * cbb;
   }
   return [Math.max(0, Math.min(255, Math.round(r))), Math.max(0, Math.min(255, Math.round(g))), Math.max(0, Math.min(255, Math.round(b)))];
+}
+
+/**
+ * YBR_RCT → RGB (dönüştürülebilir renk dönüşümü, JPEG 2000).
+ * `y`, `cb`, `cr` 0–255 tam aralıklı (Cb/Cr nötr noktası 128).
+ * Matris, DICOM PS3.3 / JPEG 2000 RCT ters dönüşümüdür.
+ */
+export function rctToRgb(y: number, cb: number, cr: number): [number, number, number] {
+  const yy = Math.max(0, Math.min(255, y));
+  const cbN = cb - 128, crN = cr - 128;
+  const r = yy + crN + cbN;
+  const g = yy - crN;
+  const b = yy + crN - cbN;
+  return [Math.max(0, Math.min(255, Math.round(r))), Math.max(0, Math.min(255, Math.round(g))), Math.max(0, Math.min(255, Math.round(b)))];
+}
+
+/**
+ * YBR_ICT → RGB (dönüştürülmez renk dönüşümü, JPEG 2000 / BT.709 tabanlı).
+ * `y`, `cb`, `cr` 0–255 tam aralıklı (Cb/Cr nötr noktası 128).
+ */
+export function ictToRgb(y: number, cb: number, cr: number): [number, number, number] {
+  const yy = Math.max(0, Math.min(255, y));
+  const cbN = cb - 128, crN = cr - 128;
+  const r = yy + 1.5748 * crN;
+  const g = yy - 0.1873 * cbN - 0.4681 * crN;
+  const b = yy + 1.8556 * cbN;
+  return [Math.max(0, Math.min(255, Math.round(r))), Math.max(0, Math.min(255, Math.round(g))), Math.max(0, Math.min(255, Math.round(b)))];
+}
+
+/**
+ * Renkli bir seri için pencere/renk haritası denetimi (f-pixel).
+ * `colorToRgba`'nın hangi yolu kullanacağını ve renk haritasının doğasını
+ * özetleyen bilgisel nesne döndürür — görüntüleyici rozeti/denetim için.
+ * `measurements` renkli serilerde ölçüm pencere uygulanmadığını belirtir
+ * (renkli seriler pencere yerine doğrudan renk haritası kullanır).
+ */
+export interface ColorMapInfo {
+  family: "YBR" | "YBR_RCT" | "YBR_ICT" | "RGB" | "PALETTE";
+  /** Renk haritası yolu: "ybr-601" | "rct" | "ict" | "rgb-direct" | "palette-lut" */
+  path: "ybr-601" | "rct" | "ict" | "rgb-direct" | "palette-lut";
+  /** YBR ise dar aralıklı (partial) mi */
+  partial: boolean;
+  /** Renkli seride ölçüm pencere uygulanmaz (renk haritası kendi penceredir) */
+  windowApplied: false;
+  /** Kullanılan matris/karma kısa notu */
+  note: string;
+}
+
+export function colorMapInfo(photometric: string, samples: number): ColorMapInfo {
+  if (photometric === "PALETTE COLOR") {
+    return { family: "PALETTE", path: "palette-lut", partial: false, windowApplied: false, note: "LUT indeks → RGB (firstMapped/8-16 bit)" };
+  }
+  if (isRct(photometric)) {
+    return { family: "YBR_RCT", path: "rct", partial: false, windowApplied: false, note: "RCT (dönüştürülebilir) YBR→RGB matrisi" };
+  }
+  if (isIct(photometric)) {
+    return { family: "YBR_ICT", path: "ict", partial: false, windowApplied: false, note: "ICT (BT.709) YBR→RGB matrisi" };
+  }
+  if (isStandardYbr(photometric)) {
+    const partial = isPartialRange(photometric);
+    return {
+      family: "YBR", path: "ybr-601", partial, windowApplied: false,
+      note: partial ? "BT.601 dar aralık (partial) YBR→RGB" : "BT.601 tam aralık YBR→RGB",
+    };
+  }
+  return { family: "RGB", path: "rgb-direct", partial: false, windowApplied: false, note: "RGB doğrudan harita (codec RGB verdi)" };
 }
 
 /** Planar (düzlem sıralı) veriyi piksel sıralı hâle getirir. */
@@ -123,13 +212,18 @@ export interface ColorOptions {
 export function colorToRgba(raw: ArrayLike<number>, pixels: number, opts: ColorOptions): Uint32Array {
   const rgba = new Uint32Array(pixels);
   const bits = opts.bitsStored ?? 8;
-  const ybr = (opts.convertYbr ?? true) && isYbr(opts.photometric);
+  const convert = opts.convertYbr ?? true;
+  const rct = convert && isRct(opts.photometric);
+  const ict = convert && isIct(opts.photometric);
+  const ybr = convert && isStandardYbr(opts.photometric);
   const partial = ybr && isPartialRange(opts.photometric);
   for (let i = 0; i < pixels; i++) {
     let r = scaleTo8(raw[i * 3], bits);
     let g = scaleTo8(raw[i * 3 + 1], bits);
     let b = scaleTo8(raw[i * 3 + 2], bits);
-    if (ybr) [r, g, b] = ybrToRgb(r, g, b, partial);
+    if (rct) [r, g, b] = rctToRgb(r, g, b);
+    else if (ict) [r, g, b] = ictToRgb(r, g, b);
+    else if (ybr) [r, g, b] = ybrToRgb(r, g, b, partial);
     rgba[i] = 0xff000000 | (b << 16) | (g << 8) | r;
   }
   return rgba;
@@ -174,6 +268,8 @@ export function monochrome1Invert<T extends ArrayLike<number>>(frames: T[]): { k
 export function photometricLabel(photometric: string, samples: number): string {
   if (photometric === "PALETTE COLOR") return "Palet renkli";
   if (samples >= 3) {
+    if (isRct(photometric)) return `${photometric} (dönüştürülebilir renk)`;
+    if (isIct(photometric)) return `${photometric} (BT.709 renk)`;
     if (isYbr(photometric)) return `${photometric} (renkli)`;
     return "RGB (renkli)";
   }

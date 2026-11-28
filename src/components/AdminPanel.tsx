@@ -27,6 +27,13 @@ interface HealthOut {
   summary: { ok: number; uyari: number; kritik: number; bilgi: number; total: number };
   health: { ready: boolean | null; live: boolean | null; error?: string };
   metrics: { ok: boolean; parsed: ParsedMetric[]; error?: string };
+  /** Hız sınırı deposu (g-webhard): paylaşımlı mı, sağlığı ne? */
+  rateStore?: {
+    kind: "redis" | "memory";
+    shared: boolean;
+    warning: string | null;
+    health: { ok: boolean; kind: "redis" | "memory"; detail: string } | null;
+  };
   note: string;
 }
 /** Paylaşım bağlantısı satırı (sunucu `ShareRow`). */
@@ -40,6 +47,50 @@ interface DisagreementCategory { engine: string; category: string; decided: numb
 interface DisagreementReason { engine: string; category: string; label: string; status: "reddedildi" | "duzenlendi"; reason: string }
 interface ReasonClassDigest { cls: string; label: string; count: number }
 interface DisagreementAlertInfo { total: number; sent: number; threshold: number; minDecided: number; reasonClasses: ReasonClassDigest[] }
+/** Hekim geri bildirim döngüsü (a-feedback) — `GET /api/ai/feedback` yanıtı. */
+interface FeedbackEngineRow {
+  engine: string; shown: number; approved: number; rejected: number; edited: number; pending: number;
+  missed: number; decidedAi: number; sensitivity: number | null; specificity: number | null;
+  ppv: number | null; trueNegatives: number | null;
+  sensitivityCI: [number, number] | null; ppvCI: [number, number] | null;
+}
+interface FeedbackCategoryRow {
+  engine: string; category: string; shown: number; approved: number; rejected: number; edited: number;
+  pending: number; decidedAi: number; ppv: number | null; ppvCI: [number, number] | null;
+}
+interface FeedbackReport {
+  engines: FeedbackEngineRow[];
+  rows: FeedbackCategoryRow[];
+  falsePositives: { engine: string; category: string; label: string; reason: string; slice: number | null; studyRef: string | null; at: string | null; score: number | null }[];
+  missed: { engine: string; category: string; label: string; slice: number | null; studyRef: string | null; at: string | null }[];
+  totals: { aiShown: number; decided: number; approved: number; rejected: number; edited: number; missed: number; cleanStudies: number; sensitivity: number | null; specificity: number | null; ppv: number | null };
+  thresholdCurve: { threshold: number; recall: number | null; precision: number | null; kept: number; dropped: number }[];
+  suggestedThreshold: number | null; suggestedThresholdWhy: string;
+  calibration?: CalibrationView;
+  thresholds?: ThresholdView;
+  lowConfidence?: LowConfRow[];
+  warnings: string[]; note: string; generatedAt?: string;
+  sample?: { reportsScanned: number; reportsApproved: number; findings: number; cleanStudies: number; limit: number };
+  specificitySource?: string;
+}
+
+/** Kalibrasyon (a-uncert) — `GET /api/ai/feedback` içindeki `calibration`. */
+interface CalibrationView {
+  kind: "isotonic";
+  blocks: { lo: number; hi: number; n: number; p: number }[];
+  n: number; ok: boolean; reason: string; inSample: true; meanShift: number | null;
+  ece: number | null; quality: "iyi" | "orta" | "zayif" | "bilinmiyor"; qualityNote: string;
+  cases: number; minCases: number;
+}
+interface ThresholdView {
+  chosen: { threshold: number; precision: number; recall: number; kept: number } | null;
+  showAt: number; inspectAt: number; note: string;
+}
+interface LowConfRow {
+  engine: string; category: string; label: string; raw: number; calibrated: number;
+  why: string; slice: number | null; studyRef: string | null;
+}
+
 interface DisagreementStats {
   categories: DisagreementCategory[];
   reasons: DisagreementReason[];
@@ -152,10 +203,37 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
   const [siem, setSiem] = useState<{ pending: number; failed: number; sent: number; abandoned: number; configured: boolean; maxAttempts: number } | null>(null);
   const [siemMsg, setSiemMsg] = useState("");
   const loadAudit = useCallback(async () => { const r = await api<AuditRow[]>(`/api/audit?limit=300&q=${encodeURIComponent(aq)}`); if (r.ok) setAudit(r.data); }, [aq]);
+  const loadArchive = async () => {
+    const r = await api<{ days: number; batch: number; dir: string; archives: { key: string; size: number }[]; storage: string }>("/api/audit/archive");
+    if (r.ok) setArch(r.data);
+  };
+  /** Saklama koşusunu elle tetikler (zamanlayıcı kurumdadır; uç idempotent değil, kopyalar). */
+  const runArchiveNow = async () => {
+    setArchBusy(true); setArchMsg("");
+    const r = await api<{ archived: number; summary: string; purge: string }>("/api/audit/archive", { method: "POST" });
+    setArchBusy(false);
+    if (!r.ok) { setArchMsg("Arşiv koşusu başarısız (yetki ya da depolama hatası)."); return; }
+    setArchMsg(r.data.summary);
+    await loadArchive(); await loadAudit();
+  };
+  const verifyArchiveNow = async () => {
+    setArchBusy(true); setArchMsg("");
+    const r = await api<{ ok: boolean; summary: string; archives: { name: string; rows: number; signatureOk: boolean; chainOk: boolean }[] }>("/api/audit/archive/verify");
+    setArchBusy(false);
+    if (!r.ok) { setArchMsg("Doğrulama çağrısı başarısız."); return; }
+    setArchMsg(r.data.summary);
+  };
+
   const loadSiem = useCallback(async () => { const r = await api<{ pending: number; failed: number; sent: number; abandoned: number; configured: boolean; maxAttempts: number }>("/api/audit/export?siem=stats"); if (r.ok) setSiem(r.data); }, []);
   // AI
   const [perf, setPerf] = useState<{ rows: PerfRow[]; note: string; disagreement?: DisagreementStats } | null>(null);
+  const [fb, setFb] = useState<FeedbackReport | null>(null);
+  const [fbError, setFbError] = useState("");
   // Sistem sağlığı (g-metrics + ortam denetimi) — Yönetim → Sağlık
+  // Denetim arşivi (g-audit-export): saklama politikası + doğrulama
+  const [arch, setArch] = useState<{ days: number; batch: number; dir: string; archives: { key: string; size: number }[]; storage: string } | null>(null);
+  const [archMsg, setArchMsg] = useState("");
+  const [archBusy, setArchBusy] = useState(false);
   const [health, setHealth] = useState<HealthOut | null>(null);
   const [healthBusy, setHealthBusy] = useState(false);
   const [healthErr, setHealthErr] = useState("");
@@ -326,10 +404,15 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
       if (tab === "profile") { await loadProfile(); await loadMfa(); }
       if (tab === "sessions") await loadSessions();
       if (tab === "users") await loadUsers();
-      if (tab === "audit") { await loadAudit(); await loadSiem(); }
+      if (tab === "audit") { await loadAudit(); await loadSiem(); await loadArchive(); }
       if (tab === "ai") {
         const r = await api<{ rows: PerfRow[]; note: string; disagreement?: DisagreementStats }>("/api/ai/performance");
         if (r.ok) setPerf(r.data);
+        // Duyarlılık/özgüllük + yanlış pozitif listesi (a-feedback). Ayrı uç: pano yükü büyümesin.
+        const f = await api<FeedbackReport>("/api/ai/feedback");
+        if (f.ok) { setFb(f.data); setFbError(""); }
+        else setFbError((f.data as unknown as { error?: string })?.error ?? "Geri bildirim özeti alınamadı.");
+
         await loadRegistry();
         await loadShadow();
       }
@@ -704,6 +787,32 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
             )}
             {siemMsg && <p className="text-[11px] text-[var(--ac-cyan300)]">{siemMsg}</p>}
             {chain && <div className={`rounded-lg border px-3 py-2 text-xs font-semibold ${chain.ok ? "border-emerald-500/40 bg-emerald-500/10 text-[var(--ac-emerald300)]" : "border-rose-500/50 bg-rose-500/10 text-[var(--ac-rose300)]"}`}>{chain.ok ? `✓ Zincir bütün: ${chain.count} kayıt, değişiklik/silme yok.` : `✗ Zincir bozuk (kayıt #${chain.brokenAtId}): ${chain.reason}`}</div>}
+            {/* Şifreli arşiv + saklama politikası (g-audit-export) */}
+            <div className={`${card} space-y-1.5`} data-testid="audit-archive">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <b className="text-xs text-[var(--sl200)]">Şifreli arşiv ve saklama politikası</b>
+                <span className="text-[10.5px] text-[var(--sl500)]">
+                  {arch ? (arch.days ? `${arch.days} gün canlı` : "politika kapalı") + ` · ${arch.archives.length} arşiv · ${arch.storage}` : "yükleniyor…"}
+                </span>
+              </div>
+              {arch && !arch.days && (
+                <p className="text-[10.5px] leading-relaxed text-[var(--ac-amber300)]">
+                  <code>AUDIT_RETENTION_DAYS</code> tanımlı değil: hiçbir kayıt arşivlenmez veya silinmez. Saklama süresi ülke mevzuatına göre
+                  değiştiği için varsayılan verilmez (yanlışlıkla veri kaybı olmasın).
+                </p>
+              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <button className={`${btn} border border-cyan-400/40 text-[var(--ac-cyan300)] hover:bg-cyan-400/10 disabled:opacity-40`} disabled={archBusy} onClick={() => void runArchiveNow()}>🗄 Arşiv koşusunu çalıştır</button>
+                <button className={`${btn} border border-emerald-400/40 text-[var(--ac-emerald300)] hover:bg-emerald-400/10 disabled:opacity-40`} disabled={archBusy} onClick={() => void verifyArchiveNow()}>🔐 Arşivi doğrula (imza + zincir)</button>
+                <span className="text-[10px] text-[var(--sl500)]">arşive kopyalar; denetim tablosu DELETE işlemine kapalı olduğu için silmez</span>
+              </div>
+              {archMsg && <p className="text-[10.5px] leading-relaxed text-[var(--ac-cyan300)]">{archMsg}</p>}
+              {arch && arch.archives.length > 0 && (
+                <div className="max-h-32 space-y-0.5 overflow-auto font-mono text-[10px] text-[var(--sl400)]">
+                  {arch.archives.map((a) => <div key={a.key} className="truncate">{a.key.replace(arch.dir + "/", "")} · {(a.size / 1024).toFixed(1)} KB</div>)}
+                </div>
+              )}
+            </div>
             <div className={`${card} audit-print max-h-[60vh] overflow-auto p-0`}>
               <table className="w-full text-[11px]">
                 <thead className="sticky top-0 bg-[var(--t06)] text-left text-[var(--sl500)]"><tr>{["#", "Zaman", "Kullanıcı", "İşlem", "Kayıt", "Ayrıntı", "Hash"].map((h) => <th key={h} className="border-b border-[var(--t25)] px-3 py-2 font-semibold">{h}</th>)}</tr></thead>
@@ -776,6 +885,219 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Hekim geri bildirim döngüsü (a-feedback): duyarlılık / özgüllük + yanlış pozitif listesi.
+                Kaynak: yalnız onaylı raporlardaki hekim kararları. Altın standart yok → "hekimle uyum". */}
+            <div className={`${card} space-y-2`} data-testid="feedback-loop">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <b className="text-xs text-[var(--sl200)]">Duyarlılık · özgüllük · yanlış pozitifler</b>
+                <span className="text-[10.5px] text-[var(--sl500)]">
+                  {fb
+                    ? `${fb.totals.decided} karar · ${fb.totals.missed} "AI kaçırdı" · ${fb.totals.cleanStudies} temiz çalışma`
+                    : fbError || "yükleniyor…"}
+                </span>
+              </div>
+              {fb && fb.warnings.length > 0 && (
+                <ul className="space-y-0.5 text-[10.5px] text-[var(--ac-amber300)]">
+                  {fb.warnings.map((w) => <li key={w}>• {w}</li>)}
+                </ul>
+              )}
+              {fb && (
+                <>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {([
+                      ["Duyarlılık", fb.totals.sensitivity, "AI'nın yakaladığı / (yakaladığı + hekimin eklediği)"],
+                      ["Özgüllük", fb.totals.specificity, "Temiz çalışma / (temiz + reddedilen). Altın standart yok: 'onaylı raporda bulgu yok' proxy'si"],
+                      ["Kesinlik (PPV)", fb.totals.ppv, "(Onay + düzenleme) / (onay + düzenleme + ret)"],
+                    ] as [string, number | null, string][]).map(([label, v, hint]) => (
+                      <div key={label} className="rounded-lg border border-[var(--t25)] bg-[var(--t10)] px-3 py-2" title={hint}>
+                        <div className="text-[10px] uppercase tracking-wide text-[var(--sl500)]">{label}</div>
+                        <div className="font-mono text-lg font-bold text-[var(--sl100)]">{v === null ? "—" : `%${Math.round(v * 100)}`}</div>
+                        <div className="text-[9.5px] leading-tight text-[var(--sl600)]">{hint}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-[11px]">
+                      <thead className="text-left text-[var(--sl500)]"><tr>{["Motor", "Gösterilen", "Duyarlılık (%95 GA)", "Özgüllük", "Kesinlik", "Kaçırdığı"].map((h) => <th key={h} className="border-b border-[var(--t25)] px-2 py-1.5 font-semibold">{h}</th>)}</tr></thead>
+                      <tbody>
+                        {fb.engines.length === 0 && <tr><td colSpan={6} className="px-2 py-3 text-center text-[var(--sl500)]">Onaylı raporda AI adayı yok.</td></tr>}
+                        {fb.engines.map((e) => (
+                          <tr key={e.engine} className="hover:bg-[var(--t14)]">
+                            <td className="border-b border-[var(--t18)] px-2 py-1 font-mono text-[10.5px] text-[var(--ac-cyan300)]">{e.engine}</td>
+                            <td className="border-b border-[var(--t18)] px-2 py-1 font-mono">{e.shown}</td>
+                            <td className="border-b border-[var(--t18)] px-2 py-1 font-mono">
+                              {e.sensitivity === null ? "—" : `%${Math.round(e.sensitivity * 100)}`}
+                              {e.sensitivityCI && <span className="ml-1 text-[9.5px] text-[var(--sl500)]">[%{Math.round(e.sensitivityCI[0] * 100)}–%{Math.round(e.sensitivityCI[1] * 100)}]</span>}
+                            </td>
+                            <td className="border-b border-[var(--t18)] px-2 py-1 font-mono">{e.specificity === null ? "—" : `%${Math.round(e.specificity * 100)}`}</td>
+                            <td className="border-b border-[var(--t18)] px-2 py-1 font-mono">{e.ppv === null ? "—" : `%${Math.round(e.ppv * 100)}`}</td>
+                            <td className="border-b border-[var(--t18)] px-2 py-1 font-mono text-[var(--ac-amber300)]">{e.missed}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {fb.thresholdCurve.length > 0 && (
+                    <div className="space-y-1">
+                      <div className="text-[10.5px] text-[var(--sl400)]">
+                        Eşik eğrisi {fb.suggestedThreshold !== null
+                          ? <>— öneri <b className="font-mono text-[var(--ac-cyan300)]">{fb.suggestedThreshold.toFixed(1)}</b></>
+                          : "— öneri yok"}
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-[10.5px]">
+                          <thead className="text-left text-[var(--sl500)]"><tr>{["Eşik", "Kesinlik", "Duyarlılık", "Tutulan", "Elenen"].map((h) => <th key={h} className="border-b border-[var(--t25)] px-2 py-1 font-semibold">{h}</th>)}</tr></thead>
+                          <tbody>
+                            {fb.thresholdCurve.map((p) => (
+                              <tr key={p.threshold} className={p.threshold === fb.suggestedThreshold ? "bg-cyan-500/10" : ""}>
+                                <td className="border-b border-[var(--t18)] px-2 py-1 font-mono">{p.threshold.toFixed(1)}</td>
+                                <td className="border-b border-[var(--t18)] px-2 py-1 font-mono">{p.precision === null ? "—" : `%${Math.round(p.precision * 100)}`}</td>
+                                <td className="border-b border-[var(--t18)] px-2 py-1 font-mono">{p.recall === null ? "—" : `%${Math.round(p.recall * 100)}`}</td>
+                                <td className="border-b border-[var(--t18)] px-2 py-1 font-mono">{p.kept}</td>
+                                <td className="border-b border-[var(--t18)] px-2 py-1 font-mono text-[var(--sl500)]">{p.dropped}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="text-[10px] leading-snug text-[var(--sl500)]">{fb.suggestedThresholdWhy}</p>
+                    </div>
+                  )}
+                  <div className="grid gap-2 lg:grid-cols-2">
+                    <div>
+                      <div className="mb-1 text-[10.5px] font-semibold text-[var(--ac-rose300)]">Yanlış pozitifler ({fb.falsePositives.length})</div>
+                      <div className="max-h-44 overflow-y-auto rounded border border-[var(--t25)]">
+                        <table className="w-full text-[10.5px]">
+                          <tbody>
+                            {fb.falsePositives.length === 0 && <tr><td className="px-2 py-3 text-center text-[var(--sl500)]">Reddedilen aday yok.</td></tr>}
+                            {fb.falsePositives.map((f, i) => (
+                              <tr key={`${f.engine}${f.label}${i}`} className="hover:bg-[var(--t14)]">
+                                <td className="border-b border-[var(--t18)] px-2 py-1 align-top">
+                                  <div className="font-semibold text-[var(--sl200)]">{f.label}</div>
+                                  <div className="text-[9.5px] text-[var(--sl500)]">{f.engine} · {f.category}{f.slice !== null ? ` · kesit ${f.slice}` : ""}{f.score !== null ? ` · skor ${f.score.toFixed(2)}` : ""}</div>
+                                </td>
+                                <td className="border-b border-[var(--t18)] px-2 py-1 align-top text-[var(--sl400)]">{f.reason}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="mb-1 text-[10.5px] font-semibold text-[var(--ac-amber300)]">AI&apos;nın kaçırdıkları ({fb.totals.missed})</div>
+                      <div className="max-h-44 overflow-y-auto rounded border border-[var(--t25)]">
+                        <table className="w-full text-[10.5px]">
+                          <tbody>
+                            {fb.missed.length === 0 && <tr><td className="px-2 py-3 text-center text-[var(--sl500)]">Hekim henüz &quot;AI kaçırdı&quot; bulgusu eklemedi.</td></tr>}
+                            {fb.missed.map((m, i) => (
+                              <tr key={`${m.engine}${m.label}${i}`} className="hover:bg-[var(--t14)]">
+                                <td className="border-b border-[var(--t18)] px-2 py-1">
+                                  <div className="font-semibold text-[var(--sl200)]">{m.label}</div>
+                                  <div className="text-[9.5px] text-[var(--sl500)]">{m.engine}{m.slice !== null ? ` · kesit ${m.slice}` : ""}</div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-[10px] leading-snug text-[var(--sl500)]">
+                    {fb.note}
+                    {fb.sample && <> Örneklem: {fb.sample.reportsApproved}/{fb.sample.reportsScanned} onaylı rapor.</>}
+                    {fb.specificitySource && fb.specificitySource !== "yok" && <> Özgüllük kaynağı: {fb.specificitySource}.</>}
+                  </p>
+                </>
+              )}
+            </div>
+
+            {/* Kalibrasyon (a-uncert): ısotonik eşleme + ECE + eşik önerisi + düşük güven kuyruğu. */}
+            <div className={`${card} space-y-2`} data-testid="calibration">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <b className="text-xs text-[var(--sl200)]">Güven kalibrasyonu (ısotonik) ve incelenecek adaylar</b>
+                <span className="text-[10.5px] text-[var(--sl500)]">
+                  {fb?.calibration
+                    ? `${fb.calibration.cases} etiketli bulgu · ${fb.calibration.ok ? `${fb.calibration.blocks.length} blok` : "eşleme yok"}`
+                    : "yükleniyor…"}
+                </span>
+              </div>
+              {fb?.calibration && (
+                <>
+                  {!fb.calibration.ok ? (
+                    <p className="text-[10.5px] leading-snug text-[var(--ac-amber300)]">
+                      {fb.calibration.reason} Skorlar <b>düzeltilmeden</b> gösterilir; ekrandaki yüzde kalibre olasılık değildir.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        <div className="rounded-lg border border-[var(--t25)] bg-[var(--t10)] px-3 py-2">
+                          <div className="text-[10px] uppercase tracking-wide text-[var(--sl500)]">ECE (kalibrasyon hatası)</div>
+                          <div className="font-mono text-lg font-bold text-[var(--sl100)]">{fb.calibration.ece === null ? "—" : fb.calibration.ece.toFixed(3)}</div>
+                          <div className="text-[9.5px] leading-tight text-[var(--sl600)]">{fb.calibration.qualityNote}</div>
+                        </div>
+                        <div className="rounded-lg border border-[var(--t25)] bg-[var(--t10)] px-3 py-2">
+                          <div className="text-[10px] uppercase tracking-wide text-[var(--sl500)]">Ortalama düzeltme</div>
+                          <div className="font-mono text-lg font-bold text-[var(--sl100)]">{fb.calibration.meanShift === null ? "—" : `%${(fb.calibration.meanShift * 100).toFixed(1)}`}</div>
+                          <div className="text-[9.5px] leading-tight text-[var(--sl600)]">|kalibre − ham| ortalaması: skoru ne kadar düzeltiyoruz</div>
+                        </div>
+                        <div className="rounded-lg border border-[var(--t25)] bg-[var(--t10)] px-3 py-2">
+                          <div className="text-[10px] uppercase tracking-wide text-[var(--sl500)]">Önerilen eşik</div>
+                          <div className="font-mono text-lg font-bold text-[var(--ac-cyan300)]">{fb.thresholds?.chosen ? fb.thresholds.chosen.threshold.toFixed(2) : "—"}</div>
+                          <div className="text-[9.5px] leading-tight text-[var(--sl600)]">
+                            {fb.thresholds?.chosen
+                              ? `kesinlik %${Math.round(fb.thresholds.chosen.precision * 100)} · duyarlılık %${Math.round(fb.thresholds.chosen.recall * 100)}`
+                              : fb.thresholds?.note ?? "yeterli veri yok"}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-[10.5px]">
+                          <thead className="text-left text-[var(--sl500)]"><tr>{["Skor aralığı", "n", "Kalibre olasılık"].map((h) => <th key={h} className="border-b border-[var(--t25)] px-2 py-1 font-semibold">{h}</th>)}</tr></thead>
+                          <tbody>
+                            {fb.calibration.blocks.map((b, i) => (
+                              <tr key={i}>
+                                <td className="border-b border-[var(--t18)] px-2 py-1 font-mono">{b.lo === b.hi ? b.lo.toFixed(2) : `${b.lo.toFixed(2)}–${b.hi.toFixed(2)}`}</td>
+                                <td className="border-b border-[var(--t18)] px-2 py-1 font-mono">{b.n}</td>
+                                <td className="border-b border-[var(--t18)] px-2 py-1 font-mono">%{Math.round(b.p * 100)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="text-[10px] leading-snug text-[var(--sl500)]">
+                        {fb.thresholds?.note} Isotonik eşleme <b>örneklem-içidir</b> (eğitim = ölçüm verisi): dış doğrulama değildir.
+                        Ters (azalan) ilişki görülen modellerde eşleme reddedilir ve skor düzeltilmez.
+                      </p>
+                    </>
+                  )}
+                  <div>
+                    <div className="mb-1 text-[10.5px] font-semibold text-[var(--ac-amber300)]">
+                      Hekim incelesin — düşük güven ({fb.lowConfidence?.length ?? 0})
+                    </div>
+                    <div className="max-h-40 overflow-y-auto rounded border border-[var(--t25)]">
+                      <table className="w-full text-[10.5px]">
+                        <tbody>
+                          {(fb.lowConfidence ?? []).length === 0 && <tr><td className="px-2 py-3 text-center text-[var(--sl500)]">İncelenecek aday yok (yeterli skorlu aday ya da kalibrasyon bekleniyor).</td></tr>}
+                          {(fb.lowConfidence ?? []).map((r, i) => (
+                            <tr key={i} className="hover:bg-[var(--t14)]">
+                              <td className="border-b border-[var(--t18)] px-2 py-1">
+                                <div className="font-semibold text-[var(--sl200)]">{r.label}</div>
+                                <div className="text-[9.5px] text-[var(--sl500)]">
+                                  {r.engine} · {r.category}
+                                  {r.slice !== null ? ` · kesit ${r.slice}` : ""}
+                                  {" · "}ham %{Math.round(r.raw * 100)} → kalibre %{Math.round(r.calibrated * 100)}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* AI uyuşmazlık uyarısı banner'ı (src/lib/disagreementAlert.ts) */}
@@ -1267,6 +1589,37 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
                     </div>
                   ))}
                 </div>
+                {health.rateStore && (
+                  <div className={`${card} space-y-1`}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <b className="text-xs text-[var(--sl200)]">Hız sınırı deposu</b>
+                      <span className="text-[10.5px] text-[var(--sl500)]">
+                        {health.rateStore.shared ? "paylaşımlı (örnekler arası)" : "süreç belleği"}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 font-mono text-[11px]">
+                      <span className={health.rateStore.shared ? "text-[var(--ac-emerald300)]" : "text-[var(--ac-amber300)]"}>
+                        {health.rateStore.kind}
+                      </span>
+                      {health.rateStore.health && (
+                        <span className={health.rateStore.health.ok ? "text-[var(--ac-emerald300)]" : "text-[var(--ac-red300)]"}>
+                          {health.rateStore.health.ok ? "sağlıklı" : "FAIL-OPEN"}
+                        </span>
+                      )}
+                    </div>
+                    {health.rateStore.health && (
+                      <p className="text-[10.5px] leading-relaxed text-[var(--sl400)]">{health.rateStore.health.detail}</p>
+                    )}
+                    {health.rateStore.warning && (
+                      <p className="text-[10.5px] leading-relaxed text-[var(--ac-amber300)]">{health.rateStore.warning}</p>
+                    )}
+                    {!health.rateStore.shared && (
+                      <p className="text-[10px] leading-relaxed text-[var(--sl500)]">
+                        Tek örnekte sorun değil; birden çok örnekte gerçek sınır örnek sayısıyla çarpılır — REDIS_URL tanımlayın.
+                      </p>
+                    )}
+                  </div>
+                )}
                 <p className="text-[10.5px] leading-relaxed text-[var(--sl500)]">{health.note}</p>
               </>
             )}
@@ -1409,13 +1762,14 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
                       </tr>
                     );
                   })}
-                  {shares.length === 0 && <tr><td colSpan={8} className="px-3 py-6 text-center text-[var(--sl500)]">Kayıtlı paylaşım bağlantısı yok. Rapor ekranındaki “Paylaş” düğmesiyle oluşturulur.</td></tr>}
+                  {shares.length === 0 && <tr><td colSpan={8} className="px-3 py-6 text-center text-[var(--sl500)]">Kayıtlı paylaşım bağlantısı yok. Rapor ekranındaki “Paylaş” düğmesi ya da görüntüleyicideki `Dışa aktar ▾ → Anonim kesit paylaş` ile oluşturulur.</td></tr>}
                 </tbody>
               </table>
             </div>
             <p className="text-[10.5px] leading-relaxed text-[var(--sl500)]">
               Token tam olarak yalnız oluşturulduğu anda gösterilir; burada ilk 8 karakter görünür (denetim kaydıyla aynı).
-              Bağlantı kapatıldığında süresi dolmamış olsa bile erişim anında reddedilir (410).
+              Bağlantı kapatıldığında süresi dolmamış olsa bile erişim anında reddedilir (410); görüntü paylaşımlarında
+              kapalı bağlantının anonim JPEG paketi nesne deposundan da silinir.
             </p>
           </div>
         )}

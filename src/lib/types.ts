@@ -198,15 +198,28 @@ export interface GSPSTextObject {
   text: string;
   anchorPoint?: { x: number; y: number };
   boundingBox?: BBox;
+  /** Bu metnin bağlı olduğu görüntü (GSPS 0008,1140 → 0008,1155). */
+  referenceSopUid?: string;
 }
 
 export interface DicomGSPS {
   id: string;
+  /** PR'ın SOP Instance UID'si (0008,0018); güncelleme akışı için önceki instance referansı. */
+  sopInstanceUid?: string;
   label: string;
   description: string;
   graphics: GSPSGraphicObject[];
   texts: GSPSTextObject[];
   displayedArea?: { tl: { x: number; y: number }; br: { x: number; y: number } };
+  /** PR belgesinin sunduğu seri (0008,1115 → 0020,000E); içe aktarmada eşleştirme için. */
+  presentedSeriesUid?: string;
+  /**
+   * Grafik nesnelerinin sırayla bağlı olduğu görüntü UID'leri (0008,1140 → 0008,1155).
+   * Eksik/bilinmeyen konumlarda boş dize bulunur — tahmin edilmez.
+   */
+  referenceSopUids?: (string | undefined)[];
+  /** Grafik nesneleriyle aynı sıradaki Graphic Layer kimlikleri (0070,0002). */
+  layers?: string[];
   presentationLutShape?: "IDENTITY" | "INVERSE";
 }
 

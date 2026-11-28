@@ -12,7 +12,7 @@
 import { useEffect, useState } from "react";
 import type { SeriesData } from "@/lib/types";
 import { useEscapeKey } from "@/lib/useEscapeKey";
-import { buildRtStruct, buildSegDocument } from "@/lib/dicomSeg";
+import { buildRtStruct, buildSegDocument, sliceSopMap } from "@/lib/dicomSeg";
 import { sendDerivedToPacs } from "@/lib/sendDerived";
 import { makeSegmentDef } from "@/lib/segmentation";
 import { DEEP_KNEE_MODEL_CARD } from "@/lib/modelCards";
@@ -114,7 +114,7 @@ export default function KneeSegPanel({ series, onClose, onAddToFindings, toast }
     };
     const bytes = kind === "seg"
       ? buildSegDocument({ ...base, segments })
-      : buildRtStruct({ ...base, rois: segments });
+      : buildRtStruct({ ...base, rois: segments, sliceSopUids: sliceSopMap(series.sopUids) });
     const ext = kind === "seg" ? "SEG" : "RTSTRUCT";
     const filename = `${ext}-MR-diz-${series.slices.length}-kesit.dcm`;
     if (destination === "pacs") {

@@ -209,7 +209,8 @@ async function main() {
 
   // ── 7) CSP rapor ucu ───────────────────────────────────────────────────
   const reportRoute = read("src/app/api/csp-report/route.ts");
-  assert.ok(reportRoute.includes("summarizeCspReport"), "rapor ucu özeti kullanır");
+  assert.ok(reportRoute.includes("reportLines"), "rapor ucu normalize edilmiş satırları kullanır");
+  assert.ok(reportRoute.includes("type"), "rapor türü (csp-violation/deprecation) denetime taşınır");
   assert.ok(reportRoute.includes("16_384"), "gövde sınırı var");
   assert.ok(reportRoute.includes("status: 204"), "her durumda 204 (rapor döngüsü kırılmaz)");
   assert.ok(!reportRoute.includes("authorize("), "kimlik doğrulaması yok (tarayıcı raporları çerezsiz gelir)");
@@ -266,3 +267,29 @@ main().catch((e) => {
   assert.equal(httpsUrlFor("bozuk-url"), null);
   console.log("PASS TLS/HSTS: zorunluluk modları, muaf yollar, HSTS başlığı ve https yönlendirmesi.");
 }
+
+// ── Önizleme gömme muafiyeti (yalnız dev + PREVIEW_EMBED=1) ──
+{
+  const def = buildCsp({ nonce: "n" });
+  assert.ok(/frame-ancestors 'self'/.test(def), "varsayılan CSP frame-ancestors 'self' (üretim koruması)");
+  assert.ok(!/frame-ancestors \*/.test(def), "varsayılan ayarda gömme izni YOK");
+  const embed = buildCsp({ nonce: "n", frameAncestors: "*" });
+  assert.ok(/frame-ancestors \*/.test(embed), "önizleme için frame-ancestors * verilebilir");
+  assert.ok(/strict-dynamic/.test(embed) && /object-src 'none'/.test(embed), "gömme muafiyeti diğer direktifleri gevşetmez");
+  const proxySrc = read("src/proxy.ts");
+  assert.ok(/PREVIEW_EMBED === "1"/.test(proxySrc), "gömme muafiyeti açıkça env ile açılır");
+  assert.ok(/NODE_ENV !== "production"/.test(proxySrc), "muafiyet üretimde uygulanmaz");
+  assert.ok(/if \(!previewEmbed\) res\.headers\.set\("X-Frame-Options"/.test(proxySrc), "gömme modunda X-Frame-Options yazılmaz");
+}
+
+// ── Uzak önizleme yapılandırması (dev-only) ──
+{
+  const cfg = read("next.config.ts");
+  assert.ok(/allowedDevOrigins/.test(cfg), "next.config allowedDevOrigins tanımlar (uzak önizleme hidrasyonu)");
+  assert.ok(cfg.includes("*.e2b.app"), "sandbox kökeni listelenir");
+  assert.ok(/PREVIEW_ORIGINS/.test(cfg), "ek kökenler env ile verilebilir");
+  assert.ok(/pages \? \{\} : \{/.test(cfg), "ayar statik (pages) derlemesini etkilemez");
+  const readme = read("README.md");
+  assert.ok(/PREVIEW_EMBED=1/.test(readme) && /allowedDevOrigins/.test(readme), "README uzak önizleme adımlarını belgeler");
+}
+console.log("PASS uzak önizleme: allowedDevOrigins + PREVIEW_EMBED belgeli ve sınırlı.");

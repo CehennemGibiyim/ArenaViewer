@@ -146,6 +146,8 @@ Sürükle-bırak çalışır: klasörü / dosyaları / ZIP'i pencerenin üstüne
 | 10 | Sunucuya kaydet | `☁ Sunucuya kaydet` | AES-256-GCM ile `studies` tablosu + PACS'a STOW-RS (DB varsa) |
 | 11 | Rapor | sağ panel `Rapor` → `📄 Raporu aç` | Şablon seçin (Kapsamlı/Acil triyaj/Ayırıcı tanı/Hasta özeti) |
 | 12 | Onayla → PDF | `Rapor` sekmesi → `Onayla` → `🖨 Aç / yazdır` | Rapor kilitlenir (hash'li), Geçmiş sekmesine düşer |
+| 13 | Başka istasyonda çizilmiş ölçümleri al | Üst çubuk → `PR ölçümünü al (n)` | Seriyle birlikte yüklenen PR/GSPS belgesindeki ölçümler kesit eşleşmesiyle çalışmaya eklenir; sonuç diyaloğu kaçının alındığını/atlandığını yazar. Düğme yalnız ölçüm taşıyan PR varsa görünür |
+| 14 | Anonim kesit paylaşımı | `Dışa aktar ▾` → `🔗 Anonim kesit paylaş…` → aralık + süre → `Bağlantı oluştur` | Seçilen kesitler pencere/seviyeyle **anonim JPEG** olarak süreli bağlantıya eklenir (filigranlı `/paylas/<token>` sayfası, indirmesiz). Ham DICOM gönderilmez, hasta kimliği yakılmaz; kapatınca/süresi dolunca sunucudaki görüntü blob'u silinir |
 
 Ayrıntı ve her aracın tam listesi: **[MENU_KILAVUZU](MENU_KILAVUZU.md) §4–§12**.
 
