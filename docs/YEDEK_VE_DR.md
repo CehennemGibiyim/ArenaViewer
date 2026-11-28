@@ -135,3 +135,31 @@ kurtarılamaz. **Anahtar kaybı = veri kaybı**; bu yüzden anahtar yedeği zoru
 - [ ] Tatbikat tarihi, süresi ve sonucu arşivlendi
 - [ ] `/api/admin/backup/drill` (POST, `restoreTrial: true`) → `ok: true`, `readiness.level: ok`
 - [ ] Bozulmuş kopya ile tatbikat **başarısız** dönüyor (negatif test: bir dosyanın son baytını değiştir)
+
+## Denetim arşivi ve saklama politikası (g-audit-export)
+
+Denetim kayıtları hukuken **değiştirilemez** olmalıdır; bu yüzden `audit_logs` tablosu
+DB tetikleyicisiyle UPDATE/DELETE işlemlerine kapalıdır. Saklama politikası bu yüzden
+"siler" değil, **şifreli arşive kopyalar**:
+
+```bash
+AUDIT_RETENTION_DAYS=2190        # 6 yıl (mevzuata göre; TANIMSIZ = politika kapalı)
+AUDIT_ARCHIVE_DIR=audit-archive  # depolama adaptörü içindeki dizin (fs veya S3)
+AUDIT_ARCHIVE_BATCH=1000         # koşu başına en çok kayıt (üst sınır 5000)
+# AUDIT_ARCHIVE_KEY=...          # yoksa imza anahtarı ana halkadan türetilir
+```
+
+- **Varsayılan yok:** `AUDIT_RETENTION_DAYS` tanımsızsa hiçbir kayıt arşivlenmez/silinmez.
+  Yanlış yapılandırılmış bir "0 gün" kurulumu tüm izi silmek olurdu; bu yüzden değer
+  sayı değilse/0/negatifse politika kapalı sayılır.
+- **Zincir bozuksa hiçbir şey taşınmaz** (`verifyChain()` yeşil olmalı) — delil korunur.
+- Arşiv: AES-256-GCM şifreli `.jsonl.enc` + **HMAC-SHA256 imzalı** `.manifest.json`
+  (`count`, `firstId`, `lastId`, `prevHash`, `lastHash`, `cipherSha256`).
+- Uçlar (yalnız yönetici): `GET /api/audit/archive` (durum), `POST` (koşu, `audit.archive`
+  olarak denetlenir), `GET /api/audit/archive?verify=1` (imza + şifre çözme + içerik
+  SHA-256 + satır zinciri doğrulaması).
+- Panel: Yönetim → Denetim → "Şifreli arşiv ve saklama politikası" (koşu + doğrula).
+- **Zamanlanmış koşu depoda yok** (cron altyapısı yok): kurumun kendi cron/K8s CronJob
+  tanımından `POST /api/audit/archive` çağrılmalı.
+- **Fiziksel silme:** arşiv kopyaladıktan sonra canlı tablodan silme DB tarafında
+  (tablo partisyonu + bakım penceresi) yapılır; uygulama "sildim" demez.

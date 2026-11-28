@@ -5,6 +5,7 @@ import { fileStorage } from "@/lib/server/storage";
 import { APP_VERSION } from "@/lib/version";
 import { evaluateEnv, parsePrometheus, summarizeChecks, type EnvSnapshot } from "@/lib/adminHealth";
 import { rateStorePlan } from "@/lib/webSecurity";
+import { describeRetention, retentionConfig } from "@/lib/auditArchivePlan";
 
 export const dynamic = "force-dynamic";
 
@@ -66,7 +67,23 @@ export async function GET(req: NextRequest) {
     health: live ? await live.health() : null,
   };
 
+  const ret = retentionConfig();
+  const archive = { days: ret.days, batch: ret.batch, dir: ret.dir, note: describeRetention(ret) };
+
   const checks = evaluateEnv(env);
+  // Denetim saklama politikası tanımsızsa üretimde denetim izi süresiz büyür
+  // ve "ne zaman silinecek" sorusu yanıtsız kalır (g-audit-export).
+  if (!ret.days) {
+    checks.push({
+      id: "audit-retention",
+      label: "Denetim saklama politikası",
+      level: process.env.NODE_ENV === "production" ? "uyari" : "bilgi",
+      value: "tanımsız",
+      hint: "AUDIT_RETENTION_DAYS tanımlayın; şifreli arşiv + imzalı manifesto Yönetim → Denetim ekranından çalıştırılır.",
+      doc: "docs/YEDEK_VE_DR.md",
+    });
+  }
+
   if (plan.warning) {
     checks.push({
       id: "rate-store",
@@ -115,6 +132,7 @@ export async function GET(req: NextRequest) {
     health,
     metrics,
     rateStore,
+    archive,
     /** Panelin gösterdiği uyarı: veri yoksa \"sağlıklı\" denmez. */
     note: metrics.ok && health.ready !== null
       ? "Tüm değerler bu sunucudan okundu."

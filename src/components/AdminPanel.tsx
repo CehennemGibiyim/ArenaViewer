@@ -203,12 +203,37 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
   const [siem, setSiem] = useState<{ pending: number; failed: number; sent: number; abandoned: number; configured: boolean; maxAttempts: number } | null>(null);
   const [siemMsg, setSiemMsg] = useState("");
   const loadAudit = useCallback(async () => { const r = await api<AuditRow[]>(`/api/audit?limit=300&q=${encodeURIComponent(aq)}`); if (r.ok) setAudit(r.data); }, [aq]);
+  const loadArchive = async () => {
+    const r = await api<{ days: number; batch: number; dir: string; archives: { key: string; size: number }[]; storage: string }>("/api/audit/archive");
+    if (r.ok) setArch(r.data);
+  };
+  /** Saklama koşusunu elle tetikler (zamanlayıcı kurumdadır; uç idempotent değil, kopyalar). */
+  const runArchiveNow = async () => {
+    setArchBusy(true); setArchMsg("");
+    const r = await api<{ archived: number; summary: string; purge: string }>("/api/audit/archive", { method: "POST" });
+    setArchBusy(false);
+    if (!r.ok) { setArchMsg("Arşiv koşusu başarısız (yetki ya da depolama hatası)."); return; }
+    setArchMsg(r.data.summary);
+    await loadArchive(); await loadAudit();
+  };
+  const verifyArchiveNow = async () => {
+    setArchBusy(true); setArchMsg("");
+    const r = await api<{ ok: boolean; summary: string; archives: { name: string; rows: number; signatureOk: boolean; chainOk: boolean }[] }>("/api/audit/archive?verify=1");
+    setArchBusy(false);
+    if (!r.ok) { setArchMsg("Doğrulama çağrısı başarısız."); return; }
+    setArchMsg(r.data.summary);
+  };
+
   const loadSiem = useCallback(async () => { const r = await api<{ pending: number; failed: number; sent: number; abandoned: number; configured: boolean; maxAttempts: number }>("/api/audit/export?siem=stats"); if (r.ok) setSiem(r.data); }, []);
   // AI
   const [perf, setPerf] = useState<{ rows: PerfRow[]; note: string; disagreement?: DisagreementStats } | null>(null);
   const [fb, setFb] = useState<FeedbackReport | null>(null);
   const [fbError, setFbError] = useState("");
   // Sistem sağlığı (g-metrics + ortam denetimi) — Yönetim → Sağlık
+  // Denetim arşivi (g-audit-export): saklama politikası + doğrulama
+  const [arch, setArch] = useState<{ days: number; batch: number; dir: string; archives: { key: string; size: number }[]; storage: string } | null>(null);
+  const [archMsg, setArchMsg] = useState("");
+  const [archBusy, setArchBusy] = useState(false);
   const [health, setHealth] = useState<HealthOut | null>(null);
   const [healthBusy, setHealthBusy] = useState(false);
   const [healthErr, setHealthErr] = useState("");
@@ -379,7 +404,7 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
       if (tab === "profile") { await loadProfile(); await loadMfa(); }
       if (tab === "sessions") await loadSessions();
       if (tab === "users") await loadUsers();
-      if (tab === "audit") { await loadAudit(); await loadSiem(); }
+      if (tab === "audit") { await loadAudit(); await loadSiem(); await loadArchive(); }
       if (tab === "ai") {
         const r = await api<{ rows: PerfRow[]; note: string; disagreement?: DisagreementStats }>("/api/ai/performance");
         if (r.ok) setPerf(r.data);
@@ -762,6 +787,32 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
             )}
             {siemMsg && <p className="text-[11px] text-[var(--ac-cyan300)]">{siemMsg}</p>}
             {chain && <div className={`rounded-lg border px-3 py-2 text-xs font-semibold ${chain.ok ? "border-emerald-500/40 bg-emerald-500/10 text-[var(--ac-emerald300)]" : "border-rose-500/50 bg-rose-500/10 text-[var(--ac-rose300)]"}`}>{chain.ok ? `✓ Zincir bütün: ${chain.count} kayıt, değişiklik/silme yok.` : `✗ Zincir bozuk (kayıt #${chain.brokenAtId}): ${chain.reason}`}</div>}
+            {/* Şifreli arşiv + saklama politikası (g-audit-export) */}
+            <div className={`${card} space-y-1.5`} data-testid="audit-archive">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <b className="text-xs text-[var(--sl200)]">Şifreli arşiv ve saklama politikası</b>
+                <span className="text-[10.5px] text-[var(--sl500)]">
+                  {arch ? (arch.days ? `${arch.days} gün canlı` : "politika kapalı") + ` · ${arch.archives.length} arşiv · ${arch.storage}` : "yükleniyor…"}
+                </span>
+              </div>
+              {arch && !arch.days && (
+                <p className="text-[10.5px] leading-relaxed text-[var(--ac-amber300)]">
+                  <code>AUDIT_RETENTION_DAYS</code> tanımlı değil: hiçbir kayıt arşivlenmez veya silinmez. Saklama süresi ülke mevzuatına göre
+                  değiştiği için varsayılan verilmez (yanlışlıkla veri kaybı olmasın).
+                </p>
+              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <button className={`${btn} border border-cyan-400/40 text-[var(--ac-cyan300)] hover:bg-cyan-400/10 disabled:opacity-40`} disabled={archBusy} onClick={() => void runArchiveNow()}>🗄 Arşiv koşusunu çalıştır</button>
+                <button className={`${btn} border border-emerald-400/40 text-[var(--ac-emerald300)] hover:bg-emerald-400/10 disabled:opacity-40`} disabled={archBusy} onClick={() => void verifyArchiveNow()}>🔐 Arşivi doğrula (imza + zincir)</button>
+                <span className="text-[10px] text-[var(--sl500)]">arşive kopyalar; denetim tablosu DELETE işlemine kapalı olduğu için silmez</span>
+              </div>
+              {archMsg && <p className="text-[10.5px] leading-relaxed text-[var(--ac-cyan300)]">{archMsg}</p>}
+              {arch && arch.archives.length > 0 && (
+                <div className="max-h-32 space-y-0.5 overflow-auto font-mono text-[10px] text-[var(--sl400)]">
+                  {arch.archives.map((a) => <div key={a.key} className="truncate">{a.key.replace(arch.dir + "/", "")} · {(a.size / 1024).toFixed(1)} KB</div>)}
+                </div>
+              )}
+            </div>
             <div className={`${card} audit-print max-h-[60vh] overflow-auto p-0`}>
               <table className="w-full text-[11px]">
                 <thead className="sticky top-0 bg-[var(--t06)] text-left text-[var(--sl500)]"><tr>{["#", "Zaman", "Kullanıcı", "İşlem", "Kayıt", "Ayrıntı", "Hash"].map((h) => <th key={h} className="border-b border-[var(--t25)] px-3 py-2 font-semibold">{h}</th>)}</tr></thead>
