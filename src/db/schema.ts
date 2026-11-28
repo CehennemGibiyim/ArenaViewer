@@ -320,6 +320,29 @@ export const storedFiles = pgTable("stored_files", {
  * kural tabanlı “bulgu bildirimi” sayılır. Yeni sütunların tamamı opsiyoneldir, yani
  * eski veri bozulmadan şema uygulanabilir.
  */
+/**
+ * HBYS/RIS'ten çekilen sonuçlar (d-followup): HL7 ORU^R01 + FHIR
+ * DiagnosticReport köprüleri `/api/his/results` üzerinden kuyruğa yazar;
+ * uç sonuçları açık takip görevlerine eşler ve kapatır. Metin şifreli tutulur.
+ */
+export const hisResults = pgTable("his_results", {
+  id: serial("id").primaryKey(),
+  batchId: text("batch_id").notNull(),
+  source: text("source").notNull().default("hl7"), // hl7 | fhir
+  patientId: text("patient_id").notNull().default(""),
+  accessionNumber: text("accession_number").notNull(),
+  modality: text("modality").notNull().default(""),
+  bodyPart: text("body_part").notNull().default(""),
+  description: text("description").notNull().default(""),
+  textCipher: text("text_cipher").notNull(), // AES-256-GCM şifreli sonuç metni
+  atText: text("at_text").notNull().default(""),
+  studyUid: text("study_uid").notNull().default(""),
+  fhirSource: text("fhir_source").notNull().default(""),
+  status: text("status").notNull().default("pending"), // pending | matched | unmatched | closed
+  matchedTaskId: integer("matched_task_id").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const notifications = pgTable("notifications", {
   id: serial("id").primaryKey(),
   createdAt: timestamp("created_at").notNull().defaultNow(),

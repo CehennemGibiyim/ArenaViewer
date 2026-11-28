@@ -570,10 +570,11 @@ python ai-worker/server.py          # worker'ı başlatır (CPU'da da çalışı
   Hasta görüntüsü yalnızca bu makinedeki worker'a gider, dış ağa çıkmaz.
 - Not: Büyük HU hacimleri için `next.config.ts` içinde gövde sınırı 700 MB'a ayarlıdır.
 
-### HBYS/RIS sipariş köprüsü (HL7 v2 MLLP)
+### HBYS/RIS köprüsü (HL7 v2 MLLP — sipariş + sonuç)
 
-Kurum içi HBYS, teknik olarak `ORM^O01` gibi sipariş mesajlarını TCP/MLLP ile gönderir.
-Bu mesajları ArenaViewer'ın `/api/his/orders` ucuna çeviren ayrı bir dinleyici script'i vardır:
+Kurum içi HBYS, teknik olarak `ORM^O01` sipariş ve `ORU^R01` **sonuç** (iadesi)
+mesailarını TCP/MLLP ile gönderir. Bu mesailleri ArenaViewer'ın `/api/his/orders`
+ve `/api/his/results` ucuna çeviren ayrı bir dinleyici script'i vardır:
 
 ```bash
 HIS_API_KEY=<ayarlardaki anahtar> HL7_PORT=2575 npm run hl7:mllp
@@ -583,6 +584,9 @@ HIS_API_KEY=<ayarlardaki anahtar> HL7_PORT=2575 npm run hl7:mllp
 - Hedef: `HIS_BASE_URL` (varsayılan `http://127.0.0.1:3000`) → `/api/his/orders`, `x-api-key` başlığı ile.
 - Yanıt: PACS/HBYS'e `MSA|AA` (kabul), `AR` (eksik alan) veya `AE` (ulaşılamadı) ACK'i döner.
 - Ayrıştırma: `src/lib/hl7.ts` (saf fonksiyonlar, `npm run test:hl7`).
+- **ORU^R01 sonuç:** OBR-2 accession, OBR-4 modalite kodu, OBR-16 vücut bölgesi,
+  OBR-7 sonuç zamanı, OBX-5 sonuç metni; `src/lib/resultPull.ts` `resultFromHl7` ile
+  çıkarılır → `/api/his/results` kuyruğuna yazılır (belirsizse eşleşme YAPILMAZ).
 
 ### Modality Worklist (MWL) — modalite konsolu
 
@@ -652,7 +656,13 @@ FHIR_URL=... FHIR_USER=admin FHIR_PASSWORD=xxx FHIR_INTERVAL=300 npm run fhir:pu
 - **Uçlar:** `POST /api/his/fhir` (push Bundle, `x-api-key`), `GET /api/his/fhir?pull=ServiceRequest|ImagingStudy`
   (çekim), `PUT /api/his/fhir` (FHIR kökü + Bearer/Basic token ayarlama; token/parola şifrelenerek saklanır).
 - **Çıktı** olarak FHIR R4 DiagnosticReport (`src/lib/fhir.ts`) zaten vardı; girdi ile denge kuruldu.
-- Testler: `npm run test:fhir-in` (ham FHIR JSON → ayrıştırma + mock fetch ile gerçek çekim/push akışı).
+- **Sonuç çekimi (d-followup):** `DiagnosticReport` kaynakları `diagnosticReportToResult`
+  ile sonuç yüküne çevrilir (identifier → accession, `code` → modalite, `conclusion` → metin,
+  `imagingStudy` referansı → çalışma UID); kuyruk `/api/his/results` (`his_results` tablosu,
+  şifreli metin) eşleme+kapatma sözleşmesini taşır. Köprü:
+  `FHIR_URL=… FHIR_TOKEN=… npm run result:pull` (periyodik DiagnosticReport çekimi).
+- Testler: `npm run test:fhir-in` (ham FHIR JSON → ayrıştırma + mock fetch ile gerçek çekim/push akışı),
+  `npm run test:result` (ORU^R01 + DiagnosticReport sözleşmesi + eşleme/kapatma).
 
 ### Toplu/arka plan içe aktarma kuyruğu (f-batch)
 
@@ -764,10 +774,11 @@ Anahtar üretme: `node -e "console.log(require('crypto').randomBytes(32).toStrin
 | `npm run build` / `npm start` | Üretim derlemesi / sunucusu |
 | `npm run build:pages` | GitHub Pages statik derlemesini yerelde sınar (`scripts/prepare-pages.sh` + `next build`, geçici kopyada) |
 | `npx drizzle-kit push` | Şemayı yerel DB'ye uygula |
-| `npm run hl7:mllp` | HL7 v2 (MLLP) sipariş alıcısını başlatır (`HIS_API_KEY` gerekir) |
+| `npm run hl7:mllp` | HL7 v2 (MLLP) köprü alıcısı — sipariş (`/api/his/orders`) + ORU^R01 sonuç (`/api/his/results`; `HIS_API_KEY` gerekir) |
 | `npm run mwl:cfind` | Modality Worklist DIMSE C-FIND köprüsü (`MWL_PACS_HOST`/`MWL_PACS_AET` gerekir) |
 | `npm run mpps:bridge` | MPPS (N-CREATE/N-SET) olayını `/api/his/mpps` ucuna iletir (`HIS_API_KEY` gerekir) |
 | `npm run fhir:pull` | FHIR çekim köprüsü (ServiceRequest/ImagingStudy → `/api/his/fhir`; `FHIR_URL`+token gerekir) |
+| `npm run result:pull` | Sonuç çekim köprüsü (DiagnosticReport → `/api/his/results`; `FHIR_URL`+token gerekir) |
 | `npm run batch:worker` | Toplu içe aktarma kuyruğu worker'ı (manifest → kuyruk → DICOM doğrulama turu) |
 | `npm run cstore:bridge` | C-STORE (DIMSE) köprü süreci (manifest → kuyruk, DIMSE raporu → uygulanma) |
 | `npx drizzle-kit push --config=drizzle.config.ts` | Şemayı `DATABASE_URL`'deki DB'ye uygula (Docker/üretim) |

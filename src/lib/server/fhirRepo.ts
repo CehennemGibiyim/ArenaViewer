@@ -100,7 +100,7 @@ export function fhirHeaders(cfg: FhirConfig): Record<string, string> {
 }
 
 /** `?_sort=-_lastUpdated&type=ServiceRequest` biçimde çekim sarmalayıcısı. */
-export function fhirQueryUrl(baseUrl: string, type: "ServiceRequest" | "ImagingStudy" | "Patient", extra: Record<string, string> = {}): string {
+export function fhirQueryUrl(baseUrl: string, type: "ServiceRequest" | "ImagingStudy" | "DiagnosticReport" | "Patient", extra: Record<string, string> = {}): string {
   const u = new URL(baseUrl);
   u.searchParams.set("_count", "200");
   u.searchParams.set("_pretty", "false");
