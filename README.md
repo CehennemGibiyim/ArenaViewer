@@ -119,6 +119,21 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   bir kez yazılır (`accessAnomalyAlerted` ile tekrar engellenir).
   **Sınırlılık:** heuristiktir, suistimal kanıtı değildir — alarm önce
   kişiye doğrulatılır. `GET /api/security/access-anomaly` yalnız yönetici.
+- **Satır düzeyi erişim matrisi (KVKK):** `src/lib/privacyPolicy.ts` +
+  `src/lib/server/privacyRepo.ts` — yonetici tüm raporlar; radyolog yalnızca
+  kendi oluşturduğu (`createdBy`) ya da kendisine atanmış çalışma
+  (`studies.assignedTo`)ın raporu; teknisyen hiçbir rapor görmez.
+  `/api/reports` ve `/api/reports/[id]` bu matrisle filtrelenir; erişim
+  olmayan kullanıcı **404** alır (varlık sızıntısı önlenir).
+- **Saklama (retention) politikası:** `PRIVACY_RETENTION_REPORT_DAYS` /
+  `PRIVACY_RETENTION_SHARE_DAYS` / `PRIVACY_RETENTION_NOTIFICATION_DAYS`
+  ayarlarından doğan sweep — tanımlı değilse **hiçbir şey silinmez**
+  (yanlışlıkla veri kaybı, KVKK ihlalinden büyük hata). **Imzalı (onaylı)
+  raporlar korunaklı** — hukuki kayıt olarak silme politikasına tabi değildir.
+  Sweep yalnız yönetici çalışır (`POST /api/privacy/retention`), her silme
+  `privacy.retention_delete` denetimiyle kaydedilir. Zamanlı çalıştırma:
+  `npm run privacy:sweep -- --once`. Sınır: TLS zorunluluğu altyapı katmanı
+  kararı, açık rıza/aydinlatma metni prod konfigürasyonu.
 - **Model kayıt defteri:** Yönetim → AI: model sürümleri (aday/aktif/emekli),
   trafik payı, parmak izi; `/api/ai/registry` deterministik **A/B ataması**
   (tohum → kova) ve aşama değişikliğinde denetim kaydı.
@@ -779,6 +794,7 @@ Anahtar üretme: `node -e "console.log(require('crypto').randomBytes(32).toStrin
 | `npm run mpps:bridge` | MPPS (N-CREATE/N-SET) olayını `/api/his/mpps` ucuna iletir (`HIS_API_KEY` gerekir) |
 | `npm run fhir:pull` | FHIR çekim köprüsü (ServiceRequest/ImagingStudy → `/api/his/fhir`; `FHIR_URL`+token gerekir) |
 | `npm run result:pull` | Sonuç çekim köprüsü (DiagnosticReport → `/api/his/results`; `FHIR_URL`+token gerekir) |
+| `npm run privacy:sweep` | Saklama sweep köprüsü (retention politikası açıksa silme; `HIS_API_KEY` gerekir) |
 | `npm run batch:worker` | Toplu içe aktarma kuyruğu worker'ı (manifest → kuyruk → DICOM doğrulama turu) |
 | `npm run cstore:bridge` | C-STORE (DIMSE) köprü süreci (manifest → kuyruk, DIMSE raporu → uygulanma) |
 | `npx drizzle-kit push --config=drizzle.config.ts` | Şemayı `DATABASE_URL`'deki DB'ye uygula (Docker/üretim) |
@@ -839,6 +855,7 @@ npm run test:lungquant              # LAA-950, PD15, kesit profili, örnekleme
 npm run test:model-registry         # model kayıt defteri + A/B ataması
 npm run test:model-evaluate      # toplu model değerlendirme (AUC/eşik tablosu/Brier/ECE)
 npm run test:access-anomaly      # erişim anomalisi tespiti (KVKK, heuristik kurallar)
+npm run test:privacy               # satır düzeyi rol matrisi + saklama politikası
 npm run test:a11y                   # WCAG kontrastı + tema sabitleri
 npm run test:nuclear                # MTV/SUV örnekleme + TIC sınıflandırması
 npm run test:patient-letter         # hasta mektubu: TR/EN/DE, okuma düzeyi, taslak kilidi

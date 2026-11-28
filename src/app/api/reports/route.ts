@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { desc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { reportVersions, reports, studies } from "@/db/schema";
 import { audit } from "@/lib/server/audit";
 import { authorize, sha256 } from "@/lib/server/auth";
 import { createFollowupFromReport } from "@/lib/server/closeLoop";
 import { authRequired } from "@/lib/server/auth";
+import { visibleReportsFor } from "@/lib/server/privacyRepo";
 import { encryptText } from "@/lib/server/crypto";
 import { missingReviewReasons, sanitizeReviewReasons } from "@/lib/findingReview";
 import { mapReport, upsertStudy, type StudyMeta } from "@/lib/server/studyRepo";
@@ -22,12 +23,13 @@ export async function GET(req: NextRequest) {
   const pid = sp.get("patientId");
   const uid = sp.get("studyUid");
   const filter = { patientId: pid, studyUid: uid };
-  const query = db.select({ r: reports, s: studies }).from(reports).innerJoin(studies, eq(reports.studyId, studies.id));
-  const filteredQuery = uid ? query.where(eq(studies.studyUid, uid)) : query;
-  const orderedQuery = filteredQuery.orderBy(desc(reports.id));
-  const limit = reportHistoryQueryLimit(filter);
-  const rows = limit === null ? await orderedQuery : await orderedQuery.limit(limit);
-  const history = rows.map((x) => ({ ...mapReport(x.r, x.s), keyImageDataUrl: "" }));
+  // Satır düzeyi erişim matrisi (t-privacy): kullanıcının görebileceği raporlar.
+  const rows = await visibleReportsFor(a.user, uid ?? "");
+  const limited = (() => {
+    const limit = reportHistoryQueryLimit(filter);
+    return limit === null ? rows : rows.slice(-limit).reverse();
+  })();
+  const history = limited.map((x) => ({ ...mapReport(x.r, x.s), keyImageDataUrl: "" }));
   return NextResponse.json(selectReportHistory(history, filter));
 }
 
