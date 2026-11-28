@@ -237,6 +237,12 @@ export interface CspOptions {
   dev?: boolean;
   /** WASM çözücüler `blob:` worker ve `wasm-unsafe-eval` ister. */
   wasm?: boolean;
+  /**
+   * `frame-ancestors` değeri (varsayılan `'self'`). Yalnız **geliştirme
+   * önizlemesinde** başka kökende iframe'e gömülmek için `"*"` verilir; üretim
+   * çağrısı bu alanı hiç doldurmaz.
+   */
+  frameAncestors?: string;
 }
 
 /**
@@ -272,7 +278,7 @@ export function buildCsp(opts: CspOptions = {}): string {
     ["object-src", "'none'"],
     ["base-uri", "'self'"],
     ["form-action", "'self'"],
-    ["frame-ancestors", "'self'"],
+    ["frame-ancestors", opts.frameAncestors ?? "'self'"],
     // İhlal raporları /api/csp-report'a düşer (aynı köken; ek kimlik istemez).
     // İKİSİ birlikte: `report-uri` eski tarayıcılar için (deprecated), `report-to`
     // yeni tarayıcılar için (`Reporting-Endpoints` başlığıyla eşleşmeli).

@@ -467,6 +467,27 @@ npm run build
 npm start
 ```
 
+### Uzak/konteyner önizlemede çalıştırma (iframe, farklı köken)
+
+Geliştirme sunucusunu bir bulut sandbox'ında veya IDE önizlemesinde (sayfa **başka
+bir kökende** iframe içinde açılır) çalıştırırken iki ayar gerekir — ikisi de
+üretim davranışını değiştirmez:
+
+```bash
+PORT=38247
+npx next dev -p 38247 -H 0.0.0.0   # 0.0.0.0 şart: ters vekil 127.0.0.1'e ulaşamaz
+```
+
+- `next.config.ts` → `allowedDevOrigins` (varsayılan `*.e2b.app`, `localhost:38247`,
+  `127.0.0.1:38247`; ek kökenler `PREVIEW_ORIGINS=a.example,b.example` ile). Bu liste
+  olmadan Next.js 16 sunucu eylemlerini/HMR'i reddeder ve sayfa hidrasyonu sessizce kırılır.
+- `PREVIEW_EMBED=1` → **yalnız `NODE_ENV !== "production"` iken** CSP'de
+  `frame-ancestors *` yazılır ve `X-Frame-Options` gönderilmez (aksi hâlde önizleme boş
+  görünür). Üretimde `frame-ancestors 'self'` + `X-Frame-Options: SAMEORIGIN` aynen kalır.
+- `.env` (gitignore'lu) en az `DATABASE_URL` + `DATA_ENCRYPTION_KEY` (base64, 32 bayt)
+  içermeli; yerel Postgres yoksa arayüz açılır, DB'ye bağlı uçlar `503` döner
+  (`/api/health` → `{"ok":false,"check":"ready"}`) — bu beklenen davranıştır, tahmin edilmez.
+
 > **Windows — tek komutla kurulum (önerilen):** betik önkoşulları (Git, Node.js,
 > Python), yapay zekâ paketlerini (`ai-worker/requirements.txt`) ve modelleri
 > (akciğer ≈84 MB + beyin ≈147 MB) kendisi kurar:

@@ -188,7 +188,14 @@ export function proxy(req: NextRequest) {
   // tüm betikleri engeller — G1'de CSP bu yüzden geri çekilmişti).
   const belge = !path.startsWith("/_next/") && !path.startsWith("/codecs/") && !path.startsWith("/wasm/");
   const nonce = belge ? newCsrfToken().slice(0, 32) : "";
-  const csp = belge ? buildCsp({ nonce, dev: process.env.NODE_ENV !== "production" }) : "";
+  // Önizleme gömme: Arena/IDE önizlemeleri sayfayı **başka bir kökende** iframe'e
+  // alır; `frame-ancestors 'self'` bu yüzden sayfayı boş gösterirdi. Muafiyet
+  // yalnız geliştirme derlemesinde ve açıkça `PREVIEW_EMBED=1` iken uygulanır —
+  // üretimde CSP değişmez (t-privacy: tıklama hırsızlığına karşı koruma sürer).
+  const previewEmbed = process.env.NODE_ENV !== "production" && process.env.PREVIEW_EMBED === "1";
+  const csp = belge
+    ? buildCsp({ nonce, dev: process.env.NODE_ENV !== "production", frameAncestors: previewEmbed ? "*" : undefined })
+    : "";
   const requestHeaders = new Headers(req.headers);
   if (belge) {
     requestHeaders.set("x-csp-nonce", nonce);
@@ -204,7 +211,8 @@ export function proxy(req: NextRequest) {
   }
   if (belge) {
     res.headers.set("Content-Security-Policy", csp);
-    res.headers.set("X-Frame-Options", "SAMEORIGIN");
+    // iframe gömme muafiyetinde X-Frame-Options yazılmaz (SAMEORIGIN embed'i engeller).
+    if (!previewEmbed) res.headers.set("X-Frame-Options", "SAMEORIGIN");
     res.headers.set("x-csp-nonce", nonce);
     // Modern raporlama: `report-to` yönergesinin çözülebilmesi için grup tanımı.
     for (const [k, v] of Object.entries(reportingHeaders())) res.headers.set(k, v);
