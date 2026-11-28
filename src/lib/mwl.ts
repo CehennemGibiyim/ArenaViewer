@@ -274,6 +274,12 @@ const VR: Record<number, string> = {
   0x00400001: "AE", 0x00400002: "DA", 0x00400003: "TM", 0x00400005: "SH", 0x00400006: "PN",
   0x00400007: "LO", 0x00400008: "SQ", 0x00400009: "SH", 0x00400010: "SH", 0x00400011: "SH",
   0x00400020: "CS", 0x00400100: "SQ", 0x00401001: "SH",
+  // MPPS (0040,02xx) — N-CREATE/N-SET veri kümesi. Bunlar tabloda yoksa
+  // (0040,0270) gibi SQ'lar `UN` sayılır ve **dizi hiç açılmaz**: MPPS olayı
+  // çalışma UID'sine bağlanamaz. Etiketler DICOM PS3.3 C.4.10'dan.
+  0x00400241: "AE", 0x00400244: "DA", 0x00400245: "TM", 0x00400250: "DA",
+  0x00400251: "TM", 0x00400252: "CS", 0x00400253: "SH", 0x00400254: "LO",
+  0x00400270: "SQ", 0x00400280: "LT", 0x00400340: "SQ",
 };
 
 const LONG_VRS = new Set(["OB", "OW", "OF", "SQ", "UT", "UN"]);

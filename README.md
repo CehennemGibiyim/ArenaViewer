@@ -593,6 +593,32 @@ MWL_PACS_HOST=10.0.0.20 MWL_PACS_PORT=104 MWL_PACS_AET=ORTHANC npm run mwl:cfind
 - `findscu` (dcm4che) yoksa `MWL_BACKEND=bin` + `MWL_BIN` ile kendi C-FIND betiğinizi bağlayın;
   köprü ham Implicit VR yanıtını da DICOM JSON'a çevirir (`parseImplicitVr`).
 
+### MPPS, ADT ve çoklu AET yönlendirme
+
+MWL **yapılacak** işi verir; işin **yapıldığını** modalite MPPS ile bildirir. Node içinde
+DIMSE (TCP/PDU) yığını yoktur; ArenaViewer sözleşmeyi ve eşleştirmeyi tutar, ağ geçidi
+dcm4che/Orthanc/Mirth olur.
+
+```bash
+# Ağ geçidi olayı (DICOM JSON) → /api/his/mpps
+HIS_API_KEY=<anahtar> npm run mpps:bridge -- olay.json
+cat olay.json | HIS_API_KEY=<anahtar> npm run mpps:bridge
+```
+
+- Sözleşme: `src/lib/mpps.ts` (N-CREATE `IN PROGRESS`, N-SET `COMPLETED`/`DISCONTINUED`;
+  `COMPLETED` için bitiş saati, `DISCONTINUED` için gerekçe **zorunlu**).
+- Uygulama: `IN PROGRESS → okunuyor`, `COMPLETED → bekliyor` (onay değil), `DISCONTINUED`
+  çalışma **açmaz**; imzalı (`onayli`) çalışma MPPS ile geri alınmaz, yinelenen bildirim yazılmaz.
+- Eşleşme: Study Instance UID, yoksa accession. İkisi de yoksa olay reddedilir (tahmin yok).
+- **ADT** (`/api/his/adt`, `src/lib/hl7Adt.ts`): `A08/A31` hasta güncellemesi (boş alan
+  yazılmaz → ad silinmez), `A40/A41` birleştirme (MRG-1 eski kimlikler → PID-3 hedef,
+  eski kimlikler `legacy_patient_ids`'te emekli). Şifreli `patient_id` alanında SQL eşitliği
+  çalışmadığı için arama **çözerek** yapılır.
+- **Çoklu AET:** `PACS_AET_ROUTES="CT1=https://pacs-a/api,CT;MR1=https://pacs-b/api;*=https://pacs/api,US"`
+  — sıra: AE+modality → AE → joker; eşleşme yoksa varsayılan PACS ve gerekçe görünür.
+- Testler: `npm run test:hl7-adt`, `npm run test:mpps` (MPPS yükü Implicit VR LE baytlara
+  yazılıp `mwl.ts` okuyucusuyla geri okunur).
+
 ## Tedarik zinciri (SBOM + SLSA)
 
 Her `v*` etiketinde `.github/workflows/sbom.yml` şunları üretir ve Release'e ekler:
@@ -683,6 +709,7 @@ Anahtar üretme: `node -e "console.log(require('crypto').randomBytes(32).toStrin
 | `npx drizzle-kit push` | Şemayı yerel DB'ye uygula |
 | `npm run hl7:mllp` | HL7 v2 (MLLP) sipariş alıcısını başlatır (`HIS_API_KEY` gerekir) |
 | `npm run mwl:cfind` | Modality Worklist DIMSE C-FIND köprüsü (`MWL_PACS_HOST`/`MWL_PACS_AET` gerekir) |
+| `npm run mpps:bridge` | MPPS (N-CREATE/N-SET) olayını `/api/his/mpps` ucuna iletir (`HIS_API_KEY` gerekir) |
 | `npx drizzle-kit push --config=drizzle.config.ts` | Şemayı `DATABASE_URL`'deki DB'ye uygula (Docker/üretim) |
 
 ## Testler
@@ -768,6 +795,8 @@ npm run test:stowanon               # anonim seri → PACS (plan + sunucu doğru
 npm run test:estow                  # seçimli gönderme: kesit aralığı + seçim bütünlüğü
 npm run test:wadoframe              # kare düzeyinde getirme + istemci önbelleği
 npm run test:mwl                    # Modality Worklist (DICOMweb + DIMSE köprüsü)
+npm run test:hl7-adt                # ADT A08/A31 güncelleme, A40/A41 birleştirme, çoklu AET
+npm run test:mpps                   # MPPS N-CREATE/N-SET sözleşmesi (Implicit VR gidiş-dönüş)
 npm run test:webhard                # hız sınırı + CSRF + CSP
 npm run test:supplychain            # SBOM + SHA256SUMS + SLSA köken doğrulaması
 npm run test:backupdr               # depolama adaptörü + yedek/geri yükleme

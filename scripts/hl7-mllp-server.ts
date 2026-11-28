@@ -16,6 +16,7 @@
  */
 import net from "node:net";
 import { buildAck, orderFromHl7, parseHl7 } from "../src/lib/hl7";
+import { adtEvent } from "../src/lib/hl7Adt";
 
 const HOST = process.env.HL7_HOST || "127.0.0.1";
 const PORT = Number(process.env.HL7_PORT || 2575);
@@ -43,6 +44,25 @@ const server = net.createServer((sock) => {
         continue;
       }
       if (!msg) { sock.write(buildAck({ segments: [], sendingApp: "", sendingFacility: "", type: "", trigger: "", messageControlId: "" }, "AE", "Geçersiz HL7 mesajı")); continue; }
+
+      // ADT (A08/A31/A40/A41): hasta güncelleme ve birleştirme → /api/his/adt.
+      // Sipariş ucuyla karıştırılmaz; ADT mesajı çalışma **oluşturmaz**.
+      const event = adtEvent(msg);
+      if (event !== "other") {
+        try {
+          const r = await fetch(`${BASE}/api/his/adt`, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain", "x-api-key": KEY },
+            body: raw,
+          });
+          const body = (await r.json().catch(() => ({}))) as { ok?: boolean; reason?: string; applied?: { details?: string } };
+          if (r.ok && body.ok) sock.write(buildAck(msg, "AA", `ADT ${event}: ${body.applied?.details ?? "uygulandı"}`));
+          else sock.write(buildAck(msg, r.status === 422 ? "AR" : "AE", body.reason ?? `HTTP ${r.status}`));
+        } catch (e) {
+          sock.write(buildAck(msg, "AE", `ArenaViewer yanit vermedi: ${e instanceof Error ? e.message : String(e)}`));
+        }
+        continue;
+      }
 
       const order = orderFromHl7(msg);
       if (!order) {
