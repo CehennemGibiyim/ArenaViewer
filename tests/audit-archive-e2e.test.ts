@@ -6,7 +6,7 @@
  * doğrulanıyor mu, kurcalanan dosya yakalanıyor mu" soruları **gerçekten**
  * sınanır — yalnız kaynak metni aranmaz.
  */
-import { chmodSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { randomBytes } from "node:crypto";
 import path from "node:path";

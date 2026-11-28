@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authorize } from "@/lib/server/auth";
 import { audit } from "@/lib/server/audit";
-import { archiveStatus, runArchive, verifyArchiveDir } from "@/lib/server/auditArchive";
+import { archiveStatus, runArchive } from "@/lib/server/auditArchive";
 
 export const dynamic = "force-dynamic";
 
@@ -19,8 +19,8 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   const a = await authorize(req, ["yonetici"]);
   if ("error" in a) return a.error;
-  const sp = req.nextUrl.searchParams;
-  if (sp.get("verify") === "1") return NextResponse.json(await verifyArchiveDir());
+  // Doğrulama ayrı uçta (/api/audit/archive/verify): duyarlı işlem kullanıcı
+  // parametresiyle seçilmez, yol sabittir.
   return NextResponse.json(await archiveStatus());
 }
 

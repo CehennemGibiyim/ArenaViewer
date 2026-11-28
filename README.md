@@ -820,7 +820,7 @@ docs/             Yayınlama ve işletim kılavuzları (görsel + videolu: docs/
   istemci `installRateStore` ile enjekte edilebilir. Ölçüm/test için `AV_RATE_LIMIT=off`.
 - **Denetim arşivi:** `AUDIT_RETENTION_DAYS` verilirse eşik dışındaki denetim kayıtları
   **şifreli arşive** (AES-256-GCM) imzalı manifestoyla kopyalanır; `POST /api/audit/archive`
-  koşuyu çalıştırır, `?verify=1` imza + içerik + zincir doğrular. Denetim tablosu
+  koşuyu çalıştırır, `/api/audit/archive/verify` imza + içerik + zincir doğrular. Denetim tablosu
   DELETE işlemine kapalı olduğu için silme yapılmaz — saklama DB partisyonuyla uygulanır.
   Ayrıntı: `docs/YEDEK_VE_DR.md`.
 - **CSP raporları:** CSP hem `report-uri` (eski) hem `report-to` taşır; yanıtlarda

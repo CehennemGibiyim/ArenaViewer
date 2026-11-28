@@ -10,7 +10,6 @@
  *  6) `normalizeReport`/`reportLines`: üç gövde biçimi (klasik, reports+json, report)
  *  7) Uç + proxy sözleşmesi (statik)
  */
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import {

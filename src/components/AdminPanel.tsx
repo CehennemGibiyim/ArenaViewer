@@ -218,7 +218,7 @@ export default function AdminPanel({ user }: { user: UserInfo }) {
   };
   const verifyArchiveNow = async () => {
     setArchBusy(true); setArchMsg("");
-    const r = await api<{ ok: boolean; summary: string; archives: { name: string; rows: number; signatureOk: boolean; chainOk: boolean }[] }>("/api/audit/archive?verify=1");
+    const r = await api<{ ok: boolean; summary: string; archives: { name: string; rows: number; signatureOk: boolean; chainOk: boolean }[] }>("/api/audit/archive/verify");
     setArchBusy(false);
     if (!r.ok) { setArchMsg("Doğrulama çağrısı başarısız."); return; }
     setArchMsg(r.data.summary);

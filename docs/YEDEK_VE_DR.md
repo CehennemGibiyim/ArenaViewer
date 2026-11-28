@@ -155,9 +155,10 @@ AUDIT_ARCHIVE_BATCH=1000         # koşu başına en çok kayıt (üst sınır 5
 - **Zincir bozuksa hiçbir şey taşınmaz** (`verifyChain()` yeşil olmalı) — delil korunur.
 - Arşiv: AES-256-GCM şifreli `.jsonl.enc` + **HMAC-SHA256 imzalı** `.manifest.json`
   (`count`, `firstId`, `lastId`, `prevHash`, `lastHash`, `cipherSha256`).
-- Uçlar (yalnız yönetici): `GET /api/audit/archive` (durum), `POST` (koşu, `audit.archive`
-  olarak denetlenir), `GET /api/audit/archive?verify=1` (imza + şifre çözme + içerik
-  SHA-256 + satır zinciri doğrulaması).
+- Uçlar (yalnız yönetici): `GET /api/audit/archive` (durum), `POST /api/audit/archive`
+  (koşu, `audit.archive` olarak denetlenir), `GET /api/audit/archive/verify` (imza +
+  şifre çözme + içerik SHA-256 + satır zinciri doğrulaması). Doğrulama **ayrı uçtur**:
+  duyarlı işlem kullanıcı parametresiyle seçilmez.
 - Panel: Yönetim → Denetim → "Şifreli arşiv ve saklama politikası" (koşu + doğrula).
 - **Zamanlanmış koşu depoda yok** (cron altyapısı yok): kurumun kendi cron/K8s CronJob
   tanımından `POST /api/audit/archive` çağrılmalı.

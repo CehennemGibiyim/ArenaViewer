@@ -2,7 +2,6 @@
  * g-webhard — Redis istemcisi (bağımlılıksız RESPB) ve kurulum noktası.
  * Ağa çıkmaz: ayrıştırıcı saf, kurulum `installRateStore` üzerinden sınanır.
  */
-import assert from "node:assert/strict";
 import { parseRedisUrl, parseResp, createRedisClient, installRateStore } from "../src/lib/rateStoreRuntime";
 import { rateStorePlan } from "../src/lib/webSecurity";
 
