@@ -672,8 +672,8 @@ export const BASE_ITEMS: GapItem[] = [
     id: "e-fhir-in", category: "workflow", title: "FHIR girişi: ServiceRequest/ImagingStudy çekici",
     status: "kismi", priority: "P2", effort: "M",
     market: ["OHIF", "Microsoft Fabric"],
-    ours: "Çıktı olarak FHIR DR var; sipariş/çalışma girişi yok.",
-    action: "FHIR client (OAuth), sipariş→çalışma, ImagingStudy→WADO eşlemesi.",
+    ours: "**Bu sürümde eklendi — FHIR girişi:** `src/lib/fhirIn.ts` ServiceRequest/ImagingStudy (FHIR R4) → sipariş sözleşmesi ayrıştırır (identifier → hasta kimliği, code → modalite/vücut bölgesi, Bundle/tek kaynak/birleştirme kabulı); **eksik bilgi reddedilerek** tahmin edilmez (bilinmeyen modalite kodu, geçersiz tarih atılır, UID olmayan ImagingStudy reddedilir). `src/lib/server/fhirRepo.ts` + `/api/his/fhir` (POST push Bundle, GET `?pull=ServiceRequest|ImagingStudy` çekim, PUT yapılandırma) çalışma kayıtlarına **`fhir` kaynaklı** yazılır — HL7/MWL/MPPS ile aynı `upsertStudy` köprüsü; `scripts/fhir-pull.ts` (`npm run fhir:pull`) Bearer/Basic token ile periyodik çekim köprüsüdür. Testler: `tests/fhir-in.test.ts` (48 assert; ham FHIR JSON → ayrıştırma + mock fetch ile gerçek çekim/push akışı). **Çıktı olarak FHIR DR** (`src/lib/fhir.ts`) zaten vardı. KALAN: tam OAuth (Authorization Code/PKCE) akışı kurum tarafında; ImagingStudy'den WADO seri eşlemesi ek modül (kurumun DICOMweb'i WADO-RS'yi zaten konuşuyor).",
+    action: "Kurum FHIR sunucusunun tam OAuth akışı (client-credentials/PKCE) ve ImagingStudy → WADO-RS seri eşlemesi; ServiceRequest'ten ImagingStudy'ye bağlanan replika.",
   },
   {
     id: "f-prefs", category: "workflow", title: "Kullanıcı başına tercihler sunucuda (layout, preset, kısayol)",

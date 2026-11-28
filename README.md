@@ -619,6 +619,30 @@ cat olay.json | HIS_API_KEY=<anahtar> npm run mpps:bridge
 - Testler: `npm run test:hl7-adt`, `npm run test:mpps` (MPPS yükü Implicit VR LE baytlara
   yazılıp `mwl.ts` okuyucusuyla geri okunur).
 
+### FHIR girişi — ServiceRequest/ImagingStudy
+
+Kurum FHIR sunucusu (OHIF/Microsoft Fabric tipik HIS entegrasyonu) **sipariş** ve
+**çalışma** bilgilerini FHIR R4 kaynaklarıyla gönderir. ArenaViewer bu girişi
+`src/lib/fhirIn.ts` ile ayrıştırır ve çalışma kayıtlarına `fhir` kaynaklı yazar
+(HL7/MWL/MPPS ile aynı `upsertStudy` köprüsü):
+
+```bash
+# Köprü süreci: periyodik çekim (ServiceRequest + ImagingStudy) → /api/his/fhir
+FHIR_URL=https://fhir.kurum/fhir/r4 FHIR_TOKEN=xxx npm run fhir:pull
+FHIR_URL=... FHIR_USER=admin FHIR_PASSWORD=xxx FHIR_INTERVAL=300 npm run fhir:pull
+```
+
+- **Sözleşme:** `ServiceRequest` (identifier → accession, `code` → modalite/vücut bölgesi,
+  `occurrenceDateTime` → tarih) ve `ImagingStudy` (`identifier[urn:dicom:uid]` → Study UID,
+  accession). `Bundle` ya da tek kaynak acceptance kabul edilir; ServiceRequest+ImagingStudy
+  birleştirilir (UID ImagingStudy'den, modalite ServiceRequest'ten).
+- **Tahmin yok:** hasta kimliği/accession/modalite eksikse sipariş **reddedilir**; bilinmeyen
+  modalite kodu uyarı üretir (boş bırakır); UID olmayan ImagingStudy reddedilir.
+- **Uçlar:** `POST /api/his/fhir` (push Bundle, `x-api-key`), `GET /api/his/fhir?pull=ServiceRequest|ImagingStudy`
+  (çekim), `PUT /api/his/fhir` (FHIR kökü + Bearer/Basic token ayarlama; token/parola şifrelenerek saklanır).
+- **Çıktı** olarak FHIR R4 DiagnosticReport (`src/lib/fhir.ts`) zaten vardı; girdi ile denge kuruldu.
+- Testler: `npm run test:fhir-in` (ham FHIR JSON → ayrıştırma + mock fetch ile gerçek çekim/push akışı).
+
 ## Tedarik zinciri (SBOM + SLSA)
 
 Her `v*` etiketinde `.github/workflows/sbom.yml` şunları üretir ve Release'e ekler:
@@ -710,6 +734,7 @@ Anahtar üretme: `node -e "console.log(require('crypto').randomBytes(32).toStrin
 | `npm run hl7:mllp` | HL7 v2 (MLLP) sipariş alıcısını başlatır (`HIS_API_KEY` gerekir) |
 | `npm run mwl:cfind` | Modality Worklist DIMSE C-FIND köprüsü (`MWL_PACS_HOST`/`MWL_PACS_AET` gerekir) |
 | `npm run mpps:bridge` | MPPS (N-CREATE/N-SET) olayını `/api/his/mpps` ucuna iletir (`HIS_API_KEY` gerekir) |
+| `npm run fhir:pull` | FHIR çekim köprüsü (ServiceRequest/ImagingStudy → `/api/his/fhir`; `FHIR_URL`+token gerekir) |
 | `npx drizzle-kit push --config=drizzle.config.ts` | Şemayı `DATABASE_URL`'deki DB'ye uygula (Docker/üretim) |
 
 ## Testler
@@ -797,6 +822,7 @@ npm run test:wadoframe              # kare düzeyinde getirme + istemci önbelle
 npm run test:mwl                    # Modality Worklist (DICOMweb + DIMSE köprüsü)
 npm run test:hl7-adt                # ADT A08/A31 güncelleme, A40/A41 birleştirme, çoklu AET
 npm run test:mpps                   # MPPS N-CREATE/N-SET sözleşmesi (Implicit VR gidiş-dönüş)
+npm run test:fhir-in                # FHIR girişi (ServiceRequest/ImagingStudy, çekim köprüsü)
 npm run test:webhard                # hız sınırı + CSRF + CSP
 npm run test:supplychain            # SBOM + SHA256SUMS + SLSA köken doğrulaması
 npm run test:backupdr               # depolama adaptörü + yedek/geri yükleme
