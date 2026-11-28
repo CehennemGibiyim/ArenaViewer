@@ -693,8 +693,8 @@ export const BASE_ITEMS: GapItem[] = [
     id: "f-batch", category: "workflow", title: "Toplu/arka plan içe aktarma kuyruğu",
     status: "kismi", priority: "P2", effort: "M",
     market: ["OHIF", "Weasis"],
-    ours: "**Kısmen:** Klasör/seri toplu içe aktarma çalışır (`tests/folder-import.cjs`); eksik: arka plan kuyruğu, ilerleme durumu, hata raporu ve yeniden deneme.",
-    action: "Kuyruk tablosu + ilerleme; başarısız yeniden deneme.",
+    ours: "**Bu sürümde eklendi — arka plan kuyruğu:** Klasör/seri toplu içe aktarma (tarayıcı) çalışıyor; buna **arka plan kuyruğu** eklendi. `src/lib/batchImport.ts` kuyruğun saf karar çekirdeği: öge durum makinesi (pending/processing/done/failed), **hata sınıflandırma** (geçersiz DICOM/içerik reddi yeniden denemEZ; ağ/zaman aşımı/5xx/429 yeniden denebilir), **backoff** (20 sn × 2ⁿ, 10 dk doygun), dedupe (sha+isim) ve **ilerleme/hata raporu** gerçek durumlar üzerinden hesaplanır (tahmin yok). `src/lib/server/batchImportRepo.ts` + `/api/ingest/batch` kuyruk ögelerini (şifreli baytlar + meta veri) tutar; `scripts/batch-worker.ts` (`npm run batch:worker`) gerçek `dicom-parser` ile DICOM doğrulayarak tur çalıştırır ve **hata raporu CSV** üretir. Testler: `tests/batch-import.test.ts` (46 assert; gerçek Explicit VR LE DICOM baytları `dicomWrite` ile üretilip `dicom-parser` ile parse edilir, backoff/tur/hata raporu gerçek kararlar üzerinden). KALAN: çok büyük klasörlerde tur başına sayı sınırı + gerçek PACS/stow için arka plan workerprod deployment (kurum altyapısı).",
+    action: "Çok büyük klasörler için tur parçalama + worker pod çalıştırma; gerçek PACS STOW kuyruğu birleştirmesi.",
   },
   {
     id: "f-share", category: "workflow", title: "Süreli paylaşım bağlantısı + watermark + denetim (rapor + anonim görüntü)",

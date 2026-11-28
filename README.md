@@ -643,6 +643,28 @@ FHIR_URL=... FHIR_USER=admin FHIR_PASSWORD=xxx FHIR_INTERVAL=300 npm run fhir:pu
 - **Çıktı** olarak FHIR R4 DiagnosticReport (`src/lib/fhir.ts`) zaten vardı; girdi ile denge kuruldu.
 - Testler: `npm run test:fhir-in` (ham FHIR JSON → ayrıştırma + mock fetch ile gerçek çekim/push akışı).
 
+### Toplu/arka plan içe aktarma kuyruğu (f-batch)
+
+Klasör/seri toplu içe aktarma (tarayıcı) zaten çalışıyordu; arka plan kuyruğu eklendi:
+
+```bash
+# Worker: manifest (dosya meta verileri) → kuyruk → gerçek DICOM doğrulama turu
+BATCH_MANIFEST=manifest.json npm run batch:worker -- --once
+```
+
+- **Sözleşme:** `src/lib/batchImport.ts` saf karar çekirdeği — öge durum makinesi
+  (`pending → processing → done/failed`), **hata sınıflandırma** (geçersiz DICOM ve
+  içerik reddi yeniden denemEZ; ağ/zaman aşımı/5xx/429 yeniden denebilir), **backoff**
+  (20 sn × 2ⁿ, 10 dk doygun), sha+isim dedupe.
+- **İlerleme + hata raporu:** gerçek öge durumları üzerinden hesaplanır (tahmin yok);
+  gruplı hata raporu + CSV (`GET /api/ingest/batch?batchId=…&report=csv`).
+- **Uçlar:** `POST /api/ingest/batch` (kuyruka öge ekle), `GET /api/ingest/batch?batchId=…`
+  (ilerleme + öge listesi, payload sızmaz). Baytlar AES şifreli saklanır.
+- **Worker:** `scripts/batch-worker.ts` gerçek `dicom-parser` ile DICOM doğrular
+  (Study UID/modalite/hasta), hatalı ögeleri backoff ile yeniden dener.
+- Testler: `npm run test:batch-import` (46 assert; gerçek Explicit VR LE DICOM baytları
+  `dicomWrite` ile üretilip `dicom-parser` ile parse edilir).
+
 ## Tedarik zinciri (SBOM + SLSA)
 
 Her `v*` etiketinde `.github/workflows/sbom.yml` şunları üretir ve Release'e ekler:
@@ -735,6 +757,7 @@ Anahtar üretme: `node -e "console.log(require('crypto').randomBytes(32).toStrin
 | `npm run mwl:cfind` | Modality Worklist DIMSE C-FIND köprüsü (`MWL_PACS_HOST`/`MWL_PACS_AET` gerekir) |
 | `npm run mpps:bridge` | MPPS (N-CREATE/N-SET) olayını `/api/his/mpps` ucuna iletir (`HIS_API_KEY` gerekir) |
 | `npm run fhir:pull` | FHIR çekim köprüsü (ServiceRequest/ImagingStudy → `/api/his/fhir`; `FHIR_URL`+token gerekir) |
+| `npm run batch:worker` | Toplu içe aktarma kuyruğu worker'ı (manifest → kuyruk → DICOM doğrulama turu) |
 | `npx drizzle-kit push --config=drizzle.config.ts` | Şemayı `DATABASE_URL`'deki DB'ye uygula (Docker/üretim) |
 
 ## Testler
@@ -823,6 +846,7 @@ npm run test:mwl                    # Modality Worklist (DICOMweb + DIMSE köpr�
 npm run test:hl7-adt                # ADT A08/A31 güncelleme, A40/A41 birleştirme, çoklu AET
 npm run test:mpps                   # MPPS N-CREATE/N-SET sözleşmesi (Implicit VR gidiş-dönüş)
 npm run test:fhir-in                # FHIR girişi (ServiceRequest/ImagingStudy, çekim köprüsü)
+npm run test:batch-import           # Toplu içe aktarma kuyruğu (hata sınıflandırma, backoff, gerçek DICOM)
 npm run test:webhard                # hız sınırı + CSRF + CSP
 npm run test:supplychain            # SBOM + SHA256SUMS + SLSA köken doğrulaması
 npm run test:backupdr               # depolama adaptörü + yedek/geri yükleme

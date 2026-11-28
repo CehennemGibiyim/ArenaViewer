@@ -428,5 +428,34 @@ export const stowQueue = pgTable(
   (t) => [index("stow_queue_owner_idx").on(t.owner, t.createdAt)],
 );
 
+/**
+ * Toplu/arka plan içe aktarma kuyruğu (f-batch).
+ * Klasör/seri toplu içe aktarmada ögeleri arka planda sıraya alır: baytlar
+ * (`payloadCipher`) şifreli, meta veri (isim/boyut/sha/studyUid/modality)
+ * düz; ilerleme ve hata raporu durumlar üzerinden hesaplanır. `batchId`
+ * bir kuyruk turunu bağlar.
+ */
+export const batchImportQueue = pgTable(
+  "batch_import_queue",
+  {
+    id: serial("id").primaryKey(),
+    batchId: text("batch_id").notNull(),
+    name: text("name").notNull(),
+    size: integer("size").notNull(),
+    sha256: text("sha256").notNull().default(""),
+    studyUid: text("study_uid").notNull().default(""),
+    modality: text("modality").notNull().default(""),
+    status: text("status").notNull().default("pending"), // pending | processing | done | failed
+    attempts: integer("attempts").notNull().default(0),
+    lastError: text("last_error").notNull().default(""),
+    /** Şifreli dosya baytları (base64) — crypto.encryptText çıktısı; listelemede dönmez. */
+    payloadCipher: text("payload_cipher"),
+    owner: text("owner").notNull().default(""),
+    lastAttemptAt: timestamp("last_attempt_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("batch_queue_batch_idx").on(t.batchId, t.status)],
+);
+
 export type Study = typeof studies.$inferSelect;
 export type Report = typeof reports.$inferSelect;
