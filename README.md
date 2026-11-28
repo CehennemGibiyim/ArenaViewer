@@ -357,7 +357,12 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   kesit eşleşmesiyle (SOP Instance UID) çalışma ölçümlerine çevirir; desteklenmeyen
   türler ve eşleşmeyen kesitler tahmin edilmeden atlanır ve sonuç diyaloğu nedenini
   yazar (`src/lib/gspsImport.ts`). Elips geometrisi DICOM PS3.3 C.10.6'ya uygundur
-  (merkez + iki yarı-eksen ucu). Belge rapor/imza değildir.
+  (merkez + iki yarı-eksen ucu). **PR güncelleme akışı** da vardır: mevcut bir PR
+  (`baseGsps`) verildiğinde eski grafik/metin/katman nesneleri koruyarak yeni
+  pencere/anlatma birleştirilerek **yeni** PR üretilir — yeni SOP Instance UID
+  üretilir ve eski instance'a not içinde referans verilir; referans kesit bu PR'ın
+  sopUids'inde olmayan eski öğeler atlanır, aynı geometri + katman bir kez yazılır
+  (`buildUpdatedPresentationState`, `tests/gsps-update.test.ts`). Belge rapor/imza değildir.
 - **Sürükleyerek ölçüm düzenleme:** araç çubuğundaki **Düzenle** ile çizilmiş bir ölçümün
   tutamağı sürüklenir (o nokta taşınır) veya gövdesi sürüklenir (tüm şekil taşınır) —
   uzunluk, açı, Cobb, ok, sapma ve dikdörtgen/elips/elipsoid/çokgen ROI. ROI
@@ -843,6 +848,7 @@ npm run test:notify-channels        # e-posta/SMS/çağrı kanalları: ayrışt�
 npm run bench:window                # WL/WW dönüşümü kıyaslaması (eski vs LUT)
 npm run test:pr                     # GSPS/PR dışa aktarma + parse doğrulama
 npm run test:gsps-import            # PR/GSPS ölçüm içe aktarma (kesit eşleşmesi, uçtan uca)
+npm run test:gsps-update           # PR/GSPS güncelleme akışı (eski nesneler korunma, yeni UID)
 npm run test:share-images           # süreli paylaşımda anonim JPEG kesit paketi (doğrulama + uç sözleşmesi)
 npm run test:feedback               # hekim geri bildirim döngüsü: duyarlılık/özgüllük/FP + eşik önerisi
 npm run test:calibration            # ısotonik kalibrasyon, ECE, eşik önerisi ve "hekim incelesin" kararı

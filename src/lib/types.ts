@@ -204,6 +204,8 @@ export interface GSPSTextObject {
 
 export interface DicomGSPS {
   id: string;
+  /** PR'ın SOP Instance UID'si (0008,0018); güncelleme akışı için önceki instance referansı. */
+  sopInstanceUid?: string;
   label: string;
   description: string;
   graphics: GSPSGraphicObject[];

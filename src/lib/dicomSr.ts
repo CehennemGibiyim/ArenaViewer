@@ -1,6 +1,6 @@
 import { concat, el, enc, newUid, pad, str, uidEl, us } from "./dicomWrite";
-import { annotationsToGsps } from "./gspsGraphics";
-import type { Annotation } from "./types";
+import { annotationsToGsps, LAYER_KIND, type GspsAnnotationItem, type GspsGraphic, type GspsGraphicType, type GspsText } from "./gspsGraphics";
+import type { Annotation, DicomGSPS } from "./types";
 
 /**
  * DICOM Basic Text SR (rapor) ve Key Object Selection (anahtar kesit) belgeleri.
@@ -166,13 +166,12 @@ export interface PresentationStateInput extends PatientStudy {
  * Graphic Layer Sequence (0070,0060) ve Graphic Annotation Sequence (0070,0001);
  * her anotasyon kendi referans görüntüsüne (0008,1140) bağlanır.
  */
-function gspsAnnotationEls(p: PresentationStateInput): E[] {
-  const items = annotationsToGsps(p.annotations ?? []).filter((i) => !!p.sopUids[i.slice]);
+function gspsAnnotationEls(items: GspsAnnotationItem[], sopUids: string[], sopClassUid: string): E[] {
   if (items.length === 0) return [];
   const annots: Uint8Array[][] = items.map((i) =>
     item(
       S(0x0070, 0x0002, "CS", i.layer),
-      SQ(0x0008, 0x1140, [item(S(0x0008, 0x1150, "UI", p.sopClassUid), S(0x0008, 0x1155, "UI", p.sopUids[i.slice]))]),
+      SQ(0x0008, 0x1140, [item(S(0x0008, 0x1150, "UI", sopClassUid), S(0x0008, 0x1155, "UI", sopUids[i.slice]))]),
       SQ(0x0070, 0x0008, i.texts.map((t) => item(
         S(0x0070, 0x0003, "CS", "PIXEL"), S(0x0070, 0x0004, "CS", "PIXEL"),
         S(0x0070, 0x0006, "ST", t.text),
@@ -222,9 +221,117 @@ export function buildPresentationState(p: PresentationStateInput): Uint8Array {
     )]),
     S(0x0070, 0x0041, "CS", String(p.rotation ?? 0)),
     S(0x0070, 0x0042, "CS", p.flipH ? "Y" : "N"),
-    ...gspsAnnotationEls(p),
+    ...gspsAnnotationEls(annotationsToGsps(p.annotations ?? []).filter((i) => !!p.sopUids[i.slice]), p.sopUids, p.sopClassUid),
     S(0x0070, 0x0080, "CS", "ATIK-PR"),
     UT(0x0070, 0x0081, `WL=${num(p.wl)} WW=${num(Math.max(1, p.ww))} dondurme=${String(p.rotation ?? 0)} yatayCevir=${p.flipH ? "Y" : "N"} dikeyCevir=${p.flipV ? "Y" : "N"} ters=${p.invert ? "Y" : "N"}`),
+  ];
+  return wrap(SOP_PRESENTATION_STATE, sop, build(els));
+}
+
+/**
+ * Mevcut GSPS'yi (DicomGSPS) `GspsAnnotationItem[]` öğelerine çevirir —
+ * her grafik nesnesinin bağlı olduğu kesit (sopUids üzerinden indeks) ve
+ * katman kimliği korunur. Eski PR'ın grafikleri yeni PR'da aynı şekilde
+ * geri yazılır (güncelleme akışı).
+ */
+function gspsToAnnotationItems(base: DicomGSPS, sopUids: string[]): GspsAnnotationItem[] {
+  const items: GspsAnnotationItem[] = [];
+  const refs = base.referenceSopUids ?? [];
+  for (let i = 0; i < base.graphics.length; i++) {
+    const g = base.graphics[i];
+    const refUid = refs[i];
+    const slice = refUid ? sopUids.indexOf(refUid) : -1;
+    if (slice < 0) continue; // bu PR'ın referans listesinde yok → yazılmamaz
+    const layer = base.layers?.[i] ?? "ANNOT";
+    items.push({
+      slice,
+      graphics: [{ type: (g.type as GspsGraphicType), data: g.data } as GspsGraphic],
+      texts: [],
+      kind: LAYER_KIND[layer] ?? "arrow",
+      layer,
+    });
+  }
+  // Eski metin nesneleri: ilgili kesite bağlanır (referans yoksa atlanır).
+  for (const t of base.texts) {
+    const slice = t.referenceSopUid ? sopUids.indexOf(t.referenceSopUid) : -1;
+    if (slice < 0) continue;
+    const item = items.find((it) => it.slice === slice);
+    if (item) {
+      item.texts.push({
+        text: t.text,
+        anchor: t.anchorPoint ? [t.anchorPoint.x, t.anchorPoint.y] : [0, 0],
+      });
+    } else {
+      items.push({
+        slice,
+        graphics: [],
+        texts: [{ text: t.text, anchor: t.anchorPoint ? [t.anchorPoint.x, t.anchorPoint.y] : [0, 0] }],
+        kind: "length",
+        layer: "ANNOT",
+      });
+    }
+  }
+  return items;
+}
+
+/**
+ * GSPS öğelerini birleştirir: mevcut öğelere yenileri eklenir; slice+layer+
+ * geometri eşit olanlar bir kez yazılır (tekilleştirme). Sıra korunur.
+ */
+function mergeGspsItems(base: GspsAnnotationItem[], incoming: GspsAnnotationItem[]): GspsAnnotationItem[] {
+  const seen = new Set(base.map((it) => `${it.slice}|${it.layer}|${it.graphics.map((g) => g.data.join(",")).join(";")}`));
+  const out = base.slice();
+  for (const it of incoming) {
+    const key = `${it.slice}|${it.layer}|${it.graphics.map((g) => g.data.join(",")).join(";")}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(it);
+  }
+  return out;
+}
+
+/**
+ * Presentation State güncelleme akışı (f-objects).
+ *
+ * Mevcut bir GSPS (base) + yeni görünüm durumu + yeni anotasyonlar alır;
+ * eski grafik/metin/katmanlar korunduktan sonra yeniler eklenerek **yeni bir
+ * PR** üretir. DICOM'da PR güncellemesi yeni SOP Instance UID ile yapılır ve
+ * önceki instance'a (0008,1155) referans verilir — geçmişe dokunulmaz.
+ * Base tanımlı değilse `buildPresentationState` gibi yeni bir PR üretir.
+ */
+export interface PresentationStateUpdateInput extends PresentationStateInput {
+  /** Güncellenecek mevcut PR (null ise yeni PR üretilir) */
+  baseGsps?: DicomGSPS | null;
+}
+
+export function buildUpdatedPresentationState(p: PresentationStateUpdateInput): Uint8Array {
+  const base = p.baseGsps ?? null;
+  const sop = newUid();
+  const num = (v: number) => String(Math.round(v * 100) / 100);
+  // Eski PR'ın grafikleri + yeni anotasyonlar birleştirilir.
+  const baseItems = base ? gspsToAnnotationItems(base, p.sopUids) : [];
+  const newItems = annotationsToGsps(p.annotations ?? []).filter((i) => !!p.sopUids[i.slice]);
+  const merged = mergeGspsItems(baseItems, newItems);
+  // Eski PR'ın SOP Instance UID'si varsa güncelleme notuna yazılır (referans).
+  const baseSopUid = base?.sopInstanceUid ?? "";
+  const els: E[] = [
+    ...common(p, SOP_PRESENTATION_STATE, sop, "PR", "Sunum Durumu", 902, 1),
+    SQ(0x0008, 0x1115, [item(
+      S(0x0020, 0x000e, "UI", p.seriesUid),
+      SQ(0x0008, 0x1140, p.sopUids.map((u) => item(S(0x0008, 0x1150, "UI", p.sopClassUid), S(0x0008, 0x1155, "UI", u)))),
+    )]),
+    // Softcopy VOI LUT: güncel pencere/seviye
+    SQ(0x0028, 0x3010, [item(
+      S(0x0028, 0x1050, "DS", num(p.wl)),
+      S(0x0028, 0x1051, "DS", num(Math.max(1, p.ww))),
+    )]),
+    S(0x0070, 0x0041, "CS", String(p.rotation ?? 0)),
+    S(0x0070, 0x0042, "CS", p.flipH ? "Y" : "N"),
+    ...gspsAnnotationEls(merged, p.sopUids, p.sopClassUid),
+    S(0x0070, 0x0080, "CS", "ATIK-PR"),
+    UT(0x0070, 0x0081,
+      `WL=${num(p.wl)} WW=${num(Math.max(1, p.ww))} dondurme=${String(p.rotation ?? 0)} yatayCevir=${p.flipH ? "Y" : "N"} dikeyCevir=${p.flipV ? "Y" : "N"} ters=${p.invert ? "Y" : "N"}` +
+      (baseSopUid ? ` | guncellen: ${baseSopUid}` : "")),
   ];
   return wrap(SOP_PRESENTATION_STATE, sop, build(els));
 }

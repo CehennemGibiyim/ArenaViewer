@@ -332,8 +332,10 @@ export function parsePresentationState(ds: DicomDataSet): DicomGSPS | null {
 
   const presentedSeriesUid = ds.elements["x00081115"]?.items?.[0]?.dataSet?.string("x0020000e")?.trim() || undefined;
 
+  const sopInstanceUid = (ds.string("x00080018") || "").trim();
   return {
     id: `gsps-${Date.now()}`,
+    ...(sopInstanceUid ? { sopInstanceUid } : {}),
     label,
     description,
     graphics,
