@@ -134,6 +134,12 @@ PostgreSQL (Drizzle ORM) tabanlı bir radyoloji iş istasyonudur.
   `privacy.retention_delete` denetimiyle kaydedilir. Zamanlı çalıştırma:
   `npm run privacy:sweep -- --once`. Sınır: TLS zorunluluğu altyapı katmanı
   kararı, açık rıza/aydinlatma metni prod konfigürasyonu.
+- **Rapor snapshot ölçüm/SR hash'leri (r-version):** Kayıt/onay
+  snapshot'ına `measurementHash` (ekran ölçüm metninin SHA-256'sı) ve `srHash`
+  (SR metnini üreten girdilerin normalize JSON temsili, `src/lib/reportHash.ts`)
+  yazılır; client kayıt çağrısı `measurementsText`'i ayrıca gönderir. Geri
+  yükleme snapshot'taki hash'leri yeni sürüme taşır (kayıp olmaz) ve yanıtta
+  döndürür. Eski snapshot'larda bu alan tanımlı değildir (tolerans).
 - **Model kayıt defteri:** Yönetim → AI: model sürümleri (aday/aktif/emekli),
   trafik payı, parmak izi; `/api/ai/registry` deterministik **A/B ataması**
   (tohum → kova) ve aşama değişikliğinde denetim kaydı.
@@ -856,6 +862,7 @@ npm run test:model-registry         # model kayıt defteri + A/B ataması
 npm run test:model-evaluate      # toplu model değerlendirme (AUC/eşik tablosu/Brier/ECE)
 npm run test:access-anomaly      # erişim anomalisi tespiti (KVKK, heuristik kurallar)
 npm run test:privacy               # satır düzeyi rol matrisi + saklama politikası
+npm run test:report-hash             # rapor snapshot ölçüm/SR hash'leri (r-version)
 npm run test:a11y                   # WCAG kontrastı + tema sabitleri
 npm run test:nuclear                # MTV/SUV örnekleme + TIC sınıflandırması
 npm run test:patient-letter         # hasta mektubu: TR/EN/DE, okuma düzeyi, taslak kilidi

@@ -79,6 +79,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       approvals, reasons, engine: String(snap.engine ?? current.engine),
       keyImageSha: sha256(""),
       findingsJson,
+      // r-version: ölçüm / SR hash'leri snapshot'tan yeni sürüme taşınır (kayıp olmaz).
+      measurementHash: snap.measurementHash,
+      srHash: snap.srHash,
       restoredFrom: versionNo,
     }),
   });
@@ -89,6 +92,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     technique: String(snap.technique ?? ""), findingsText: String(snap.findingsText ?? ""),
     impression: String(snap.impression ?? ""), recommendation: String(snap.recommendation ?? ""),
     findingsJson, findingsApproval: approvals, findingsReason: reasons, engine: String(snap.engine ?? current.engine),
+    measurementHash: snap.measurementHash ?? "",
+    srHash: snap.srHash ?? "",
     findingsPreserved: !hasFindings,
   });
 }

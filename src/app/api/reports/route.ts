@@ -11,6 +11,7 @@ import { encryptText } from "@/lib/server/crypto";
 import { missingReviewReasons, sanitizeReviewReasons } from "@/lib/findingReview";
 import { mapReport, upsertStudy, type StudyMeta } from "@/lib/server/studyRepo";
 import { reportHistoryQueryLimit, selectReportHistory } from "@/lib/reportHistory";
+import { measurementHash, srHashOf, type ReportHashInput } from "@/lib/reportHash";
 import type { Finding, FindingApprovalStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +44,8 @@ interface SaveBody {
     findingsReason?: Record<string, string>;
     triageLevel: string; triageScore: number; aiModel: string; engine: string; modelCard: string;
     keyImageDataUrl: string; institution?: string;
+    /** Ekran ölçümleri metni (snapshot'ta ölçüm hash'i için ayrı gönderilir) */
+    measurementsText?: string;
   };
 }
 
@@ -126,6 +129,12 @@ export async function POST(req: NextRequest) {
       approvals, reasons, engine: r.engine, keyImageSha: sha256(r.keyImageDataUrl ?? ""),
       // v2: tam bulgu dizisi — eski sürüme geri yükleme bulgu tablosunu da kapsasın diye.
       findingsJson: findings,
+      // r-version: ölçüm / SR hash'leri — snapshot kapsamına klinik ölçüm & SR içerikleri eklenir.
+      measurementHash: measurementHash(r.measurementsText),
+      srHash: srHashOf({
+        clinicalInfo: r.clinicalInfo, technique: r.technique, findingsText: r.findingsText,
+        impression: r.impression, recommendation: r.recommendation, srMeasurementsText: r.measurementsText,
+      } as ReportHashInput),
     }),
   });
   await db.update(studies).set({

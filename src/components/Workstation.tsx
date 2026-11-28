@@ -1736,7 +1736,7 @@ export default function Workstation({ user, sessionIdentity = false }: { user: U
         body: JSON.stringify({
           reportId: r.id, action,
           study: { studyUid: r.studyUid, patientName: r.patientName, patientId: r.patientId, patientAge: r.patientAge, patientSex: r.patientSex, studyDate: r.studyDate, institution: r.institution, modality: r.modality, bodyPart: r.bodyPart, seriesDescription: r.seriesDescription, sliceCount: r.sliceCount || 1 },
-          report: { mode, clinicalInfo: r.clinicalInfo, technique: r.technique, findingsText, impression: r.impression, recommendation: r.recommendation, findingsJson: r.findings, findingsApproval: r.findingsApproval, findingsReason: r.findingsReason, triageLevel: r.triageLevel, triageScore: r.triageScore, aiModel: r.aiModel, engine: r.engine, modelCard: r.modelCard, keyImageDataUrl: kiPayload, institution: r.institution },
+          report: { mode, clinicalInfo: r.clinicalInfo, technique: r.technique, findingsText, impression: r.impression, recommendation: r.recommendation, findingsJson: r.findings, findingsApproval: r.findingsApproval, findingsReason: r.findingsReason, triageLevel: r.triageLevel, triageScore: r.triageScore, aiModel: r.aiModel, engine: r.engine, modelCard: r.modelCard, keyImageDataUrl: kiPayload, institution: r.institution, measurementsText },
         }),
       });
     } catch { return { ok: false, error: "Sunucuya ulaşılamadı" }; }
